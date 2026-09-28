@@ -6,13 +6,21 @@ on:
   workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
 
 permissions:
-  contents: write             # commit the daily snapshot
+  contents: write             # attach snapshots to the "snapshots" release
   pages: write                # publish to GitHub Pages
   id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
+
+# Snapshots are NOT committed to the repo (git never forgets, and encrypted files never
+# compress, so the repo would grow ~0.6 GB a year). Instead every day's encrypted file is
+# attached to one permanent release tagged "snapshots", which acts as a bottomless folder:
+#   - before the build, every file on that release is downloaded into snapshots/
+#   - build_catalog.py reads the folder exactly as before (trend stats + Trend popup)
+#   - after the build, any local snapshot not yet on the release is uploaded
+# All of this runs on GitHub's machine, not yours.
 
 jobs:
   build:
@@ -30,6 +38,28 @@ jobs:
 
       - name: Install packages
         run: pip install -r requirements.txt
+
+      - name: Fetch past snapshots from the "snapshots" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p snapshots
+          if ! gh release view snapshots >/dev/null 2>&1; then
+            echo "Creating the snapshots release (first run)."
+            gh release create snapshots --title "Daily snapshots" --latest=false \
+              --notes "Encrypted daily data files written by the workflow. Downloaded automatically before each build; not meant to be opened by hand."
+          fi
+          n=$(gh release view snapshots --json assets -q '.assets | length')
+          echo "$n file(s) on the release."
+          if [ "$n" -gt 0 ]; then
+            gh release download snapshots --dir snapshots --pattern 'pc_catalog_*' --clobber
+          fi
+          got=$(ls snapshots/pc_catalog_* 2>/dev/null | wc -l)
+          echo "$got snapshot file(s) on disk (release + anything still in the repo)."
+          if [ "$got" -lt "$n" ]; then
+            echo "Download incomplete ($got of $n) - stopping so a short history is never published."
+            exit 1
+          fi
 
       - name: Build the table from PriceCharting
         env:
@@ -55,14 +85,19 @@ jobs:
         with:
           path: public
 
-      - name: Save today's snapshot to the repo
+      - name: Save new snapshots to the release
         continue-on-error: true      # a snapshot hiccup must never block the site
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add snapshots
-          git diff --cached --quiet || git commit -m "PriceCharting snapshot $(date -u +%F)"
-          git push
+          gh release view snapshots --json assets -q '.assets[].name' > /tmp/on_release.txt
+          for f in snapshots/pc_catalog_*; do
+            if ! grep -qx "$(basename "$f")" /tmp/on_release.txt; then
+              echo "Uploading $(basename "$f")"
+              gh release upload snapshots "$f"
+            fi
+          done
+          echo "Release now holds $(gh release view snapshots --json assets -q '.assets | length') file(s)."
 
   deploy:
     needs: build
