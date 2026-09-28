@@ -631,7 +631,7 @@ html = r"""<!DOCTYPE html>
     <th colspan="4">Card</th>
     <th colspan="11" class="g-obs">Observed on eBay — independent inputs</th>
     <th colspan="4" class="g-rate">Rates — computed from Observed</th>
-    <th colspan="9" class="g-dec">Decisions — depend on λ, the book, Confidence and Margin</th>
+    <th colspan="10" class="g-dec">Decisions — depend on λ, the book, Confidence and Margin</th>
     <th colspan="8" class="g-tr">Trends — from a 7-day median of raw sale totals</th>
     <th></th>
   </tr>
@@ -663,6 +663,7 @@ html = r"""<!DOCTYPE html>
     <th data-k="25" class="num g-dec">P(≤24h) %<span class="s">⇅</span><button class="help" data-h="ec_prob">?</button></th>
     <th data-k="26" class="num g-dec">Exp. days<span class="s">⇅</span><button class="help" data-h="ec_edays">?</button></th>
     <th data-k="27" class="num g-dec">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="40" class="num g-dec">Net $<span class="s">⇅</span><button class="help" data-h="ec_net">?</button></th>
     <th data-k="28" class="g-dec">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
     <th data-k="32" class="num g-tr">Sales/month<span class="s">⇅</span><button class="help" data-h="et_spm">?</button></th>
     <th data-k="33" class="num g-tr">Δ7d %<span class="s">⇅</span><button class="help" data-h="et_d7">?</button></th>
@@ -709,6 +710,8 @@ html = r"""<!DOCTYPE html>
     <th data-k="11" class="num">Card price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
     <th data-k="12" class="num">vs price %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
     <th data-k="13" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="24" class="num">Profit $<span class="s">⇅</span><button class="help" data-h="er_profit">?</button></th>
+    <th data-k="25" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="er_roi">?</button></th>
     <th data-k="14">Verdict<span class="s">⇅</span><button class="help" data-h="er_verdict">?</button></th>
     <th data-k="15">Cond<span class="s">⇅</span><button class="help" data-h="er_cond">?</button></th>
     <th data-k="16">Offer<span class="s">⇅</span><button class="help" data-h="er_bo">?</button></th>
@@ -822,9 +825,9 @@ const TABLES = {
   //   Observed: 5 k 6 D 7 N 8 p1 9 p2 10 p3 11 mu 12 smed 13 s80 14 hrs 15 st |
   //   Rates: 16 lam 17 price 18 dos 19 io |
   //   Decisions: 20 n24 21 n48 22 p24 23 p48 24 pw 25 prob24 26 edays 27 maxbuy 28 hot 29 basis 30 confirm 31 checks |
-  //   Trends: 32 spm 33 d7 34 d30 35 pos 36 vdp 37 vd 38 vol 39 ts | 40 ord
-  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 22, 23, 27, 32, 34, 39],
-       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 22: 'P₂₄ $', 23: 'P₄₈ $', 27: 'Max buy $', 32: 'Sales/month', 34: 'Δ30d %', 39: 'Slope %/mo'},
+  //   Trends: 32 spm 33 d7 34 d30 35 pos 36 vdp 37 vd 38 vol 39 ts | 40 net | 41 ord
+  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 22, 23, 27, 40, 32, 34, 39],
+       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 22: 'P₂₄ $', 23: 'P₄₈ $', 27: 'Max buy $', 40: 'Net $', 32: 'Sales/month', 34: 'Δ30d %', 39: 'Slope %/mo'},
        defaults: {17: [50, 150]},
        hay: r => r[1] + ' ' + r[2],
        row: r => cells4(r) +
@@ -845,6 +848,7 @@ const TABLES = {
       '<td class="num">' + fmtPct(r[25], false, 0) + '</td>' +
       '<td class="num">' + fmtNum(r[26], 1) + '</td>' +
       '<td class="num">' + (r[27] == null ? dash : '<b>' + fmtMoney(r[27]) + '</b>' + (r[29] && r[29] !== '24h' ? ' <span class="dim">(' + r[29] + ')</span>' : '')) + '</td>' +
+      '<td class="num">' + fmtMoney(r[40]) + '</td>' +
       '<td>' + (r[28] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[28] === 'candidate' ? badge('Hot ' + r[30] + '/3', 'hot') : r[31] && r[31].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[31].join(', ')) + '">fails ' + r[31].length + '</span>' : dash) + '</td>' +
       '<td class="num">' + fmtInt(r[32]) + '</td>' +
       '<td class="num">' + fmtPct(r[33]) + '</td>' +
@@ -856,9 +860,9 @@ const TABLES = {
       '<td><button class="tbtn ebtn" data-id="' + r[0] + '">Trend</button></td>' +
       '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
-  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 ord
-  er: {rows: () => LIVE.er, noun: 'listings', ranges: [5, 9, 10, 11, 12, 13],
-       labels: {5: 'Listed (h)', 9: 'Total $', 10: 'All-in $', 11: 'Card price $', 12: 'vs price %', 13: 'Max buy $'},
+  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 ord
+  er: {rows: () => LIVE.er, noun: 'listings', ranges: [5, 9, 10, 11, 12, 13, 24, 25],
+       labels: {5: 'Listed (h)', 9: 'Total $', 10: 'All-in $', 11: 'Card price $', 12: 'vs price %', 13: 'Max buy $', 24: 'Profit $', 25: 'ROI %'},
        defaults: {11: [50, 150]},
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => cells4(r) +
@@ -869,6 +873,8 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[11]) + '</td>' +
       '<td class="num">' + fmtPct(r[12]) + '</td>' +
       '<td class="num">' + fmtMoney(r[13]) + '</td>' +
+      '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
+      '<td class="num">' + fmtPct(r[25]) + '</td>' +
       '<td>' + (r[14] === 'PASS' ? badge('PASS', 'pass') : /scam/.test(r[14]) ? badge(r[14], 'warn') : badge(r[14])) + '</td>' +
       '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
       '<td>' + (r[16] ? 'BO' : dash) + '</td>' +
@@ -1045,7 +1051,7 @@ function rebuildLive() {
                   d.n24, d.n48, d.p24, d.p48, d.pw, d.prob24, d.edays, d.maxbuy, hot, d.basis, c.confirm, c.checks,
                   t.spm == null ? null : t.spm, t.d7 == null ? null : t.d7, t.d30 == null ? null : t.d30, t.pos == null ? null : t.pos,
                   t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
-                  LIVE.ec.length]);
+                  d.net, LIVE.ec.length]);
   }
   let passes = 0;
   live.live.forEach(x => {
@@ -1053,9 +1059,11 @@ function rebuildLive() {
     const cs = LIVE.dec[String(x[1])];
     const [v, allin] = verdictOf(x, cs, S);
     if (v === 'PASS') passes++;
+    const profit = cs && cs.net != null && allin != null ? Math.round((cs.net - allin) * 100) / 100 : null;
+    const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
     LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
                   cs ? cs.price : null, cs && cs.price && x[7] != null ? Math.round((x[7] / cs.price - 1) * 1000) / 10 : null,
-                  cs ? cs.maxbuy : null, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], LIVE.er.length]);
+                  cs ? cs.maxbuy : null, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, LIVE.er.length]);
   });
   const cal = live.calib || {}, c48 = cal.h48 || {}, c24 = cal.h24 || {};
   const calTxt = c48.delta != null ? 'price calibration ' + (c48.delta > 0 ? '+' : '') + c48.delta + '% from ' + c48.n + ' outcomes' + (S.d48 ? ' (applied)' : ' (off)')
@@ -1173,7 +1181,7 @@ max buy = 76.79 ÷ (1 + 0.15) = $66.78 all-in   (≈ $59 item price with $4 ship
 </ul>
 
 <h3>5. The Confidence and Margin boxes</h3>
-<p><b>Confidence</b> is the probability the P₂₄ / P₄₈ prices are set for. Raise it and n falls, prices fall, Max buy falls: you are demanding a surer sale. 70% is the default because a missed window costs a day, not a loss. <b>Margin</b> is the profit required on all-in cost; it moves Max buy and nothing else. Both are remembered in this browser and change nothing in the collector.</p>
+<p><b>Confidence</b> is the probability the P₂₄ / P₄₈ prices are set for. Raise it and n falls, prices fall, Net and Max buy fall: you are demanding a surer sale. 70% is the default because a missed window costs a day, not a loss. <b>Margin</b> is the profit required on all-in cost; it moves Max buy and the PASS threshold and nothing else. <b>Net $</b> on the Catalog is what you clear at the gate's sell price; <b>Profit $</b> and <b>ROI %</b> on the Raw Data tab apply that to each listing's all-in cost, so sorting Raw Data by ROI shows the best buys first. Both boxes are remembered in this browser and change nothing in the collector.</p>
 
 <h3>6. Calibration — of the price, not the rate</h3>
 <p>λ is left exactly as the data says. What gets checked is the price claim: "a listing at P₄₈ sells within 48 hours 70% of the time." When a listing first appears, the collector records the P₄₈ the model would have set for its card that moment, and how far above or below it the listing was actually priced. Two days later the tracker knows whether it sold. Pooling every listing that entered the buyable part of the book (rank 1–3) gives a table: realized 48-hour sell-through by price offset from P₄₈.</p>
@@ -1233,6 +1241,7 @@ const HELP = {
   ec_prob: {t: 'P(sale ≤ 24 h) %', f: '1 − e^(−λ)   (rank 1, one day)', m: 'The chance at least one buyer arrives within a day while you are the cheapest copy. Above 85% is what a confirmed hot card looks like without pricing for it.', e: 'λ = 2.0 → 1 − e⁻² = 86%. λ = 0.57 → 43%.'},
   ec_edays: {t: 'Expected days (70%)', f: '−ln(1 − 0.70) ÷ λ = 1.2 ÷ λ', m: 'Days at rank 1 until a sale is 70% likely. The honest window when 24/48-hour selling is not on offer. Judge flips by profit per day, and this is the denominator.', e: 'λ = 0.57 → 1.2 ÷ 0.57 = 2.1 days. λ = 0.1 → 12 days: not a flip card.'},
   ec_maxbuy: {t: 'Max buy $ (all-in)', f: 'net = P × (1 − 0.1325 × 1.065) − $0.30 − $4.50;   max buy = net ÷ 1.15   where P = P₂₄, else P₄₈, else Window $', m: 'The most you can pay in total — item + shipping + your sales tax — and still clear a 15% margin after eBay\'s fee (charged on the buyer\'s total including their tax), the fixed fee and tracked shipping out. The column notes which price it came from. A listing PASSes when its all-in is at or below this.', e: 'P₂₄ = $98 → net = 98 × 0.859 − 4.80 = $79.37 → max buy = 79.37 ÷ 1.15 = $69.02, i.e. about a $61 item price with $4 shipping and 6.25% tax.'},
+  ec_net: {t: 'Net $ — proceeds at the sell price', f: 'P × (1 − 0.1325 × 1.065) − $0.30 − $4.50   where P = P₂₄, else P₄₈, else Window $ (the basis noted on Max buy)', m: 'What lands in your account if the card sells at the gate\'s price: the buyer total minus eBay\'s fee (charged on the total including the buyer\'s tax), the fixed fee and tracked shipping out. Depends on Confidence (through P) but not on Margin — Margin only decides how much of this you may spend on the buy.', e: 'P₄₈ = $95 → 95 × 0.8589 − 4.80 = $76.79.'},
   ec_hot: {t: 'Hot', f: 'all five checks pass: k ≥ 5 · sell-through ≥ 80% · median hours to sale ≤ 48 · sold median ≥ 95% of the median ask · last 5 sales ≥ 97% of the 5 before', m: '"Candidate" means the history says demand outruns supply. "Confirmed" (✓) means the next three copies listed after the flag all sold within 48 hours — a test on data the checks never saw. A copy that sits more than 48 h resets the count. "fails n" tells you how many checks a card with enough sales is missing; hover for which.', e: 'A card with 13 sales, 82% sell-through, 22 h median, prices realized at ask and a flat trend is a candidate; three quick sales later it is confirmed.'},
   ec_book: {t: 'Book', f: 'the live data behind this card\'s row', m: 'Opens the competing listings (ranked, with links) and the recent sales with their time to sale. This is what to look at before every buy: whether the floor is a credible copy, whether the sales were Best Offer (recorded at ask, so possibly lower), and what condition sold.', e: ''},
   et_spm: {t: 'Sales/month (eBay)', f: 'raw sales recorded in the last 30 days, from the daily rollup', m: 'The eBay counterpart of PriceCharting\'s sales/yr, but raw-only and monthly. Today it equals Sold 30d; it lives in the Trends band because it is the series the Volume drift and the Trend chart are built on.', e: '13 sales in the last 30 days → 13.'},
@@ -1249,6 +1258,8 @@ const HELP = {
   er_total: {t: 'Total $', f: 'item + shipping', m: 'The buyer total, which is how everything else on the eBay tabs is measured (sold prices, the book, P₂₄).', e: '118 + 4 = $122.'},
   er_allin: {t: 'All-in $', f: 'item + shipping + item × 6.25% (MA sales tax)', m: 'What actually leaves your account. This is the number compared to Max buy.', e: '118 + 4 + 7.38 = $129.38.'},
   er_vs: {t: 'vs price %', f: '(total ÷ card price − 1) × 100', m: 'How far the listing sits below (negative) or above the card\'s eBay price. It is the mispricing at a glance; the verdict is the same idea after fees and margin.', e: 'Total $98, card price $122 → −19.7%.'},
+  er_profit: {t: 'Profit $ — for this listing', f: 'Net $ of the card − All-in $ of the listing', m: 'What you would clear buying this copy at its price and selling at the card\'s gate price. Negative means the listing is above break-even. Depends on Confidence through Net, and on nothing else — it is the same number whatever Margin you set; Margin only decides where PASS starts.', e: 'Net $76.79, all-in $61.20 → $15.59.'},
+  er_roi: {t: 'ROI % — for this listing', f: 'Profit $ ÷ All-in $ × 100', m: 'Return on the cash tied up in this copy. PASS is exactly ROI ≥ your Margin setting. Sort the tab by this column descending to see the best buys first; judge against the card\'s Exp. days for profit per day.', e: '$15.59 ÷ $61.20 = 25.5% — above a 15% margin, so it passes.'},
   er_verdict: {t: 'Verdict', f: 'PASS if all-in ≤ Max buy; otherwise the first reason it fails', m: 'PASS = it clears the gate on price alone — still read the title, photos and seller before buying. "too cheap – scam check" fires under 50% of the card price: stock photos, a new seller or a vague title there means walk away. "no sales yet" = the card has listings but no observed sales, so there is no λ and no Max buy yet.', e: 'All-in $129.38 vs Max buy $77.08 → "over max buy".'},
   er_cond: {t: 'Cond', f: 'condition words found in the title: NM, LP, MP, HP (n/s = not stated)', m: 'Only NM, LP and not-stated copies count as comparable. MP/HP/damaged copies are shown but fail the gate, and they are excluded from the book and the sales history.', e: '"Near Mint" or "NM" → NM; "lightly played" → LP.'},
   er_bo: {t: 'Offer', f: 'BO = the listing accepts Best Offers', m: 'You can usually get ~10% under the ask; the book ranks these copies at 90% for that reason. When one of these sells, the recorded price is the ask, so it may overstate the true sale.', e: ''},
@@ -1274,7 +1285,9 @@ const LINKS = {
   et_spm: ['daily rollup of sales', 'Volume drift, the Trend chart'], et_d7: ['7-day median sale price series', 'reading only'], et_d30: ['7-day median sale price series', 'reading only'],
   et_pos: ['7-day median sale price series (90 d)', 'reading only'], et_vd: ['Sales/month now vs the month before', 'reading only'],
   et_vol: ['7-day median sale price series (90 d)', 'reading only'], et_ts: ['7-day median sale price series (30 d)', 'reading only'],
-  er_allin: ['Item, Ship, your sales tax', 'Verdict'], er_verdict: ['All-in, Max buy, Cond, Seller %, Card price', '—'], er_vs: ['Total, Card price', 'reading only'],
+  er_allin: ['Item, Ship, your sales tax', 'Verdict, Profit'], er_verdict: ['All-in, Max buy, Cond, Seller %, Card price', '—'], er_vs: ['Total, Card price', 'reading only'],
+  ec_net: ['P₂₄ / P₄₈ / Window, fee, shipping out', 'Max buy, Profit $ on the Raw Data tab'],
+  er_profit: ['Net $ of the card, All-in $ of the listing', 'ROI %'], er_roi: ['Profit $, All-in $', 'reading only (PASS = ROI ≥ Margin)'],
 };
 function openHelp(key) {
   const h = HELP[key]; if (!h) return;
