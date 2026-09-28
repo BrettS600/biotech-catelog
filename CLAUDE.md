@@ -12,8 +12,10 @@ Three tabs:
    columns computed from this site's own daily snapshots (Δ7d/30d, 90-day range, volatility, Theil–Sen slope,
    volume drift) and a per-card Trend popup with a chart and a buy-gate table.
 2. **eBay Catalog** — one row per card, numbers computed ONLY from eBay (PriceCharting is used just as the
-   list of card identities). Three colored header bands: Observed (blue, independent inputs),
-   Rates (green, from Observed), Decisions (amber, depend on λ, the book, and the Confidence/Margin boxes).
+   list of card identities). Four colored header bands: Observed (blue, independent inputs),
+   Rates (green, from Observed), Decisions (amber, depend on λ, the book, and the Confidence/Margin boxes),
+   Trends (purple: the PriceCharting trend formulas applied to a 7-day median of raw sale totals, from the
+   collector's per-card daily rollup kept 120 days; an eBay Trend popup shares the PriceCharting chart code).
 3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with a PASS/reason verdict.
 
 Top bar: Confidence (default 70%), Margin (default 15%), Calibration checkbox, README button (the README
@@ -29,7 +31,8 @@ modal contains the full method walkthrough — keep it in sync when the model ch
   category 183454, $25–200, fixed price, US) → title matching → tracking (hourly presence sweep +
   single `getItem` calls; batch getItems is partner-only) → per-card stats → `live/ebay_live.bin`.
   Constants at the top: sweep band, tracking cadence, gate (fee, shipping, tax, margin), CONFIDENCE,
-  DEPTH_CAP, UNDERCUT, BO_HAIRCUT, hot-card thresholds, calibration thresholds. `--dry-run` uses `fixtures/`.
+  DEPTH_CAP, UNDERCUT, BO_HAIRCUT, hot-card thresholds, calibration thresholds, DAILY_KEEP_D / MED_WINDOW_D
+  for the trend rollup. `--dry-run` uses `fixtures/`.
 - `.github/workflows/update_catalog.yml` — daily 10:00 UTC + manual. Downloads snapshots from the
   release, builds, staticrypts, deploys Pages, uploads new snapshots. Counts only `pc_catalog_*` assets.
 - `.github/workflows/ebay_sweep.yml` — `*/15 * * * *`, concurrency group `ebay`. Runs the collector, then
