@@ -10,7 +10,10 @@ What it does
      (locally: pc_download_url.txt if present, else pricecharting.csv in this folder)
   2. Keeps every PriceCharting product (see the two flags below)
   3. Orders sets by release date, and cards by card number within each set
-  4. Writes site/index.html - one self-contained page with the whole table inside it
+  4. Writes site/index.html - one self-contained page with three tabs:
+       PriceCharting Catalog (default) | eBay Catalog | eBay Raw Data
+     The eBay tabs currently show the shared Card / Set / # / Released columns only;
+     their eBay columns are still to be designed.
   5. Archives a dated snapshot in snapshots/ with EVERY column PriceCharting provides
      (encrypted with SITE_PASSWORD, so the repo can be public without exposing their data)
   6. Re-reads every past snapshot, computes trend statistics for every card, and writes
@@ -405,10 +408,11 @@ else:
     print("History: skipped (no SITE_PASSWORD or no snapshots).")
 
 # ---------- 7. Write the web page ----------
-# Page columns (the snapshot keeps every PriceCharting column regardless):
+# Page columns (the snapshot keeps every PriceCharting column regardless, including retail buy/sell):
 #   0 Card ID (link only) | 1 Card | 2 Set | 3 # | 4 Released | 5 Sales/yr | 6 Ungraded $
-#   7 PC retail buy $ | 8 PC retail sell $ | 9 d7 % | 10 d30 % | 11 Range 90d % | 12 Volume drift 30d %
-#   13 Volume drift 30d (units, display only) | 14 Volatility % | 15 Slope %/mo
+#   7 d7 % | 8 d30 % | 9 Range 90d % | 10 Volume drift 30d % | 11 Volume drift 30d (units, display only)
+#   12 Volatility % | 13 Slope %/mo
+# Columns 1-4 are the shared identity columns: the eBay tabs show the same four first.
 page = pd.DataFrame({
     0: pc["id"].map(integer),
     1: pc["product-name"].str.strip(),
@@ -417,15 +421,13 @@ page = pd.DataFrame({
     4: pc["release"],
     5: col("sales-volume").map(integer),
     6: col("loose-price").map(money),
-    7: col("retail-loose-buy").map(money),
-    8: col("retail-loose-sell").map(money),
-    9: np.round(st["d7"], 1),
-    10: np.round(st["d30"], 1),
-    11: np.round(st["pos"], 0),
-    12: np.round(st["vdp"], 1),
-    13: np.round(st["vd"], 0),
-    14: np.round(st["vol"], 2),
-    15: np.round(st["ts"], 1),
+    7: np.round(st["d7"], 1),
+    8: np.round(st["d30"], 1),
+    9: np.round(st["pos"], 0),
+    10: np.round(st["vdp"], 1),
+    11: np.round(st["vd"], 0),
+    12: np.round(st["vol"], 2),
+    13: np.round(st["ts"], 1),
 })
 rows = page.values.tolist()
 rows = [[None if (isinstance(v, float) and v != v) else v for v in r] for r in rows]  # NaN -> null
@@ -446,9 +448,12 @@ html = r"""<!DOCTYPE html>
   }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background:var(--bg); color:var(--fg); }
-  header { padding:16px 18px 10px; }
-  h1 { margin:0 0 4px; font-size:20px; }
-  .meta { color:var(--muted); font-size:13px; }
+  .tabs { display:flex; gap:4px; padding:10px 18px 0; border-bottom:1px solid var(--line); background:var(--head); }
+  .tab { font:inherit; font-size:14px; font-weight:600; padding:9px 16px; border:1px solid transparent; border-bottom:none; border-radius:8px 8px 0 0; background:none; color:var(--muted); cursor:pointer; margin-bottom:-1px; }
+  .tab:hover { color:var(--fg); }
+  .tab.on { background:var(--bg); color:var(--fg); border-color:var(--line); border-bottom:1px solid var(--bg); }
+  .panel[hidden] { display:none; }
+  .meta { color:var(--muted); font-size:13px; padding:12px 18px 10px; }
   .controls { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 12px; align-items:center; }
   .controls input, .controls select { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
   .controls input[type=search] { flex:1 1 220px; min-width:180px; }
@@ -461,7 +466,8 @@ html = r"""<!DOCTYPE html>
   .reset { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
   .count { color:var(--muted); font-size:13px; white-space:nowrap; }
   .wrap { overflow-x:auto; border-top:1px solid var(--line); }
-  table { border-collapse:collapse; width:100%; min-width:1240px; }
+  table { border-collapse:collapse; width:100%; }
+  table.wide { min-width:1240px; }
   th, td { padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; text-align:left; }
   th { position:sticky; top:0; background:var(--head); cursor:pointer; user-select:none; font-weight:600; }
   th .s { color:var(--muted); font-size:11px; margin-left:4px; }
@@ -513,17 +519,54 @@ html = r"""<!DOCTYPE html>
 </style>
 </head>
 <body>
-<header>
-  <h1>Pokémon Card Catalog</h1>
-  <div class="meta">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD) · __HDAYS__ day(s) of history</div>
-</header>
+<nav class="tabs" id="tabs">
+  <button class="tab on" data-t="pc">PriceCharting Catalog</button>
+  <button class="tab" data-t="ec">eBay Catalog</button>
+  <button class="tab" data-t="er">eBay Raw Data</button>
+</nav>
+
+<!-- ============ Tab 1: PriceCharting Catalog (default) ============ -->
+<section class="panel" id="p-pc">
+<div class="meta">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD) · __HDAYS__ day(s) of history</div>
 <div class="controls">
-  <input type="search" id="q" placeholder="Search card or set… (e.g. charizard base)">
-  <select id="set"><option value="">All sets (release order)</option></select>
-  <span class="count" id="count"></span>
+  <input type="search" id="q-pc" placeholder="Search card or set… (e.g. charizard base)">
+  <select id="set-pc"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-pc"></span>
 </div>
-<div class="ranges" id="ranges">
-  <button class="reset" id="reset">Reset filters</button>
+<div class="ranges" id="ranges-pc">
+  <button class="reset" id="reset-pc">Reset filters</button>
+</div>
+<div class="wrap">
+<table class="wide">
+  <thead><tr>
+    <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
+    <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
+    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+    <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="sales">?</button></th>
+    <th data-k="6" class="num">Ungraded $<span class="s">⇅</span><button class="help" data-h="ungraded">?</button></th>
+    <th data-k="7" class="num">Δ7d %<span class="s">⇅</span><button class="help" data-h="d7">?</button></th>
+    <th data-k="8" class="num">Δ30d %<span class="s">⇅</span><button class="help" data-h="d30">?</button></th>
+    <th data-k="9" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="pos">?</button></th>
+    <th data-k="10" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="vd">?</button></th>
+    <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
+    <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
+    <th>Trend<button class="help" data-h="trend">?</button></th>
+  </tr></thead>
+  <tbody id="rows-pc"></tbody>
+</table>
+</div>
+<button class="more" id="more-pc" hidden>Show more</button>
+<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
+</section>
+
+<!-- ============ Tab 2: eBay Catalog (one row per card; eBay columns to be designed) ============ -->
+<section class="panel" id="p-ec" hidden>
+<div class="meta">eBay Catalog · one row per card · eBay columns not connected yet — the first four columns match the PriceCharting tab</div>
+<div class="controls">
+  <input type="search" id="q-ec" placeholder="Search card or set…">
+  <select id="set-ec"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-ec"></span>
 </div>
 <div class="wrap">
 <table>
@@ -532,23 +575,34 @@ html = r"""<!DOCTYPE html>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
-    <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="sales">?</button></th>
-    <th data-k="6" class="num">Ungraded $<span class="s">⇅</span><button class="help" data-h="ungraded">?</button></th>
-    <th data-k="7" class="num">PC retail buy $<span class="s">⇅</span><button class="help" data-h="buy">?</button></th>
-    <th data-k="8" class="num">PC retail sell $<span class="s">⇅</span><button class="help" data-h="sell">?</button></th>
-    <th data-k="9" class="num">Δ7d %<span class="s">⇅</span><button class="help" data-h="d7">?</button></th>
-    <th data-k="10" class="num">Δ30d %<span class="s">⇅</span><button class="help" data-h="d30">?</button></th>
-    <th data-k="11" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="pos">?</button></th>
-    <th data-k="12" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="vd">?</button></th>
-    <th data-k="14" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
-    <th data-k="15" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
-    <th>Trend<button class="help" data-h="trend">?</button></th>
   </tr></thead>
-  <tbody id="rows"></tbody>
+  <tbody id="rows-ec"></tbody>
 </table>
 </div>
-<button class="more" id="more" hidden>Show more</button>
-<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
+<button class="more" id="more-ec" hidden>Show more</button>
+</section>
+
+<!-- ============ Tab 3: eBay Raw Data (one row per listing once collected; layout to be designed) ============ -->
+<section class="panel" id="p-er" hidden>
+<div class="meta">eBay Raw Data · will hold one row per eBay listing, matched to a card · no listings collected yet, so the catalog rows are shown</div>
+<div class="controls">
+  <input type="search" id="q-er" placeholder="Search card or set…">
+  <select id="set-er"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-er"></span>
+</div>
+<div class="wrap">
+<table>
+  <thead><tr>
+    <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
+    <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
+    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+  </tr></thead>
+  <tbody id="rows-er"></tbody>
+</table>
+</div>
+<button class="more" id="more-er" hidden>Show more</button>
+</section>
 
 <div class="ov" id="ov">
   <div class="modal">
@@ -590,101 +644,124 @@ const DATA = __DATA__;
 const SETS = __SETS__;
 const GATE = __GATE__;
 const PAGE = 300;
-const RANGE_COLS = [5, 6, 7, 8, 9, 10, 11, 12, 14, 15];
-const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Retail buy $', 8: 'Retail sell $', 9: 'Δ7d %', 10: 'Δ30d %', 11: 'Range 90d %', 12: 'Vol. drift %', 14: 'Volatility %', 15: 'Slope %/mo'};
+const RANGE_COLS = [5, 6, 7, 8, 9, 10, 12, 13];
+const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 10: 'Vol. drift %', 12: 'Volatility %', 13: 'Slope %/mo'};
 const setIndex = new Map(SETS.map((s, i) => [s, i]));
 const ORD = DATA.length ? DATA[0].length : 0;          // index of the release-order key
 DATA.forEach((r, i) => r.push(i));
 const $ = id => document.getElementById(id);
-const sel = $('set');
-SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
-// build the range-filter row
-RANGE_COLS.forEach(k => {
-  const div = document.createElement('div'); div.className = 'range';
-  div.innerHTML = '<span class="lbl">' + RANGE_LABEL[k] + '</span><input type="number" id="min' + k + '" placeholder="min"><span class="to">–</span><input type="number" id="max' + k + '" placeholder="max">';
-  $('ranges').insertBefore(div, $('reset'));
-});
 
-let sortKey = null, sortDir = 1, view = [], shown = 0;
 const dash = '<span class="dim">—</span>';
 const fmtMoney = v => v == null ? dash : '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const fmtInt = v => v == null ? dash : v.toLocaleString('en-US');
 const fmtPct = (v, signed = true, nd = 1) => v == null ? dash : '<span class="' + (signed ? (v > 0 ? 'up' : v < 0 ? 'down' : '') : '') + '">' + (signed && v > 0 ? '+' : '') + v.toFixed(nd) + '%</span>';
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-function apply() {
-  const q = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const set = sel.value;
-  const ranges = RANGE_COLS.map(k => {
-    const lo = $('min' + k).value, hi = $('max' + k).value;
-    return [k, lo === '' ? null : +lo, hi === '' ? null : +hi];
-  }).filter(([, lo, hi]) => lo != null || hi != null);
-  view = DATA.filter(r => {
-    if (set && r[2] !== set) return false;
-    for (const [k, lo, hi] of ranges) {
-      const v = r[k];
-      if (v == null) return false;                       // no value -> can't be in the range
-      if (lo != null && v < lo) return false;
-      if (hi != null && v > hi) return false;
-    }
-    if (q.length) { const hay = (r[1] + ' ' + r[2]).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
-    return true;
-  });
-  if (sortKey != null) {
-    const k = sortKey, d = sortDir;
-    view.sort((a, b) => {
-      let x = a[k], y = b[k];
-      if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
-      if (x === '') x = null; if (y === '') y = null;           // blanks always sort last
-      if (x == null && y == null) return a[ORD] - b[ORD];
-      if (x == null) return 1; if (y == null) return -1;
-      if (typeof x === 'number') return (x - y) * d || a[ORD] - b[ORD];
-      return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || a[ORD] - b[ORD];
-    });
-  }
-  $('rows').innerHTML = ''; shown = 0; renderMore();
-  $('count').textContent = view.length.toLocaleString('en-US') + ' of ' + DATA.length.toLocaleString('en-US') + ' cards';
-}
-function renderMore() {
-  const frag = document.createDocumentFragment();
-  const end = Math.min(shown + PAGE, view.length);
-  for (let i = shown; i < end; i++) {
-    const r = view[i], tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
-      '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || dash) + '</td>' +
+/* ---------------- Tables ----------------
+   Three tables share the same rows (DATA) and the same controller. The first four cells
+   (Card, Set, #, Released) are identical everywhere; only the PriceCharting table adds
+   the price/trend columns and the numeric range filters. */
+const cells4 = r =>
+  '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
+  '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || dash) + '</td>';
+const TABLES = {
+  pc: {ranges: RANGE_COLS, row: r => cells4(r) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
       '<td class="num">' + fmtMoney(r[6]) + '</td>' +
-      '<td class="num">' + fmtMoney(r[7]) + '</td>' +
-      '<td class="num">' + fmtMoney(r[8]) + '</td>' +
-      '<td class="num">' + fmtPct(r[9]) + '</td>' +
-      '<td class="num">' + fmtPct(r[10]) + '</td>' +
-      '<td class="num">' + fmtPct(r[11], false, 0) + '</td>' +
-      '<td class="num">' + (r[12] == null ? dash : '<span class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] > 0 ? '+' : '') + r[13] + ' (' + (r[12] > 0 ? '+' : '') + r[12].toFixed(1) + '%)</span>') + '</td>' +
-      '<td class="num">' + fmtPct(r[14], false, 2) + '</td>' +
-      '<td class="num">' + fmtPct(r[15]) + '</td>' +
-      '<td><button class="tbtn" data-i="' + r[ORD] + '">Trend</button></td>';
-    frag.appendChild(tr);
-  }
-  $('rows').appendChild(frag); shown = end;
-  $('more').hidden = shown >= view.length;
-  $('more').textContent = 'Show more (' + (view.length - shown).toLocaleString('en-US') + ' left)';
+      '<td class="num">' + fmtPct(r[7]) + '</td>' +
+      '<td class="num">' + fmtPct(r[8]) + '</td>' +
+      '<td class="num">' + fmtPct(r[9], false, 0) + '</td>' +
+      '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
+      '<td class="num">' + fmtPct(r[12], false, 2) + '</td>' +
+      '<td class="num">' + fmtPct(r[13]) + '</td>' +
+      '<td><button class="tbtn" data-i="' + r[ORD] + '">Trend</button></td>'},
+  ec: {ranges: [], row: cells4},   // eBay Catalog: per-card eBay columns to be designed
+  er: {ranges: [], row: cells4},   // eBay Raw Data: per-listing columns to be designed
+};
+
+function makeTable(id, cfg) {
+  const el = k => $(k + '-' + id);
+  const t = {id, sortKey: null, sortDir: 1, view: [], shown: 0};
+  const sel = el('set');
+  SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+  cfg.ranges.forEach(k => {                             // build the min–max filter row
+    const div = document.createElement('div'); div.className = 'range';
+    div.innerHTML = '<span class="lbl">' + RANGE_LABEL[k] + '</span><input type="number" id="min' + k + '-' + id + '" placeholder="min"><span class="to">–</span><input type="number" id="max' + k + '-' + id + '" placeholder="max">';
+    el('ranges').insertBefore(div, el('reset'));
+  });
+  t.apply = () => {
+    const q = el('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const set = sel.value;
+    const ranges = cfg.ranges.map(k => {
+      const lo = el('min' + k).value, hi = el('max' + k).value;
+      return [k, lo === '' ? null : +lo, hi === '' ? null : +hi];
+    }).filter(([, lo, hi]) => lo != null || hi != null);
+    t.view = DATA.filter(r => {
+      if (set && r[2] !== set) return false;
+      for (const [k, lo, hi] of ranges) {
+        const v = r[k];
+        if (v == null) return false;                     // no value -> can't be in the range
+        if (lo != null && v < lo) return false;
+        if (hi != null && v > hi) return false;
+      }
+      if (q.length) { const hay = (r[1] + ' ' + r[2]).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
+      return true;
+    });
+    if (t.sortKey != null) {
+      const k = t.sortKey, d = t.sortDir;
+      t.view.sort((a, b) => {
+        let x = a[k], y = b[k];
+        if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
+        if (x === '') x = null; if (y === '') y = null;         // blanks always sort last
+        if (x == null && y == null) return a[ORD] - b[ORD];
+        if (x == null) return 1; if (y == null) return -1;
+        if (typeof x === 'number') return (x - y) * d || a[ORD] - b[ORD];
+        return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || a[ORD] - b[ORD];
+      });
+    }
+    el('rows').innerHTML = ''; t.shown = 0; t.renderMore();
+    el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + DATA.length.toLocaleString('en-US') + ' cards';
+  };
+  t.renderMore = () => {
+    const frag = document.createDocumentFragment();
+    const end = Math.min(t.shown + PAGE, t.view.length);
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = cfg.row(t.view[i]); frag.appendChild(tr); }
+    el('rows').appendChild(frag); t.shown = end;
+    el('more').hidden = t.shown >= t.view.length;
+    el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
+  };
+  const ths = document.querySelectorAll('#p-' + id + ' th[data-k]');
+  ths.forEach(th => th.addEventListener('click', () => {
+    const k = +th.dataset.k;
+    if (t.sortKey === k) { if (t.sortDir === 1) t.sortDir = -1; else { t.sortKey = null; t.sortDir = 1; } } else { t.sortKey = k; t.sortDir = 1; }
+    ths.forEach(x => { x.classList.remove('on'); x.querySelector('.s').textContent = '⇅'; });
+    if (t.sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = t.sortDir === 1 ? ' ▲' : ' ▼'; }
+    t.apply();
+  }));
+  ['q', ...cfg.ranges.flatMap(k => ['min' + k, 'max' + k])].forEach(k => el(k).addEventListener('input', t.apply));
+  if (el('reset')) el('reset').addEventListener('click', () => {
+    el('q').value = ''; sel.value = '';
+    cfg.ranges.forEach(k => { el('min' + k).value = ''; el('max' + k).value = ''; });
+    t.apply();
+  });
+  sel.addEventListener('change', t.apply);
+  el('more').addEventListener('click', t.renderMore);
+  t.apply();
+  return t;
 }
-document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click', () => {
-  const k = +th.dataset.k;
-  if (sortKey === k) { if (sortDir === 1) sortDir = -1; else { sortKey = null; sortDir = 1; } } else { sortKey = k; sortDir = 1; }
-  document.querySelectorAll('th[data-k]').forEach(t => { t.classList.remove('on'); t.querySelector('.s').textContent = '⇅'; });
-  if (sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = sortDir === 1 ? ' ▲' : ' ▼'; }
-  apply();
-}));
-['q', ...RANGE_COLS.flatMap(k => ['min' + k, 'max' + k])].forEach(id => $(id).addEventListener('input', apply));
-$('reset').addEventListener('click', () => {
-  $('q').value = ''; sel.value = '';
-  RANGE_COLS.forEach(k => { $('min' + k).value = ''; $('max' + k).value = ''; });
-  apply();
-});
-sel.addEventListener('change', apply);
-$('more').addEventListener('click', renderMore);
+const tables = {};
+for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
+
+/* ---------------- Tabs ---------------- */
+const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw'};      // default (no hash) = PriceCharting
+function showTab(id) {
+  if (!TABLES[id]) id = 'pc';
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
+  document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
+  history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
+showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
 
 /* ---------------- Column help ---------------- */
 const pct = v => (v * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
@@ -695,8 +772,6 @@ const HELP = {
   released: {t: 'Released', f: 'PriceCharting release-date', m: 'The card\'s original release date. Cards without one show "—" and their set is ordered by the earliest dated card in it.', e: '1999-01-09 for Base Set; 2022-07-01 for Pokémon Go.'},
   sales: {t: 'Sales/yr', f: 'PriceCharting sales-volume = units sold in the trailing 12 months, ALL grades combined', m: 'A liquidity measure — but it counts raw and graded sales together. For cheap modern cards almost nothing is graded, so it ≈ raw sales. For vintage cards graded sales can be most of it, so it overstates how often a raw copy sells. Use the Trend popup\'s "raw sale every N days" for the raw-only view.', e: 'Ivysaur #2 (1998 KFC): 45/yr in this column, but PriceCharting\'s page shows ungraded ≈ 12/yr, Grade 8 ≈ 12, PSA 10 ≈ 12, Grade 7 = 6, Grade 9 = 3. 12+6+12+3+12 ≈ 45.'},
   ungraded: {t: 'Ungraded $', f: 'PriceCharting loose-price', m: 'The market price of an ungraded copy — a trailing average of recent raw sales (mostly eBay). This is the anchor: every other number is measured against it. It only moves when new raw sales land, so a slow card\'s price can sit unchanged for weeks. It blends all conditions; a near-mint copy sells closer to the Grade 7–8 price.', e: 'If the anchor is $42.00 and a listing is $27.99 + $4 shipping, the listing is 76% of anchor before tax — then fees, shipping out and drift decide whether that is a deal (see Trend popup).'},
-  buy: {t: 'PC retail buy $', f: 'PriceCharting retail-loose-buy (their formula off the ungraded price)', m: 'What PriceCharting suggests a card shop pay a walk-in customer for an ungraded copy. Not a market observation — a rule applied to the anchor with a shop\'s margin built in. Useful as a "never pay above this" ceiling.', e: 'Ivysaur #2: anchor $25.94, retail buy $8.70 — PriceCharting thinks a shop should pay about a third of value.'},
-  sell: {t: 'PC retail sell $', f: 'PriceCharting retail-loose-sell (their formula off the ungraded price)', m: 'What PriceCharting suggests a card shop charge on the shelf for an ungraded copy. Roughly the top of the realistic listing range; listing above it means waiting. The gap between retail buy and sell is a shop\'s margin, which includes rent and staff you don\'t have.', e: 'Ivysaur #2: anchor $25.94, retail sell $28.99 — about 12% above market.'},
   d7: {t: 'Δ7d %', f: '(P_today − P_7_days_ago) / P_7_days_ago × 100', m: '"Did something just happen." On a slow card this is usually one sale landing, so pair it with a Sales/yr floor before trusting it. Sort descending for cards that just jumped (sell candidates), ascending for cards that just dropped.', e: '$42.00 today, $42.50 a week ago → (42.00 − 42.50) / 42.50 = −1.2%.'},
   d30: {t: 'Δ30d %', f: '(P_today − P_30_days_ago) / P_30_days_ago × 100', m: 'The core trend number and the one to sort by. Read it with Δ7d and the slope: 30d down but 7d flat and the slope flattening is a card that may be settling; all of them down is a card still falling. A drop is either mispricing (opportunity) or news (a reprint, a rotation) — the number cannot tell which.', e: '$42.00 today, $48.00 thirty days ago → (42.00 − 48.00) / 48.00 = −12.5%.'},
   pos: {t: 'Range 90d %', f: '(P_today − Low_90d) / (High_90d − Low_90d) × 100', m: 'Where today\'s price sits between its 90-day low (0%) and high (100%). Two cards can both be −12% over 30 days: one falling back from a spike (still at 85% of its range) and one making new lows (5%). Different bets. Ignore it when the range is tiny, and remember a low position during a steady decline is a falling knife — it is only a signal once the 30-day trend has flattened. Needs 60 days of history.', e: 'Low $38.00, high $52.00, today $42.00 → (42 − 38) / (52 − 38) = 4 / 14 = 29%.'},
@@ -878,14 +953,13 @@ function renderStats() {
   if (assumed.length) g += '<p class="why">Assumed until the history fills in: ' + assumed.join('; ') + '.</p>';
   $('gate').innerHTML = g;
 }
-$('rows').addEventListener('click', e => { const b = e.target.closest('.tbtn'); if (b) openTrend(+b.dataset.i); });
+$('rows-pc').addEventListener('click', e => { const b = e.target.closest('.tbtn'); if (b) openTrend(+b.dataset.i); });
 $('close').addEventListener('click', closeTrend);
 $('ov').addEventListener('click', e => { if (e.target === $('ov')) closeTrend(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTrend(); $('hov').classList.remove('open'); } });
 ['c-loose', 'c-sell', 'c-buy', 'c-vol', 'c-ref', 'rn', 'ru'].forEach(id => $(id).addEventListener('input', drawChart));
 document.querySelectorAll('input[name=rng]').forEach(r => r.addEventListener('change', drawChart));
 window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) drawChart(); });
-apply();
 </script>
 </body>
 </html>
