@@ -238,9 +238,9 @@ for path in files:
     for k, c in enumerate(SERIES):
         if c not in df.columns:
             continue
-        vals = df.loc[ok, c].map(integer if k == 0 else money)
-        vals = vals.map(lambda v: -1 if v is None else int(round(v * (1 if k == 0 else 100))))
-        layer[k, idx] = vals.to_numpy(dtype=np.int32)
+        vals = pd.to_numeric(df.loc[ok, c].map(integer if k == 0 else money), errors="coerce")
+        vals = (vals * (1 if k == 0 else 100)).round().fillna(-1)     # blanks -> -1 (missing)
+        layer[k, idx] = vals.to_numpy(dtype=np.int64).astype(np.int32)
     dates.append(d)
     layers.append(layer)
 print(f"History: {len(dates)} day(s) of snapshots read.")
