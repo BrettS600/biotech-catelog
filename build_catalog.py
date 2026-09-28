@@ -1,4 +1,4 @@
-\"""
+"""
 build_catalog.py  -  Turn PriceCharting's Pokemon price guide into a password-protected
 website with a searchable, sortable table.
 
