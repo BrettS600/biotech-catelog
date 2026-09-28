@@ -229,8 +229,13 @@ html = r"""<!DOCTYPE html>
   .controls { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 12px; align-items:center; }
   .controls input, .controls select { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
   .controls input[type=search] { flex:1 1 220px; min-width:180px; }
-  .controls input[type=number] { width:120px; }
   .controls select { max-width:320px; }
+  .ranges { display:flex; flex-wrap:wrap; gap:8px 18px; padding:0 18px 12px; align-items:center; }
+  .range { display:flex; align-items:center; gap:5px; }
+  .range .lbl { color:var(--muted); font-size:13px; white-space:nowrap; }
+  .range input { font:inherit; width:88px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+  .range .to { color:var(--muted); }
+  .reset { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
   .count { color:var(--muted); font-size:13px; white-space:nowrap; }
   .wrap { overflow-x:auto; border-top:1px solid var(--line); }
   table { border-collapse:collapse; width:100%; min-width:820px; }
@@ -256,9 +261,14 @@ html = r"""<!DOCTYPE html>
 <div class="controls">
   <input type="search" id="q" placeholder="Search card or set… (e.g. charizard base)">
   <select id="set"><option value="">All sets (release order)</option></select>
-  <input type="number" id="minvol" placeholder="Min sales/yr" min="0">
-  <input type="number" id="minprice" placeholder="Min ungraded $" min="0">
   <span class="count" id="count"></span>
+</div>
+<div class="ranges">
+  <div class="range"><span class="lbl">Sales/yr</span><input type="number" id="min5" placeholder="min" min="0"><span class="to">–</span><input type="number" id="max5" placeholder="max" min="0"></div>
+  <div class="range"><span class="lbl">Ungraded $</span><input type="number" id="min6" placeholder="min" min="0" step="0.01"><span class="to">–</span><input type="number" id="max6" placeholder="max" min="0" step="0.01"></div>
+  <div class="range"><span class="lbl">Retail buy $</span><input type="number" id="min7" placeholder="min" min="0" step="0.01"><span class="to">–</span><input type="number" id="max7" placeholder="max" min="0" step="0.01"></div>
+  <div class="range"><span class="lbl">Retail sell $</span><input type="number" id="min8" placeholder="min" min="0" step="0.01"><span class="to">–</span><input type="number" id="max8" placeholder="max" min="0" step="0.01"></div>
+  <button class="reset" id="reset">Reset filters</button>
 </div>
 <div class="wrap">
 <table>
@@ -276,11 +286,12 @@ html = r"""<!DOCTYPE html>
 </table>
 </div>
 <button class="more" id="more" hidden>Show more</button>
-<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset. Card names link to the PriceCharting page. "PC retail buy/sell" are PriceCharting's suggested prices for a shop buying an ungraded copy from a customer / selling one.</footer>
+<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset. Range filters can be used alone (only a min, or only a max) or together; cards with no value in that column are left out while a range is set. Card names link to the PriceCharting page. "PC retail buy/sell" are PriceCharting's suggested prices for a shop buying an ungraded copy from a customer / selling one.</footer>
 <script>
 const DATA = __DATA__;
 const SETS = __SETS__;
 const PAGE = 300;
+const RANGE_COLS = [5, 6, 7, 8];                       // Sales/yr, Ungraded, Retail buy, Retail sell
 const setIndex = new Map(SETS.map((s, i) => [s, i]));
 const ORD = DATA.length ? DATA[0].length : 0;          // index of the release-order key
 DATA.forEach((r, i) => r.push(i));
@@ -296,11 +307,19 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 
 function apply() {
   const q = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const set = sel.value, minvol = +$('minvol').value || 0, minprice = +$('minprice').value || 0;
+  const set = sel.value;
+  const ranges = RANGE_COLS.map(k => {
+    const lo = $('min' + k).value, hi = $('max' + k).value;
+    return [k, lo === '' ? null : +lo, hi === '' ? null : +hi];
+  }).filter(([, lo, hi]) => lo != null || hi != null);
   view = DATA.filter(r => {
     if (set && r[2] !== set) return false;
-    if (minvol && (r[5] == null || r[5] < minvol)) return false;
-    if (minprice && (r[6] == null || r[6] < minprice)) return false;
+    for (const [k, lo, hi] of ranges) {
+      const v = r[k];
+      if (v == null) return false;                       // no value -> can't be in the range
+      if (lo != null && v < lo) return false;
+      if (hi != null && v > hi) return false;
+    }
     if (q.length) { const hay = (r[1] + ' ' + r[2]).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
     return true;
   });
@@ -344,7 +363,12 @@ document.querySelectorAll('th').forEach(th => th.addEventListener('click', () =>
   if (sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = sortDir === 1 ? '▲' : '▼'; }
   apply();
 }));
-['q', 'minvol', 'minprice'].forEach(id => $(id).addEventListener('input', apply));
+['q', ...RANGE_COLS.flatMap(k => ['min' + k, 'max' + k])].forEach(id => $(id).addEventListener('input', apply));
+$('reset').addEventListener('click', () => {
+  $('q').value = ''; sel.value = '';
+  RANGE_COLS.forEach(k => { $('min' + k).value = ''; $('max' + k).value = ''; });
+  apply();
+});
 sel.addEventListener('change', apply);
 $('more').addEventListener('click', renderMore);
 apply();
