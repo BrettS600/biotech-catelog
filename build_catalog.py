@@ -11,8 +11,8 @@ What it does
   2. Keeps every PriceCharting product (see the two flags below)
   3. Orders sets by release date, and cards by card number within each set
   4. Writes site/index.html - one self-contained page with the whole table inside it
-  5. Archives a dated snapshot in snapshots/ (encrypted with SITE_PASSWORD, so the
-     repo can be public without exposing PriceCharting's data)
+  5. Archives a dated snapshot in snapshots/ with EVERY column PriceCharting provides
+     (encrypted with SITE_PASSWORD, so the repo can be public without exposing their data)
 
 Secrets used on GitHub:  PC_DOWNLOAD_URL   SITE_PASSWORD
 """
@@ -149,7 +149,8 @@ if SINGLES_ONLY:
 
 # ---------- 3. Order: sets by release date, cards by number ----------
 pc["release"] = col("release-date").str.strip()
-set_date = pc[pc["release"] != ""].groupby("console-name")["release"].min()
+plausible = pc["release"].between("1996-01-01", f"{date.today().year + 2}-12-31")   # ignore junk dates
+set_date = pc[plausible].groupby("console-name")["release"].min()
 pc["set_date"] = pc["console-name"].map(set_date).fillna("9999-12-31")
 
 parts = pc["card_no"].map(number_parts)
@@ -161,26 +162,16 @@ pc = pc.sort_values(["set_date", "console-name", "n_prefix", "n_num", "n_suffix"
 
 # ---------- 4. Build the rows ----------
 today = date.today().isoformat()
-out = pd.DataFrame({
-    "Card ID":         pc["id"].map(integer),
-    "Card Name":       pc["product-name"].str.strip(),
-    "Set Name":        pc["console-name"].str.strip(),
-    "Card #":          pc["card_no"],
-    "Release Date":    pc["release"],
-    "PC Sales Volume": col("sales-volume").map(integer),
-    "PC Ungraded $":   col("loose-price").map(money),
-    "PC Grade 9 $":    col("graded-price").map(money),
-    "PC PSA 10 $":     col("manual-only-price").map(money),
-    "TCGplayer ID":    col("tcg-id").map(integer),
-    "eBay ePID":       col("epid").map(integer),
-})
-n_cards = len(out)
-sets_in_order = list(dict.fromkeys(out["Set Name"]))     # keeps release order
+n_cards = len(pc)
+sets_in_order = list(dict.fromkeys(pc["console-name"].str.strip()))     # keeps release order
 print(f"{n_cards:,} cards across {len(sets_in_order)} sets.")
 
-# ---------- 5. Snapshot ----------
+# ---------- 5. Snapshot: every PriceCharting column, for the rows we kept ----------
+helper_cols = ["card_no", "release", "set_date", "n_prefix", "n_num", "n_suffix"]
+snapshot = pc.drop(columns=helper_cols).copy()
+snapshot.insert(3, "card-number", pc["card_no"])            # our one added column
 os.makedirs(SNAPSHOT_DIR, exist_ok=True)
-raw = gzip.compress(out.to_csv(index=False).encode("utf-8"))
+raw = gzip.compress(snapshot.to_csv(index=False).encode("utf-8"))
 password = os.environ.get("SITE_PASSWORD", "")
 if ENCRYPT_SNAPSHOTS and password:
     # AES-256-GCM, stored as raw bytes (not base64) so GitHub's secret scanner
@@ -196,11 +187,25 @@ else:
     snap = os.path.join(SNAPSHOT_DIR, f"pc_catalog_{today}.csv.gz")
 with open(snap, "wb") as f:
     f.write(blob)
-print(f"Snapshot archived: {snap} ({len(blob) / 1e6:.1f} MB)")
+print(f"Snapshot archived: {snap} ({len(blob) / 1e6:.1f} MB, "
+      f"{len(snapshot.columns)} columns x {len(snapshot):,} rows)")
 
 # ---------- 6. Write the web page ----------
-rows = out[["Card ID", "Card Name", "Set Name", "Card #", "Release Date", "PC Sales Volume",
-            "PC Ungraded $", "PC Grade 9 $", "PC PSA 10 $", "eBay ePID"]].values.tolist()
+# Page columns (the snapshot above keeps every PriceCharting column regardless):
+#   0 Card ID (link only) | 1 Card | 2 Set | 3 # | 4 Released | 5 Sales/yr
+#   6 Ungraded $ (loose-price) | 7 PC retail buy $ (retail-loose-buy) | 8 PC retail sell $ (retail-loose-sell)
+page = pd.DataFrame({
+    0: pc["id"].map(integer),
+    1: pc["product-name"].str.strip(),
+    2: pc["console-name"].str.strip(),
+    3: pc["card_no"],
+    4: pc["release"],
+    5: col("sales-volume").map(integer),
+    6: col("loose-price").map(money),
+    7: col("retail-loose-buy").map(money),
+    8: col("retail-loose-sell").map(money),
+})
+rows = page.values.tolist()
 rows = [[None if (isinstance(v, float) and v != v) else v for v in r] for r in rows]  # NaN -> null
 data_json = json.dumps(rows, separators=(",", ":"), ensure_ascii=False)
 sets_json = json.dumps(sets_in_order, ensure_ascii=False)
@@ -228,9 +233,11 @@ html = r"""<!DOCTYPE html>
   .controls select { max-width:320px; }
   .count { color:var(--muted); font-size:13px; white-space:nowrap; }
   .wrap { overflow-x:auto; border-top:1px solid var(--line); }
-  table { border-collapse:collapse; width:100%; min-width:900px; }
+  table { border-collapse:collapse; width:100%; min-width:820px; }
   th, td { padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; text-align:left; }
   th { position:sticky; top:0; background:var(--head); cursor:pointer; user-select:none; font-weight:600; }
+  th .s { color:var(--muted); font-size:11px; margin-left:4px; }
+  th.on .s { color:var(--fg); }
   th:hover { text-decoration:underline; }
   th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
   tr:hover td { background:var(--hover); }
@@ -244,7 +251,7 @@ html = r"""<!DOCTYPE html>
 <body>
 <header>
   <h1>Pokémon Card Catalog</h1>
-  <div class="meta">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD, per year of sales)</div>
+  <div class="meta">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD)</div>
 </header>
 <div class="controls">
   <input type="search" id="q" placeholder="Search card or set… (e.g. charizard base)">
@@ -256,34 +263,35 @@ html = r"""<!DOCTYPE html>
 <div class="wrap">
 <table>
   <thead><tr>
-    <th data-k="1">Card</th>
-    <th data-k="2">Set</th>
-    <th data-k="3">#</th>
-    <th data-k="4">Released</th>
-    <th data-k="5" class="num">Sales/yr</th>
-    <th data-k="6" class="num">Ungraded $</th>
-    <th data-k="7" class="num">Grade 9 $</th>
-    <th data-k="8" class="num">PSA 10 $</th>
-    <th data-k="9" class="num">eBay ePID</th>
+    <th data-k="1">Card<span class="s">⇅</span></th>
+    <th data-k="2">Set<span class="s">⇅</span></th>
+    <th data-k="3">#<span class="s">⇅</span></th>
+    <th data-k="4">Released<span class="s">⇅</span></th>
+    <th data-k="5" class="num">Sales/yr<span class="s">⇅</span></th>
+    <th data-k="6" class="num">Ungraded $<span class="s">⇅</span></th>
+    <th data-k="7" class="num">PC retail buy $<span class="s">⇅</span></th>
+    <th data-k="8" class="num">PC retail sell $<span class="s">⇅</span></th>
   </tr></thead>
   <tbody id="rows"></tbody>
 </table>
 </div>
 <button class="more" id="more" hidden>Show more</button>
-<footer>Row order = PriceCharting set release date, then card number. Click a column header to sort; click again to flip. Card names link to the PriceCharting page.</footer>
+<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset. Card names link to the PriceCharting page. "PC retail buy/sell" are PriceCharting's suggested prices for a shop buying an ungraded copy from a customer / selling one.</footer>
 <script>
 const DATA = __DATA__;
 const SETS = __SETS__;
 const PAGE = 300;
 const setIndex = new Map(SETS.map((s, i) => [s, i]));
-DATA.forEach((r, i) => r.push(i));                    // r[10] = original (release) order
+const ORD = DATA.length ? DATA[0].length : 0;          // index of the release-order key
+DATA.forEach((r, i) => r.push(i));
 const $ = id => document.getElementById(id);
 const sel = $('set');
 SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
 
 let sortKey = null, sortDir = 1, view = [], shown = 0;
-const fmtMoney = v => v == null ? '<span class="dim">—</span>' : '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-const fmtInt = v => v == null ? '<span class="dim">—</span>' : v.toLocaleString('en-US');
+const dash = '<span class="dim">—</span>';
+const fmtMoney = v => v == null ? dash : '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fmtInt = v => v == null ? dash : v.toLocaleString('en-US');
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function apply() {
@@ -301,10 +309,11 @@ function apply() {
     view.sort((a, b) => {
       let x = a[k], y = b[k];
       if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
-      if (x == null && y == null) return a[10] - b[10];
+      if (x === '') x = null; if (y === '') y = null;           // blanks always sort last
+      if (x == null && y == null) return a[ORD] - b[ORD];
       if (x == null) return 1; if (y == null) return -1;
-      if (typeof x === 'number') return (x - y) * d || a[10] - b[10];
-      return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || a[10] - b[10];
+      if (typeof x === 'number') return (x - y) * d || a[ORD] - b[ORD];
+      return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || a[ORD] - b[ORD];
     });
   }
   $('rows').innerHTML = ''; shown = 0; renderMore();
@@ -317,10 +326,11 @@ function renderMore() {
     const r = view[i], tr = document.createElement('tr');
     tr.innerHTML =
       '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
-      '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || '<span class="dim">—</span>') + '</td>' +
-      '<td class="num">' + fmtInt(r[5]) + '</td><td class="num">' + fmtMoney(r[6]) + '</td>' +
-      '<td class="num">' + fmtMoney(r[7]) + '</td><td class="num">' + fmtMoney(r[8]) + '</td>' +
-      '<td class="num">' + (r[9] == null ? '<span class="dim">—</span>' : r[9]) + '</td>';
+      '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || dash) + '</td>' +
+      '<td class="num">' + fmtInt(r[5]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[6]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[7]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[8]) + '</td>';
     frag.appendChild(tr);
   }
   $('rows').appendChild(frag); shown = end;
@@ -330,8 +340,8 @@ function renderMore() {
 document.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
   const k = +th.dataset.k;
   if (sortKey === k) { if (sortDir === 1) sortDir = -1; else { sortKey = null; sortDir = 1; } } else { sortKey = k; sortDir = 1; }
-  document.querySelectorAll('th').forEach(t => t.textContent = t.textContent.replace(/ [▲▼]$/, ''));
-  if (sortKey != null) th.textContent += sortDir === 1 ? ' ▲' : ' ▼';
+  document.querySelectorAll('th').forEach(t => { t.classList.remove('on'); t.querySelector('.s').textContent = '⇅'; });
+  if (sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = sortDir === 1 ? '▲' : '▼'; }
   apply();
 }));
 ['q', 'minvol', 'minprice'].forEach(id => $(id).addEventListener('input', apply));
