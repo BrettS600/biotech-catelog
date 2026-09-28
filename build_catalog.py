@@ -470,6 +470,9 @@ html = r"""<!DOCTYPE html>
   th.g-obs, tr.grp th.g-obs { box-shadow: inset 0 3px 0 #3b82f6; }
   th.g-rate, tr.grp th.g-rate { box-shadow: inset 0 3px 0 #22c55e; }
   th.g-dec, tr.grp th.g-dec { box-shadow: inset 0 3px 0 #f59e0b; }
+  th.g-tr, tr.grp th.g-tr { box-shadow: inset 0 3px 0 #a855f7; }
+  tr.grp th.g-tr { background:rgba(168,85,247,.14); }
+  .legend .l-tr::before { background:#a855f7; }
   tr.grp th.g-obs { background:rgba(59,130,246,.12); } tr.grp th.g-rate { background:rgba(34,197,94,.12); } tr.grp th.g-dec { background:rgba(245,158,11,.14); }
   .legend { display:inline-flex; gap:14px; margin-left:6px; }
   .legend span::before { content:""; display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:middle; border-radius:2px; }
@@ -612,7 +615,7 @@ html = r"""<!DOCTYPE html>
 <!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
 <section class="panel" id="p-ec" hidden>
 <div class="meta" id="meta-ec">eBay Catalog · loading live data…</div>
-<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$150. Numbers refresh every 15 minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span></span></div>
+<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$150. Numbers refresh every 15 minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
 <div class="controls">
   <input type="search" id="q-ec" placeholder="Search card or set…">
   <select id="set-ec"><option value="">All sets (release order)</option></select>
@@ -629,6 +632,7 @@ html = r"""<!DOCTYPE html>
     <th colspan="11" class="g-obs">Observed on eBay — independent inputs</th>
     <th colspan="4" class="g-rate">Rates — computed from Observed</th>
     <th colspan="9" class="g-dec">Decisions — depend on λ, the book, Confidence and Margin</th>
+    <th colspan="8" class="g-tr">Trends — from a 7-day median of raw sale totals</th>
     <th></th>
   </tr>
   <tr>
@@ -660,6 +664,14 @@ html = r"""<!DOCTYPE html>
     <th data-k="26" class="num g-dec">Exp. days<span class="s">⇅</span><button class="help" data-h="ec_edays">?</button></th>
     <th data-k="27" class="num g-dec">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
     <th data-k="28" class="g-dec">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
+    <th data-k="32" class="num g-tr">Sales/month<span class="s">⇅</span><button class="help" data-h="et_spm">?</button></th>
+    <th data-k="33" class="num g-tr">Δ7d %<span class="s">⇅</span><button class="help" data-h="et_d7">?</button></th>
+    <th data-k="34" class="num g-tr">Δ30d %<span class="s">⇅</span><button class="help" data-h="et_d30">?</button></th>
+    <th data-k="35" class="num g-tr">Range 90d %<span class="s">⇅</span><button class="help" data-h="et_pos">?</button></th>
+    <th data-k="36" class="num g-tr">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="et_vd">?</button></th>
+    <th data-k="38" class="num g-tr">Volatility %<span class="s">⇅</span><button class="help" data-h="et_vol">?</button></th>
+    <th data-k="39" class="num g-tr">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="et_ts">?</button></th>
+    <th class="g-tr">Trend<button class="help" data-h="et_trend">?</button></th>
     <th>Book<button class="help" data-h="ec_book">?</button></th>
   </tr></thead>
   <tbody id="rows-ec"></tbody>
@@ -735,11 +747,11 @@ html = r"""<!DOCTYPE html>
     <div class="sub" id="msub"></div>
     <div class="bar">
       <span class="dim">Right axis:</span>
-      <label><input type="checkbox" id="c-loose" checked><span class="sw" style="background:#3b82f6"></span>Ungraded $</label>
-      <label><input type="checkbox" id="c-sell"><span class="sw" style="background:#22c55e"></span>Retail sell $</label>
-      <label><input type="checkbox" id="c-buy"><span class="sw" style="background:#f59e0b"></span>Retail buy $</label>
-      <label><input type="checkbox" id="c-vol" checked><span class="sw" style="background:#9ca3af"></span>Sales/yr (left axis)</label>
-      <label><input type="checkbox" id="c-ref" checked><span class="sw" style="background:transparent;border:1px dashed #a78bfa"></span>90d high/low + conservative sell</label>
+      <label><input type="checkbox" id="c-loose" checked><span class="sw" style="background:#3b82f6"></span><span id="l-loose">Ungraded $</span></label>
+      <label><input type="checkbox" id="c-sell"><span class="sw" style="background:#22c55e"></span><span id="l-sell">Retail sell $</span></label>
+      <label><input type="checkbox" id="c-buy"><span class="sw" style="background:#f59e0b"></span><span id="l-buy">Retail buy $</span></label>
+      <label><input type="checkbox" id="c-vol" checked><span class="sw" style="background:#9ca3af"></span><span id="l-vol">Sales/yr (left axis)</span></label>
+      <label><input type="checkbox" id="c-ref" checked><span class="sw" style="background:transparent;border:1px dashed #a78bfa"></span><span id="l-ref">90d high/low + conservative sell</span></label>
     </div>
     <div class="bar">
       <span class="dim">Show:</span>
@@ -809,9 +821,10 @@ const TABLES = {
   // eBay Catalog row (three bands): 0 id 1 card 2 set 3 # 4 released |
   //   Observed: 5 k 6 D 7 N 8 p1 9 p2 10 p3 11 mu 12 smed 13 s80 14 hrs 15 st |
   //   Rates: 16 lam 17 price 18 dos 19 io |
-  //   Decisions: 20 n24 21 n48 22 p24 23 p48 24 pw 25 prob24 26 edays 27 maxbuy 28 hot 29 basis 30 confirm 31 checks | 32 ord
-  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 22, 23, 27],
-       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 22: 'P₂₄ $', 23: 'P₄₈ $', 27: 'Max buy $'},
+  //   Decisions: 20 n24 21 n48 22 p24 23 p48 24 pw 25 prob24 26 edays 27 maxbuy 28 hot 29 basis 30 confirm 31 checks |
+  //   Trends: 32 spm 33 d7 34 d30 35 pos 36 vdp 37 vd 38 vol 39 ts | 40 ord
+  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 22, 23, 27, 32, 34, 39],
+       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 22: 'P₂₄ $', 23: 'P₄₈ $', 27: 'Max buy $', 32: 'Sales/month', 34: 'Δ30d %', 39: 'Slope %/mo'},
        defaults: {17: [50, 150]},
        hay: r => r[1] + ' ' + r[2],
        row: r => cells4(r) +
@@ -833,6 +846,14 @@ const TABLES = {
       '<td class="num">' + fmtNum(r[26], 1) + '</td>' +
       '<td class="num">' + (r[27] == null ? dash : '<b>' + fmtMoney(r[27]) + '</b>' + (r[29] && r[29] !== '24h' ? ' <span class="dim">(' + r[29] + ')</span>' : '')) + '</td>' +
       '<td>' + (r[28] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[28] === 'candidate' ? badge('Hot ' + r[30] + '/3', 'hot') : r[31] && r[31].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[31].join(', ')) + '">fails ' + r[31].length + '</span>' : dash) + '</td>' +
+      '<td class="num">' + fmtInt(r[32]) + '</td>' +
+      '<td class="num">' + fmtPct(r[33]) + '</td>' +
+      '<td class="num">' + fmtPct(r[34]) + '</td>' +
+      '<td class="num">' + fmtPct(r[35], false, 0) + '</td>' +
+      '<td class="num">' + (r[37] == null ? dash : '<span class="' + (r[37] > 0 ? 'up' : r[37] < 0 ? 'down' : '') + '">' + (r[37] > 0 ? '+' : '') + r[37] + (r[36] == null ? '' : ' (' + (r[36] > 0 ? '+' : '') + r[36].toFixed(1) + '%)') + '</span>') + '</td>' +
+      '<td class="num">' + fmtPct(r[38], false, 2) + '</td>' +
+      '<td class="num">' + fmtPct(r[39]) + '</td>' +
+      '<td><button class="tbtn ebtn" data-id="' + r[0] + '">Trend</button></td>' +
       '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
   // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 ord
@@ -1017,10 +1038,14 @@ function rebuildLive() {
     const base = idRow.get(+cid); if (!base) continue;
     const d = decide(c, S); LIVE.dec[cid] = Object.assign({}, c, d);
     const hot = c.hot === 2 ? 'confirmed' : c.hot === 1 ? 'candidate' : '';
+    const t = c.tr || {};
     LIVE.ec.push([base[0], base[1], base[2], base[3], base[4],
                   c.k, c.D, c.N, c.p1, c.p2, c.p3, c.mu, c.smed, c.s80, c.hrs, c.st,
                   c.lam, c.price, c.dos, c.io,
-                  d.n24, d.n48, d.p24, d.p48, d.pw, d.prob24, d.edays, d.maxbuy, hot, d.basis, c.confirm, c.checks, LIVE.ec.length]);
+                  d.n24, d.n48, d.p24, d.p48, d.pw, d.prob24, d.edays, d.maxbuy, hot, d.basis, c.confirm, c.checks,
+                  t.spm == null ? null : t.spm, t.d7 == null ? null : t.d7, t.d30 == null ? null : t.d30, t.pos == null ? null : t.pos,
+                  t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
+                  LIVE.ec.length]);
   }
   let passes = 0;
   live.live.forEach(x => {
@@ -1096,7 +1121,10 @@ function openBook(cid) {
   $('bov').classList.add('open');
 }
 const GATE_LIVE = () => (LIVE.data && LIVE.data.gate) || {boHaircut: 0.9};
-$('rows-ec').addEventListener('click', e => { const b = e.target.closest('.bbtn'); if (b) openBook(+b.dataset.id); });
+$('rows-ec').addEventListener('click', e => {
+  const b = e.target.closest('.bbtn'); if (b) return openBook(+b.dataset.id);
+  const t = e.target.closest('.ebtn'); if (t) openTrendEbay(+t.dataset.id);
+});
 $('bclose').addEventListener('click', () => $('bov').classList.remove('open'));
 $('bov').addEventListener('click', e => { if (e.target === $('bov')) $('bov').classList.remove('open'); });
 $('unmatched-btn').addEventListener('click', () => {
@@ -1114,6 +1142,8 @@ const README = `
 
 <h3>2. Reading the eBay Catalog: three bands</h3>
 <p><span class="legend"><span class="l-obs">Observed</span></span> columns are independent inputs measured on eBay — counts, the book of competing copies, sold prices. <span class="legend"><span class="l-rate">Rates</span></span> are computed from Observed only (λ, Price, Days supply, In/out). <span class="legend"><span class="l-dec">Decisions</span></span> depend on λ, the book, and your <b>Confidence</b> and <b>Margin</b> settings at the top — change those and only the amber band moves. Every header's <b>?</b> shows the formula, an example, what the column is built from and what it feeds.</p>
+
+<p>A fourth band, <span class="legend"><span class="l-tr">Trends</span></span>, applies the PriceCharting tab's trend formulas to eBay's own realized prices: the price line is the median of raw sale totals over a trailing 7-day window (blank with fewer than 3 sales in the window), and the Trend button charts it with sales per day and the cheapest ask. These fill in on the same schedule as the PriceCharting versions — 7, 30 and 60 days after the collector started — and are noisier on thin cards, where the median moves because different copies sold rather than because the market did.</p>
 
 <h3>3. The Poisson walkthrough — will it sell within 48 hours at this price?</h3>
 <p>Take a card with <b>k = 30</b> observed raw sales in <b>D = 30</b> days, a book of comparable open copies at <b>$96, $99, $104, $110</b>, and a sold 80th percentile of <b>$101</b>.</p>
@@ -1205,6 +1235,14 @@ const HELP = {
   ec_maxbuy: {t: 'Max buy $ (all-in)', f: 'net = P × (1 − 0.1325 × 1.065) − $0.30 − $4.50;   max buy = net ÷ 1.15   where P = P₂₄, else P₄₈, else Window $', m: 'The most you can pay in total — item + shipping + your sales tax — and still clear a 15% margin after eBay\'s fee (charged on the buyer\'s total including their tax), the fixed fee and tracked shipping out. The column notes which price it came from. A listing PASSes when its all-in is at or below this.', e: 'P₂₄ = $98 → net = 98 × 0.859 − 4.80 = $79.37 → max buy = 79.37 ÷ 1.15 = $69.02, i.e. about a $61 item price with $4 shipping and 6.25% tax.'},
   ec_hot: {t: 'Hot', f: 'all five checks pass: k ≥ 5 · sell-through ≥ 80% · median hours to sale ≤ 48 · sold median ≥ 95% of the median ask · last 5 sales ≥ 97% of the 5 before', m: '"Candidate" means the history says demand outruns supply. "Confirmed" (✓) means the next three copies listed after the flag all sold within 48 hours — a test on data the checks never saw. A copy that sits more than 48 h resets the count. "fails n" tells you how many checks a card with enough sales is missing; hover for which.', e: 'A card with 13 sales, 82% sell-through, 22 h median, prices realized at ask and a flat trend is a candidate; three quick sales later it is confirmed.'},
   ec_book: {t: 'Book', f: 'the live data behind this card\'s row', m: 'Opens the competing listings (ranked, with links) and the recent sales with their time to sale. This is what to look at before every buy: whether the floor is a credible copy, whether the sales were Best Offer (recorded at ask, so possibly lower), and what condition sold.', e: ''},
+  et_spm: {t: 'Sales/month (eBay)', f: 'raw sales recorded in the last 30 days, from the daily rollup', m: 'The eBay counterpart of PriceCharting\'s sales/yr, but raw-only and monthly. Today it equals Sold 30d; it lives in the Trends band because it is the series the Volume drift and the Trend chart are built on.', e: '13 sales in the last 30 days → 13.'},
+  et_d7: {t: 'Δ7d % (eBay)', f: '(P_now ÷ P_7 days ago − 1) × 100, where P = trailing 7-day median of raw sale totals', m: 'The eBay price line is the median of what raw copies actually sold for in the last 7 days (needs 3 sales in the window, else blank). This is its one-week change. On thin cards it moves because different copies sold, not because the market moved — trust it on cards with dozens of sales.', e: 'P today $87.62, P a week ago $88.30 → −0.8%.'},
+  et_d30: {t: 'Δ30d % (eBay)', f: '(P_now ÷ P_30 days ago − 1) × 100', m: 'One-month change of the 7-day median sale price. Needs 30 days of eBay history.', e: '$87.62 vs $91.00 → −3.7%.'},
+  et_pos: {t: 'Range 90d % (eBay)', f: '(P_now − Low90) ÷ (High90 − Low90) × 100 over the 7-day median series', m: '0% = at the 90-day low of realized raw prices, 100% = at the high. Needs 60 days of history and 10 valid points.', e: 'Low $85.72, high $100.17, now $87.62 → 13%.'},
+  et_vd: {t: 'Volume drift 30d (eBay)', f: 'sales in the last 30 days − sales in the 30 days before, and the % change', m: 'Month-over-month demand. PriceCharting\'s version compares against the same month a year earlier (seasonal); eBay history starts now, so this is month-over-month until a year has passed. Rising sales with a falling price = supply flood; rising sales with a rising price = real demand. Needs 60 days.', e: '55 sales vs 48 the month before → +7 (+14.6%).'},
+  et_vol: {t: 'Volatility % (eBay)', f: 'median |ln(P_t ÷ P_t−1)| over days in the last 90 where the 7-day median changed; needs 3 changes', m: 'The typical day-to-day move of the realized price. Includes sampling noise on thin cards (which three copies sold), so it reads higher than PriceCharting\'s.', e: 'Daily moves of 0.3%, 0.4%, 0.5%, 1.1% → median 0.45%.'},
+  et_ts: {t: 'Slope 30d %/mo (eBay)', f: 'Theil–Sen median of pairwise slopes of ln P over the last 30 days, shown as (e^(slope × 30) − 1) × 100', m: 'The robust trend of realized raw prices: the middle of all pairwise slopes, so one odd sale does not move it. Needs 30 days and 10 valid points. Negative = drifting down.', e: 'Median pairwise slope −0.00178/day → (e^(−0.0534) − 1) × 100 = −5.2%/mo.'},
+  et_trend: {t: 'Trend (eBay)', f: 'the daily rollup behind the Trends band', m: 'Opens the chart: bars are raw sales per day, the blue line the 7-day median sale price, the green line the cheapest comparable ask that day, dashed lines the 90-day high/low and P₄₈. Same controls as the PriceCharting chart. The stats strip below it shows the trend columns and the pricing numbers side by side.', e: ''},
   er_listed: {t: 'Listed (h)', f: 'hours since the listing was created on eBay', m: 'Deals on liquid cards are gone in minutes to hours, so the freshest rows matter most. The tab shows listings first seen in the last 24 hours; sold or ended ones stay visible with their status.', e: '0.3 = listed about 20 minutes ago.'},
   er_title: {t: 'eBay title', f: 'the seller\'s title, linked to the listing', m: 'What the parser matched to the catalog card in the first columns. Always read it before buying: variant words (reverse, 1st edition, shadowless), condition claims and anything odd. If the match looks wrong, that is a parser pattern to fix — the Unmatched button shows the ones it refused.', e: '"Charizard ex 199/165 Obsidian Flames SIR NM" → Charizard ex #199, Pokemon Obsidian Flames.'},
   er_item: {t: 'Item $ / Ship $', f: 'the listed price and the seller\'s shipping charge to your ZIP', m: 'Calculated shipping is estimated for the ZIP the collector was given. "free" means the seller folded shipping into the item.', e: '$118 + $4 shipping.'},
@@ -1233,6 +1271,9 @@ const LINKS = {
   ec_prob: ['λ', 'reading only'], ec_edays: ['λ, Confidence', 'reading only'],
   ec_maxbuy: ['P₂₄ / P₄₈ / Window, Margin, fee, shipping', 'Verdict on the Raw Data tab'],
   ec_hot: ['Sold 30d, Sell-thru, Hrs to sale, Sold med vs asks, price trend', 'reading only'],
+  et_spm: ['daily rollup of sales', 'Volume drift, the Trend chart'], et_d7: ['7-day median sale price series', 'reading only'], et_d30: ['7-day median sale price series', 'reading only'],
+  et_pos: ['7-day median sale price series (90 d)', 'reading only'], et_vd: ['Sales/month now vs the month before', 'reading only'],
+  et_vol: ['7-day median sale price series (90 d)', 'reading only'], et_ts: ['7-day median sale price series (30 d)', 'reading only'],
   er_allin: ['Item, Ship, your sales tax', 'Verdict'], er_verdict: ['All-in, Max buy, Cond, Seller %, Card price', '—'], er_vs: ['Total, Card price', 'reading only'],
 };
 function openHelp(key) {
@@ -1269,12 +1310,55 @@ window.loadShard = async function (n) {
 };
 
 const COLORS = {loose: '#3b82f6', sell: '#22c55e', buy: '#f59e0b', vol: '#9ca3af', ref: '#a78bfa'};
-const LABEL = {loose: 'Ungraded', sell: 'Retail sell', buy: 'Retail buy'};
-let cur = null;               // {dates, vol, loose, sell, buy, st, anchor}
+const LABEL_PC = {loose: 'Ungraded', sell: 'Retail sell', buy: 'Retail buy', vol: 'Sales/yr', ref: '90d high/low + conservative sell'};
+const LABEL_EB = {loose: 'Sold median (7d)', sell: 'Cheapest ask', buy: '', vol: 'Sales/day', ref: '90d high/low + P₄₈'};
+let LABEL = LABEL_PC;
+let cur = null;               // {dates, vol, loose, sell, buy, st, anchor, refs, labels}
 let pts = [];
+function setChartLabels(lab) {
+  LABEL = lab;
+  $('l-loose').textContent = lab.loose + ' $'; $('l-sell').textContent = lab.sell + ' $'; $('l-buy').textContent = lab.buy ? lab.buy + ' $' : '';
+  $('l-buy').parentElement.style.display = lab.buy ? '' : 'none';
+  $('l-vol').textContent = lab.vol + ' (left axis)'; $('l-ref').textContent = lab.ref;
+}
+
+// eBay history: same chart, series from the collector's daily rollup
+function openTrendEbay(cid) {
+  const c = LIVE.dec && LIVE.dec[String(cid)], base = idRow.get(cid);
+  if (!c || !base) return;
+  setChartLabels(LABEL_EB);
+  $('mtitle').textContent = base[1];
+  $('msub').textContent = base[2] + ' · #' + base[3] + ' · eBay raw sales';
+  $('note').textContent = ''; $('stats').innerHTML = ''; $('gate').innerHTML = ''; $('chart').innerHTML = '';
+  $('ov').classList.add('open');
+  const h = c.hist, t = c.tr;
+  if (!h || !t) { cur = null; $('note').textContent = 'No eBay sales recorded for this card yet. The rollup adds one point per day.'; return; }
+  const dates = h.sales.map((_, k) => { const d = new Date(Date.parse(h.start + 'T00:00:00Z') + k * 86400000); return d.toISOString().slice(0, 10); });
+  cur = {dates, vol: h.sales, loose: h.price, sell: h.ask, buy: h.sales.map(() => null), st: t, anchor: c.price,
+         refs: [['90d high', t.hi], ['90d low', t.lo], ['P₄₈', c.p48]], ebay: c};
+  drawChart(); renderStatsEbay();
+}
+function renderStatsEbay() {
+  const s = cur.st, c = cur.ebay;
+  const cell = (k, v, d) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
+  let h = '';
+  h += cell('Sales/month', s.spm == null ? '—' : s.spm, 'raw sales in the last 30 days');
+  h += cell('Δ 7d', fmtPct(s.d7), 'vs 7 days ago');
+  h += cell('Δ 30d', fmtPct(s.d30), s.days < 30 ? 'needs 30 days (' + s.days + ' so far)' : 'vs 30 days ago');
+  h += cell('Range 90d', pctPlain(s.pos, 0, false), s.lo != null ? 'low ' + fmtMoneyPlain(s.lo) + ' · high ' + fmtMoneyPlain(s.hi) : 'needs 60 days (' + s.days + ' so far)');
+  h += cell('Volatility', pctPlain(s.vol, 2, false), 'typical daily move of the 7d median');
+  h += cell('Volume drift 30d', s.vd == null ? '—' : (s.vd > 0 ? '+' : '') + s.vd + (s.vdp == null ? '' : ' (' + pctPlain(s.vdp) + ')'), s.days < 60 ? 'needs 60 days (' + s.days + ' so far)' : 'last 30 days vs the 30 before');
+  h += cell('Slope 30d', pctPlain(s.ts), s.ts != null ? 'Theil–Sen · middle half ' + pctPlain(s.tsq1) + ' to ' + pctPlain(s.tsq3) + ' /mo' : 'needs 30 days and 10 points');
+  h += cell('λ', c.lam == null ? '—' : c.lam.toFixed(2) + '/day', c.k + ' sales in ' + c.D + ' d');
+  h += cell('P₄₈ · P₂₄', fmtMoneyPlain(c.p48) + ' · ' + fmtMoneyPlain(c.p24), 'n₄₈ ' + (c.n48 == null ? '—' : c.n48) + ' · n₂₄ ' + (c.n24 == null ? '—' : c.n24));
+  h += cell('Max buy', fmtMoneyPlain(c.maxbuy), c.basis ? 'from the ' + c.basis + ' price' : '');
+  $('stats').innerHTML = h;
+  $('gate').innerHTML = '<p class="why">Price line = median of raw sale totals over a trailing 7-day window (blank when fewer than 3 sales in the window). Bars = sales that day. History starts the day the collector was switched on; the trend columns fill in at 7 / 30 / 60 days like the PriceCharting tab.</p>';
+}
 
 async function openTrend(i) {
   const r = DATA[i];
+  setChartLabels(LABEL_PC);
   $('mtitle').textContent = r[1];
   $('msub').textContent = r[2] + ' · #' + r[3] + (r[4] ? ' · released ' + r[4] : '');
   $('note').textContent = ''; $('stats').innerHTML = ''; $('gate').innerHTML = '';
@@ -1285,7 +1369,8 @@ async function openTrend(i) {
     const c = sh.c[String(r[0])];
     if (!c) throw new Error('No history for this card yet.');
     const nul = v => v < 0 ? null : v, cents = v => v < 0 ? null : v / 100;
-    cur = {dates: sh.d, vol: c[0][0].map(nul), loose: c[0][1].map(cents), buy: c[0][2].map(cents), sell: c[0][3].map(cents), st: c[1], anchor: r[6]};
+    cur = {dates: sh.d, vol: c[0][0].map(nul), loose: c[0][1].map(cents), buy: c[0][2].map(cents), sell: c[0][3].map(cents), st: c[1], anchor: r[6],
+           refs: [['90d high', c[1].hi], ['90d low', c[1].lo], ['conservative sell', c[1].csell]]};
     drawChart(); renderStats();
   } catch (e) {
     cur = null;
@@ -1313,7 +1398,7 @@ function drawChart() {
   const iw = W - L - R, ih = H - T - B, n = pts.length;
   const x = k => n === 1 ? L + iw / 2 : L + iw * k / (n - 1);
   const money = ['loose', 'sell', 'buy'].filter(s => on[s]);
-  const refs = on.ref ? [['90d high', cur.st.hi], ['90d low', cur.st.lo], ['conservative sell', cur.st.csell]].filter(([, v]) => v != null) : [];
+  const refs = on.ref ? (cur.refs || []).filter(([, v]) => v != null) : [];
   let pmax = 0, vmax = 0;
   pts.forEach(p => { money.forEach(s => { if (p[s] != null) pmax = Math.max(pmax, p[s]); }); if (p.vol != null) vmax = Math.max(vmax, p.vol); });
   refs.forEach(([, v]) => pmax = Math.max(pmax, v));
@@ -1333,7 +1418,7 @@ function drawChart() {
     const i = Math.round(k * (n - 1) / Math.max(1, ticks - 1));
     el('text', {x: x(i), y: H - 14, 'font-size': 11, fill: 'currentColor', opacity: .75, 'text-anchor': 'middle'}, pts[i].d);
   }
-  el('text', {x: L - 6, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6, 'text-anchor': 'end'}, on.vol ? 'sales/yr' : '');
+  el('text', {x: L - 6, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6, 'text-anchor': 'end'}, on.vol ? LABEL.vol.toLowerCase() : '');
   el('text', {x: W - R + 6, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6}, (money.length || refs.length) ? 'USD' : '');
   if (on.vol) {
     const bw = Math.max(2, Math.min(18, iw / Math.max(1, n) * 0.6));
@@ -1360,7 +1445,7 @@ function drawChart() {
     const p = pts[k];
     cross.setAttribute('x1', x(k)); cross.setAttribute('x2', x(k)); cross.setAttribute('visibility', 'visible');
     let h = '<b>' + p.d + '</b>';
-    if (on.vol) h += '<br><span class="sw" style="background:' + COLORS.vol + '"></span>Sales/yr: ' + (p.vol == null ? '—' : p.vol.toLocaleString('en-US'));
+    if (on.vol) h += '<br><span class="sw" style="background:' + COLORS.vol + '"></span>' + LABEL.vol + ': ' + (p.vol == null ? '—' : p.vol.toLocaleString('en-US'));
     money.forEach(s => { h += '<br><span class="sw" style="background:' + COLORS[s] + '"></span>' + LABEL[s] + ': ' + fmtMoney(p[s]); });
     tip.innerHTML = h;
     const left = x(k) * box.width / W;
@@ -1370,7 +1455,7 @@ function drawChart() {
   };
   hit.addEventListener('mousemove', move); hit.addEventListener('touchmove', ev => { move(ev); ev.preventDefault(); }, {passive: false}); hit.addEventListener('touchstart', move, {passive: true});
   hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
-  $('note').textContent = n === 1 ? '1 day of history so far — a new point is added every morning.' : n + ' days shown' + (on.vol ? ' · sales/yr is PriceCharting\u2019s trailing twelve-month count on that day' : '');
+  $('note').textContent = n === 1 ? '1 day of history so far — a new point is added every day.' : n + ' days shown' + (on.vol && LABEL === LABEL_PC ? ' · sales/yr is PriceCharting\u2019s trailing twelve-month count on that day' : '');
 }
 const fmtMoneyPlain = v => v == null ? '—' : '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const pctPlain = (v, nd = 1, signed = true) => v == null ? '—' : (signed && v > 0 ? '+' : '') + v.toFixed(nd) + '%';
