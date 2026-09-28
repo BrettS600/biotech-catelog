@@ -12,7 +12,10 @@ Each run:
              data the Browse API gives you, and it only exists for listings seen while live.
   3. STATS   recomputes every per-card number the eBay Catalog tab shows: raw sales/day
              (lambda), the book of competing listings, sold prices, depth pricing (P24 / P48),
-             probability of a 24-hour sale, max buy, and the hot-card checks.
+             probability of a 24-hour sale, max buy, and the hot-card checks. It also stamps
+             each new listing with the model's claim about it (lambda, rank, P48) so that,
+             once a few hundred outcomes exist, the PRICE can be calibrated: how far above or
+             below the model's P48 do listings actually sell within 48 hours 70% of the time.
   4. PUBLISH writes live/ebay_live.bin (encrypted) which the site fetches - listings posted in
              the last 24 hours, the per-card statistics, and each card's book.
 
@@ -602,6 +605,9 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "ship": rec["ship"], "tcond": rec.get("tcond", "UNK"), "bo": rec["bo"], "pct": rec["pct"],
         "fb": rec["fb"], "hrs": round(max(0.0, hours_between(origin, end)), 1), "title": rec["title"],
         "url": rec["url"],
+        # what the model believed when this listing first appeared (for price calibration)
+        "lam0": rec.get("lam0"), "rank0": rec.get("rank0"), "p48_0": rec.get("p48_0"), "p24_0": rec.get("p24_0"),
+        "eff0": rec.get("eff0"),
     })
     del state["open"][iid]
 
@@ -843,6 +849,14 @@ def compute_stats(state, cat):
         edays = round(-math.log(1 - CONFIDENCE) / lam, 1) if lam else None       # 70% window, rank 1
         csell, basis = (p24, "24h") if p24 is not None else (p48, "48h") if p48 is not None else (pw, "window")
         net, maxbuy = gate(csell) if csell is not None else (None, None)
+        # Calibration record: for listings that appeared this run, remember the model's claim about
+        # them - lambda, their rank in the book, and the P48 / P24 the model would have set. Later,
+        # "did it sell within 48 h" vs "how far above/below P48 it was priced" calibrates the price.
+        for rank, r in enumerate(book, start=1):
+            if r["first"] == ts(NOW) and r.get("rank0") is None:
+                r["lam0"], r["rank0"], r["eff0"] = lam, rank, r["_eff"]
+                r["p48_0"] = r2(p48) if p48 is not None else None
+                r["p24_0"] = r2(p24) if p24 is not None else None
         # --- hot-card checks ---
         checks = {
             "sales": k >= HOT_MIN_SALES,
@@ -900,6 +914,55 @@ def compute_stats(state, cat):
     return cards
 
 
+CAL_BUCKETS = [(-999, -15), (-15, -10), (-10, -5), (-5, -2), (-2, 2), (2, 5), (5, 10), (10, 20), (20, 999)]
+CAL_MIN_TOTAL = 150          # outcomes needed before an adjustment is published
+CAL_MIN_BUCKET = 25          # ... and in each of the two buckets around the 70% crossing
+
+
+def calibrate(state, horizon_h, key):
+    """Realized sell-through within `horizon_h` hours versus how the listing was priced relative
+    to the model's own P48 (key='p48_0') or P24 (key='p24_0') when it appeared.
+    Returns {n, rows:[[lo, hi, n, sold, realized%]], delta%: offset where realized crosses 70%}."""
+    cutoff = NOW - timedelta(hours=horizon_h)
+    rows = [{"lo": lo, "hi": hi, "n": 0, "sold": 0} for lo, hi in CAL_BUCKETS]
+    recs = list(state["closed"]) + list(state["open"].values())
+    for r in recs:
+        ref = r.get(key)
+        if not ref or r.get("eff0") is None or r.get("rank0") is None or r["rank0"] > DEPTH_CAP:
+            continue
+        first = parse_ts(r["first"])
+        if first is None or first > cutoff:
+            continue                                  # outcome not knowable yet
+        out = r.get("out")
+        if out == "gone":
+            continue                                  # unknown outcome
+        sold_in = out == "sold" and r.get("hrs") is not None and \
+            (parse_ts(r["closed"]) - first).total_seconds() / 3600 <= horizon_h
+        off = (r["eff0"] / ref - 1) * 100
+        for b in rows:
+            if b["lo"] <= off < b["hi"]:
+                b["n"] += 1
+                b["sold"] += 1 if sold_in else 0
+                break
+    n = sum(b["n"] for b in rows)
+    delta = None
+    if n >= CAL_MIN_TOTAL:
+        # walk from cheapest to dearest; find where realized sell-through falls through 70%
+        prev = None
+        for b in rows:
+            if b["n"] < CAL_MIN_BUCKET:
+                continue
+            rate = b["sold"] / b["n"]
+            mid = max(b["lo"], -30) if b["hi"] == 999 else min(b["hi"], 30) if b["lo"] == -999 else (b["lo"] + b["hi"]) / 2
+            if prev is not None and prev[1] >= CONFIDENCE > rate:
+                pm, pr = prev
+                delta = round(pm + (pr - CONFIDENCE) / (pr - rate) * (mid - pm), 1)
+                break
+            prev = (mid, rate)
+    return {"n": n, "delta": delta,
+            "rows": [[b["lo"], b["hi"], b["n"], b["sold"], round(100 * b["sold"] / b["n"], 1) if b["n"] else None] for b in rows]}
+
+
 def verdict(rec, cs):
     """Gate verdict for one listing given its card's stats."""
     if rec["total"] is None:
@@ -945,6 +1008,7 @@ def build_live(state, cards):
                  "margin": MARGIN, "confidence": CONFIDENCE, "depthCap": DEPTH_CAP, "undercut": UNDERCUT,
                  "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D},
         "cards": cards, "live": live, "unmatched": unmatched,
+        "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }
 
 
