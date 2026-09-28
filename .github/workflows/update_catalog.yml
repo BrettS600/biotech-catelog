@@ -49,8 +49,8 @@ jobs:
             gh release create snapshots --title "Daily snapshots" --latest=false \
               --notes "Encrypted daily data files written by the workflow. Downloaded automatically before each build; not meant to be opened by hand."
           fi
-          n=$(gh release view snapshots --json assets -q '.assets | length')
-          echo "$n file(s) on the release."
+          n=$(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | length')
+          echo "$n PriceCharting snapshot(s) on the release."
           if [ "$n" -gt 0 ]; then
             gh release download snapshots --dir snapshots --pattern 'pc_catalog_*' --clobber
           fi
@@ -97,7 +97,7 @@ jobs:
               gh release upload snapshots "$f"
             fi
           done
-          echo "Release now holds $(gh release view snapshots --json assets -q '.assets | length') file(s)."
+          echo "Release now holds $(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | length') snapshot(s)."
 
   deploy:
     needs: build
