@@ -15,7 +15,9 @@ What it does
      The eBay tabs currently show the shared Card / Set / # / Released columns only;
      their eBay columns are still to be designed.
   5. Archives a dated snapshot in snapshots/ with EVERY column PriceCharting provides
-     (encrypted with SITE_PASSWORD, so the repo can be public without exposing their data)
+     (encrypted with SITE_PASSWORD, so the repo can be public without exposing their data).
+     The workflow keeps these on a GitHub Release tagged "snapshots" - downloaded into the
+     folder before each run, uploaded after - instead of committing them, so the repo stays small.
   6. Re-reads every past snapshot, computes trend statistics for every card, and writes
      per-card history files (public/history/*.bin, encrypted) that power the "Trend" popup
 
