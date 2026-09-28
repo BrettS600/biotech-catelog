@@ -16,8 +16,10 @@ Each run:
              each new listing with the model's claim about it (lambda, rank, P48) so that,
              once a few hundred outcomes exist, the PRICE can be calibrated: how far above or
              below the model's P48 do listings actually sell within 48 hours 70% of the time.
+             A per-card daily rollup (sales, cheapest ask) kept for 120 days gives the eBay trend
+             columns - the PriceCharting trend formulas applied to a 7-day median of raw sale totals.
   4. PUBLISH writes live/ebay_live.bin (encrypted) which the site fetches - listings posted in
-             the last 24 hours, the per-card statistics, and each card's book.
+             the last 24 hours, the per-card statistics, each card's book and daily history.
 
 State lives in one encrypted file on the "snapshots" release (ebay_state.json.gz.enc):
 open listings, closed listings for the last 60 days, seen ids, learned set totals, API usage.
@@ -71,6 +73,10 @@ CHECK_AGES_D = [3, 10, 30]   # scheduled getItem checks, days since first seen
 KW_FIRST_CHECK_D = 1         # listings found only by the keyword query get an extra day-1 check
 TRACK_GIVE_UP_D = 30         # after the last check the listing counts as unsold ("stale")
 KEEP_CLOSED_D = 60           # closed listings kept in state
+DAILY_KEEP_D = 120           # per-card daily rollup (sales, 7-day median price, cheapest ask) kept this long
+DAILY_REFRESH_D = 3          # the last N days are recomputed every run (late-confirmed sales land on their day)
+MED_WINDOW_D = 7             # the price series = median sold total over a trailing 7-day window ...
+MED_MIN_SALES = 3            # ... needing at least this many sales in the window
 STAT_WINDOW_D = 30           # window for lambda, mu, sold prices, sell-through
 CONFIDENCE = 0.70            # depth pricing: P(at least n buyers) >= this
 DEPTH_CAP = 3                # never price off deeper than the 3rd cheapest copy
@@ -171,7 +177,7 @@ def release_upload(path):
 # ---------------- state ----------------
 def empty_state():
     return {"last_sweep": None, "last_presence": None, "seen": {}, "open": {}, "closed": [], "unmatched": [],
-            "denoms": {}, "hot": {}, "calls": {}, "runs": 0}
+            "denoms": {}, "hot": {}, "calls": {}, "runs": 0, "daily": {}}
 
 
 def load_state():
@@ -770,6 +776,121 @@ def gate(csell):
     return round(net, 2), round(net / (1 + MARGIN), 2)
 
 
+# ---------------- daily rollup (the eBay trend series) ----------------
+def update_daily(state):
+    """state['daily'][card][YYYY-MM-DD] = [sold totals that day, cheapest comparable ask, new listings].
+    Frozen once a day is older than DAILY_REFRESH_D; recent days are rebuilt from the records."""
+    daily = state.setdefault("daily", {})
+    keep_from = (NOW - timedelta(days=DAILY_KEEP_D)).date().isoformat()
+    refresh = {(NOW - timedelta(days=i)).date().isoformat() for i in range(DAILY_REFRESH_D)}
+    if not daily:                                        # first run with a rollup: build it from everything on hand
+        refresh = {r["closed"][:10] for r in state["closed"]} | {r["first"][:10] for r in state["closed"]} \
+            | {r["first"][:10] for r in state["open"].values()} | refresh
+    # rebuild the recent days
+    fresh = defaultdict(lambda: defaultdict(lambda: [[], None, 0]))
+    for r in state["closed"]:
+        if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None:
+            d = r["closed"][:10]
+            if d in refresh:
+                fresh[str(r["card"])][d][0].append(round(r["total"], 2))
+    for r in list(state["open"].values()) + state["closed"]:
+        if comparable(r):
+            d = r["first"][:10]
+            if d in refresh:
+                fresh[str(r["card"])][d][2] += 1
+    today = NOW.date().isoformat()
+    for r in state["open"].values():                    # today's cheapest ask per card
+        if comparable(r) and r["total"] is not None:
+            eff = round(r["total"] * (BO_HAIRCUT if r["bo"] else 1.0), 2)
+            cell = fresh[str(r["card"])][today]
+            if cell[1] is None or eff < cell[1]:
+                cell[1] = eff
+    for cid, days in fresh.items():
+        dd = daily.setdefault(cid, {})
+        for d, cell in days.items():
+            old_cell = dd.get(d)
+            if old_cell and cell[1] is None:
+                cell[1] = old_cell[1]                  # keep an earlier ask reading for a past day
+            dd[d] = [cell[0], cell[1], cell[2]]
+    # prune
+    for cid in list(daily):
+        daily[cid] = {d: v for d, v in daily[cid].items() if d >= keep_from}
+        if not daily[cid]:
+            del daily[cid]
+
+
+def theil_sen(points):
+    """points = [(day_index, ln price)] -> (median slope/day, q1, q3) or None."""
+    slopes = []
+    for i in range(len(points)):
+        for j in range(i + 1, len(points)):
+            dt = points[j][0] - points[i][0]
+            if dt > 0:
+                slopes.append((points[j][1] - points[i][1]) / dt)
+    if not slopes:
+        return None
+    return pct(slopes, 0.5), pct(slopes, 0.25), pct(slopes, 0.75)
+
+
+def trend_stats(days):
+    """days = {date: [sold totals, ask, new]} for one card -> trend columns + the series for the chart."""
+    if not days:
+        return None, None
+    d0 = datetime.strptime(min(days), "%Y-%m-%d").date()
+    today = NOW.date()
+    n = (today - d0).days + 1
+    idx = [(d0 + timedelta(days=i)).isoformat() for i in range(n)]
+    sales = [len(days[d][0]) if d in days else 0 for d in idx]
+    asks = [days[d][1] if d in days else None for d in idx]
+    price = []
+    for i in range(n):                                   # trailing 7-day median of sold totals
+        pool = []
+        for j in range(max(0, i - MED_WINDOW_D + 1), i + 1):
+            pool += days[idx[j]][0] if idx[j] in days else []
+        price.append(round(pct(pool, 0.5), 2) if len(pool) >= MED_MIN_SALES else None)
+    hist_days = n
+    last = n - 1
+    def at(back):                                        # price `back` days ago (nearest earlier valid day)
+        for k in range(last - back, max(-1, last - back - 3), -1):
+            if k >= 0 and price[k] is not None:
+                return price[k]
+        return None
+    p_now = at(0)
+    def chg(back):
+        p_then = at(back)
+        return round((p_now / p_then - 1) * 100, 1) if p_now and p_then and hist_days > back else None
+    d7, d30 = chg(7), chg(30)
+    valid90 = [v for v in price[max(0, n - 90):] if v is not None]
+    pos = hi = lo = None
+    if hist_days >= 60 and len(valid90) >= 10 and p_now is not None:
+        lo, hi = min(valid90), max(valid90)
+        pos = round((p_now - lo) / (hi - lo) * 100, 0) if hi > lo else 50.0
+    moves = []
+    prev = None
+    for v in price[max(0, n - 90):]:
+        if v is not None and prev is not None and v != prev:
+            moves.append(abs(math.log(v / prev)))
+        if v is not None:
+            prev = v
+    vol = round(pct(moves, 0.5) * 100, 2) if len(moves) >= 3 else None
+    pts30 = [(i, math.log(price[i])) for i in range(max(0, n - 30), n) if price[i] is not None]
+    ts = tsq1 = tsq3 = None
+    if hist_days >= 30 and len(pts30) >= 10:
+        r = theil_sen(pts30)
+        if r:
+            ts, tsq1, tsq3 = (round((math.exp(v * 30) - 1) * 100, 1) for v in r)
+    spm = sum(sales[max(0, n - 30):])
+    vd = vdp = None
+    if hist_days >= 60:
+        prev30 = sum(sales[max(0, n - 60):n - 30])
+        vd = spm - prev30
+        vdp = round((spm / prev30 - 1) * 100, 1) if prev30 else None
+    tr = {"d7": d7, "d30": d30, "pos": pos, "hi": hi, "lo": lo, "vol": vol, "ts": ts, "tsq1": tsq1, "tsq3": tsq3,
+          "spm": spm, "vd": vd, "vdp": vdp, "days": hist_days}
+    hist = {"start": idx[0], "sales": sales, "price": price, "ask": asks}
+    return tr, hist
+
+
 def compute_stats(state, cat):
     by_id = {c["id"]: c for c in cat.cards}
     win_start = NOW - timedelta(days=STAT_WINDOW_D)
@@ -897,7 +1018,9 @@ def compute_stats(state, cat):
         elif hs:
             del hot_state[str(cid)]
 
+        tr, hist = trend_stats(state.get("daily", {}).get(str(cid), {}))
         cards[str(cid)] = {
+            "tr": tr, "hist": hist if hist and any(hist["sales"]) else None,
             "price": r2(price), "k": k, "D": round(D, 1), "lam": lam, "N": N, "p1": p[0], "p2": p[1], "p3": p[2],
             "mu": mu, "dos": dos, "io": io_, "smed": r2(smed), "s80": r2(s80), "hrs": hrs, "st": None if st is None else round(st * 100, 1),
             "n24": n24, "n48": n48, "p24": r2(p24), "p48": r2(p48), "pw": r2(pw), "basis": basis if csell is not None else None,
@@ -1036,6 +1159,7 @@ def main():
     sweep(state, cat)
     track(state)
     prune(state)
+    update_daily(state)
     cards = compute_stats(state, cat)
     live = build_live(state, cards)
     os.makedirs(LIVE_DIR, exist_ok=True)
