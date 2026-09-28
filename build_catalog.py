@@ -12,8 +12,8 @@ What it does
   3. Orders sets by release date, and cards by card number within each set
   4. Writes site/index.html - one self-contained page with three tabs:
        PriceCharting Catalog (default) | eBay Catalog | eBay Raw Data
-     The eBay tabs currently show the shared Card / Set / # / Released columns only;
-     their eBay columns are still to be designed.
+     The eBay tabs read live/ebay_live.bin, which ebay_sweep.py publishes to the repo's
+     "live" branch every 15 minutes (same encryption key, derived from SITE_PASSWORD).
   5. Archives a dated snapshot in snapshots/ with EVERY column PriceCharting provides
      (encrypted with SITE_PASSWORD, so the repo can be public without exposing their data).
      The workflow keeps these on a GitHub Release tagged "snapshots" - downloaded into the
@@ -382,9 +382,13 @@ def clean(v, nd=2):
 
 
 # ---------- 6d. History shards: series + statistics per card ----------
+# One key for the history shards AND the eBay live file: derived from the site password, so
+# ebay_sweep.py (which runs separately every 15 minutes) can encrypt files this page can read.
+LIVE_URL = (f"https://raw.githubusercontent.com/{os.environ['GITHUB_REPOSITORY']}/live/ebay_live.bin"
+            if os.environ.get("GITHUB_REPOSITORY") else os.environ.get("LIVE_URL", ""))
 if dates and password:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    hist_key = os.urandom(32)
+    hist_key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), b"biotech-catalog-live-v1", 600_000)
     os.makedirs(HISTORY_DIR, exist_ok=True)
     for f in glob.glob(os.path.join(HISTORY_DIR, "*.bin")):
         os.remove(f)
@@ -516,6 +520,21 @@ html = r"""<!DOCTYPE html>
   .gate .big td { font-weight:700; font-size:15px; }
   .gate .why { color:var(--muted); font-size:12px; }
   .formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; background:var(--head); border:1px solid var(--line); border-radius:6px; padding:8px 10px; white-space:pre-wrap; margin:6px 0 10px; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; border:1px solid var(--line); background:var(--head); white-space:nowrap; }
+  .badge.pass { color:#fff; background:var(--up); border-color:var(--up); font-weight:700; }
+  .badge.hot { color:#fff; background:#d97706; border-color:#d97706; }
+  .badge.hot2 { color:#fff; background:var(--down); border-color:var(--down); font-weight:700; }
+  .badge.warn { color:var(--down); border-color:var(--down); }
+  td.ttl { max-width:420px; overflow:hidden; text-overflow:ellipsis; }
+  .live-note { color:var(--muted); font-size:12px; padding:0 18px 8px; }
+  .linkbtn { font:inherit; font-size:12px; border:none; background:none; color:var(--link); cursor:pointer; padding:0; text-decoration:underline; }
+  .modal.mid { width:min(820px, 100%); }
+  .book table { min-width:0; width:100%; font-size:13px; }
+  .book th { position:static; cursor:default; }
+  .book th:hover { text-decoration:none; }
+  .book h3 { font-size:14px; margin:12px 0 4px; }
+  .book .sum { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; margin:4px 0 6px; }
+  .book .sum b { font-variant-numeric:tabular-nums; }
   .hbody p { margin:6px 0; line-height:1.5; }
   .hbody h4 { margin:12px 0 2px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
 </style>
@@ -562,49 +581,108 @@ html = r"""<!DOCTYPE html>
 <footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
 </section>
 
-<!-- ============ Tab 2: eBay Catalog (one row per card; eBay columns to be designed) ============ -->
+<!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
 <section class="panel" id="p-ec" hidden>
-<div class="meta">eBay Catalog · one row per card · eBay columns not connected yet — the first four columns match the PriceCharting tab</div>
+<div class="meta" id="meta-ec">eBay Catalog · loading live data…</div>
+<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. Default filter: cards whose eBay price is $50–$150. Numbers refresh every 15 minutes; click <b>?</b> on any header for the formula.</div>
 <div class="controls">
   <input type="search" id="q-ec" placeholder="Search card or set…">
   <select id="set-ec"><option value="">All sets (release order)</option></select>
   <span class="count" id="count-ec"></span>
 </div>
+<div class="ranges" id="ranges-ec">
+  <button class="reset" id="reset-ec">Reset filters</button>
+</div>
 <div class="wrap">
-<table>
+<table class="wide">
   <thead><tr>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+    <th data-k="5" class="num">Price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
+    <th data-k="6" class="num">Sold 30d<span class="s">⇅</span><button class="help" data-h="ec_k">?</button></th>
+    <th data-k="7" class="num">Days obs.<span class="s">⇅</span><button class="help" data-h="ec_d">?</button></th>
+    <th data-k="8" class="num">λ /day<span class="s">⇅</span><button class="help" data-h="ec_lam">?</button></th>
+    <th data-k="9" class="num">Active<span class="s">⇅</span><button class="help" data-h="ec_n">?</button></th>
+    <th data-k="10" class="num">p₁ $<span class="s">⇅</span><button class="help" data-h="ec_p">?</button></th>
+    <th data-k="11" class="num">p₂ $<span class="s">⇅</span><button class="help" data-h="ec_p">?</button></th>
+    <th data-k="12" class="num">p₃ $<span class="s">⇅</span><button class="help" data-h="ec_p">?</button></th>
+    <th data-k="13" class="num">New/day<span class="s">⇅</span><button class="help" data-h="ec_mu">?</button></th>
+    <th data-k="14" class="num">Days supply<span class="s">⇅</span><button class="help" data-h="ec_dos">?</button></th>
+    <th data-k="15" class="num">In/out<span class="s">⇅</span><button class="help" data-h="ec_io">?</button></th>
+    <th data-k="16" class="num">Sold med $<span class="s">⇅</span><button class="help" data-h="ec_smed">?</button></th>
+    <th data-k="17" class="num">Sold 80% $<span class="s">⇅</span><button class="help" data-h="ec_s80">?</button></th>
+    <th data-k="18" class="num">Hrs to sale<span class="s">⇅</span><button class="help" data-h="ec_hrs">?</button></th>
+    <th data-k="19" class="num">Sell-thru %<span class="s">⇅</span><button class="help" data-h="ec_st">?</button></th>
+    <th data-k="20" class="num">n₂₄<span class="s">⇅</span><button class="help" data-h="ec_n24">?</button></th>
+    <th data-k="21" class="num">n₄₈<span class="s">⇅</span><button class="help" data-h="ec_n24">?</button></th>
+    <th data-k="22" class="num">P₂₄ $<span class="s">⇅</span><button class="help" data-h="ec_p24">?</button></th>
+    <th data-k="23" class="num">P₄₈ $<span class="s">⇅</span><button class="help" data-h="ec_p48">?</button></th>
+    <th data-k="24" class="num">Window $<span class="s">⇅</span><button class="help" data-h="ec_pw">?</button></th>
+    <th data-k="25" class="num">P(≤24h) %<span class="s">⇅</span><button class="help" data-h="ec_prob">?</button></th>
+    <th data-k="26" class="num">Exp. days<span class="s">⇅</span><button class="help" data-h="ec_edays">?</button></th>
+    <th data-k="27" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="28">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
+    <th>Book<button class="help" data-h="ec_book">?</button></th>
   </tr></thead>
   <tbody id="rows-ec"></tbody>
 </table>
 </div>
 <button class="more" id="more-ec" hidden>Show more</button>
+<footer>Cards appear here once at least one raw listing has been matched to them; most columns need sales, so the tab fills in over the first weeks. λ is a conservative estimate (25th percentile), so with few sales it deliberately reads low. Prices are buyer totals (item + shipping); Best Offer copies are ranked at 90% of their ask.</footer>
 </section>
 
-<!-- ============ Tab 3: eBay Raw Data (one row per listing once collected; layout to be designed) ============ -->
+<!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
 <section class="panel" id="p-er" hidden>
-<div class="meta">eBay Raw Data · will hold one row per eBay listing, matched to a card · no listings collected yet, so the catalog rows are shown</div>
+<div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
+<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Default filter: cards whose eBay price is $50–$150. <button class="linkbtn" id="unmatched-btn">Unmatched titles</button></div>
 <div class="controls">
-  <input type="search" id="q-er" placeholder="Search card or set…">
+  <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
   <span class="count" id="count-er"></span>
 </div>
+<div class="ranges" id="ranges-er">
+  <button class="reset" id="reset-er">Reset filters</button>
+</div>
 <div class="wrap">
-<table>
+<table class="wide">
   <thead><tr>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+    <th data-k="5" class="num">Listed (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
+    <th data-k="6">eBay title<span class="s">⇅</span><button class="help" data-h="er_title">?</button></th>
+    <th data-k="7" class="num">Item $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
+    <th data-k="8" class="num">Ship $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
+    <th data-k="9" class="num">Total $<span class="s">⇅</span><button class="help" data-h="er_total">?</button></th>
+    <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
+    <th data-k="11" class="num">Card price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
+    <th data-k="12" class="num">vs price %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
+    <th data-k="13" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="14">Verdict<span class="s">⇅</span><button class="help" data-h="er_verdict">?</button></th>
+    <th data-k="15">Cond<span class="s">⇅</span><button class="help" data-h="er_cond">?</button></th>
+    <th data-k="16">Offer<span class="s">⇅</span><button class="help" data-h="er_bo">?</button></th>
+    <th data-k="17" class="num">Seller fb<span class="s">⇅</span><button class="help" data-h="er_seller">?</button></th>
+    <th data-k="18" class="num">Seller %<span class="s">⇅</span><button class="help" data-h="er_seller">?</button></th>
+    <th data-k="19">Status<span class="s">⇅</span><button class="help" data-h="er_status">?</button></th>
   </tr></thead>
   <tbody id="rows-er"></tbody>
 </table>
 </div>
 <button class="more" id="more-er" hidden>Show more</button>
+<footer>Listings are pulled from eBay every 15 minutes (raw singles, fixed price, $25–$200, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below the card's Max buy.</footer>
 </section>
+
+<div class="ov" id="bov">
+  <div class="modal mid book">
+    <button class="close" id="bclose" title="Close">✕</button>
+    <h2 id="btitle"></h2>
+    <div class="sub" id="bsub"></div>
+    <div id="bbody"></div>
+  </div>
+</div>
 
 <div class="ov" id="ov">
   <div class="modal">
@@ -660,14 +738,21 @@ const fmtPct = (v, signed = true, nd = 1) => v == null ? dash : '<span class="' 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 /* ---------------- Tables ----------------
-   Three tables share the same rows (DATA) and the same controller. The first four cells
-   (Card, Set, #, Released) are identical everywhere; only the PriceCharting table adds
-   the price/trend columns and the numeric range filters. */
+   Three tables share one controller. The first four cells (Card, Set, #, Released) are the same
+   everywhere; each table supplies its own rows, extra cells and numeric range filters.
+   Every row's last element is its default-order index. */
+const ordOf = r => r[r.length - 1];
 const cells4 = r =>
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
   '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || dash) + '</td>';
+const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
+const badge = (txt, cls) => '<span class="badge' + (cls ? ' ' + cls : '') + '">' + esc(txt) + '</span>';
+const LIVE = {data: null, ec: [], er: []};      // filled by loadLive()
+
 const TABLES = {
-  pc: {ranges: RANGE_COLS, row: r => cells4(r) +
+  pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
+       hay: r => r[1] + ' ' + r[2],
+       row: r => cells4(r) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
       '<td class="num">' + fmtMoney(r[6]) + '</td>' +
       '<td class="num">' + fmtPct(r[7]) + '</td>' +
@@ -676,9 +761,52 @@ const TABLES = {
       '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[12], false, 2) + '</td>' +
       '<td class="num">' + fmtPct(r[13]) + '</td>' +
-      '<td><button class="tbtn" data-i="' + r[ORD] + '">Trend</button></td>'},
-  ec: {ranges: [], row: cells4},   // eBay Catalog: per-card eBay columns to be designed
-  er: {ranges: [], row: cells4},   // eBay Raw Data: per-listing columns to be designed
+      '<td><button class="tbtn" data-i="' + ordOf(r) + '">Trend</button></td>'},
+  // eBay Catalog row: 0 id 1 card 2 set 3 # 4 released 5 price 6 k 7 D 8 lam 9 N 10 p1 11 p2 12 p3 13 mu 14 dos 15 io
+  // 16 smed 17 s80 18 hrs 19 st 20 n24 21 n48 22 p24 23 p48 24 pw 25 prob24 26 edays 27 maxbuy 28 hot 29 basis 30 confirm 31 checks 32 ord
+  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [5, 6, 8, 9, 14, 16, 18, 19, 22, 23, 27],
+       labels: {5: 'Price $', 6: 'Sold 30d', 8: 'λ /day', 9: 'Active', 14: 'Days supply', 16: 'Sold med $', 18: 'Hrs to sale', 19: 'Sell-thru %', 22: 'P₂₄ $', 23: 'P₄₈ $', 27: 'Max buy $'},
+       defaults: {5: [50, 150]},
+       hay: r => r[1] + ' ' + r[2],
+       row: r => cells4(r) +
+      '<td class="num">' + fmtMoney(r[5]) + '</td>' +
+      '<td class="num">' + fmtInt(r[6]) + '</td>' +
+      '<td class="num">' + fmtNum(r[7], 0) + '</td>' +
+      '<td class="num">' + fmtNum(r[8], 2) + '</td>' +
+      '<td class="num">' + fmtInt(r[9]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[10]) + '</td><td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtMoney(r[12]) + '</td>' +
+      '<td class="num">' + fmtNum(r[13], 2) + '</td>' +
+      '<td class="num">' + fmtNum(r[14], 1) + '</td>' +
+      '<td class="num">' + fmtNum(r[15], 2) + '</td>' +
+      '<td class="num">' + fmtMoney(r[16]) + '</td><td class="num">' + fmtMoney(r[17]) + '</td>' +
+      '<td class="num">' + fmtNum(r[18], 0) + '</td>' +
+      '<td class="num">' + fmtPct(r[19], false, 0) + '</td>' +
+      '<td class="num">' + fmtInt(r[20]) + '</td><td class="num">' + fmtInt(r[21]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[22]) + '</td><td class="num">' + fmtMoney(r[23]) + '</td><td class="num">' + fmtMoney(r[24]) + '</td>' +
+      '<td class="num">' + fmtPct(r[25], false, 0) + '</td>' +
+      '<td class="num">' + fmtNum(r[26], 1) + '</td>' +
+      '<td class="num">' + (r[27] == null ? dash : '<b>' + fmtMoney(r[27]) + '</b>' + (r[29] && r[29] !== '24h' ? ' <span class="dim">(' + r[29] + ')</span>' : '')) + '</td>' +
+      '<td>' + (r[28] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[28] === 'candidate' ? badge('Hot ' + r[30] + '/3', 'hot') : r[31] && r[31].length && r[6] >= 5 ? '<span class="dim" title="' + esc(r[31].join(', ')) + '">fails ' + r[31].length + '</span>' : dash) + '</td>' +
+      '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
+  // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
+  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 ord
+  er: {rows: () => LIVE.er, noun: 'listings', ranges: [5, 9, 10, 11, 12, 13],
+       labels: {5: 'Listed (h)', 9: 'Total $', 10: 'All-in $', 11: 'Card price $', 12: 'vs price %', 13: 'Max buy $'},
+       defaults: {11: [50, 150]},
+       hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
+       row: r => cells4(r) +
+      '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
+      '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
+      '<td class="num">' + fmtMoney(r[7]) + '</td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
+      '<td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[11]) + '</td>' +
+      '<td class="num">' + fmtPct(r[12]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[13]) + '</td>' +
+      '<td>' + (r[14] === 'PASS' ? badge('PASS', 'pass') : /scam/.test(r[14]) ? badge(r[14], 'warn') : badge(r[14])) + '</td>' +
+      '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
+      '<td>' + (r[16] ? 'BO' : dash) + '</td>' +
+      '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
+      '<td>' + (r[19] === 'open' ? 'open' : r[19] === 'sold' ? '<span class="up">sold</span>' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td>'},
 };
 
 function makeTable(id, cfg) {
@@ -688,17 +816,19 @@ function makeTable(id, cfg) {
   SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
   cfg.ranges.forEach(k => {                             // build the min–max filter row
     const div = document.createElement('div'); div.className = 'range';
-    div.innerHTML = '<span class="lbl">' + RANGE_LABEL[k] + '</span><input type="number" id="min' + k + '-' + id + '" placeholder="min"><span class="to">–</span><input type="number" id="max' + k + '-' + id + '" placeholder="max">';
+    const d = cfg.defaults[k] || ['', ''];
+    div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="min' + k + '-' + id + '" placeholder="min" value="' + d[0] + '"><span class="to">–</span><input type="number" id="max' + k + '-' + id + '" placeholder="max" value="' + d[1] + '">';
     el('ranges').insertBefore(div, el('reset'));
   });
   t.apply = () => {
+    const rows = cfg.rows();
     const q = el('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const set = sel.value;
     const ranges = cfg.ranges.map(k => {
       const lo = el('min' + k).value, hi = el('max' + k).value;
       return [k, lo === '' ? null : +lo, hi === '' ? null : +hi];
     }).filter(([, lo, hi]) => lo != null || hi != null);
-    t.view = DATA.filter(r => {
+    t.view = rows.filter(r => {
       if (set && r[2] !== set) return false;
       for (const [k, lo, hi] of ranges) {
         const v = r[k];
@@ -706,7 +836,7 @@ function makeTable(id, cfg) {
         if (lo != null && v < lo) return false;
         if (hi != null && v > hi) return false;
       }
-      if (q.length) { const hay = (r[1] + ' ' + r[2]).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
+      if (q.length) { const hay = cfg.hay(r).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
       return true;
     });
     if (t.sortKey != null) {
@@ -715,14 +845,14 @@ function makeTable(id, cfg) {
         let x = a[k], y = b[k];
         if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
         if (x === '') x = null; if (y === '') y = null;         // blanks always sort last
-        if (x == null && y == null) return a[ORD] - b[ORD];
+        if (x == null && y == null) return ordOf(a) - ordOf(b);
         if (x == null) return 1; if (y == null) return -1;
-        if (typeof x === 'number') return (x - y) * d || a[ORD] - b[ORD];
-        return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || a[ORD] - b[ORD];
+        if (typeof x === 'number') return (x - y) * d || ordOf(a) - ordOf(b);
+        return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || ordOf(a) - ordOf(b);
       });
     }
     el('rows').innerHTML = ''; t.shown = 0; t.renderMore();
-    el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + DATA.length.toLocaleString('en-US') + ' cards';
+    el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + rows.length.toLocaleString('en-US') + ' ' + cfg.noun;
   };
   t.renderMore = () => {
     const frag = document.createDocumentFragment();
@@ -743,7 +873,7 @@ function makeTable(id, cfg) {
   ['q', ...cfg.ranges.flatMap(k => ['min' + k, 'max' + k])].forEach(k => el(k).addEventListener('input', t.apply));
   if (el('reset')) el('reset').addEventListener('click', () => {
     el('q').value = ''; sel.value = '';
-    cfg.ranges.forEach(k => { el('min' + k).value = ''; el('max' + k).value = ''; });
+    cfg.ranges.forEach(k => { const d = cfg.defaults[k] || ['', '']; el('min' + k).value = d[0]; el('max' + k).value = d[1]; });
     t.apply();
   });
   sel.addEventListener('change', t.apply);
@@ -765,6 +895,96 @@ function showTab(id) {
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
 showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
 
+/* ---------------- eBay live data ----------------
+   ebay_sweep.py publishes live/ebay_live.bin (AES-GCM, same key as the history shards) to the
+   repo's "live" branch every 15 minutes; raw.githubusercontent.com serves it with CORS. */
+const LIVE_URL = '__LIVE_URL__';
+const GATE_EBAY = __GATE_EBAY__;
+const idRow = new Map(DATA.map(r => [r[0], r]));
+async function decryptGz(buf, keyHex) {
+  const key = await crypto.subtle.importKey('raw', hex2bytes(keyHex), 'AES-GCM', false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({name: 'AES-GCM', iv: buf.slice(0, 12)}, key, buf.slice(12));
+  return JSON.parse(await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+}
+function ageText(iso) {
+  const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  return m < 60 ? m + ' min ago' : (m / 60).toFixed(1) + ' h ago';
+}
+async function loadLive() {
+  if (!LIVE_URL || !HKEY) { $('meta-ec').textContent = 'eBay Catalog · the eBay collector has not published data yet.'; $('meta-er').textContent = 'eBay Raw Data · no live data yet.'; return; }
+  try {
+    const res = await fetch(LIVE_URL + '?t=' + Math.floor(Date.now() / 60000), {cache: 'no-store'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const live = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+    LIVE.data = live;
+    LIVE.ec = []; LIVE.er = [];
+    for (const [cid, c] of Object.entries(live.cards)) {
+      const base = idRow.get(+cid); if (!base) continue;
+      const hot = c.hot === 2 ? 'confirmed' : c.hot === 1 ? 'candidate' : '';
+      LIVE.ec.push([base[0], base[1], base[2], base[3], base[4], c.price, c.k, c.D, c.lam, c.N, c.p1, c.p2, c.p3, c.mu, c.dos, c.io,
+                    c.smed, c.s80, c.hrs, c.st, c.n24, c.n48, c.p24, c.p48, c.pw, c.prob24, c.edays, c.maxbuy, hot, c.basis, c.confirm, c.checks, LIVE.ec.length]);
+    }
+    live.live.forEach(x => {
+      const base = idRow.get(x[1]); if (!base) return;
+      LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], LIVE.er.length]);
+    });
+    $('meta-ec').textContent = 'eBay Catalog · data as of ' + live.t.replace('T', ' ').replace('Z', ' UTC') + ' (' + ageText(live.t) + ') · ' +
+      live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today';
+    $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + live.n_pass + ' pass the gate · as of ' + ageText(live.t);
+    $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
+    tables.ec.apply(); tables.er.apply();
+  } catch (e) {
+    $('meta-ec').textContent = 'eBay Catalog · live data unavailable (' + e.message + ') — retry with a refresh.';
+    $('meta-er').textContent = 'eBay Raw Data · live data unavailable (' + e.message + ').';
+  }
+}
+
+/* Book popup: the competing listings and recent sales behind a card's numbers */
+function openBook(cid) {
+  const c = LIVE.data && LIVE.data.cards[String(cid)], base = idRow.get(cid);
+  if (!c || !base) return;
+  $('btitle').textContent = base[1];
+  $('bsub').textContent = base[2] + ' · #' + base[3];
+  const hrsTxt = h => h == null ? '—' : h < 48 ? h.toFixed(0) + ' h' : (h / 24).toFixed(1) + ' d';
+  let h = '<div class="sum">';
+  h += '<span>Price <b>' + fmtMoney(c.price) + '</b></span><span>λ <b>' + (c.lam == null ? '—' : c.lam.toFixed(2)) + '/day</b> (' + c.k + ' sales in ' + c.D + ' d)</span>';
+  h += '<span>n₂₄ <b>' + (c.n24 == null ? '—' : c.n24) + '</b> · n₄₈ <b>' + (c.n48 == null ? '—' : c.n48) + '</b></span>';
+  h += '<span>P₂₄ <b>' + fmtMoney(c.p24) + '</b> · P₄₈ <b>' + fmtMoney(c.p48) + '</b> · window <b>' + fmtMoney(c.pw) + '</b></span>';
+  h += '<span>Max buy <b>' + fmtMoney(c.maxbuy) + '</b>' + (c.basis ? ' <span class="dim">from the ' + c.basis + ' price</span>' : '') + '</span>';
+  if (c.checks && c.checks.length) h += '<span class="dim">Hot checks failing: ' + esc(c.checks.join(', ')) + '</span>';
+  else if (c.hot) h += '<span>' + (c.hot === 2 ? badge('Hot ✓ confirmed', 'hot2') : badge('Hot candidate · ' + c.confirm + '/3 confirmed', 'hot')) + '</span>';
+  h += '</div>';
+  h += '<h3>Competing raw listings (' + c.N + ' comparable)</h3>';
+  if (!c.book.length) h += '<p class="dim">None open right now.</p>';
+  else {
+    h += '<table><thead><tr><th>Rank</th><th class="num">Total $</th><th class="num">Item $</th><th class="num">Ship $</th><th>Cond</th><th>Offer</th><th class="num">Seller</th><th class="num">Listed</th><th>Title</th></tr></thead><tbody>';
+    c.book.forEach((b, i) => {
+      h += '<tr><td>' + (i + 1) + '</td><td class="num">' + fmtMoney(b[1]) + (b[5] ? ' <span class="dim">(' + fmtMoney(Math.round(b[1] * GATE_LIVE().boHaircut * 100) / 100) + ' ranked)</span>' : '') + '</td><td class="num">' + fmtMoney(b[2]) + '</td><td class="num">' + (b[3] === 0 ? 'free' : fmtMoney(b[3])) + '</td><td>' + (b[4] === 'UNK' ? '<span class="dim">n/s</span>' : b[4]) + '</td><td>' + (b[5] ? 'BO' : '—') + '</td><td class="num">' + fmtInt(b[6]) + (b[7] != null ? ' · ' + b[7].toFixed(1) + '%' : '') + '</td><td class="num">' + hrsTxt(b[8]) + '</td><td class="ttl"><a href="' + esc(b[9]) + '" target="_blank" rel="noopener">' + esc(b[10]) + '</a></td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '<h3>Recent raw sales (newest first)</h3>';
+  if (!c.sold.length) h += '<p class="dim">No sales observed yet.</p>';
+  else {
+    h += '<table><thead><tr><th>Sold</th><th class="num">Total $</th><th class="num">Time to sale</th><th>Cond</th><th>Offer</th><th>Title</th></tr></thead><tbody>';
+    c.sold.forEach(s => { h += '<tr><td>' + s[0] + '</td><td class="num">' + fmtMoney(s[1]) + (s[4] ? ' <span class="dim">or less</span>' : '') + '</td><td class="num">' + hrsTxt(s[2]) + '</td><td>' + (s[3] === 'UNK' ? '<span class="dim">n/s</span>' : s[3]) + '</td><td>' + (s[4] ? 'BO' : '—') + '</td><td class="ttl"><a href="' + esc(s[5]) + '" target="_blank" rel="noopener">' + esc(s[6]) + '</a></td></tr>'; });
+    h += '</tbody></table>';
+  }
+  $('bbody').innerHTML = h;
+  $('bov').classList.add('open');
+}
+const GATE_LIVE = () => (LIVE.data && LIVE.data.gate) || {boHaircut: 0.9};
+$('rows-ec').addEventListener('click', e => { const b = e.target.closest('.bbtn'); if (b) openBook(+b.dataset.id); });
+$('bclose').addEventListener('click', () => $('bov').classList.remove('open'));
+$('bov').addEventListener('click', e => { if (e.target === $('bov')) $('bov').classList.remove('open'); });
+$('unmatched-btn').addEventListener('click', () => {
+  const u = (LIVE.data && LIVE.data.unmatched) || [];
+  $('htitle').textContent = 'Unmatched titles (last 24 h)';
+  $('hbody').innerHTML = '<p class="dim">Listings the title parser could not tie to one catalog card, with the reason. Useful for spotting patterns to teach it.</p>' +
+    (u.length ? '<table style="min-width:0;width:100%;font-size:12px"><tbody>' + u.slice().reverse().map(x => '<tr><td class="ttl"><a href="' + esc(x[4]) + '" target="_blank" rel="noopener">' + esc(x[2]) + '</a></td><td class="num">' + fmtMoney(x[3]) + '</td><td class="dim">' + esc(x[5]) + '</td></tr>').join('') + '</tbody></table>' : '<p>None.</p>');
+  $('hov').classList.add('open');
+});
+
 /* ---------------- Column help ---------------- */
 const pct = v => (v * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
 const HELP = {
@@ -780,6 +1000,39 @@ const HELP = {
   vd: {t: 'Volume drift 30d', f: 'Sales/yr_today − Sales/yr_30_days_ago   (and as % of the earlier value)', m: 'Because Sales/yr is a trailing 365-day count, the 30-day difference equals (sales in the last 30 days) minus (sales in the 30-day window that just fell out of the year — roughly the same month a year ago). So a positive number means this month beat the same month last year: a year-over-year demand signal that is automatically seasonally matched. It counts all grades, so on vintage cards it is mostly a graded-market signal, and small counts are noise — +2 on a base of 40 means nothing. Sorting and the range filter use the percent. Rising volume with a rising price is real heat; rising volume with a falling price is a supply flood (a reprint hitting the market), the pattern where a "bargain" keeps getting cheaper.', e: '210 today, 196 thirty days ago → +14 sales, +14 / 196 = +7.1%.'},
   vol: {t: 'Volatility %', f: 'median of |ln(P_t / P_t−1)| over the days the price moved in the last 90 days', m: 'The typical size of a move when the price moves. The median ignores a single wild day, which a standard deviation would not. It sizes the safety cushion in the buy gate: a card that moves 2% at a time can be bought at a thinner discount than one that moves 12%. Needs at least 3 moves.', e: 'Moves of 3.82%, 3.75%, 1.78%, 4.98%, 1.40%, 1.18% → sorted 1.18, 1.40, 1.78, 3.75, 3.82, 4.98 → median = (1.78 + 3.75) / 2 = 2.77%.'},
   ts: {t: 'Slope 30d %/mo (Theil–Sen)', f: 'median over every pair of days (i, j) in the last 30 days of (ln P_j − ln P_i) / (j − i), then converted to % per month: (e^(slope × 30) − 1) × 100', m: 'The robust trend: the median of all pairwise slopes, so one spike day barely moves it, unlike a fitted line. It is the drift used in the buy gate (only negative drift counts against the sell price). Δ30d uses two endpoints; this uses all 465 pairs, so it is the steadier version of the same idea. Needs 10 points in the window.', e: '31 daily prices sliding from $48 to $42 → median pairwise slope −0.00413 per day → e^(−0.00413 × 30) − 1 = −11.7% per month. A plain regression gave −0.44%/day here; add one spike day and the two diverge.'},
+  ec_price: {t: 'Price $ (eBay)', f: 'median of the card\'s last 10 raw sale totals (item + shipping); until it has 3 sales, the cheapest comparable listing', m: 'The card\'s market price from eBay alone — what buyers actually paid, not what sellers ask. It is the number the $50–$150 default filter works on, and the yardstick for a listing\'s "vs price %".', e: 'Last 10 sale totals 92, 95, 96, 98, 99, 100, 101, 103, 105, 110 → median = (99 + 100) / 2 = $99.50.'},
+  ec_k: {t: 'Sold 30d (k)', f: 'count of comparable raw listings that sold in the last 30 days', m: 'The raw evidence behind λ. "Comparable" = ungraded, condition NM/LP or not stated, seller ≥ 98%. Sales only exist for listings the collector saw while they were live, so this starts at zero and grows.', e: '13 sales counted → k = 13.'},
+  ec_d: {t: 'Days observed (D)', f: 'days since the first listing of this card was seen, capped at 30', m: 'The denominator for rates. A card first seen 5 days ago with 2 sales is 0.4/day, not 2/30.', e: 'First seen 19 days ago → D = 19.'},
+  ec_lam: {t: 'λ — raw sales per day', f: '25th percentile of Gamma(k + ½, D)   (posterior for a Poisson rate with a flat prior)', m: 'Expected raw buyers per day, stated conservatively: the value the true rate exceeds three times out of four. With few sales it reads well below k/D on purpose; after ~20 sales it converges. Everything in the pricing columns runs off this number.', e: 'k = 13, D = 19: k/D = 0.68/day, but λ = 0.57/day (25th percentile). k = 2, D = 10: k/D = 0.20 but λ = 0.11.'},
+  ec_n: {t: 'Active (N)', f: 'number of comparable raw listings currently open for this card', m: 'The size of the book you would be competing in. Only comparable copies count (see Sold 30d).', e: '4 open NM/LP copies from ≥98% sellers → N = 4.'},
+  ec_p: {t: 'p₁ p₂ p₃ — the book', f: 'the three cheapest comparable listings by total price (item + shipping); Best Offer copies ranked at 90% of ask', m: 'The prices you would have to beat. A Best Offer listing at $122 is shown as $109.80 because that is roughly what it will actually take. Depth pricing sits one dollar under pₙ.', e: 'Open copies $122 (BO), $123, $129 → p₁ = 109.80, p₂ = 123, p₃ = 129.'},
+  ec_mu: {t: 'New/day (μ)', f: 'comparable listings first seen in the last 30 days ÷ D', m: 'The supply arrival rate — the counterpart of λ. Read it against λ in the In/out column.', e: '20 new comparable listings over 19 days → μ = 1.05/day.'},
+  ec_dos: {t: 'Days of supply', f: 'N ÷ λ', m: 'How long the current book would take to clear at the observed demand. Under 7 = tight market, undercuts rare, price at pₙ − $1. Over 30 = glutted; sellers get impatient and the floor erodes — undercut by ~3% and do not count on rank 2.', e: 'N = 4, λ = 0.57 → 7.0 days.'},
+  ec_io: {t: 'In/out (μ ÷ λ)', f: 'new listings per day ÷ sales per day', m: 'Above ~1.2 supply is piling up and the floor will be lower next week — your buy needs a bigger discount or a pass. Below ~0.8 supply is draining and prices firm. It is the eBay, raw-only version of PriceCharting\'s volume drift.', e: 'μ = 1.05, λ = 0.57 → 1.84: listings are arriving almost twice as fast as they sell.'},
+  ec_smed: {t: 'Sold median $', f: 'median total (item + shipping) of the last 10 comparable raw sales', m: 'What buyers have actually been paying. It is the 24-hour price for a hot card whose book is empty, and the ceiling sanity check for everything else. Best Offer sales are recorded at the listed price, so they may overstate by ~10%.', e: 'Same ten sales as above → $99.50.'},
+  ec_s80: {t: 'Sold 80th percentile $', f: '80th percentile of the last 10 comparable sale totals', m: 'The top of the realistic range: only one sale in five went higher. P₄₈ is capped here, and it is the list price for a ten-day sale on a hot card.', e: 'Ten sales 92 … 110 → 80th percentile ≈ $104.'},
+  ec_hrs: {t: 'Hours to sale', f: 'median hours from listing to sale over the last 10 comparable sales', m: 'How fast copies actually move. Under 48 h is one of the five hot-card checks. Resolution is the tracker\'s cadence (about an hour for fast sales).', e: 'Sale times 4, 9, 15, 22, 30, 41, 55 h → median 22 h.'},
+  ec_st: {t: 'Sell-through %', f: 'of comparable listings first seen 7–37 days ago, the share that sold within 7 days', m: 'Uses listings old enough to have had a fair chance. ≥ 80% is a hot-card check. Needs at least 3 such listings.', e: '9 of 11 eligible listings sold within a week → 82%.'},
+  ec_n24: {t: 'n₂₄ / n₄₈ — depth', f: 'largest n (≤ 3) such that P(Poisson(λ·T) ≥ n) ≥ 70%, with T = 1 day for n₂₄ and 2 days for n₄₈', m: 'How many buyers you can count on in the window, at 70% confidence. The buyer who shows up takes the cheapest credible copy, so n is how deep in the book you can sit and still be reached: n = 2 means "even if one copy sells ahead of me, the second buyer is mine." n = 0 means fewer than one buyer is likely in that window — no 24/48-hour price exists; see Exp. days. Capped at 3 because buyers are not perfectly price-ordered that deep.', e: 'λ = 2.5: P(≥2 buyers in a day) = 71% → n₂₄ = 2; P(≥3) = 46% → not 3. λ = 0.57: P(≥1 in a day) = 43% → n₂₄ = 0; P(≥1 in two days) = 68% → n₄₈ = 0 (just short of 70%).'},
+  ec_p24: {t: 'P₂₄ — 24-hour price', f: 'pₙ₂₄ − $1 when the book has at least n₂₄ comparable copies; otherwise the sold median (capped at p₁ − $1)', m: 'The buyer total (free shipping) at which the card sells within 24 hours with 70% probability. It is the auto-accept floor for Best Offer, and the price the Max buy column is derived from. Blank when n₂₄ = 0.', e: 'λ = 2.5 → n₂₄ = 2; book [96, 99, 104, 110] → P₂₄ = 99 − 1 = $98.'},
+  ec_p48: {t: 'P₄₈ — 48-hour price', f: 'pₙ₄₈ − $1 when the book has at least n₄₈ copies; otherwise the sold 80th percentile (capped at p₁ − $1); never below P₂₄, never above the sold 80th percentile', m: 'The list price. Two days contain two full evening peaks, so this is the planned window; you list here with Best Offer on and auto-accept at P₂₄. Past 48 h each extra day adds ~1% to the price and ~11% to the capital cycle, which is a losing trade.', e: 'λ = 2.5 → n₄₈ = 3 (P(≥3 buyers in 2 days) = 88%); book [96, 99, 104, 110] → P₄₈ = 104 − 1 = $103; capped at the 80th percentile of sales if that is lower.'},
+  ec_pw: {t: 'Window $ — honest-window price', f: 'p₁ − $1 (or the sold median with an empty book), capped at the sold 80th percentile', m: 'For cards where no 24/48-hour price exists (n = 0): the price at which you are the cheapest copy, to be sold within Exp. days. Max buy falls back to this so slow cards still get a gate.', e: 'Book [110 (BO → 99), 123, 129] → window price = 99 − 1 = $98, expected sale in 2.1 days.'},
+  ec_prob: {t: 'P(sale ≤ 24 h) %', f: '1 − e^(−λ)   (rank 1, one day)', m: 'The chance at least one buyer arrives within a day while you are the cheapest copy. Above 85% is what a confirmed hot card looks like without pricing for it.', e: 'λ = 2.0 → 1 − e⁻² = 86%. λ = 0.57 → 43%.'},
+  ec_edays: {t: 'Expected days (70%)', f: '−ln(1 − 0.70) ÷ λ = 1.2 ÷ λ', m: 'Days at rank 1 until a sale is 70% likely. The honest window when 24/48-hour selling is not on offer. Judge flips by profit per day, and this is the denominator.', e: 'λ = 0.57 → 1.2 ÷ 0.57 = 2.1 days. λ = 0.1 → 12 days: not a flip card.'},
+  ec_maxbuy: {t: 'Max buy $ (all-in)', f: 'net = P × (1 − 0.1325 × 1.065) − $0.30 − $4.50;   max buy = net ÷ 1.15   where P = P₂₄, else P₄₈, else Window $', m: 'The most you can pay in total — item + shipping + your sales tax — and still clear a 15% margin after eBay\'s fee (charged on the buyer\'s total including their tax), the fixed fee and tracked shipping out. The column notes which price it came from. A listing PASSes when its all-in is at or below this.', e: 'P₂₄ = $98 → net = 98 × 0.859 − 4.80 = $79.37 → max buy = 79.37 ÷ 1.15 = $69.02, i.e. about a $61 item price with $4 shipping and 6.25% tax.'},
+  ec_hot: {t: 'Hot', f: 'all five checks pass: k ≥ 5 · sell-through ≥ 80% · median hours to sale ≤ 48 · sold median ≥ 95% of the median ask · last 5 sales ≥ 97% of the 5 before', m: '"Candidate" means the history says demand outruns supply. "Confirmed" (✓) means the next three copies listed after the flag all sold within 48 hours — a test on data the checks never saw. A copy that sits more than 48 h resets the count. "fails n" tells you how many checks a card with enough sales is missing; hover for which.', e: 'A card with 13 sales, 82% sell-through, 22 h median, prices realized at ask and a flat trend is a candidate; three quick sales later it is confirmed.'},
+  ec_book: {t: 'Book', f: 'the live data behind this card\'s row', m: 'Opens the competing listings (ranked, with links) and the recent sales with their time to sale. This is what to look at before every buy: whether the floor is a credible copy, whether the sales were Best Offer (recorded at ask, so possibly lower), and what condition sold.', e: ''},
+  er_listed: {t: 'Listed (h)', f: 'hours since the listing was created on eBay', m: 'Deals on liquid cards are gone in minutes to hours, so the freshest rows matter most. The tab shows listings first seen in the last 24 hours; sold or ended ones stay visible with their status.', e: '0.3 = listed about 20 minutes ago.'},
+  er_title: {t: 'eBay title', f: 'the seller\'s title, linked to the listing', m: 'What the parser matched to the catalog card in the first columns. Always read it before buying: variant words (reverse, 1st edition, shadowless), condition claims and anything odd. If the match looks wrong, that is a parser pattern to fix — the Unmatched button shows the ones it refused.', e: '"Charizard ex 199/165 Obsidian Flames SIR NM" → Charizard ex #199, Pokemon Obsidian Flames.'},
+  er_item: {t: 'Item $ / Ship $', f: 'the listed price and the seller\'s shipping charge to your ZIP', m: 'Calculated shipping is estimated for the ZIP the collector was given. "free" means the seller folded shipping into the item.', e: '$118 + $4 shipping.'},
+  er_total: {t: 'Total $', f: 'item + shipping', m: 'The buyer total, which is how everything else on the eBay tabs is measured (sold prices, the book, P₂₄).', e: '118 + 4 = $122.'},
+  er_allin: {t: 'All-in $', f: 'item + shipping + item × 6.25% (MA sales tax)', m: 'What actually leaves your account. This is the number compared to Max buy.', e: '118 + 4 + 7.38 = $129.38.'},
+  er_vs: {t: 'vs price %', f: '(total ÷ card price − 1) × 100', m: 'How far the listing sits below (negative) or above the card\'s eBay price. It is the mispricing at a glance; the verdict is the same idea after fees and margin.', e: 'Total $98, card price $122 → −19.7%.'},
+  er_verdict: {t: 'Verdict', f: 'PASS if all-in ≤ Max buy; otherwise the first reason it fails', m: 'PASS = it clears the gate on price alone — still read the title, photos and seller before buying. "too cheap – scam check" fires under 50% of the card price: stock photos, a new seller or a vague title there means walk away. "no sales yet" = the card has listings but no observed sales, so there is no λ and no Max buy yet.', e: 'All-in $129.38 vs Max buy $77.08 → "over max buy".'},
+  er_cond: {t: 'Cond', f: 'condition words found in the title: NM, LP, MP, HP (n/s = not stated)', m: 'Only NM, LP and not-stated copies count as comparable. MP/HP/damaged copies are shown but fail the gate, and they are excluded from the book and the sales history.', e: '"Near Mint" or "NM" → NM; "lightly played" → LP.'},
+  er_bo: {t: 'Offer', f: 'BO = the listing accepts Best Offers', m: 'You can usually get ~10% under the ask; the book ranks these copies at 90% for that reason. When one of these sells, the recorded price is the ask, so it may overstate the true sale.', e: ''},
+  er_seller: {t: 'Seller fb / %', f: 'the seller\'s feedback count and positive percentage', m: 'The gate wants ≥ 98% (blank is tolerated). For raw cards, also prefer ≥ 50 feedback — a brand-new seller with a too-cheap card is the classic scam profile.', e: '512 feedback at 99.5%.'},
+  er_status: {t: 'Status', f: 'open · sold · ended · gone · stale', m: 'open = still for sale at last check. sold = eBay reports a sale (the collector confirms every vanished listing with a lookup). ended = withdrawn or expired unsold. gone = no longer retrievable. stale = followed for 30 days without a sale. Sold and ended rows are the raw material for λ and the sold prices.', e: ''},
   trend: {t: 'Trend', f: 'one point per day from the site\'s own snapshots', m: 'Opens the card\'s daily history: sales/yr bars on the left axis, ungraded / retail buy / retail sell on the right, dashed lines for the 90-day high and low and the conservative sell estimate, a hover crosshair, all the statistics, and the buy-gate arithmetic for this card. The history starts the day the site went live and grows by one point each morning.', e: ''}
 };
 function openHelp(key) {
@@ -958,16 +1211,20 @@ function renderStats() {
 $('rows-pc').addEventListener('click', e => { const b = e.target.closest('.tbtn'); if (b) openTrend(+b.dataset.i); });
 $('close').addEventListener('click', closeTrend);
 $('ov').addEventListener('click', e => { if (e.target === $('ov')) closeTrend(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTrend(); $('hov').classList.remove('open'); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTrend(); $('hov').classList.remove('open'); $('bov').classList.remove('open'); } });
 ['c-loose', 'c-sell', 'c-buy', 'c-vol', 'c-ref', 'rn', 'ru'].forEach(id => $(id).addEventListener('input', drawChart));
 document.querySelectorAll('input[name=rng]').forEach(r => r.addEventListener('change', drawChart));
 window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) drawChart(); });
+loadLive();
 </script>
 </body>
 </html>
 """
 html = (html.replace("__UPDATED__", today)
             .replace("__HKEY__", hist_key_hex)
+            .replace("__LIVE_URL__", LIVE_URL)
+            .replace("__GATE_EBAY__", json.dumps({"fee": FEE_PCT, "buyerTax": 0.065, "fixed": FEE_FIXED, "shipOut": SHIP_OUT,
+                                                   "tax": TAX, "margin": MARGIN}))
             .replace("__SHARD__", str(SHARD))
             .replace("__HDAYS__", str(len(dates)))
             .replace("__NCARDS__", f"{n_cards:,}")
