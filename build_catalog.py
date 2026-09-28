@@ -1,4 +1,4 @@
-"""
+\"""
 build_catalog.py  -  Turn PriceCharting's Pokemon price guide into a password-protected
 website with a searchable, sortable table.
 
@@ -407,7 +407,8 @@ else:
 # ---------- 7. Write the web page ----------
 # Page columns (the snapshot keeps every PriceCharting column regardless):
 #   0 Card ID (link only) | 1 Card | 2 Set | 3 # | 4 Released | 5 Sales/yr | 6 Ungraded $
-#   7 PC retail buy $ | 8 PC retail sell $ | 9 d7 % | 10 d30 % | 11 Range 90d % | 12 Volatility % | 13 Slope %/mo
+#   7 PC retail buy $ | 8 PC retail sell $ | 9 d7 % | 10 d30 % | 11 Range 90d % | 12 Volume drift 30d %
+#   13 Volume drift 30d (units, display only) | 14 Volatility % | 15 Slope %/mo
 page = pd.DataFrame({
     0: pc["id"].map(integer),
     1: pc["product-name"].str.strip(),
@@ -421,8 +422,10 @@ page = pd.DataFrame({
     9: np.round(st["d7"], 1),
     10: np.round(st["d30"], 1),
     11: np.round(st["pos"], 0),
-    12: np.round(st["vol"], 2),
-    13: np.round(st["ts"], 1),
+    12: np.round(st["vdp"], 1),
+    13: np.round(st["vd"], 0),
+    14: np.round(st["vol"], 2),
+    15: np.round(st["ts"], 1),
 })
 rows = page.values.tolist()
 rows = [[None if (isinstance(v, float) and v != v) else v for v in r] for r in rows]  # NaN -> null
@@ -536,8 +539,9 @@ html = r"""<!DOCTYPE html>
     <th data-k="9" class="num">Δ7d %<span class="s">⇅</span><button class="help" data-h="d7">?</button></th>
     <th data-k="10" class="num">Δ30d %<span class="s">⇅</span><button class="help" data-h="d30">?</button></th>
     <th data-k="11" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="pos">?</button></th>
-    <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
-    <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
+    <th data-k="12" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="vd">?</button></th>
+    <th data-k="14" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
+    <th data-k="15" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
     <th>Trend<button class="help" data-h="trend">?</button></th>
   </tr></thead>
   <tbody id="rows"></tbody>
@@ -586,8 +590,8 @@ const DATA = __DATA__;
 const SETS = __SETS__;
 const GATE = __GATE__;
 const PAGE = 300;
-const RANGE_COLS = [5, 6, 7, 8, 9, 10, 11, 12, 13];
-const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Retail buy $', 8: 'Retail sell $', 9: 'Δ7d %', 10: 'Δ30d %', 11: 'Range 90d %', 12: 'Volatility %', 13: 'Slope %/mo'};
+const RANGE_COLS = [5, 6, 7, 8, 9, 10, 11, 12, 14, 15];
+const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Retail buy $', 8: 'Retail sell $', 9: 'Δ7d %', 10: 'Δ30d %', 11: 'Range 90d %', 12: 'Vol. drift %', 14: 'Volatility %', 15: 'Slope %/mo'};
 const setIndex = new Map(SETS.map((s, i) => [s, i]));
 const ORD = DATA.length ? DATA[0].length : 0;          // index of the release-order key
 DATA.forEach((r, i) => r.push(i));
@@ -656,8 +660,9 @@ function renderMore() {
       '<td class="num">' + fmtPct(r[9]) + '</td>' +
       '<td class="num">' + fmtPct(r[10]) + '</td>' +
       '<td class="num">' + fmtPct(r[11], false, 0) + '</td>' +
-      '<td class="num">' + fmtPct(r[12], false, 2) + '</td>' +
-      '<td class="num">' + fmtPct(r[13]) + '</td>' +
+      '<td class="num">' + (r[12] == null ? dash : '<span class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] > 0 ? '+' : '') + r[13] + ' (' + (r[12] > 0 ? '+' : '') + r[12].toFixed(1) + '%)</span>') + '</td>' +
+      '<td class="num">' + fmtPct(r[14], false, 2) + '</td>' +
+      '<td class="num">' + fmtPct(r[15]) + '</td>' +
       '<td><button class="tbtn" data-i="' + r[ORD] + '">Trend</button></td>';
     frag.appendChild(tr);
   }
@@ -695,6 +700,7 @@ const HELP = {
   d7: {t: 'Δ7d %', f: '(P_today − P_7_days_ago) / P_7_days_ago × 100', m: '"Did something just happen." On a slow card this is usually one sale landing, so pair it with a Sales/yr floor before trusting it. Sort descending for cards that just jumped (sell candidates), ascending for cards that just dropped.', e: '$42.00 today, $42.50 a week ago → (42.00 − 42.50) / 42.50 = −1.2%.'},
   d30: {t: 'Δ30d %', f: '(P_today − P_30_days_ago) / P_30_days_ago × 100', m: 'The core trend number and the one to sort by. Read it with Δ7d and the slope: 30d down but 7d flat and the slope flattening is a card that may be settling; all of them down is a card still falling. A drop is either mispricing (opportunity) or news (a reprint, a rotation) — the number cannot tell which.', e: '$42.00 today, $48.00 thirty days ago → (42.00 − 48.00) / 48.00 = −12.5%.'},
   pos: {t: 'Range 90d %', f: '(P_today − Low_90d) / (High_90d − Low_90d) × 100', m: 'Where today\'s price sits between its 90-day low (0%) and high (100%). Two cards can both be −12% over 30 days: one falling back from a spike (still at 85% of its range) and one making new lows (5%). Different bets. Ignore it when the range is tiny, and remember a low position during a steady decline is a falling knife — it is only a signal once the 30-day trend has flattened. Needs 60 days of history.', e: 'Low $38.00, high $52.00, today $42.00 → (42 − 38) / (52 − 38) = 4 / 14 = 29%.'},
+  vd: {t: 'Volume drift 30d', f: 'Sales/yr_today − Sales/yr_30_days_ago   (and as % of the earlier value)', m: 'Because Sales/yr is a trailing 365-day count, the 30-day difference equals (sales in the last 30 days) minus (sales in the 30-day window that just fell out of the year — roughly the same month a year ago). So a positive number means this month beat the same month last year: a year-over-year demand signal that is automatically seasonally matched. It counts all grades, so on vintage cards it is mostly a graded-market signal, and small counts are noise — +2 on a base of 40 means nothing. Sorting and the range filter use the percent. Rising volume with a rising price is real heat; rising volume with a falling price is a supply flood (a reprint hitting the market), the pattern where a "bargain" keeps getting cheaper.', e: '210 today, 196 thirty days ago → +14 sales, +14 / 196 = +7.1%.'},
   vol: {t: 'Volatility %', f: 'median of |ln(P_t / P_t−1)| over the days the price moved in the last 90 days', m: 'The typical size of a move when the price moves. The median ignores a single wild day, which a standard deviation would not. It sizes the safety cushion in the buy gate: a card that moves 2% at a time can be bought at a thinner discount than one that moves 12%. Needs at least 3 moves.', e: 'Moves of 3.82%, 3.75%, 1.78%, 4.98%, 1.40%, 1.18% → sorted 1.18, 1.40, 1.78, 3.75, 3.82, 4.98 → median = (1.78 + 3.75) / 2 = 2.77%.'},
   ts: {t: 'Slope 30d %/mo (Theil–Sen)', f: 'median over every pair of days (i, j) in the last 30 days of (ln P_j − ln P_i) / (j − i), then converted to % per month: (e^(slope × 30) − 1) × 100', m: 'The robust trend: the median of all pairwise slopes, so one spike day barely moves it, unlike a fitted line. It is the drift used in the buy gate (only negative drift counts against the sell price). Δ30d uses two endpoints; this uses all 465 pairs, so it is the steadier version of the same idea. Needs 10 points in the window.', e: '31 daily prices sliding from $48 to $42 → median pairwise slope −0.00413 per day → e^(−0.00413 × 30) − 1 = −11.7% per month. A plain regression gave −0.44%/day here; add one spike day and the two diverge.'},
   trend: {t: 'Trend', f: 'one point per day from the site\'s own snapshots', m: 'Opens the card\'s daily history: sales/yr bars on the left axis, ungraded / retail buy / retail sell on the right, dashed lines for the 90-day high and low and the conservative sell estimate, a hover crosshair, all the statistics, and the buy-gate arithmetic for this card. The history starts the day the site went live and grows by one point each morning.', e: ''}
