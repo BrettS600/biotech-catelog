@@ -1,0 +1,57 @@
+name: eBay sweep
+
+# Every 15 minutes: pull newly listed raw Pokemon singles from eBay, match them to the catalog,
+# follow open listings until they sell, recompute the per-card pricing numbers, and publish
+# live/ebay_live.bin for the site. State is kept on the "snapshots" release; the live file is
+# force-pushed to a one-commit "live" branch (so the repo never grows) and read by the page
+# through raw.githubusercontent.com. Runs entirely on GitHub's machines.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write             # release assets + the live branch
+
+concurrency:
+  group: ebay                 # never two sweeps at once (they share the state file)
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Sweep, track, compute
+        env:
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          BUYER_ZIP: ${{ vars.BUYER_ZIP }}
+          GH_TOKEN: ${{ github.token }}
+        run: python ebay_sweep.py
+
+      - name: Publish the live file to the "live" branch
+        if: hashFiles('live/ebay_live.bin') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd live
+          git init -q
+          git checkout -q -b live
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ebay_live.bin
+          git commit -qm "live $(date -u +%FT%TZ)"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" live
+          echo "Published live/ebay_live.bin ($(wc -c < ebay_live.bin) bytes)."
