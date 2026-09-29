@@ -1,0 +1,218 @@
+<nav class="tabs" id="tabs">
+  <button class="tab on" data-t="pc">PriceCharting Catalog</button>
+  <button class="tab" data-t="ec">eBay Catalog</button>
+  <button class="tab" data-t="er">eBay Raw Data</button>
+  <div class="tools">
+    <label title="Chance of a sale inside the window that the P₂₄ / P₄₈ prices are set for">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
+    <label title="Raw Data: show only listings whose ROI clears your Margin (verdict PASS)"><input type="checkbox" id="hits"> Only show hits</label>
+    <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="15">%</label>
+    <span class="lpc" id="lpc" title="LP correction, by the card's NM price tier">LP correction <span class="lpt" id="lpt">—</span><button class="help" data-h="lp">?</button></span>
+    <label id="callab" title="Shift P₄₈ / P₂₄ by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
+    <button class="readme" id="readme-btn">README</button>
+  </div>
+</nav>
+
+<!-- ============ Tab 1: PriceCharting Catalog (default) ============ -->
+<section class="panel" id="p-pc">
+<div class="meta">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD) · __HDAYS__ day(s) of history</div>
+<div class="controls">
+  <input type="search" id="q-pc" placeholder="Search card or set… (e.g. charizard base)">
+  <select id="set-pc"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-pc"></span>
+</div>
+<div class="ranges" id="ranges-pc">
+  <button class="reset" id="reset-pc">Reset filters</button>
+</div>
+<div class="wrap">
+<table class="wide">
+  <thead><tr>
+    <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
+    <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
+    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+    <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="sales">?</button></th>
+    <th data-k="6" class="num">Ungraded $<span class="s">⇅</span><button class="help" data-h="ungraded">?</button></th>
+    <th data-k="7" class="num">Δ7d %<span class="s">⇅</span><button class="help" data-h="d7">?</button></th>
+    <th data-k="8" class="num">Δ30d %<span class="s">⇅</span><button class="help" data-h="d30">?</button></th>
+    <th data-k="9" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="pos">?</button></th>
+    <th data-k="10" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="vd">?</button></th>
+    <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
+    <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
+    <th>Trend<button class="help" data-h="trend">?</button></th>
+  </tr></thead>
+  <tbody id="rows-pc"></tbody>
+</table>
+</div>
+<button class="more" id="more-pc" hidden>Show more</button>
+<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. The eye on a header collapses that column to a thin strip (click it again to bring it back; the choice is remembered in this browser). Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
+</section>
+
+<!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
+<section class="panel" id="p-ec" hidden>
+<div class="meta" id="meta-ec">eBay Catalog · loading live data…</div>
+<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$150. Numbers refresh every 15 minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
+<div class="controls">
+  <input type="search" id="q-ec" placeholder="Search card or set…">
+  <select id="set-ec"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-ec"></span>
+</div>
+<div class="ranges" id="ranges-ec">
+  <button class="reset" id="reset-ec">Reset filters</button>
+</div>
+<div class="wrap">
+<table class="wide">
+  <thead>
+  <tr class="grp">
+    <th colspan="4">Card</th>
+    <th colspan="11" class="g-obs">Observed on eBay — independent inputs</th>
+    <th colspan="4" class="g-rate">Rates — computed from Observed</th>
+    <th colspan="10" class="g-dec">Decisions — depend on λ, the book, Confidence and Margin</th>
+    <th colspan="8" class="g-tr">Trends — from a 7-day median of raw sale totals</th>
+    <th></th>
+  </tr>
+  <tr>
+    <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
+    <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
+    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+    <th data-k="5" class="num g-obs">Sold 30d<span class="s">⇅</span><button class="help" data-h="ec_k">?</button></th>
+    <th data-k="6" class="num g-obs">Days obs.<span class="s">⇅</span><button class="help" data-h="ec_d">?</button></th>
+    <th data-k="7" class="num g-obs">Active<span class="s">⇅</span><button class="help" data-h="ec_n">?</button></th>
+    <th data-k="8" class="num g-obs">p₁ $<span class="s">⇅</span><button class="help" data-h="ec_p">?</button></th>
+    <th data-k="9" class="num g-obs">p₂ $<span class="s">⇅</span><button class="help" data-h="ec_p">?</button></th>
+    <th data-k="10" class="num g-obs">p₃ $<span class="s">⇅</span><button class="help" data-h="ec_p">?</button></th>
+    <th data-k="11" class="num g-obs">New/day<span class="s">⇅</span><button class="help" data-h="ec_mu">?</button></th>
+    <th data-k="12" class="num g-obs">Sold med $<span class="s">⇅</span><button class="help" data-h="ec_smed">?</button></th>
+    <th data-k="13" class="num g-obs">Sold 80% $<span class="s">⇅</span><button class="help" data-h="ec_s80">?</button></th>
+    <th data-k="14" class="num g-obs">Hrs to sale<span class="s">⇅</span><button class="help" data-h="ec_hrs">?</button></th>
+    <th data-k="15" class="num g-obs">Sell-thru %<span class="s">⇅</span><button class="help" data-h="ec_st">?</button></th>
+    <th data-k="16" class="num g-rate">λ /day<span class="s">⇅</span><button class="help" data-h="ec_lam">?</button></th>
+    <th data-k="17" class="num g-rate">Price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
+    <th data-k="18" class="num g-rate">Days supply<span class="s">⇅</span><button class="help" data-h="ec_dos">?</button></th>
+    <th data-k="19" class="num g-rate">In/out<span class="s">⇅</span><button class="help" data-h="ec_io">?</button></th>
+    <th data-k="20" class="num g-dec">n₂₄<span class="s">⇅</span><button class="help" data-h="ec_n24">?</button></th>
+    <th data-k="21" class="num g-dec">n₄₈<span class="s">⇅</span><button class="help" data-h="ec_n24">?</button></th>
+    <th data-k="22" class="num g-dec">P₂₄ $<span class="s">⇅</span><button class="help" data-h="ec_p24">?</button></th>
+    <th data-k="23" class="num g-dec">P₄₈ $<span class="s">⇅</span><button class="help" data-h="ec_p48">?</button></th>
+    <th data-k="24" class="num g-dec">Window $<span class="s">⇅</span><button class="help" data-h="ec_pw">?</button></th>
+    <th data-k="25" class="num g-dec">P(≤24h) %<span class="s">⇅</span><button class="help" data-h="ec_prob">?</button></th>
+    <th data-k="26" class="num g-dec">Exp. days<span class="s">⇅</span><button class="help" data-h="ec_edays">?</button></th>
+    <th data-k="27" class="num g-dec">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="40" class="num g-dec">Net $<span class="s">⇅</span><button class="help" data-h="ec_net">?</button></th>
+    <th data-k="28" class="g-dec">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
+    <th data-k="32" class="num g-tr">Sales/month<span class="s">⇅</span><button class="help" data-h="et_spm">?</button></th>
+    <th data-k="33" class="num g-tr">Δ7d %<span class="s">⇅</span><button class="help" data-h="et_d7">?</button></th>
+    <th data-k="34" class="num g-tr">Δ30d %<span class="s">⇅</span><button class="help" data-h="et_d30">?</button></th>
+    <th data-k="35" class="num g-tr">Range 90d %<span class="s">⇅</span><button class="help" data-h="et_pos">?</button></th>
+    <th data-k="36" class="num g-tr">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="et_vd">?</button></th>
+    <th data-k="38" class="num g-tr">Volatility %<span class="s">⇅</span><button class="help" data-h="et_vol">?</button></th>
+    <th data-k="39" class="num g-tr">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="et_ts">?</button></th>
+    <th class="g-tr">Trend<button class="help" data-h="et_trend">?</button></th>
+    <th>Book<button class="help" data-h="ec_book">?</button></th>
+  </tr></thead>
+  <tbody id="rows-ec"></tbody>
+</table>
+</div>
+<button class="more" id="more-ec" hidden>Show more</button>
+<footer>Cards appear here once at least one raw listing has been matched to them; most columns need sales, so the tab fills in over the first weeks. λ is a conservative estimate (25th percentile), so with few sales it deliberately reads low. Prices are buyer totals (item + shipping); Best Offer copies are ranked at 90% of their ask.</footer>
+</section>
+
+<!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
+<section class="panel" id="p-er" hidden>
+<div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
+<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Default filter: cards whose eBay price is $50–$150. <button class="linkbtn" id="unmatched-btn">Unmatched titles</button></div>
+<div class="controls">
+  <input type="search" id="q-er" placeholder="Search card, set or title…">
+  <select id="set-er"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-er"></span>
+</div>
+<div class="ranges" id="ranges-er">
+  <div class="range condchip" id="condchip"><span class="lbl">Condition</span><label><input type="checkbox" id="cond-NM-er" checked> NM</label><label><input type="checkbox" id="cond-LP-er" checked> LP</label><label><input type="checkbox" id="cond-UNK-er" checked> n/s</label></div>
+  <button class="reset" id="reset-er">Reset filters</button>
+</div>
+<div class="wrap">
+<table class="wide">
+  <thead><tr>
+    <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
+    <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
+    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
+    <th data-k="5" class="num">Listed within (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
+    <th data-k="6">eBay title<span class="s">⇅</span><button class="help" data-h="er_title">?</button></th>
+    <th data-k="7" class="num">Item $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
+    <th data-k="8" class="num">Ship $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
+    <th data-k="9" class="num">Total $<span class="s">⇅</span><button class="help" data-h="er_total">?</button></th>
+    <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
+    <th data-k="11" class="num">Card price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
+    <th data-k="12" class="num">vs price %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
+    <th data-k="26" class="num">P₄₈ $<span class="s">⇅</span><button class="help" data-h="ec_p48">?</button></th>
+    <th data-k="13" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="24" class="num">Profit $<span class="s">⇅</span><button class="help" data-h="er_profit">?</button></th>
+    <th data-k="25" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="er_roi">?</button></th>
+    <th data-k="14">Verdict<span class="s">⇅</span><button class="help" data-h="er_verdict">?</button></th>
+    <th data-k="15">Cond<span class="s">⇅</span><button class="help" data-h="er_cond">?</button></th>
+    <th data-k="16">Offer<span class="s">⇅</span><button class="help" data-h="er_bo">?</button></th>
+    <th data-k="17" class="num">Seller fb<span class="s">⇅</span><button class="help" data-h="er_seller">?</button></th>
+    <th data-k="18" class="num">Seller %<span class="s">⇅</span><button class="help" data-h="er_seller">?</button></th>
+    <th data-k="19">Status<span class="s">⇅</span><button class="help" data-h="er_status">?</button></th>
+    <th data-k="27" class="num">Time (h)<span class="s">⇅</span><button class="help" data-h="er_time">?</button></th>
+  </tr></thead>
+  <tbody id="rows-er"></tbody>
+</table>
+</div>
+<button class="more" id="more-er" hidden>Show more</button>
+<footer>Listings are pulled from eBay every 15 minutes (raw singles, fixed price, $25–$200, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below the card's Max buy.</footer>
+</section>
+
+<div class="ov" id="rov">
+  <div class="modal wide rd">
+    <button class="close" id="rclose" title="Close">✕</button>
+    <h2>README — how the eBay tabs decide a price</h2>
+    <div id="rbody"></div>
+  </div>
+</div>
+
+<div class="ov" id="bov">
+  <div class="modal mid book">
+    <button class="close" id="bclose" title="Close">✕</button>
+    <h2 id="btitle"></h2>
+    <div class="sub" id="bsub"></div>
+    <div id="bbody"></div>
+  </div>
+</div>
+
+<div class="ov" id="ov">
+  <div class="modal">
+    <button class="close" id="close" title="Close">✕</button>
+    <h2 id="mtitle"></h2>
+    <div class="sub" id="msub"></div>
+    <div class="bar">
+      <span class="dim">Right axis:</span>
+      <label><input type="checkbox" id="c-loose" checked><span class="sw" style="background:#3b82f6"></span><span id="l-loose">Ungraded $</span></label>
+      <label><input type="checkbox" id="c-sell"><span class="sw" style="background:#22c55e"></span><span id="l-sell">Retail sell $</span></label>
+      <label><input type="checkbox" id="c-buy"><span class="sw" style="background:#f59e0b"></span><span id="l-buy">Retail buy $</span></label>
+      <label><input type="checkbox" id="c-vol" checked><span class="sw" style="background:#9ca3af"></span><span id="l-vol">Sales/yr (left axis)</span></label>
+      <label><input type="checkbox" id="c-ref" checked><span class="sw" style="background:transparent;border:1px dashed #a78bfa"></span><span id="l-ref">90d high/low + conservative sell</span></label>
+    </div>
+    <div class="bar">
+      <span class="dim">Show:</span>
+      <label><input type="radio" name="rng" value="all" checked> All</label>
+      <label><input type="radio" name="rng" value="last"> Last</label>
+      <input type="number" id="rn" value="30" min="1">
+      <select id="ru"><option value="1">days</option><option value="7">weeks</option><option value="30">months</option></select>
+    </div>
+    <div style="position:relative"><svg id="chart"></svg><div id="tip"></div></div>
+    <div id="note"></div>
+    <div class="stats" id="stats"></div>
+    <div class="gate" id="gate"></div>
+  </div>
+</div>
+
+<div class="ov" id="hov">
+  <div class="modal narrow">
+    <button class="close" id="hclose" title="Close">✕</button>
+    <h2 id="htitle"></h2>
+    <div class="hbody" id="hbody"></div>
+  </div>
+</div>
+
