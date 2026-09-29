@@ -82,7 +82,16 @@ CONFIDENCE = 0.70            # depth pricing: P(at least n buyers) >= this
 DEPTH_CAP = 3                # never price off deeper than the 3rd cheapest copy
 UNDERCUT = 1.00              # dollars under the reference copy
 BO_HAIRCUT = 0.90            # Best Offer listings rank at 90% of ask
-MIN_SELLER_PCT = 98.0        # comparable listings need this feedback % (blank = unknown, allowed)
+# Seller feedback bar, count-aware: 100+ ratings need 98%, 20-99 need 95%, under 20 the % is ignored
+# (one negative at 20 ratings reads 95%). Failing the bar is a scam-score signal and a gate reason.
+SELLER_BARS = [(100, 98.0), (20, 95.0)]
+# Scam screen: every listing gets a score from cheap signals; suspect listings are kept out of every
+# statistic and hidden (reviewable) on Raw Data; watch listings never sit alone as a card's cheapest copy.
+SCAM_WATCH, SCAM_SUSPECT = 3, 5
+SCAM_QTY_MIN_PRICE = 75.0    # quantity 3+ only counts on cards worth this much
+SCAM_BURST_N, SCAM_BURST_PRICE = 5, 75.0   # tie-breaker: 5+ listings >= $75 in 24 h from an unseen seller
+ENRICH_MAX_CALLS = 6         # getItem lookups per run for quantity/returns on cheap or thin-seller listings
+ENRICH_RATIO = 0.75          # ... when priced under this share of the card's price
 # LP correction: LP copies sell below NM. Prices are normalized to NM-equivalent inside the stats
 # (LP total / (1 - discount)) and the page applies the discount back to LP listings on Raw Data.
 # The discount starts at LP_DEFAULT_PCT and is replaced by the measured LP-to-NM ratio, per price tier,
@@ -530,7 +539,10 @@ def summary_record(s):
         "total": None if price is None else round(price + (ship or 0), 2),
         "cond": s.get("condition"), "condId": s.get("conditionId"),
         "bo": "BEST_OFFER" in (s.get("buyingOptions") or []),
+        "seller": seller.get("username"),
         "fb": seller.get("feedbackScore"), "pct": float(pct) if pct not in (None, "") else None,
+        "n_img": (1 if s.get("image") else 0) + len(s.get("additionalImages") or []),
+        "dmax": (so[0].get("maxEstimatedDeliveryDate") if so else None),
         "origin": s.get("itemOriginDate") or s.get("itemCreationDate"), "end": s.get("itemEndDate"),
         "epid": s.get("epid") or "", "img": (s.get("image") or {}).get("imageUrl"),
         "url": s.get("itemWebUrl"), "loc": (s.get("itemLocation") or {}).get("stateOrProvince"),
@@ -623,6 +635,10 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         # what the model believed when this listing first appeared (for price calibration)
         "lam0": rec.get("lam0"), "rank0": rec.get("rank0"), "p48_0": rec.get("p48_0"), "p24_0": rec.get("p24_0"),
         "eff0": rec.get("eff0"),
+        # scam-screen stamp at close (calibration record) and the listing facts behind it
+        "seller": rec.get("seller"), "n_img": rec.get("n_img"), "qty": rec.get("qty"), "ret": rec.get("ret"),
+        "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
+        **({"tier": rec["tier"]} if "tier" in rec else {}),
     })
     del state["open"][iid]
 
@@ -772,8 +788,173 @@ def pct(vals, q):
     return v[f] if f == c else v[f] + (v[c] - v[f]) * (k - f)
 
 
+def seller_bar(rec):
+    """None when the seller clears the count-aware feedback bar, else the bar it failed (98.0 or 95.0)."""
+    fb, pct = rec.get("fb"), rec.get("pct")
+    if pct is None or fb is None:
+        return None
+    for min_fb, bar in SELLER_BARS:
+        if fb >= min_fb:
+            return bar if pct < bar else None
+    return None
+
+
 def comparable(rec):
-    return rec.get("tcond", "UNK") in COMPARABLE_CONDS and (rec.get("pct") is None or rec["pct"] >= MIN_SELLER_PCT)
+    return rec.get("tcond", "UNK") in COMPARABLE_CONDS and rec.get("tier") != "suspect"
+
+
+# ---------------- scam screen ----------------
+SCAM_LABELS = {
+    "p50": "priced under 50% of the card's price", "p65": "priced 50-65% of the card's price",
+    "p75": "priced 65-75% of the card's price", "fb0": "seller feedback under 10", "fb1": "seller feedback 10-49",
+    "fbq": "seller feedback unknown", "pct": "feedback % below the bar for its count", "img": "one photo only",
+    "qty": "3+ copies available of a $75+ card", "dup": "photo also used by another seller",
+    "ret": "no returns and priced under 65%", "slow": "delivery window over 10 days",
+    "top": "Top Rated Plus", "est": "500+ feedback at 99%+", "burst": "same-day burst from an unseen seller",
+}
+
+
+def img_key(url):
+    m = re.search(r"/images/g/([^/]+)/", url or "")
+    return m.group(1) if m else None
+
+
+def score_listings(state):
+    """Stamp every open listing with a scam score, the signals behind it and a tier (clean/watch/suspect).
+    Closed listings keep the stamp they had when they closed (that is the calibration record)."""
+    opens = list(state["open"].values())
+    recs_all = opens + state["closed"]
+    cache = state.get("price_cache", {})
+    day_ago = NOW - timedelta(hours=24)
+    # photo reuse: image id -> sellers that used it
+    img_sellers = defaultdict(set)
+    for r in recs_all:
+        k = img_key(r.get("img"))
+        if k and r.get("seller"):
+            img_sellers[k].add(r["seller"])
+    # seller bursts: listings >= $75 first seen in the last 24 h, and whether the seller has older history
+    burst_n, prior = Counter(), set()
+    for r in recs_all:
+        sl = r.get("seller")
+        if not sl:
+            continue
+        t = parse_ts(r["first"])
+        if t and t >= day_ago:
+            if r.get("total") is not None and r["total"] >= SCAM_BURST_PRICE:
+                burst_n[sl] += 1
+        else:
+            prior.add(sl)
+    # second-cheapest open ask per card, the price reference before a card has a price of its own
+    asks = defaultdict(list)
+    for r in opens:
+        if r.get("total") is not None and r.get("tcond", "UNK") in COMPARABLE_CONDS:
+            asks[r["card"]].append((r["total"], r["id"]))
+    tiers = Counter()
+    for r in opens:
+        total = r.get("total")
+        ref = cache.get(str(r["card"]))
+        if ref is None:
+            others = sorted(v for v, iid in asks.get(r["card"], []) if iid != r["id"])
+            ref = others[1] if len(others) >= 2 else None
+        pts, why = 0, []
+        ratio = total / ref if (total is not None and ref) else None
+        if ratio is not None:
+            hi = ref >= 100
+            if ratio < 0.50:
+                pts += 4; why.append("p50")
+            elif ratio < (0.70 if hi else 0.65):
+                pts += 2; why.append("p65")
+            elif ratio < (0.80 if hi else 0.75):
+                pts += 1; why.append("p75")
+        fb, pct = r.get("fb"), r.get("pct")
+        if fb is None:
+            pts += 1; why.append("fbq")
+        elif fb < 10:
+            pts += 3; why.append("fb0")
+        elif fb < 50:
+            pts += 1; why.append("fb1")
+        if seller_bar(r) is not None:
+            pts += 2; why.append("pct")
+        if r.get("n_img") is not None and r["n_img"] <= 1:
+            pts += 1; why.append("img")
+        if r.get("qty") is not None and r["qty"] >= 3 and (ref or total or 0) >= SCAM_QTY_MIN_PRICE \
+                and (fb is None or fb < 500):                # "a $75+ card": the card's price, else the ask
+            pts += 2; why.append("qty")
+        k = img_key(r.get("img"))
+        if k and r.get("seller") and len(img_sellers[k] - {r["seller"]}) > 0:
+            pts += 3; why.append("dup")
+        if r.get("ret") is False and ratio is not None and ratio < 0.65:
+            pts += 1; why.append("ret")
+        dmax = parse_ts(r.get("dmax") or "")
+        origin = parse_ts(r.get("origin") or "") or parse_ts(r["first"])
+        if dmax and origin and (dmax - origin).days > 10:
+            pts += 1; why.append("slow")
+        if r.get("top"):
+            pts -= 2; why.append("top")
+        if fb is not None and fb >= 500 and pct is not None and pct >= 99:
+            pts -= 1; why.append("est")
+        tier = "suspect" if pts >= SCAM_SUSPECT else "watch" if pts >= SCAM_WATCH else "clean"
+        sl = r.get("seller")
+        if tier == "watch" and sl and burst_n[sl] >= SCAM_BURST_N and sl not in prior:
+            tier = "suspect"; why.append("burst")
+        r["sc"], r["scr"], r["tier"] = pts, why, tier
+        tiers[tier] += 1
+    log(f"Scam screen: {tiers['clean']} clean, {tiers['watch']} watch, {tiers['suspect']} suspect among open listings.")
+
+
+def scam_calib(state):
+    """Outcomes of closed listings by tier and by signal: the data that says whether the score works."""
+    tiers, signals = {}, {}
+    for r in state["closed"]:
+        if "tier" not in r:
+            continue
+        out = r.get("out") or "?"
+        t = tiers.setdefault(r["tier"], Counter())
+        t[out] += 1
+        for code in r.get("scr", []):
+            signals.setdefault(code, Counter())[out] += 1
+    return {"tiers": {k: dict(v) for k, v in tiers.items()}, "signals": {k: dict(v) for k, v in signals.items()},
+            "labels": SCAM_LABELS, "watch": SCAM_WATCH, "suspect": SCAM_SUSPECT}
+
+
+def enrich(state):
+    """One full getItem for new listings the score could turn on quantity/returns: priced well under the
+    card's price, or from a thin seller on a $75+ card. Capped per run to protect the API budget."""
+    cache = state.get("price_cache", {})
+    cands = []
+    day_ago = NOW - timedelta(hours=24)
+    for iid, r in state["open"].items():
+        if r.get("enriched") or r.get("total") is None or parse_ts(r["first"]) < day_ago:
+            continue                                     # only listings seen in the last day, once each
+        ref = cache.get(str(r["card"]))
+        cheap = ref is not None and r["total"] < ENRICH_RATIO * ref
+        thin = r["total"] >= SCAM_QTY_MIN_PRICE and (r.get("fb") is None or r["fb"] < 50)
+        if cheap or thin:
+            cands.append((r["total"] / ref if ref else 1.0, iid))
+    cands.sort()
+    n = 0
+    for _, iid in cands[:ENRICH_MAX_CALLS]:
+        r = state["open"][iid]
+        if DRY_RUN:
+            it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
+        else:
+            it = api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+        r["enriched"] = True
+        if not it:
+            continue
+        av = (it.get("estimatedAvailabilities") or [{}])[0]
+        q = av.get("estimatedAvailableQuantity")
+        if q is None:
+            q = av.get("estimatedRemainingQuantity")
+        r["qty"] = q
+        rt = it.get("returnTerms") or {}
+        if "returnsAccepted" in rt:
+            r["ret"] = bool(rt["returnsAccepted"])
+        if it.get("additionalImages") is not None:
+            r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
+        n += 1
+    if cands:
+        log(f"Enrich: {n} of {len(cands)} candidate listings looked up for quantity/returns.")
 
 
 def r2(v):
@@ -856,7 +1037,8 @@ def update_daily(state, lp):
     # rebuild the recent days
     fresh = defaultdict(lambda: defaultdict(lambda: [[], None, 0]))
     for r in state["closed"]:
-        if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None:
+        if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None \
+                and r.get("tier") != "suspect":
             d = r["closed"][:10]
             if d in refresh:
                 tot = r["total"] / (1 - lp_frac(lp, ref_price.get(r["card"]))) if r.get("tcond") == "LP" else r["total"]
@@ -986,7 +1168,7 @@ def compute_stats(state, cat, lp):
         # --- demand ---
         D = max(1.0 / 24, min(STAT_WINDOW_D, hours_between(first_seen[cid], NOW) / 24))
         sold = [r for r in closed[cid] if r["out"] == "sold" and parse_ts(r["closed"]) >= win_start
-                and r.get("tcond", "UNK") in COMPARABLE_CONDS]
+                and r.get("tcond", "UNK") in COMPARABLE_CONDS and r.get("tier") != "suspect"]
         k = len(sold)
         lam = round(gamma_q(k + 0.5, D, 0.25), 3) if k >= 1 else None
         # --- LP normalization: prices of LP copies are lifted to NM-equivalent for every price stat.
@@ -1000,6 +1182,11 @@ def compute_stats(state, cat, lp):
         for r in book:
             r["_eff"] = round(nm_eq(r) * (BO_HAIRCUT if r["bo"] else 1.0), 2)
         book.sort(key=lambda r: r["_eff"])
+        # a watch-tier copy never sits alone as the cheapest: the first clean copy takes p1
+        if book and book[0].get("tier") == "watch":
+            j = next((i for i, r in enumerate(book) if r.get("tier") != "watch"), None)
+            if j is not None:
+                book.insert(0, book.pop(j))
         N = len(book)
         p = [r["_eff"] for r in book[:3]] + [None] * 3
         new30 = sum(1 for r in opens[cid] + closed[cid] if comparable(r) and parse_ts(r["first"]) >= win_start)
@@ -1108,6 +1295,7 @@ def compute_stats(state, cat, lp):
         }
     for r in state["open"].values():
         r.pop("_eff", None)
+    state["price_cache"] = {cid: c["price"] for cid, c in cards.items() if c.get("price")}
     return cards
 
 
@@ -1174,14 +1362,19 @@ def verdict(rec, cs):
     if rec["total"] is None:
         return "no price", None
     allin = round(rec["total"] + (rec["item"] or 0) * TAX, 2)
+    if rec.get("n_img") is not None and rec["n_img"] < 2:
+        return "fewer than 2 photos", allin
+    if rec.get("tier") == "suspect":
+        return "suspect", allin
     if not cs or cs.get("maxbuy") is None:
         return ("no sales yet" if cs else "no data yet"), allin
     if cs.get("price") and rec["total"] < 0.5 * cs["price"]:
         return "too cheap - scam check", allin
     if rec.get("tcond", "UNK") not in COMPARABLE_CONDS:
         return "condition " + rec.get("tcond", "?"), allin
-    if rec.get("pct") is not None and rec["pct"] < MIN_SELLER_PCT:
-        return "seller < 98%", allin
+    bar = seller_bar(rec)
+    if bar is not None:
+        return f"seller < {bar:.0f}%", allin
     if allin <= listing_gate(rec, cs)[1]:
         return "PASS", allin
     return "over max buy", allin
@@ -1203,7 +1396,8 @@ def build_live(state, cards, lp):
                      None if not cs or not cs.get("price") or r["total"] is None else round((r["total"] / cs["price"] - 1) * 100, 1),
                      listing_gate(r, cs)[1], v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
                      r.get("out") or "open", r["url"], r.get("img"), r.get("how"),
-                     r.get("hrs") if r.get("out") else None])          # 21: hours from listing to outcome
+                     r.get("hrs") if r.get("out") else None,          # 21: hours from listing to outcome
+                     r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", [])])   # 22-25: photos, tier, score, signals
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
@@ -1214,7 +1408,7 @@ def build_live(state, cards, lp):
         "gate": {"fee": FEE_PCT, "buyerTax": BUYER_TAX, "fixed": FEE_FIXED, "shipOut": SHIP_OUT, "tax": TAX,
                  "margin": MARGIN, "confidence": CONFIDENCE, "depthCap": DEPTH_CAP, "undercut": UNDERCUT,
                  "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D},
-        "cards": cards, "live": live, "unmatched": unmatched, "lp": lp,
+        "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }
 
@@ -1241,8 +1435,10 @@ def main():
         log("Daily API budget nearly used - skipping this run.")
         return
     sweep(state, cat)
+    enrich(state)
     track(state)
     prune(state)
+    score_listings(state)
     lp = lp_correction(state)
     update_daily(state, lp)
     cards = compute_stats(state, cat, lp)
