@@ -849,7 +849,7 @@ def score_listings(state):
     for r in opens:
         if r.get("total") is not None and r.get("tcond", "UNK") in COMPARABLE_CONDS:
             asks[r["card"]].append((r["total"], r["id"]))
-    tiers = Counter()
+    tiers, fired = Counter(), Counter()
     for r in opens:
         total = r.get("total")
         ref = cache.get(str(r["card"]))
@@ -899,7 +899,9 @@ def score_listings(state):
             tier = "suspect"; why.append("burst")
         r["sc"], r["scr"], r["tier"] = pts, why, tier
         tiers[tier] += 1
-    log(f"Scam screen: {tiers['clean']} clean, {tiers['watch']} watch, {tiers['suspect']} suspect among open listings.")
+        fired.update(why)
+    log(f"Scam screen: {tiers['clean']} clean, {tiers['watch']} watch, {tiers['suspect']} suspect among open listings; "
+        "signals: " + ", ".join(f"{k} {n}" for k, n in fired.most_common()))
 
 
 def scam_calib(state):
@@ -928,7 +930,7 @@ def enrich(state):
             continue                                     # only listings seen in the last day, once each
         ref = cache.get(str(r["card"]))
         cheap = ref is not None and r["total"] < ENRICH_RATIO * ref
-        thin = r["total"] >= SCAM_QTY_MIN_PRICE and (r.get("fb") is None or r["fb"] < 50)
+        thin = r["total"] >= SCAM_QTY_MIN_PRICE and (r.get("fb") is None or r["fb"] < 10)   # the +3 tier only
         if cheap or thin:
             cands.append((r["total"] / ref if ref else 1.0, iid))
     cands.sort()
