@@ -83,6 +83,15 @@ DEPTH_CAP = 3                # never price off deeper than the 3rd cheapest copy
 UNDERCUT = 1.00              # dollars under the reference copy
 BO_HAIRCUT = 0.90            # Best Offer listings rank at 90% of ask
 MIN_SELLER_PCT = 98.0        # comparable listings need this feedback % (blank = unknown, allowed)
+# LP correction: LP copies sell below NM. Prices are normalized to NM-equivalent inside the stats
+# (LP total / (1 - discount)) and the page applies the discount back to LP listings on Raw Data.
+# The discount starts at LP_DEFAULT_PCT and is replaced by the measured LP-to-NM ratio, per price tier,
+# once a tier has LP_MIN_SALES LP sales (falling back to the global ratio, then the default).
+LP_DEFAULT_PCT = 12.0
+LP_TIERS = [(0, 100), (100, 150), (150, 10**9)]   # by the card's NM price; 150+ is one tier
+LP_MIN_SALES = 30
+LP_REF_WINDOW_D = 7          # an LP sale is compared with NM/unstated sales of the same card within +/- this
+LP_REF_MIN = 2               # ... needing at least this many reference sales
 HOT_MIN_SALES = 5
 HOT_MIN_SELLTHRU = 0.80
 HOT_MAX_HRS = 48
@@ -270,7 +279,7 @@ COMPARABLE_CONDS = {"NM", "LP", "UNK"}
 
 
 def norm_tokens(s):
-    s = s.lower().replace("&", " ").replace("'", "").replace("’", "").replace("-", " ")
+    s = s.lower().replace("&", " ").replace("'", "").replace("\u2019", "").replace("-", " ")
     s = re.sub(r"[^a-z0-9 ]+", " ", s)
     return [t for t in s.split() if t and t not in STOP]
 
@@ -536,7 +545,7 @@ BASE_QUERY = {
               f"priceCurrency:USD,buyingOptions:{{FIXED_PRICE}},itemLocationCountry:US",
     "sort": "newlyListed", "limit": "200",
 }
-QUERIES = {"aspect": dict(BASE_QUERY, aspect_filter=f"categoryId:{CATEGORY_CCG_SINGLES},Game:{{Pokémon TCG}}"),
+QUERIES = {"aspect": dict(BASE_QUERY, aspect_filter=f"categoryId:{CATEGORY_CCG_SINGLES},Game:{{Pok\u00e9mon TCG}}"),
            "kw": dict(BASE_QUERY, q="pokemon")}
 
 
@@ -776,11 +785,69 @@ def gate(csell):
     return round(net, 2), round(net / (1 + MARGIN), 2)
 
 
+def lp_correction(state):
+    """Measured LP discount: for every LP sale, its total divided by the median of the same card's
+    NM/unstated sales within +/- LP_REF_WINDOW_D days; the discount is 1 - median(ratio), pooled across
+    all cards, per price tier of the reference price. Ladder: tier (>= LP_MIN_SALES) -> global -> default."""
+    by_card = defaultdict(lambda: {"ref": [], "lp": []})
+    for r in state["closed"]:
+        if r["out"] != "sold" or r["total"] is None:
+            continue
+        c = r.get("tcond", "UNK")
+        t = parse_ts(r["closed"])
+        if c in ("NM", "UNK"):
+            by_card[r["card"]]["ref"].append((t, r["total"]))
+        elif c == "LP":
+            by_card[r["card"]]["lp"].append((t, r["total"]))
+    ratios = []                                        # (reference price, ratio)
+    win = timedelta(days=LP_REF_WINDOW_D)
+    for cid, d in by_card.items():
+        for t, total in d["lp"]:
+            ref = [v for (tt, v) in d["ref"] if abs(tt - t) <= win]
+            if len(ref) < LP_REF_MIN:
+                continue
+            ref_med = pct(ref, 0.5)
+            if ref_med and 0.4 <= total / ref_med <= 1.2:      # outside this it is a mislabel, not a discount
+                ratios.append((ref_med, total / ref_med))
+    def disc(rs):
+        return None if len(rs) < LP_MIN_SALES else round((1 - pct([x[1] for x in rs], 0.5)) * 100, 1)
+    g_pct = disc(ratios)
+    tiers = []
+    for lo, hi in LP_TIERS:
+        rs = [x for x in ratios if lo <= x[0] < hi]
+        t_pct = disc(rs)
+        if t_pct is not None:
+            tiers.append({"lo": lo, "hi": hi, "pct": t_pct, "n": len(rs), "src": "tier"})
+        elif g_pct is not None:
+            tiers.append({"lo": lo, "hi": hi, "pct": g_pct, "n": len(rs), "src": "global"})
+        else:
+            tiers.append({"lo": lo, "hi": hi, "pct": LP_DEFAULT_PCT, "n": len(rs), "src": "default"})
+    return {"default": LP_DEFAULT_PCT, "minSales": LP_MIN_SALES, "window": LP_REF_WINDOW_D,
+            "global": {"pct": g_pct, "n": len(ratios)}, "tiers": tiers}
+
+
+def lp_frac(lp, price):
+    """The LP discount (as a fraction) for a card at this NM price."""
+    if price is None:
+        return lp["tiers"][0]["pct"] / 100
+    for t in lp["tiers"]:
+        if t["lo"] <= price < t["hi"]:
+            return t["pct"] / 100
+    return lp["tiers"][-1]["pct"] / 100
+
+
 # ---------------- daily rollup (the eBay trend series) ----------------
-def update_daily(state):
-    """state['daily'][card][YYYY-MM-DD] = [sold totals that day, cheapest comparable ask, new listings].
+def update_daily(state, lp):
+    """state['daily'][card][YYYY-MM-DD] = [sold totals that day (NM-equivalent), cheapest comparable ask, new listings].
     Frozen once a day is older than DAILY_REFRESH_D; recent days are rebuilt from the records."""
     daily = state.setdefault("daily", {})
+    ref_price = {}                                       # card -> median raw sold total, to pick the LP tier
+    tots = defaultdict(list)
+    for r in state["closed"]:
+        if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None:
+            tots[r["card"]].append(r["total"])
+    for cid, v in tots.items():
+        ref_price[cid] = pct(v, 0.5)
     keep_from = (NOW - timedelta(days=DAILY_KEEP_D)).date().isoformat()
     refresh = {(NOW - timedelta(days=i)).date().isoformat() for i in range(DAILY_REFRESH_D)}
     if not daily:                                        # first run with a rollup: build it from everything on hand
@@ -792,7 +859,8 @@ def update_daily(state):
         if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None:
             d = r["closed"][:10]
             if d in refresh:
-                fresh[str(r["card"])][d][0].append(round(r["total"], 2))
+                tot = r["total"] / (1 - lp_frac(lp, ref_price.get(r["card"]))) if r.get("tcond") == "LP" else r["total"]
+                fresh[str(r["card"])][d][0].append(round(tot, 2))
     for r in list(state["open"].values()) + state["closed"]:
         if comparable(r):
             d = r["first"][:10]
@@ -891,7 +959,7 @@ def trend_stats(days):
     return tr, hist
 
 
-def compute_stats(state, cat):
+def compute_stats(state, cat, lp):
     by_id = {c["id"]: c for c in cat.cards}
     win_start = NOW - timedelta(days=STAT_WINDOW_D)
     opens = defaultdict(list)
@@ -921,10 +989,16 @@ def compute_stats(state, cat):
                 and r.get("tcond", "UNK") in COMPARABLE_CONDS]
         k = len(sold)
         lam = round(gamma_q(k + 0.5, D, 0.25), 3) if k >= 1 else None
+        # --- LP normalization: prices of LP copies are lifted to NM-equivalent for every price stat.
+        # The tier is picked from the card's raw sold median (or cheapest ask before any sale).
+        raw_tot = [r["total"] for r in sold if r["total"] is not None]
+        raw_ask = [r["total"] for r in opens[cid] if comparable(r) and r["total"] is not None]
+        lpd = lp_frac(lp, pct(raw_tot, 0.5) if len(raw_tot) >= 3 else (min(raw_ask) if raw_ask else pct(raw_tot, 0.5)))
+        nm_eq = lambda r: r["total"] / (1 - lpd) if r.get("tcond") == "LP" else r["total"]
         # --- supply (the book) ---
         book = [r for r in opens[cid] if comparable(r) and r["total"] is not None]
         for r in book:
-            r["_eff"] = round(r["total"] * (BO_HAIRCUT if r["bo"] else 1.0), 2)
+            r["_eff"] = round(nm_eq(r) * (BO_HAIRCUT if r["bo"] else 1.0), 2)
         book.sort(key=lambda r: r["_eff"])
         N = len(book)
         p = [r["_eff"] for r in book[:3]] + [None] * 3
@@ -934,7 +1008,7 @@ def compute_stats(state, cat):
         io_ = round(mu / lam, 2) if lam else None
         # --- sold prices ---
         sold_sorted = sorted(sold, key=lambda r: r["closed"])
-        last10 = [r["total"] for r in sold_sorted[-10:] if r["total"] is not None]
+        last10 = [nm_eq(r) for r in sold_sorted[-10:] if r["total"] is not None]
         smed, s80 = pct(last10, 0.5), pct(last10, 0.8)
         hrs = pct([r["hrs"] for r in sold_sorted[-10:]], 0.5)
         # sell-through: of comparable listings first seen 7-37 days ago, share sold within 7 days
@@ -987,8 +1061,8 @@ def compute_stats(state, cat):
             "trend": True,
         }
         if len(sold_sorted) >= 10:
-            recent = pct([r["total"] for r in sold_sorted[-5:] if r["total"]], 0.5)
-            earlier = pct([r["total"] for r in sold_sorted[-10:-5] if r["total"]], 0.5)
+            recent = pct([nm_eq(r) for r in sold_sorted[-5:] if r["total"]], 0.5)
+            earlier = pct([nm_eq(r) for r in sold_sorted[-10:-5] if r["total"]], 0.5)
             if recent is not None and earlier is not None:
                 checks["trend"] = recent >= 0.97 * earlier
         hot = 0
@@ -1024,8 +1098,8 @@ def compute_stats(state, cat):
             "price": r2(price), "k": k, "D": round(D, 1), "lam": lam, "N": N, "p1": p[0], "p2": p[1], "p3": p[2],
             "mu": mu, "dos": dos, "io": io_, "smed": r2(smed), "s80": r2(s80), "hrs": hrs, "st": None if st is None else round(st * 100, 1),
             "n24": n24, "n48": n48, "p24": r2(p24), "p48": r2(p48), "pw": r2(pw), "basis": basis if csell is not None else None,
-            "prob24": prob24, "edays": edays, "net": net, "maxbuy": maxbuy, "hot": hot, "confirm": confirm,
-            "checks": [key for key, v in checks.items() if not v],
+            "prob24": prob24, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy, "hot": hot, "confirm": confirm,
+            "checks": [key for key, v in checks.items() if not v], "lpd": round(lpd * 100, 1),
             "book": [[r["id"], r["total"], r["item"], r["ship"], r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
                       round(hours_between(parse_ts(r["origin"] or r["first"]) or NOW, NOW), 1), r["url"], r["title"]]
                      for r in book[:8]],
@@ -1086,6 +1160,15 @@ def calibrate(state, horizon_h, key):
             "rows": [[b["lo"], b["hi"], b["n"], b["sold"], round(100 * b["sold"] / b["n"], 1) if b["n"] else None] for b in rows]}
 
 
+def listing_gate(rec, cs):
+    """(net, maxbuy) for one listing: the card's gate, discounted when the listing says LP."""
+    if not cs or cs.get("maxbuy") is None:
+        return None, None
+    if rec.get("tcond") == "LP" and cs.get("csell") is not None:
+        return gate(cs["csell"] * (1 - cs.get("lpd", LP_DEFAULT_PCT) / 100))
+    return cs["net"], cs["maxbuy"]
+
+
 def verdict(rec, cs):
     """Gate verdict for one listing given its card's stats."""
     if rec["total"] is None:
@@ -1099,12 +1182,12 @@ def verdict(rec, cs):
         return "condition " + rec.get("tcond", "?"), allin
     if rec.get("pct") is not None and rec["pct"] < MIN_SELLER_PCT:
         return "seller < 98%", allin
-    if allin <= cs["maxbuy"]:
+    if allin <= listing_gate(rec, cs)[1]:
         return "PASS", allin
     return "over max buy", allin
 
 
-def build_live(state, cards):
+def build_live(state, cards, lp):
     day_ago = NOW - timedelta(hours=24)
     live = []
     recs = list(state["open"].values()) + [r for r in state["closed"] if parse_ts(r["first"]) >= day_ago]
@@ -1118,8 +1201,9 @@ def build_live(state, cards):
                      r["item"], r["ship"], r["total"], allin,
                      cs["price"] if cs else None,
                      None if not cs or not cs.get("price") or r["total"] is None else round((r["total"] / cs["price"] - 1) * 100, 1),
-                     cs["maxbuy"] if cs else None, v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
-                     r.get("out") or "open", r["url"], r.get("img"), r.get("how")])
+                     listing_gate(r, cs)[1], v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
+                     r.get("out") or "open", r["url"], r.get("img"), r.get("how"),
+                     r.get("hrs") if r.get("out") else None])          # 21: hours from listing to outcome
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
@@ -1130,7 +1214,7 @@ def build_live(state, cards):
         "gate": {"fee": FEE_PCT, "buyerTax": BUYER_TAX, "fixed": FEE_FIXED, "shipOut": SHIP_OUT, "tax": TAX,
                  "margin": MARGIN, "confidence": CONFIDENCE, "depthCap": DEPTH_CAP, "undercut": UNDERCUT,
                  "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D},
-        "cards": cards, "live": live, "unmatched": unmatched,
+        "cards": cards, "live": live, "unmatched": unmatched, "lp": lp,
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }
 
@@ -1159,9 +1243,11 @@ def main():
     sweep(state, cat)
     track(state)
     prune(state)
-    update_daily(state)
-    cards = compute_stats(state, cat)
-    live = build_live(state, cards)
+    lp = lp_correction(state)
+    update_daily(state, lp)
+    cards = compute_stats(state, cat, lp)
+    live = build_live(state, cards, lp)
+    log("LP correction: " + ", ".join(f"{t['lo']}-{t['hi'] if t['hi'] < 10**9 else '+'}: {t['pct']}% ({t['src']}, n={t['n']})" for t in lp["tiers"]))
     os.makedirs(LIVE_DIR, exist_ok=True)
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     with open(os.path.join(LIVE_DIR, LIVE_NAME), "wb") as f:

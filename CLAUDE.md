@@ -16,10 +16,14 @@ Three tabs:
    Rates (green, from Observed), Decisions (amber, depend on λ, the book, and the Confidence/Margin boxes),
    Trends (purple: the PriceCharting trend formulas applied to a 7-day median of raw sale totals, from the
    collector's per-card daily rollup kept 120 days; an eBay Trend popup shares the PriceCharting chart code).
-3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with a PASS/reason verdict.
+3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with the card's P₄₈, the
+   listing's Max buy / Profit $ / ROI %, a PASS/reason verdict, Status and Time (h) (hours to outcome, or
+   open so far). Filters: Profit, ROI, "Listed within N h" (one number), a Condition chip (NM / LP / n/s).
 
-Top bar: Confidence (default 70%), Margin (default 15%), Calibration checkbox, README button (the README
-modal contains the full method walkthrough — keep it in sync when the model changes).
+Top bar: Confidence (default 70%), "Only show hits" (Raw Data → PASS rows only), Margin (default 15%),
+LP correction chips (read-only, three price tiers, see below), Calibration checkbox, README button (the
+README modal contains the full method walkthrough — keep it in sync when the model changes).
+Every table header has a `?` (help) and an eye (collapse the column to a thin strip; remembered per tab).
 
 ## Files
 - `build_catalog.py` — daily build. Downloads PriceCharting CSV, filters, computes trend stats from
@@ -65,6 +69,15 @@ the collector stops itself at 4,800.
 - Gate: net = P × (1 − 0.1325 × 1.065) − 0.30 − 4.50; max buy = net ÷ (1 + margin); a listing PASSes when
   item + shipping + 6.25% tax ≤ max buy. Comparable = NM/LP/not stated, seller ≥ 98%.
 - Hot card = 5 checks, then confirmed by the next 3 listings selling within 48 h.
+- Condition: NM, LP and not-stated count in every COUNT (demand and supply are condition-blind); every LP
+  PRICE is lifted to NM-equivalent (total ÷ (1 − LP discount)) before the book, sold median/80th, P₄₈ and
+  the daily rollup, so Catalog prices are NM prices. On Raw Data a listing that says LP has its sell price
+  cut by the discount → lower Max buy / Profit / ROI (hover Max buy shows the NM figure); not-stated = NM
+  (Brett's decision); MP/HP excluded from everything but still listed with a "condition" verdict.
+  The LP discount is measured in `lp_correction()`: per LP sale, total ÷ median of the same card's
+  NM/unstated sales within ±7 d; 1 − median(ratio), pooled across cards, per NM-price tier (<100, 100–150,
+  150+). Ladder: tier (≥ 30 LP sales) → global (≥ 30) → 12% default. Published in the live file as `lp`;
+  the page shows the three tiers read-only next to Margin.
 - Price calibration: each new listing is stamped with the model's P₄₈/P₂₄ for its card and its offset from
   it; realized 48 h / 24 h sell-through by offset bucket gives the shift where the curve crosses 70%;
   applied once ≥ 150 outcomes with ≥ 25 in the two buckets around the crossing.
@@ -83,6 +96,13 @@ the collector stops itself at 4,800.
 3. Deal alerts (e.g. open a GitHub issue when a listing PASSes) — optional, off by default.
 4. Make history shards incremental once a year of snapshots makes the daily rebuild slow.
 5. A flip ledger (card, buy, list, sold, hours) as the real calibration set.
+
+## How changes get pushed
+Brett works from claude.ai chat. The GitHub connector (custom MCP, api.githubcopilot.com) can push files
+directly (`push_files`); the workflow is then triggered by clicking "Run workflow" through the Claude in
+Chrome extension (the connector has no Actions tools). Verify a push by comparing the blob SHA
+(`sha1("blob <size>\0" + bytes)`) with the directory listing. Claude Code (desktop) is the faster route
+for larger changes; Brett has not adopted it yet.
 
 ## Testing before pushing
 - `python -c "import ast; ast.parse(open('build_catalog.py').read())"` and same for `ebay_sweep.py`.
