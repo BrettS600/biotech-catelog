@@ -489,12 +489,18 @@ html = r"""<!DOCTYPE html>
   .controls input, .controls select { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
   .controls input[type=search] { flex:1 1 220px; min-width:180px; }
   .controls select { max-width:320px; }
-  .ranges { display:flex; flex-wrap:wrap; gap:8px 18px; padding:0 18px 12px; align-items:center; }
-  .range { display:flex; align-items:center; gap:5px; }
-  .range .lbl { color:var(--muted); font-size:13px; white-space:nowrap; }
-  .range input { font:inherit; width:80px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
-  .range .to { color:var(--muted); }
-  .reset { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
+  .ranges { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 12px; align-items:center; }
+  .range { display:inline-flex; align-items:center; gap:6px; padding:3px 5px 3px 11px; border:1px solid var(--line); border-radius:999px; background:var(--head); transition:border-color .15s; }
+  .range.on { border-color:var(--link); box-shadow:0 0 0 1px var(--link) inset; }
+  .range .lbl { color:var(--muted); font-size:11.5px; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+  .range input { font:inherit; font-size:13px; width:60px; padding:3px 7px; border:1px solid transparent; border-radius:999px; background:var(--bg); color:var(--fg); text-align:right; -moz-appearance:textfield; }
+  .range input::-webkit-outer-spin-button, .range input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .range input:focus { outline:none; border-color:var(--link); }
+  .range input::placeholder { color:var(--muted); opacity:.7; }
+  .range .to { color:var(--muted); font-size:12px; }
+  .range .unit { color:var(--muted); font-size:12px; padding-right:4px; }
+  .reset { font:inherit; font-size:13px; padding:5px 13px; border:1px solid var(--line); border-radius:999px; background:none; color:var(--muted); cursor:pointer; }
+  .reset:hover { color:var(--fg); border-color:var(--muted); }
   .count { color:var(--muted); font-size:13px; white-space:nowrap; }
   .wrap { overflow-x:auto; border-top:1px solid var(--line); }
   table { border-collapse:collapse; width:100%; }
@@ -581,6 +587,7 @@ html = r"""<!DOCTYPE html>
   <button class="tab" data-t="er">eBay Raw Data</button>
   <div class="tools">
     <label title="Chance of a sale inside the window that the P₂₄ / P₄₈ prices are set for">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
+    <label title="Raw Data: show only listings whose ROI clears your Margin (verdict PASS)"><input type="checkbox" id="hits"> Only show hits</label>
     <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="15">%</label>
     <label id="callab" title="Shift P₄₈ / P₂₄ by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
     <button class="readme" id="readme-btn">README</button>
@@ -711,7 +718,7 @@ html = r"""<!DOCTYPE html>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
-    <th data-k="5" class="num">Listed (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
+    <th data-k="5" class="num">Listed within (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
     <th data-k="6">eBay title<span class="s">⇅</span><button class="help" data-h="er_title">?</button></th>
     <th data-k="7" class="num">Item $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
     <th data-k="8" class="num">Ship $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
@@ -719,6 +726,7 @@ html = r"""<!DOCTYPE html>
     <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
     <th data-k="11" class="num">Card price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
     <th data-k="12" class="num">vs price %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
+    <th data-k="26" class="num">P₄₈ $<span class="s">⇅</span><button class="help" data-h="ec_p48">?</button></th>
     <th data-k="13" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
     <th data-k="24" class="num">Profit $<span class="s">⇅</span><button class="help" data-h="er_profit">?</button></th>
     <th data-k="25" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="er_roi">?</button></th>
@@ -870,10 +878,11 @@ const TABLES = {
       '<td><button class="tbtn ebtn" data-id="' + r[0] + '">Trend</button></td>' +
       '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
-  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 ord
-  er: {rows: () => LIVE.er, noun: 'listings', ranges: [5, 9, 10, 11, 12, 13, 24, 25],
-       labels: {5: 'Listed (h)', 9: 'Total $', 10: 'All-in $', 11: 'Card price $', 12: 'vs price %', 13: 'Max buy $', 24: 'Profit $', 25: 'ROI %'},
-       defaults: {11: [50, 150]},
+  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 p48 27 ord
+  er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
+       labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
+       defaults: {},
+       extra: r => !$('hits').checked || r[14] === 'PASS',
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => cells4(r) +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
@@ -882,6 +891,7 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
       '<td class="num">' + fmtMoney(r[11]) + '</td>' +
       '<td class="num">' + fmtPct(r[12]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[26]) + '</td>' +
       '<td class="num">' + fmtMoney(r[13]) + '</td>' +
       '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[25]) + '</td>' +
@@ -897,12 +907,19 @@ function makeTable(id, cfg) {
   const t = {id, sortKey: null, sortDir: 1, view: [], shown: 0};
   const sel = el('set');
   SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
-  cfg.ranges.forEach(k => {                             // build the min–max filter row
+  const maxes = cfg.maxes || [];
+  cfg.ranges.forEach(k => {                             // min–max chips
     const div = document.createElement('div'); div.className = 'range';
     const d = cfg.defaults[k] || ['', ''];
     div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="min' + k + '-' + id + '" placeholder="min" value="' + d[0] + '"><span class="to">–</span><input type="number" id="max' + k + '-' + id + '" placeholder="max" value="' + d[1] + '">';
     el('ranges').insertBefore(div, el('reset'));
   });
+  maxes.forEach(k => {                                  // single "at most" chips (e.g. Listed within N h)
+    const div = document.createElement('div'); div.className = 'range';
+    div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="max' + k + '-' + id + '" placeholder="any">' + (cfg.units && cfg.units[k] ? '<span class="unit">' + cfg.units[k] + '</span>' : '');
+    el('ranges').insertBefore(div, el('reset'));
+  });
+  const paintChips = () => el('ranges').querySelectorAll('.range').forEach(div => div.classList.toggle('on', [...div.querySelectorAll('input')].some(i => i.value !== '')));
   t.apply = () => {
     const rows = cfg.rows();
     const q = el('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -911,6 +928,8 @@ function makeTable(id, cfg) {
       const lo = el('min' + k).value, hi = el('max' + k).value;
       return [k, lo === '' ? null : +lo, hi === '' ? null : +hi];
     }).filter(([, lo, hi]) => lo != null || hi != null);
+    maxes.forEach(k => { const hi = el('max' + k).value; if (hi !== '') ranges.push([k, null, +hi]); });
+    paintChips();
     t.view = rows.filter(r => {
       if (set && r[2] !== set) return false;
       for (const [k, lo, hi] of ranges) {
@@ -919,6 +938,7 @@ function makeTable(id, cfg) {
         if (lo != null && v < lo) return false;
         if (hi != null && v > hi) return false;
       }
+      if (cfg.extra && !cfg.extra(r)) return false;
       if (q.length) { const hay = cfg.hay(r).toLowerCase(); if (!q.every(w => hay.includes(w))) return false; }
       return true;
     });
@@ -977,10 +997,11 @@ function makeTable(id, cfg) {
     if (t.sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = t.sortDir === 1 ? ' ▲' : ' ▼'; }
     t.apply();
   }));
-  ['q', ...cfg.ranges.flatMap(k => ['min' + k, 'max' + k])].forEach(k => el(k).addEventListener('input', t.apply));
+  ['q', ...cfg.ranges.flatMap(k => ['min' + k, 'max' + k]), ...maxes.map(k => 'max' + k)].forEach(k => el(k).addEventListener('input', t.apply));
   if (el('reset')) el('reset').addEventListener('click', () => {
     el('q').value = ''; sel.value = '';
     cfg.ranges.forEach(k => { const d = cfg.defaults[k] || ['', '']; el('min' + k).value = d[0]; el('max' + k).value = d[1]; });
+    maxes.forEach(k => { el('max' + k).value = ''; });
     t.apply();
   });
   sel.addEventListener('change', t.apply);
@@ -1097,7 +1118,7 @@ function rebuildLive() {
     const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
     LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
                   cs ? cs.price : null, cs && cs.price && x[7] != null ? Math.round((x[7] / cs.price - 1) * 1000) / 10 : null,
-                  cs ? cs.maxbuy : null, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, LIVE.er.length]);
+                  cs ? cs.maxbuy : null, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, cs ? cs.p48 : null, LIVE.er.length]);
   });
   const cal = live.calib || {}, c48 = cal.h48 || {}, c24 = cal.h24 || {};
   const calTxt = c48.delta != null ? 'price calibration ' + (c48.delta > 0 ? '+' : '') + c48.delta + '% from ' + c48.n + ' outcomes' + (S.d48 ? ' (applied)' : ' (off)')
@@ -1122,9 +1143,9 @@ async function loadLive() {
   }
 }
 // settings: remembered in this browser; any change re-derives the amber band and the verdicts
-try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.margin != null) $('margin').value = sv.margin; if (sv.usecal != null) $('usecal').checked = sv.usecal; } catch (e) {}
-['conf', 'margin', 'usecal'].forEach(id => $(id).addEventListener('input', () => {
-  try { localStorage.setItem('ebay-settings', JSON.stringify({conf: $('conf').value, margin: $('margin').value, usecal: $('usecal').checked})); } catch (e) {}
+try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.margin != null) $('margin').value = sv.margin; if (sv.usecal != null) $('usecal').checked = sv.usecal; if (sv.hits != null) $('hits').checked = sv.hits; } catch (e) {}
+['conf', 'margin', 'usecal', 'hits'].forEach(id => $(id).addEventListener('input', () => {
+  try { localStorage.setItem('ebay-settings', JSON.stringify({conf: $('conf').value, margin: $('margin').value, usecal: $('usecal').checked, hits: $('hits').checked})); } catch (e) {}
   rebuildLive();
 }));
 
@@ -1215,7 +1236,7 @@ max buy = 76.79 ÷ (1 + 0.15) = $66.78 all-in   (≈ $59 item price with $4 ship
 </ul>
 
 <h3>5. The Confidence and Margin boxes</h3>
-<p><b>Confidence</b> is the probability the P₂₄ / P₄₈ prices are set for. Raise it and n falls, prices fall, Net and Max buy fall: you are demanding a surer sale. 70% is the default because a missed window costs a day, not a loss. <b>Margin</b> is the profit required on all-in cost; it moves Max buy and the PASS threshold and nothing else. <b>Net $</b> on the Catalog is what you clear at the gate's sell price; <b>Profit $</b> and <b>ROI %</b> on the Raw Data tab apply that to each listing's all-in cost, so sorting Raw Data by ROI shows the best buys first. Both boxes are remembered in this browser and change nothing in the collector.</p>
+<p><b>Only show hits</b> filters the Raw Data tab to listings whose verdict is PASS — the ones where buying at the asking price and selling at the gate's price clears your Margin. <b>Confidence</b> is the probability the P₂₄ / P₄₈ prices are set for. Raise it and n falls, prices fall, Net and Max buy fall: you are demanding a surer sale. 70% is the default because a missed window costs a day, not a loss. <b>Margin</b> is the profit required on all-in cost; it moves Max buy and the PASS threshold and nothing else. <b>Net $</b> on the Catalog is what you clear at the gate's sell price; <b>Profit $</b> and <b>ROI %</b> on the Raw Data tab apply that to each listing's all-in cost, so sorting Raw Data by ROI shows the best buys first. Both boxes are remembered in this browser and change nothing in the collector.</p>
 
 <h3>6. Calibration — of the price, not the rate</h3>
 <p>λ is left exactly as the data says. What gets checked is the price claim: "a listing at P₄₈ sells within 48 hours 70% of the time." When a listing first appears, the collector records the P₄₈ the model would have set for its card that moment, and how far above or below it the listing was actually priced. Two days later the tracker knows whether it sold. Pooling every listing that entered the buyable part of the book (rank 1–3) gives a table: realized 48-hour sell-through by price offset from P₄₈.</p>
@@ -1286,7 +1307,7 @@ const HELP = {
   et_vol: {t: 'Volatility % (eBay)', f: 'median |ln(P_t ÷ P_t−1)| over days in the last 90 where the 7-day median changed; needs 3 changes', m: 'The typical day-to-day move of the realized price. Includes sampling noise on thin cards (which three copies sold), so it reads higher than PriceCharting\'s.', e: 'Daily moves of 0.3%, 0.4%, 0.5%, 1.1% → median 0.45%.'},
   et_ts: {t: 'Slope 30d %/mo (eBay)', f: 'Theil–Sen median of pairwise slopes of ln P over the last 30 days, shown as (e^(slope × 30) − 1) × 100', m: 'The robust trend of realized raw prices: the middle of all pairwise slopes, so one odd sale does not move it. Needs 30 days and 10 valid points. Negative = drifting down.', e: 'Median pairwise slope −0.00178/day → (e^(−0.0534) − 1) × 100 = −5.2%/mo.'},
   et_trend: {t: 'Trend (eBay)', f: 'the daily rollup behind the Trends band', m: 'Opens the chart: bars are raw sales per day, the blue line the 7-day median sale price, the green line the cheapest comparable ask that day, dashed lines the 90-day high/low and P₄₈. Same controls as the PriceCharting chart. The stats strip below it shows the trend columns and the pricing numbers side by side.', e: ''},
-  er_listed: {t: 'Listed (h)', f: 'hours since the listing was created on eBay', m: 'Deals on liquid cards are gone in minutes to hours, so the freshest rows matter most. The tab shows listings first seen in the last 24 hours; sold or ended ones stay visible with their status.', e: '0.3 = listed about 20 minutes ago.'},
+  er_listed: {t: 'Listed within (h)', f: 'hours since the listing was created on eBay', m: 'Deals on liquid cards are gone in minutes to hours, so the freshest rows matter most. The filter takes one number: type 2 to see only listings posted in the last 2 hours. The tab holds listings first seen in the last 24 hours; sold or ended ones stay visible with their status.', e: '0.3 = listed about 20 minutes ago.'},
   er_title: {t: 'eBay title', f: 'the seller\'s title, linked to the listing', m: 'What the parser matched to the catalog card in the first columns. Always read it before buying: variant words (reverse, 1st edition, shadowless), condition claims and anything odd. If the match looks wrong, that is a parser pattern to fix — the Unmatched button shows the ones it refused.', e: '"Charizard ex 199/165 Obsidian Flames SIR NM" → Charizard ex #199, Pokemon Obsidian Flames.'},
   er_item: {t: 'Item $ / Ship $', f: 'the listed price and the seller\'s shipping charge to your ZIP', m: 'Calculated shipping is estimated for the ZIP the collector was given. "free" means the seller folded shipping into the item.', e: '$118 + $4 shipping.'},
   er_total: {t: 'Total $', f: 'item + shipping', m: 'The buyer total, which is how everything else on the eBay tabs is measured (sold prices, the book, P₂₄).', e: '118 + 4 = $122.'},
