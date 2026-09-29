@@ -516,6 +516,16 @@ html = r"""<!DOCTYPE html>
   .tbtn:hover { border-color:var(--link); }
   .help { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin-left:5px; border-radius:50%; border:1px solid var(--muted); color:var(--muted); font-size:10px; font-weight:700; background:none; cursor:pointer; vertical-align:middle; padding:0; line-height:1; }
   .help:hover { border-color:var(--link); color:var(--link); }
+  /* column eye: click to collapse a column to a thin strip; click again to expand */
+  .eye { display:inline-flex; align-items:center; justify-content:center; width:16px; height:15px; margin-left:3px; border:none; background:none; color:var(--muted); cursor:pointer; padding:0; vertical-align:middle; font-size:12px; line-height:1; }
+  .eye:hover { color:var(--link); }
+  .eye svg { width:13px; height:13px; display:block; }
+  th.col-hidden { width:22px; min-width:22px; max-width:22px; padding:6px 3px; text-align:center; font-size:0; overflow:hidden; }
+  th.col-hidden > *:not(.eye) { display:none; }
+  th.col-hidden .eye { margin:0; color:var(--down); }
+  th.col-hidden:hover { text-decoration:none; }
+  td.col-hidden { width:22px; min-width:22px; max-width:22px; padding:0; font-size:0; color:transparent; overflow:hidden; }
+  td.col-hidden * { display:none; }
   /* popups */
   .ov { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50; padding:12px; }
   .ov.open { display:flex; }
@@ -609,7 +619,7 @@ html = r"""<!DOCTYPE html>
 </table>
 </div>
 <button class="more" id="more-pc" hidden>Show more</button>
-<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
+<footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. The eye on a header collapses that column to a thin strip (click it again to bring it back; the choice is remembered in this browser). Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
 </section>
 
 <!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
@@ -930,11 +940,35 @@ function makeTable(id, cfg) {
   t.renderMore = () => {
     const frag = document.createDocumentFragment();
     const end = Math.min(t.shown + PAGE, t.view.length);
-    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = cfg.row(t.view[i]); frag.appendChild(tr); }
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = cfg.row(t.view[i]); paintRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
     el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
   };
+  // column eyes: every header cell (last header row) gets one; hidden columns collapse to a strip
+  const headRow = document.querySelector('#p-' + id + ' thead tr:last-child');
+  let hiddenCols = new Set();
+  try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + id) || '[]')); } catch (e) {}
+  const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
+  const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6c1.6 0 3 .3 4.3.9l-1.6 1.6A6 6 0 0 0 12 8c-4.4 0-7.2 3.2-8.1 4 .5.5 1.6 1.7 3.2 2.6l-1.5 1.5C3.4 14.7 2 12 2 12zm20 0s-3.5 6-10 6c-1.6 0-3-.3-4.3-.9l1.6-1.6c.8.3 1.7.5 2.7.5 4.4 0 7.2-3.2 8.1-4-.5-.5-1.6-1.7-3.2-2.6l1.5-1.5C20.6 9.3 22 12 22 12zM4 20 20 4l1.4 1.4L5.4 21.4z" fill="currentColor"/></svg>';
+  const paintHeads = () => [...headRow.children].forEach((th, ci) => {
+    const on = hiddenCols.has(ci);
+    th.classList.toggle('col-hidden', on);
+    const b = th.querySelector('.eye'); if (b) { b.innerHTML = on ? EYE_SHUT : EYE_OPEN; b.title = on ? 'Show column' : 'Hide column'; }
+  });
+  const paintRow = tr => { if (hiddenCols.size) hiddenCols.forEach(ci => { const td = tr.children[ci]; if (td) td.classList.add('col-hidden'); }); };
+  const toggleCol = ci => {
+    if (hiddenCols.has(ci)) hiddenCols.delete(ci); else hiddenCols.add(ci);
+    try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
+    paintHeads();
+    el('rows').querySelectorAll('tr').forEach(tr => { const td = tr.children[ci]; if (td) td.classList.toggle('col-hidden', hiddenCols.has(ci)); });
+  };
+  [...headRow.children].forEach((th, ci) => {
+    const b = document.createElement('button'); b.className = 'eye'; b.type = 'button';
+    b.addEventListener('click', e => { e.stopPropagation(); toggleCol(ci); });
+    th.appendChild(b);
+  });
+  paintHeads();
   const ths = document.querySelectorAll('#p-' + id + ' th[data-k]');
   ths.forEach(th => th.addEventListener('click', () => {
     const k = +th.dataset.k;
