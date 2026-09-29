@@ -29,9 +29,11 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
 ## Files
 - `build_catalog.py` — daily build. Downloads PriceCharting CSV, filters, computes trend stats from
   snapshots, writes `site/index.html`. The page itself lives in `page/`: `style.css`, `body.html`
-  (the three tabs' markup) and `app.js` (all the browser logic), stitched into a shell template at build
-  time — edit those, not the Python, for page changes. In `app.js`: every column has a `?` help entry in
-  the `HELP` dict; the README text is the `README` constant; column dependencies are the `LINKS` dict.
+  (the three tabs' markup), `app.js` (the browser logic) and `help.js` (the README text and the column
+  help), stitched into a shell template at build time — edit those, not the Python, for page changes.
+  In `help.js`: every column has a `?` help entry in the `HELP` dict; the README text is the `README`
+  constant; column dependencies are the `LINKS` dict. Keep each page file under ~90 KB so it can be
+  pushed through the connector in one call.
   Decision columns are recomputed in the browser (`decide()`), mirroring `compute_stats()` in the
   collector — keep the two in step.
 - `ebay_sweep.py` — the eBay collector, every 15 min. Sweep (newly listed, Ungraded condition id 4000,
