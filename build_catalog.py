@@ -12,8 +12,8 @@ What it does
   3. Orders sets by release date, and cards by card number within each set
   4. Writes site/index.html - one self-contained page with three tabs:
        PriceCharting Catalog (default) | eBay Catalog | eBay Raw Data
-     The page's CSS, markup and JavaScript live in page/ (style.css, body.html, app.js) and are
-     stitched into a shell template here at build time.
+     The page's CSS, markup and JavaScript live in page/ (style.css, body.html, app.js, help.js)
+     and are stitched into a shell template here at build time.
      The eBay tabs read live/ebay_live.bin, which ebay_sweep.py publishes to the repo's
      "live" branch every 15 minutes (same encryption key, derived from SITE_PASSWORD).
   5. Archives a dated snapshot in snapshots/ with EVERY column PriceCharting provides
@@ -465,7 +465,8 @@ __SCRIPT__</script>
 </body>
 </html>
 """
-html = html.replace("__STYLE__", page_part("style.css")).replace("__BODY__", page_part("body.html")).replace("__SCRIPT__", page_part("app.js"))
+html = (html.replace("__STYLE__", page_part("style.css")).replace("__BODY__", page_part("body.html"))
+            .replace("__SCRIPT__", page_part("app.js") + "\n" + page_part("help.js")))   # help.js: README + column help
 html = (html.replace("__UPDATED__", today)
             .replace("__HKEY__", hist_key_hex)
             .replace("__LIVE_URL__", LIVE_URL)
