@@ -120,7 +120,7 @@
 <!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
 <section class="panel" id="p-er" hidden>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
-<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Default filter: cards whose eBay price is $50–$150. <button class="linkbtn" id="unmatched-btn">Unmatched titles</button></div>
+<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
 <div class="controls">
   <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
@@ -128,6 +128,7 @@
 </div>
 <div class="ranges" id="ranges-er">
   <div class="range condchip" id="condchip"><span class="lbl">Condition</span><label><input type="checkbox" id="cond-NM-er" checked> NM</label><label><input type="checkbox" id="cond-LP-er" checked> LP</label><label><input type="checkbox" id="cond-UNK-er" checked> n/s</label></div>
+  <div class="range condchip" id="suschip"><label><input type="checkbox" id="showsus-er"> Show suspects (<span id="nsus">0</span>)</label></div>
   <button class="reset" id="reset-er">Reset filters</button>
 </div>
 <div class="wrap">
@@ -150,6 +151,8 @@
     <th data-k="24" class="num">Profit $<span class="s">⇅</span><button class="help" data-h="er_profit">?</button></th>
     <th data-k="25" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="er_roi">?</button></th>
     <th data-k="14">Verdict<span class="s">⇅</span><button class="help" data-h="er_verdict">?</button></th>
+    <th data-k="30">Risk<span class="s">⇅</span><button class="help" data-h="er_risk">?</button></th>
+    <th data-k="32" class="num">Photos<span class="s">⇅</span><button class="help" data-h="er_photos">?</button></th>
     <th data-k="15">Cond<span class="s">⇅</span><button class="help" data-h="er_cond">?</button></th>
     <th data-k="16">Offer<span class="s">⇅</span><button class="help" data-h="er_bo">?</button></th>
     <th data-k="17" class="num">Seller fb<span class="s">⇅</span><button class="help" data-h="er_seller">?</button></th>

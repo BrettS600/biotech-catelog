@@ -122,6 +122,9 @@
   .badge.hot { color:#fff; background:#d97706; border-color:#d97706; }
   .badge.hot2 { color:#fff; background:var(--down); border-color:var(--down); font-weight:700; }
   .badge.warn { color:var(--down); border-color:var(--down); }
+  .badge.watch { color:#b45309; border-color:#f59e0b; background:rgba(245,158,11,.12); }
+  .badge.sus { color:var(--down); border-color:var(--down); background:rgba(185,28,28,.10); font-weight:700; }
+  tr.sus td { opacity:.75; }
   td.ttl { max-width:420px; overflow:hidden; text-overflow:ellipsis; }
   .live-note { color:var(--muted); font-size:12px; padding:0 18px 8px; }
   .linkbtn { font:inherit; font-size:12px; border:none; background:none; color:var(--link); cursor:pointer; padding:0; text-decoration:underline; }

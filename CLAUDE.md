@@ -17,8 +17,9 @@ Three tabs:
    Trends (purple: the PriceCharting trend formulas applied to a 7-day median of raw sale totals, from the
    collector's per-card daily rollup kept 120 days; an eBay Trend popup shares the PriceCharting chart code).
 3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with the card's P₄₈, the
-   listing's Max buy / Profit $ / ROI %, a PASS/reason verdict, Status and Time (h) (hours to outcome, or
-   open so far). Filters: Profit, ROI, "Listed within N h" (one number), a Condition chip (NM / LP / n/s).
+   listing's Max buy / Profit $ / ROI %, a PASS/reason verdict, Risk (scam-screen tier), Photos, Status and
+   Time (h). Filters: Profit, ROI, "Listed within N h" (one number), a Condition chip (NM / LP / n/s),
+   "Show suspects". Listings with < 2 photos are left out; a "Scam screen" button shows the calibration table.
 
 Top bar: Confidence (default 70%), "Only show hits" (Raw Data → PASS rows only), Margin (default 15%),
 LP correction chips (read-only, three price tiers, see below), Calibration checkbox, README button (the
@@ -27,10 +28,12 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
 
 ## Files
 - `build_catalog.py` — daily build. Downloads PriceCharting CSV, filters, computes trend stats from
-  snapshots, writes `site/index.html` (all HTML/CSS/JS is inside this file as one big Python string).
-  Every column has a `?` help entry in the `HELP` dict; the README text is the `README` JS constant;
-  column dependencies are the `LINKS` dict. Decision columns are recomputed in the browser (`decide()`),
-  mirroring `compute_stats()` in the collector — keep the two in step.
+  snapshots, writes `site/index.html`. The page itself lives in `page/`: `style.css`, `body.html`
+  (the three tabs' markup) and `app.js` (all the browser logic), stitched into a shell template at build
+  time — edit those, not the Python, for page changes. In `app.js`: every column has a `?` help entry in
+  the `HELP` dict; the README text is the `README` constant; column dependencies are the `LINKS` dict.
+  Decision columns are recomputed in the browser (`decide()`), mirroring `compute_stats()` in the
+  collector — keep the two in step.
 - `ebay_sweep.py` — the eBay collector, every 15 min. Sweep (newly listed, Ungraded condition id 4000,
   category 183454, $25–200, fixed price, US) → title matching → tracking (hourly presence sweep +
   single `getItem` calls; batch getItems is partner-only) → per-card stats → `live/ebay_live.bin`.
@@ -81,6 +84,18 @@ the collector stops itself at 4,800.
 - Price calibration: each new listing is stamped with the model's P₄₈/P₂₄ for its card and its offset from
   it; realized 48 h / 24 h sell-through by offset bucket gives the shift where the curve crosses 70%;
   applied once ≥ 150 outcomes with ≥ 25 in the two buckets around the crossing.
+- Scam screen (`score_listings()` in the collector, constants SCAM_*): every open listing gets a points
+  score — price vs the card's price (from last run's `price_cache`, else the 2nd-cheapest open ask;
+  <50% +4, 50–65% +2, 65–75% +1, bands +5 on $100+ cards), seller feedback count (<10 +3, 10–49 +1,
+  unknown +1), count-aware feedback % (`seller_bar()`: 100+ need 98%, 20–99 need 95%, <20 ignored; fail +2),
+  one photo +1, 3+ copies of a $75+ card +2, photo id reused by another seller +3, no returns and <65% +1,
+  delivery window >10 d +1, Top Rated Plus −2, 500+ feedback at 99%+ −1. ≥5 = suspect, 3–4 = watch;
+  a watch listing in a same-day burst of 5+ $75+ listings from an unseen seller becomes suspect.
+  Suspect → out of every statistic (`comparable()`, sold, daily rollup) and hidden on Raw Data behind
+  "Show suspects"; watch → in the statistics but never alone at p₁. Quantity/returns come from `enrich()`
+  (≤ 6 full getItem lookups per run for cheap or thin-seller listings). Closed listings keep their stamp;
+  `scam_calib()` tabulates outcomes by tier and signal (gone = pulled early ≈ scam) for hand-tuning.
+- Raw Data leaves out listings with fewer than 2 photos (Brett needs front + back); the Catalog keeps them.
 
 ## Decisions already made (don't relitigate)
 - eBay only for the eBay tabs; PriceCharting is the identity list. Default filter = card's eBay price
