@@ -510,7 +510,13 @@ def api_get(state, path, params, ok_404=False):
         headers = {"Authorization": "Bearer " + get_token(),
                    "X-EBAY-C-MARKETPLACE-ID": MARKETPLACE,
                    "X-EBAY-C-ENDUSERCTX": f"contextualLocation=country%3DUS%2Czip%3D{BUYER_ZIP}"}
-        r = requests.get(f"{API}{path}", headers=headers, params=params, timeout=60)
+        try:
+            r = requests.get(f"{API}{path}", headers=headers, params=params, timeout=60)
+        except requests.RequestException as e:            # reset by peer, timeout, DNS: retry, then give up on this call
+            if attempt < 2:
+                time.sleep(3 * (attempt + 1))
+                continue
+            raise RuntimeError(f"eBay {path} -> {type(e).__name__}: {e}")
         if r.status_code == 200:
             return r.json()
         if r.status_code in (429, 500, 502, 503, 504) and attempt < 2:
@@ -712,7 +718,11 @@ def track(state):
             fx = json.load(open(os.path.join("fixtures", "items.json")))
             it = fx.get(iid)
         else:
-            it = api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "COMPACT"}, ok_404=True)
+            try:
+                it = api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "COMPACT"}, ok_404=True)
+            except RuntimeError as e:
+                log(f"Track: lookup failed for {iid}, left for next run ({e})")
+                continue
         rec["checked"] = ts(NOW)
         rec["checked_age"] = hours_between(parse_ts(rec["first"]), NOW) / 24
         if it is None:
@@ -941,7 +951,11 @@ def enrich(state):
         if DRY_RUN:
             it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
         else:
-            it = api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+            try:
+                it = api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+            except RuntimeError as e:
+                log(f"Enrich: lookup failed for {iid} ({e})")
+                continue
         r["enriched"] = True
         if not it:
             continue
