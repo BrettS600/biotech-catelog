@@ -509,6 +509,11 @@ def get_token():
 
 def api_get(state, path, params, ok_404=False):
     state["calls"][TODAY] = state["calls"].get(TODAY, 0) + 1
+    rc = state.setdefault("recent_calls", [])              # sliding 24 h record, for the always-on runner
+    rc.append(int(time.time()))
+    if len(rc) > 6000 and len(rc) % 500 == 0:
+        cutoff = int(time.time()) - 86400
+        state["recent_calls"] = [t for t in rc if t >= cutoff]
     for attempt in range(3):
         headers = {"Authorization": "Bearer " + get_token(),
                    "X-EBAY-C-MARKETPLACE-ID": MARKETPLACE,
@@ -564,7 +569,8 @@ def summary_record(s):
         "fb": seller.get("feedbackScore"), "pct": float(pct) if pct not in (None, "") else None,
         "n_img": (1 if s.get("image") else 0) + len(s.get("additionalImages") or []),
         "dmax": (so[0].get("maxEstimatedDeliveryDate") if so else None),
-        "origin": s.get("itemOriginDate") or s.get("itemCreationDate"), "end": s.get("itemEndDate"),
+        "origin": s.get("itemOriginDate") or s.get("itemCreationDate"), "created": s.get("itemCreationDate"),
+        "end": s.get("itemEndDate"),
         "epid": s.get("epid") or "", "img": (s.get("image") or {}).get("imageUrl"),
         "url": s.get("itemWebUrl"), "loc": (s.get("itemLocation") or {}).get("stateOrProvince"),
         "promo": bool(s.get("priorityListing")), "top": bool(s.get("topRatedBuyingExperience")),
@@ -582,8 +588,12 @@ QUERIES = {"aspect": dict(BASE_QUERY, aspect_filter=f"categoryId:{CATEGORY_CCG_S
            "kw": dict(BASE_QUERY, q="pokemon")}
 
 
-def search_pages(state, qname, max_pages, cutoff):
-    """Yield (page_items, oldest_origin_on_page) walking newest -> oldest until cutoff is passed."""
+def search_pages(state, qname, max_pages, cutoff, extra_filter=None):
+    """Yield (page_items, oldest_origin_on_page) walking newest -> oldest until cutoff is passed.
+    extra_filter: more Browse filter terms (e.g. an itemStartDate window) appended to the query's filter."""
+    q = dict(QUERIES[qname])
+    if extra_filter:
+        q["filter"] = q["filter"] + "," + extra_filter
     for page in range(max_pages):
         if DRY_RUN:
             pages = json.load(open(os.path.join("fixtures", "search.json")))
@@ -592,7 +602,7 @@ def search_pages(state, qname, max_pages, cutoff):
                 return
             j = pages[page]
         else:
-            j = api_get(state, "/buy/browse/v1/item_summary/search", dict(QUERIES[qname], offset=str(page * 200)))
+            j = api_get(state, "/buy/browse/v1/item_summary/search", dict(q, offset=str(page * 200)))
         items = j.get("itemSummaries") or []
         oldest = None
         for s in items:
@@ -604,12 +614,17 @@ def search_pages(state, qname, max_pages, cutoff):
             return
 
 
-def sweep(state, cat):
+def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
+    """Read the newest listings back to (last sweep - overlap) and file the matched ones as open.
+    Returns (summaries read, new, matched, unmatched)."""
     last = parse_ts(state["last_sweep"]) if state["last_sweep"] else None
-    cutoff = (last - timedelta(minutes=SWEEP_OVERLAP_MIN)) if last else (NOW - timedelta(hours=24))
-    log(f"Sweep: listings since {ts(cutoff)}")
+    cutoff = (last - timedelta(minutes=overlap_min)) if last else (NOW - timedelta(hours=24))
+    if not quiet:
+        log(f"Sweep: listings since {ts(cutoff)}")
     seen_now, new, matched, unmatched = set(), 0, 0, 0
-    for qname in (["aspect"] if DRY_RUN else list(QUERIES)):
+    if queries is None:
+        queries = ["aspect"] if DRY_RUN else list(QUERIES)
+    for qname in queries:
         for items, _oldest in search_pages(state, qname, SWEEP_MAX_PAGES, cutoff):
             for s in items:
                 rec = summary_record(s)
@@ -639,7 +654,9 @@ def sweep(state, cat):
                             "suspect": False, "rev": None, "hist": []})
                 state["open"][iid] = rec
     state["last_sweep"] = ts(NOW)
-    log(f"Sweep: {len(seen_now)} summaries read, {new} new, {matched} matched, {unmatched} unmatched.")
+    if not quiet:
+        log(f"Sweep: {len(seen_now)} summaries read, {new} new, {matched} matched, {unmatched} unmatched.")
+    return len(seen_now), new, matched, unmatched
 
 
 # ---------------- 2. TRACK ----------------
@@ -1468,6 +1485,8 @@ def prune(state):
     um_from = NOW - timedelta(hours=48)
     state["unmatched"] = [u for u in state["unmatched"] if parse_ts(u[0]) >= um_from][-2000:]
     state["calls"] = {d: n for d, n in state["calls"].items() if d >= (NOW - timedelta(days=7)).date().isoformat()}
+    day_ago_s = int(time.time()) - 86400
+    state["recent_calls"] = [t for t in state.get("recent_calls", []) if t >= day_ago_s]
 
 
 # ---------------- main ----------------
