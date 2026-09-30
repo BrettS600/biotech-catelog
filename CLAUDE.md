@@ -39,6 +39,7 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
 - `ebay_sweep.py` — the eBay collector, every 15 min. Sweep (newly listed, Ungraded condition id 4000,
   category 183454, $25–200, fixed price, US) → title matching → tracking (hourly presence sweep +
   single `getItem` calls; batch getItems is partner-only) → per-card stats → `live/ebay_live.bin`.
+  `api_get()` retries connection errors; a failed lookup in enrich/track skips that listing, never the run.
   Constants at the top: sweep band, tracking cadence, gate (fee, shipping, tax, margin), CONFIDENCE,
   DEPTH_CAP, UNDERCUT, BO_HAIRCUT, hot-card thresholds, calibration thresholds, DAILY_KEEP_D / MED_WINDOW_D
   for the trend rollup. `--dry-run` uses `fixtures/`.
@@ -60,8 +61,22 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
 ## Secrets / variables (GitHub → Settings → Secrets and variables → Actions)
 `PC_DOWNLOAD_URL` (PriceCharting CSV link or bare token), `SITE_PASSWORD`, `EBAY_CLIENT_ID` (App ID),
 `EBAY_CLIENT_SECRET` (Cert ID), variable `BUYER_ZIP`. Production keyset; account-deletion exemption ticked.
-eBay app token = client-credentials, scope `https://api.ebay.com/oauth/api_scope`. Budget 5,000 calls/day;
-the collector stops itself at 4,800.
+eBay app token = client-credentials, scope `https://api.ebay.com/oauth/api_scope`. Budget 5,000 calls/day.
+`lookup_budget()` reserves the day's remaining sweeps (8 calls each) and hourly presence walks (40) first and
+spreads whatever is left over the remaining runs as getItem lookups (enrich gets 1/7, track the rest, capped at
+6 / 35); it recomputes from actual usage every run, so sweeps never get skipped for budget. Hard stop at 4,950.
+
+## Capacity (measured 2026-09-30, read this before touching the tracker)
+Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.
+Following every listing to its outcome (checks at day 3/10/30) is ~11x over budget and can never catch up; the
+hourly presence walk (8,000 newest aspect-query items) reaches only ~11 h of listing age. Consequences: sales
+after ~11 h are found late or never (λ biased low, safe direction), and sold copies linger in the book as
+phantom competitors (p1 too low, N too high) until a check reaches them. The queue order is therefore the policy
+(`check_value()`): presence-flagged listings first, then calibration listings (rank0 ≤ 3), then listings ≥ $40,
+then the rest. Next step (not built): targeted book verification — re-check the 3 cheapest open copies of every
+card that has a λ and a price in $40–200 every ~48 h (~1,200 calls/day) so the book and the hot-card confirmations
+stay honest, and drop the day-10/30 checks for cheap listings. State growth (open listings never reaching their
+day-30 check are never closed as stale) also needs a rule.
 
 ## The model (short)
 - λ = raw sales/day = 25th percentile of Gamma(k + ½, D), k = comparable sales in 30 d, D = days observed.

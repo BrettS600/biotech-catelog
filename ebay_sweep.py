@@ -68,7 +68,10 @@ SWEEP_OVERLAP_MIN = 20       # re-read this many minutes before the last sweep (
 PRESENCE_EVERY_H = 1
 PRESENCE_HOURS = 36          # how far back the presence sweep looks
 PRESENCE_MAX_PAGES = 40
-TRACK_MAX_CALLS = 35         # getItem calls per run (35 x 96 runs = 3,360/day)
+TRACK_MAX_CALLS = 35         # getItem calls per run at most; lookup_budget() lowers it to fit the day
+TRACK_MIN_TOTAL = 40.0       # scheduled checks go first to listings at or above this price (the cards that matter)
+DAILY_BUDGET = 4800          # eBay allows 5,000 calls/day; sweeps are reserved first, lookups get the rest
+SWEEP_RESERVE = 8            # calls one sweep needs (two queries, a few pages each)
 CHECK_AGES_D = [3, 10, 30]   # scheduled getItem checks, days since first seen
 KW_FIRST_CHECK_D = 1         # listings found only by the keyword query get an extra day-1 check
 TRACK_GIVE_UP_D = 30         # after the last check the listing counts as unsold ("stale")
@@ -531,6 +534,17 @@ def api_get(state, path, params, ok_404=False):
     raise RuntimeError(f"eBay {path} failed after retries")
 
 
+def lookup_budget(state):
+    """getItem calls this run may spend so that every remaining sweep and hourly presence walk of the UTC
+    day still fits under DAILY_BUDGET. Recomputed each run from actual usage, so it self-corrects: if the
+    day runs ahead, lookups shrink (to zero if need be) and the sweeps keep going."""
+    used = state["calls"].get(TODAY, 0)
+    mins_left = 24 * 60 - (NOW.hour * 60 + NOW.minute)
+    runs_left = max(1, mins_left // 15)
+    reserve = runs_left * SWEEP_RESERVE + (mins_left // 60) * PRESENCE_MAX_PAGES
+    return max(0, (DAILY_BUDGET - used - reserve) // runs_left), used, runs_left
+
+
 def summary_record(s):
     """Flatten an item summary to what we keep."""
     price = money(s.get("price", {}).get("value"))
@@ -680,7 +694,17 @@ def classify(it):
     return ("sold" if sold_q >= 1 else "ended"), price, end
 
 
-def track(state):
+def check_value(rec):
+    """What a scheduled lookup is worth: 0 = a calibration listing (was in the buyable top of a book when it
+    appeared, so its outcome tests the price model), 1 = priced where the cards that matter live, 2 = the rest."""
+    if rec.get("rank0") is not None and rec["rank0"] <= DEPTH_CAP:
+        return 0
+    if (rec.get("total") or 0) >= TRACK_MIN_TOTAL:
+        return 1
+    return 2
+
+
+def track(state, max_calls=TRACK_MAX_CALLS):
     # 1. presence sweep: anything tracked that should still be in the results but isn't is suspect
     suspects = 0
     last_p = parse_ts(state.get("last_presence") or "") if state.get("last_presence") else None
@@ -694,21 +718,24 @@ def track(state):
                 rec["suspect"] = True
                 suspects += 1
         log(f"Presence: {len(present)} listings visible back to {ts(reached)}; {suspects} newly missing.")
-    # 2. decide who gets a getItem call this run
+    # 2. decide who gets a getItem call this run: presence-flagged listings first (each is probably a sale),
+    #    then scheduled checks by what they are worth (check_value), soonest age first. The queue is far longer
+    #    than the budget, so the order is the policy.
     due = []
     for iid, rec in state["open"].items():
         age_d = hours_between(parse_ts(rec["first"]), NOW) / 24
         if rec.get("suspect"):
-            due.append((0, iid))
+            due.append((0, 0, 0, iid))
             continue
         ages = ([KW_FIRST_CHECK_D] if rec.get("src") == "kw" else []) + CHECK_AGES_D
         nxt = next((a for a in ages if a > rec.get("checked_age", 0.0) and a <= age_d), None)
         if nxt is not None:
-            due.append((1 + nxt, iid))
+            due.append((1, check_value(rec), nxt, iid))
         elif age_d > TRACK_GIVE_UP_D and rec.get("checked_age", 0.0) >= CHECK_AGES_D[-1]:
             close_listing(state, iid, rec, "stale", NOW)
     due.sort()
-    ids = [iid for _, iid in due][:TRACK_MAX_CALLS]
+    ids = [d[3] for d in due][:max_calls]
+    n_flag = sum(1 for d in due[:max_calls] if d[0] == 0)
     sold = ended = gone = changed = still = 0
     for iid in ids:
         rec = state["open"].get(iid)
@@ -756,8 +783,8 @@ def track(state):
                 rec["item"], rec["total"] = price, total
                 changed += 1
             rec["rev"] = it.get("sellerItemRevision")
-    log(f"Track: {len(ids)} looked up ({len(due)} due) - {sold} sold, {ended} ended, {gone} gone, "
-        f"{still} still open, {changed} repriced.")
+    log(f"Track: {len(ids)} looked up ({n_flag} presence-flagged; {len(due)} due) - {sold} sold, {ended} ended, "
+        f"{gone} gone, {still} still open, {changed} repriced.")
 
 
 # ---------------- 3. STATS ----------------
@@ -930,7 +957,7 @@ def scam_calib(state):
             "labels": SCAM_LABELS, "watch": SCAM_WATCH, "suspect": SCAM_SUSPECT}
 
 
-def enrich(state):
+def enrich(state, max_calls=ENRICH_MAX_CALLS):
     """One full getItem for new listings the score could turn on quantity/returns: priced well under the
     card's price, or from a thin seller on a $75+ card. Capped per run to protect the API budget."""
     cache = state.get("price_cache", {})
@@ -946,7 +973,7 @@ def enrich(state):
             cands.append((r["total"] / ref if ref else 1.0, iid))
     cands.sort()
     n = 0
-    for _, iid in cands[:ENRICH_MAX_CALLS]:
+    for _, iid in cands[:max_calls]:
         r = state["open"][iid]
         if DRY_RUN:
             it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
@@ -1450,12 +1477,15 @@ def main():
     cat = load_catalog()
     state = load_state()
     state["runs"] = state.get("runs", 0) + 1
-    if state["calls"].get(TODAY, 0) >= 4800:
-        log("Daily API budget nearly used - skipping this run.")
+    if state["calls"].get(TODAY, 0) >= 4950:
+        log("Daily API limit reached - skipping this run.")     # backstop only; lookup_budget() keeps us under it
         return
     sweep(state, cat)
-    enrich(state)
-    track(state)
+    budget, used, runs_left = lookup_budget(state)
+    enrich_n = min(ENRICH_MAX_CALLS, budget // 7)
+    log(f"Budget: {budget} lookups this run ({used} calls used today, {runs_left} runs left in the day).")
+    enrich(state, enrich_n)
+    track(state, max(0, budget - enrich_n))
     prune(state)
     score_listings(state)
     lp = lp_correction(state)
