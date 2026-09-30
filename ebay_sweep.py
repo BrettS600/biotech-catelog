@@ -80,6 +80,7 @@ MED_MIN_SALES = 3            # ... needing at least this many sales in the windo
 STAT_WINDOW_D = 30           # window for lambda, mu, sold prices, sell-through
 CONFIDENCE = 0.70            # depth pricing: P(at least n buyers) >= this
 DEPTH_CAP = 3                # never price off deeper than the 3rd cheapest copy
+PRICE_MIN_SALES = 3          # P24/P48 need this many sales behind lambda; below it only the Window price is offered
 UNDERCUT = 1.00              # dollars under the reference copy
 BO_HAIRCUT = 0.90            # Best Offer listings rank at 90% of ask
 # Seller feedback bar, count-aware: 100+ ratings need 98%, 20-99 need 95%, under 20 the % is ignored
@@ -1207,6 +1208,8 @@ def compute_stats(state, cat, lp):
         st = round(len(st_sold) / len(st_pool), 3) if len(st_pool) >= 3 else None
         # --- pricing ---
         n24, n48 = depth(lam, 1), depth(lam, 2)
+        if lam is not None and k < PRICE_MIN_SALES:
+            n24 = n48 = 0            # two sales on a new card can clear the bar by luck: no 24/48 h claim yet
         price = smed if k >= 3 else (p[0] if p[0] is not None else smed)
         p24 = p48 = None
         if lam is not None:
@@ -1409,7 +1412,7 @@ def build_live(state, cards, lp):
         "n_live": len(live), "n_pass": passes, "band": TAB_PRICE,
         "gate": {"fee": FEE_PCT, "buyerTax": BUYER_TAX, "fixed": FEE_FIXED, "shipOut": SHIP_OUT, "tax": TAX,
                  "margin": MARGIN, "confidence": CONFIDENCE, "depthCap": DEPTH_CAP, "undercut": UNDERCUT,
-                 "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D},
+                 "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D, "minSales": PRICE_MIN_SALES},
         "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }

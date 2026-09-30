@@ -66,7 +66,8 @@ the collector stops itself at 4,800.
 ## The model (short)
 - λ = raw sales/day = 25th percentile of Gamma(k + ½, D), k = comparable sales in 30 d, D = days observed.
   No PriceCharting prior (decision: eBay-only). λ is NOT calibrated — the PRICE is (below).
-- Buyers in T days ~ Poisson(λT). Depth n = largest n ≤ 3 with P(≥ n) ≥ Confidence. P₂₄/P₄₈ = pₙ − $1
+- Buyers in T days ~ Poisson(λT). Depth n = largest n ≤ 3 with P(≥ n) ≥ Confidence, held at 0 until the card
+  has PRICE_MIN_SALES = 3 sales (a new card with 2 sales in 2 days clears 70% by luck). P₂₄/P₄₈ = pₙ − $1
   (book of comparable open copies by buyer total; Best Offer copies ranked at 90%), falling back to the
   sold median / 80th percentile; P₄₈ capped at the sold 80th percentile; Window $ = p₁ − $1 when n = 0.
 - All eBay prices are buyer totals (item + shipping). Brett lists with FREE shipping at P₄₈, Best Offer
