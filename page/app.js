@@ -286,13 +286,14 @@ function settings() {
   const g = (LIVE.data && LIVE.data.gate) || GATE_EBAY;
   const cal = (LIVE.data && LIVE.data.calib) || {};
   const use = $('usecal').checked;
-  return {conf, margin, fee: g.fee * (1 + g.buyerTax), fixed: g.fixed, shipOut: g.shipOut, tax: g.tax,
+  return {conf, margin, fee: g.fee * (1 + g.buyerTax), fixed: g.fixed, shipOut: g.shipOut, tax: g.tax, minSales: g.minSales || 3,
           d48: use && cal.h48 && cal.h48.delta != null ? cal.h48.delta / 100 : 0,
           d24: use && cal.h24 && cal.h24.delta != null ? cal.h24.delta / 100 : 0};
 }
 function decide(c, S) {
   const lam = c.lam, N = c.N, p = [c.p1, c.p2, c.p3], smed = c.smed, s80 = c.s80;
-  const n24 = depth(lam, 1, S.conf), n48 = depth(lam, 2, S.conf);
+  let n24 = depth(lam, 1, S.conf), n48 = depth(lam, 2, S.conf);
+  if (lam != null && (c.k || 0) < S.minSales) n24 = n48 = 0;    // sale floor: no 24/48 h price on 1-2 sales
   let p24 = null, p48 = null, pw = null;
   if (lam != null) {
     if (n24 && N >= n24) p24 = p[n24 - 1] - UNDERCUT;
