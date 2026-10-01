@@ -66,7 +66,26 @@ eBay app token = client-credentials, scope `https://api.ebay.com/oauth/api_scope
 spreads whatever is left over the remaining runs as getItem lookups (enrich gets 1/7, track the rest, capped at
 6 / 35); it recomputes from actual usage every run, so sweeps never get skipped for budget. Hard stop at 4,950.
 
-## Capacity (measured 2026-09-30, read this before touching the tracker)
+## Where it runs now (2026-09-30): a rented machine
+The eBay side moved off GitHub Actions to a DigitalOcean droplet ("pokemon-collector", $6/mo, Ubuntu 24.04, NYC1)
+running `collector.py` as a systemd service (`pokemon-collector`). Reasons: GitHub's terms don't cover an always-on
+data collector, scheduled runs can't go under 5 min and get delayed, and 1-minute discovery needs a loop. Layout on
+the machine: /opt/pokemon-collector/{repo,venv,data,.ssh}; secrets in /etc/pokemon-collector.env (only there — never
+in the repo); state in data/ebay_state.json.gz.enc; results force-pushed to the `live` branch with a deploy key
+(ebay_live.bin, collector.log, hourly state backup). `setup.sh` installs all of it (`curl … | bash` as root).
+Operating it: the machine pulls `main` every 5 min and restarts itself when collector.py / ebay_sweep.py change, so
+pushing to GitHub is still the whole deployment step; its log is `collector.log` on the `live` branch (read it with
+the connector, ref=live); on the machine: `journalctl -u pokemon-collector -f`. Budget: eBay's own remaining-calls
+figure (Developer Analytics `rate_limit`, read hourly) paces everything; discovery is reserved first, the rest is a
+token bucket (`refill()` / `spend()`). Outcomes: hour windows by listing start date re-read with the search endpoint
+(`itemStartDate` filter, $35–200 band; hourly for day 1, 6-hourly to day 3, daily to day 10), one getItem per
+vanished listing, the 3 cheapest copies of every priced $40–200 card re-verified every 48 h, keyword-only listings
+checked at day 1 and 3, open listings closed as stale at 30 d. A self-test on start proves the date-window filter
+works before re-reads are enabled (`window_ok`). The Actions workflow `ebay_sweep.yml` is the fallback (manual only
+once the machine is confirmed publishing); it must not run on a schedule at the same time, since both force-push
+the `live` branch.
+
+## Capacity (measured 2026-09-30 on the Actions design; the machine design above is the answer to it)
 Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.
 Following every listing to its outcome (checks at day 3/10/30) is ~11x over budget and can never catch up; the
 hourly presence walk (8,000 newest aspect-query items) reaches only ~11 h of listing age. Consequences: sales
@@ -138,6 +157,9 @@ Chrome extension (the connector has no Actions tools). Verify a push by comparin
 for larger changes; Brett has not adopted it yet.
 
 ## Testing before pushing
+- `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
+  fixtures with no network and no git; the jsdom refresh test (test_refresh.js in the harness) needs
+  `pretendToBeVisual: true` and an explicit process.exit because the page now runs timers.
 - `python -c "import ast; ast.parse(open('build_catalog.py').read())"` and same for `ebay_sweep.py`.
 - `python ebay_sweep.py --dry-run` with a `fixtures/` folder (catalog.csv, search.json, items.json,
   optional state.json) exercises matching, tracking and stats offline.
