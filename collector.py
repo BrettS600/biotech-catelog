@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 import traceback
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -684,6 +684,12 @@ def cycle(state, cat, sched, counters):
         log(f"Now: {len(state['open'])} open, {len(state['closed'])} closed, {live['n_cards']} cards with data, "
             f"{live['n_live']} listings in 24 h, {live['n_pass']} pass the gate; budget {v['remaining']} left, "
             f"{v['per_min']} optional calls/min, {int(v.get('tokens', 0))} tokens; {live['calls_today']} calls today")
+        verdicts = Counter(x[12] for x in live["live"])             # where the last 24 h of listings stop at the gate
+        log("Verdicts: " + ", ".join(f"{k} {n}" for k, n in verdicts.most_common()))
+        anchored = sum(1 for c in cards.values() if c.get("A_n", 0) >= es.ANCHOR_MIN)
+        liquid = sum(1 for c in cards.values() if c.get("liquid"))
+        log(f"Cards: {anchored} with 5+ sales behind the anchor, {liquid} liquid at the collector's defaults, "
+            f"{sum(1 for c in cards.values() if c.get('liquid') and c.get('A_n', 0) >= es.ANCHOR_MIN)} both")
         for k in ("Scam screen", "LP correction", "Enrich"):
             if k in _es_last:
                 log(_es_last[k])
