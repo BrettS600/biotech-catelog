@@ -7,7 +7,7 @@ GitHub Actions cycle (sweep / presence walk / scheduled getItem checks) with a l
   every 60 s     DISCOVERY   newest raw Pokemon singles (one page; a second only in a burst);
                              the keyword backup query every 5 min
   hourly / 6 h / daily  RE-READS   listings that started in a given hour are read again with the
-                             search endpoint (200 per call, itemStartDate window, $35-200 band);
+                             search endpoint (200 per call, itemStartDate window, $35-500 band);
                              a known listing missing from its window has probably sold
   as they appear CONFIRM     one getItem per vanished listing: sold vs ended, when, at what price
   every 48 h     BOOK CHECK  the 3 cheapest open copies of every priced card are re-verified,
@@ -72,7 +72,7 @@ SUMMARY_EVERY_S = 3600
 SWEEP_OVERLAP_MIN = 5            # a page covers ~15 min of listings; sweeping every minute, 5 is plenty
 
 # ---------------- outcome detection ----------------
-REREAD_BAND = (35, 200)          # listing price band that gets re-read (cheap copies of pricey cards are
+REREAD_BAND = (35, 500)          # listing price band that gets re-read (cheap copies of pricey cards are
                                  # caught by the book check instead)
 REREAD_MAX_AGE_D = 10
 REREAD_CADENCE = [(1.0, 2 * 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24 * 3600)]   # (age <= days, every s)
@@ -82,7 +82,7 @@ REREAD_MAX_PAGES = 8
 REREAD_MAX_PER_CYCLE = 6
 CONFIRM_MAX_PER_CYCLE = 12
 FALSE_ALARM_LIMIT = 2            # missing from its window twice while still open -> stop re-reading it
-BOOK_BAND = (40, 200)            # card price band whose cheapest copies get re-verified
+BOOK_BAND = (40, 500)            # card price band whose cheapest copies get re-verified
 BOOK_RECHECK_S = 48 * 3600
 BOOK_MAX_PER_CYCLE = 3
 KW_CHECK_AGES_D = [1, 3]         # listings found only by the keyword query cannot be re-read: getItem instead

@@ -30,7 +30,7 @@
   <thead><tr>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
-    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="sales">?</button></th>
     <th data-k="6" class="num">Ungraded $<span class="s">⇅</span><button class="help" data-h="ungraded">?</button></th>
@@ -52,7 +52,7 @@
 <!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
 <section class="panel" id="p-ec" hidden>
 <div class="meta" id="meta-ec">eBay Catalog · loading live data…</div>
-<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$150. Numbers refresh every couple of minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
+<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$500. Numbers refresh every couple of minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
 <div class="controls">
   <input type="search" id="q-ec" placeholder="Search card or set…">
   <select id="set-ec"><option value="">All sets (release order)</option></select>
@@ -75,7 +75,7 @@
   <tr>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
-    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="5" class="num g-obs">Sold 30d<span class="s">⇅</span><button class="help" data-h="ec_k">?</button></th>
     <th data-k="6" class="num g-obs">Days obs.<span class="s">⇅</span><button class="help" data-h="ec_d">?</button></th>
@@ -136,7 +136,7 @@
   <thead><tr>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
-    <th data-k="3">#<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="5" class="num">Listed within (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
     <th data-k="6">eBay title<span class="s">⇅</span><button class="help" data-h="er_title">?</button></th>
@@ -164,7 +164,7 @@
 </table>
 </div>
 <button class="more" id="more-er" hidden>Show more</button>
-<footer>Listings are pulled from eBay every minute (raw singles, fixed price, $25–$200, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below this listing's Max buy.</footer>
+<footer>Listings are pulled from eBay every minute (raw singles, fixed price, $25–$500, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below this listing's Max buy.</footer>
 </section>
 
 <div class="ov" id="rov">
