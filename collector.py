@@ -731,9 +731,9 @@ def main():
             counters["cycles"] += 1
         except SystemExit:
             raise
-        except Exception:
+        except Exception as e:
             log("Cycle failed:\n" + traceback.format_exc()[-1500:])
-            time.sleep(30)
+            time.sleep(300 if "token" in str(e).lower() else 30)    # a bad credential: wait, don't hammer eBay
         if ONCE:
             break
         time.sleep(max(1.0, CYCLE_S - (time.time() - t0)))
