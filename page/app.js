@@ -25,7 +25,7 @@ const cells4 = r =>
   '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
 const badge = (txt, cls) => '<span class="badge' + (cls ? ' ' + cls : '') + '">' + esc(txt) + '</span>';
-const LIVE = {data: null, ec: [], er: []};      // filled by loadLive()
+const LIVE = {data: null, ec: [], er: [], prevT: null};      // filled by loadLive(); prevT = the previous data's stamp
 
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
@@ -80,12 +80,13 @@ const TABLES = {
       '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
   // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 p48
-  // 27 time (h: to outcome, or open so far) 28 note (LP discount applied) 29 tier 30 risk rank 31 score 32 photos 33 signals 34 ord
+  // 27 time (h: to outcome, or open so far) 28 note (LP discount applied) 29 tier 30 risk rank 31 score 32 photos 33 signals
+  // 34 first seen (ISO) 35 ord
   er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
        extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked),
-       rowClass: r => r[29] === 'suspect' ? 'sus' : '',
+       rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => cells4(r) +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
@@ -393,7 +394,7 @@ function rebuildLive() {
     LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
                   cs ? cs.price : null, cs && cs.price && x[7] != null ? Math.round((x[7] / cs.price - 1) * 1000) / 10 : null,
                   csl ? csl.maxbuy : null, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, cs ? cs.p48 : null,
-                  tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], LIVE.er.length]);
+                  tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2], LIVE.er.length]);
   });
   $('nsus').textContent = hiddenSus;
   paintLp();
@@ -407,17 +408,36 @@ function rebuildLive() {
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   tables.ec.apply(); tables.er.apply();
 }
+async function fetchLive() {
+  const res = await fetch(LIVE_URL + '?t=' + Math.floor(Date.now() / 60000), {cache: 'no-store'});
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+}
 async function loadLive() {
   if (!LIVE_URL || !HKEY) { $('meta-ec').textContent = 'eBay Catalog · the eBay collector has not published data yet.'; $('meta-er').textContent = 'eBay Raw Data · no live data yet.'; return; }
   try {
-    const res = await fetch(LIVE_URL + '?t=' + Math.floor(Date.now() / 60000), {cache: 'no-store'});
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    LIVE.data = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+    LIVE.data = await fetchLive();
     rebuildLive();
   } catch (e) {
     $('meta-ec').textContent = 'eBay Catalog · live data unavailable (' + e.message + ') — retry with a refresh.';
     $('meta-er').textContent = 'eBay Raw Data · live data unavailable (' + e.message + ').';
   }
+  setInterval(refreshLive, 60000);
+  setInterval(tickAge, 30000);
+}
+// the collector publishes every couple of minutes; pick up new data without a reload, and tint what arrived since
+async function refreshLive() {
+  if (document.hidden || !LIVE.data) return;
+  try {
+    const d = await fetchLive();
+    if (d.t !== LIVE.data.t) { LIVE.prevT = LIVE.data.t; LIVE.data = d; rebuildLive(); }
+  } catch (e) { /* keep showing what we have; the next minute retries */ }
+}
+function tickAge() {
+  if (!LIVE.data) return;
+  const a = ageText(LIVE.data.t);
+  $('meta-ec').textContent = $('meta-ec').textContent.replace(/\(\d+(\.\d+)? (min|h) ago\)/, '(' + a + ')');
+  $('meta-er').textContent = $('meta-er').textContent.replace(/as of .*$/, 'as of ' + a);
 }
 // settings: remembered in this browser; any change re-derives the amber band and the verdicts
 try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.margin != null) $('margin').value = sv.margin; if (sv.usecal != null) $('usecal').checked = sv.usecal; if (sv.hits != null) $('hits').checked = sv.hits; } catch (e) {}
