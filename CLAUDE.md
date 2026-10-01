@@ -41,7 +41,7 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   Decision columns are recomputed in the browser (`decide()`), mirroring `compute_stats()` in the
   collector — keep the two in step.
 - `ebay_sweep.py` — the collector's statistics module (and the manual-only Actions fallback). Sweep (newly listed, Ungraded condition id 4000,
-  category 183454, $25–200, fixed price, US) → title matching → tracking (hourly presence sweep +
+  category 183454, $25–500, fixed price, US) → title matching → tracking (hourly presence sweep +
   single `getItem` calls; batch getItems is partner-only) → per-card stats → `live/ebay_live.bin`.
   `api_get()` retries connection errors; a failed lookup in enrich/track skips that listing, never the run.
   Constants at the top: sweep band, tracking cadence, gate (fee, shipping, tax, margin), CONFIDENCE,
@@ -83,8 +83,8 @@ pushing to GitHub is still the whole deployment step; its log is `collector.log`
 the connector, ref=live); on the machine: `journalctl -u pokemon-collector -f`. Budget: eBay's own remaining-calls
 figure (Developer Analytics `rate_limit`, read hourly) paces everything; discovery is reserved first, the rest is a
 token bucket (`refill()` / `spend()`). Outcomes: hour windows by listing start date re-read with the search endpoint
-(`itemStartDate` filter, $35–200 band; hourly for day 1, 6-hourly to day 3, daily to day 10), one getItem per
-vanished listing, the 3 cheapest copies of every priced $40–200 card re-verified every 48 h, keyword-only listings
+(`itemStartDate` filter, $35–500 band; hourly for day 1, 6-hourly to day 3, daily to day 10), one getItem per
+vanished listing, the 3 cheapest copies of every priced $40–500 card re-verified every 48 h, keyword-only listings
 checked at day 1 and 3, open listings closed as stale at 30 d. A self-test on start proves the date-window filter
 works before re-reads are enabled (`window_ok`). The Actions workflow `ebay_sweep.yml` is the fallback (manual only
 once the machine is confirmed publishing); it must not run on a schedule at the same time, since both force-push
@@ -159,7 +159,12 @@ day-30 check are never closed as stale) also needs a rule.
 
 ## Decisions already made (don't relitigate)
 - eBay only for the eBay tabs; PriceCharting is the identity list. Default filter = card's eBay price
-  $50–150 (adjustable); collector sweeps $25–200 on purpose (deals sit below the band, books above it).
+  $50–500 (adjustable; raised from $150 on 2026-10-01 when Brett asked for $500 cards); collector sweeps $25–500
+  (deals sit below the band). The three tabs show card numbers as number/printed set size ("36/123"), header "Set / Card"
+  at Brett's request. The size comes from the open Pokemon TCG dataset (PokemonTCG/pokemon-tcg-data, sets/en.json),
+  fetched by build_catalog.py each morning and matched to PriceCharting's set names (`set_totals()`, aliases in
+  SET_NAME_ALIASES; the build log prints the unmatched names - add aliases there); unmatched sets fall back to
+  `set_sizes()` in the live file (learned from eBay titles, plain numbers only, 5 sightings), then the bare number.
 - Retail buy/sell columns removed. Free shipping when selling. 48 h is the planned sell window, not 24.
 - Rate stays as measured; calibrate the price. Don't change the model before data can check it.
 - The sell price is anchored on sold comps (A) with the credible floor (L) as the undercut target; the fee wedge
