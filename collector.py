@@ -52,7 +52,9 @@ STATE_PATH = os.path.join(DATA, es.STATE_NAME)
 LOG_PATH = os.path.join(DATA, "collector.log")
 CATALOG_CACHE = os.path.join(DATA, "catalog.csv.gz")
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "BrettS600/biotech-catelog")
-RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{es.RELEASE_TAG}"
+# release assets by direct link: the REST API allows only 60 unsigned requests an hour per machine (a restart
+# loop burned through that on day one); the download links have no such limit
+RELEASE_DL = f"https://github.com/{GITHUB_REPO}/releases/download/{es.RELEASE_TAG}/"
 PUSH_REMOTE = f"git@github.com:{GITHUB_REPO}.git"
 SSH_KEY = os.path.join(BASE, ".ssh", "id_ed25519")
 KNOWN_HOSTS = os.path.join(BASE, ".ssh", "known_hosts")
@@ -134,27 +136,50 @@ def clock(state):
 
 
 # ---------------- catalog and state ----------------
-def release_assets():
-    r = requests.get(RELEASE_API, timeout=30, headers={"Accept": "application/vnd.github+json"})
+def asset_exists(name):
+    r = requests.head(RELEASE_DL + name, timeout=30, allow_redirects=False)
+    return r.status_code in (200, 302)
+
+
+def fetch_asset(name):
+    """The bytes of a release asset, or None when there is no such asset."""
+    r = requests.get(RELEASE_DL + name, timeout=180, allow_redirects=True)
+    if r.status_code == 404:
+        return None
     r.raise_for_status()
-    return {a["name"]: a["browser_download_url"] for a in r.json().get("assets", [])}
+    return r.content
+
+
+def latest_catalog_name(days_back=10):
+    """The daily snapshot is pc_catalog_<date>.csv.gz.enc; the newest one is today's or a recent day's."""
+    for i in range(days_back):
+        name = f"pc_catalog_{(now_utc() - timedelta(days=i)).date().isoformat()}.csv.gz.enc"
+        if asset_exists(name):
+            return name
+    return None
 
 
 def load_catalog(state):
-    """Newest PriceCharting snapshot from the release (public asset), cached on disk."""
+    """Newest PriceCharting snapshot from the release, cached on disk; the cache serves if GitHub is unreachable."""
     if DRY_RUN:
         df = pd.read_csv(os.path.join("fixtures", "catalog.csv"), dtype=str).fillna("")
         return es.Catalog(df), "fixtures"
-    assets = release_assets()
-    names = sorted(n for n in assets if n.startswith("pc_catalog_"))
-    if not names:
-        raise RuntimeError("no PriceCharting snapshot on the release yet")
-    name = names[-1]
-    if state.get("vps", {}).get("catalog") != name or not os.path.exists(CATALOG_CACHE):
-        blob = requests.get(assets[name], timeout=120).content
-        if name.endswith(".enc"):
-            blob = es.decrypt_file_blob(blob, es.PASSWORD)
+    cached = state.get("vps", {}).get("catalog")
+    name = None
+    try:
+        name = latest_catalog_name()
+    except Exception as e:
+        log(f"Catalog: could not check the release ({e})")
+    if name and (name != cached or not os.path.exists(CATALOG_CACHE)):
+        blob = fetch_asset(name)
+        if blob is None:
+            raise RuntimeError(f"catalog {name} vanished from the release")
+        blob = es.decrypt_file_blob(blob, es.PASSWORD)
         open(CATALOG_CACHE, "wb").write(blob)
+    elif os.path.exists(CATALOG_CACHE):
+        name = cached or "cached"
+    else:
+        raise RuntimeError("no PriceCharting snapshot available (release unreachable and nothing cached)")
     df = pd.read_csv(io.BytesIO(gzip.decompress(open(CATALOG_CACHE, "rb").read())), dtype=str).fillna("")
     return es.Catalog(df), name
 
@@ -168,12 +193,12 @@ def load_state():
         return json.loads(gzip.decompress(es.decrypt_file_blob(blob, es.PASSWORD)).decode("utf-8"))
     # first start: seed from the release copy the Actions version kept, if there is one
     try:
-        assets = release_assets()
-        if es.STATE_NAME in assets:
-            blob = requests.get(assets[es.STATE_NAME], timeout=120).content
+        blob = fetch_asset(es.STATE_NAME)
+        if blob:
             state = json.loads(gzip.decompress(es.decrypt_file_blob(blob, es.PASSWORD)).decode("utf-8"))
             log(f"State seeded from the release copy: {len(state['open'])} open, {len(state['closed'])} closed.")
             return state
+        log("No saved state on the release; starting fresh.")
     except Exception as e:
         log(f"Could not seed state from the release ({e}); starting fresh.")
     return es.empty_state()
@@ -675,12 +700,20 @@ def main():
         raise SystemExit("SITE_PASSWORD is missing (set it in /etc/pokemon-collector.env)")
     es.log = es_quiet_log
     log(f"Collector starting ({'dry run' if DRY_RUN else BASE}); pid {os.getpid()}")
-    state = load_state()
-    state.setdefault("vps", {})
+    while True:
+        try:
+            state = load_state()
+            state.setdefault("vps", {})
+            cat, cat_name = load_catalog(state)
+            break
+        except Exception as e:
+            if DRY_RUN:
+                raise
+            log(f"Startup failed ({e}); trying again in 5 minutes")
+            time.sleep(300)
     for rec in state["open"].values():                       # listings the Actions version flagged: confirm them here
         if rec.get("suspect") and not rec.get("vanished"):
             rec["vanished"] = rec.get("first")
-    cat, cat_name = load_catalog(state)
     state["vps"]["catalog"] = cat_name
     log(f"Catalog {cat_name}; state: {len(state['open'])} open, {len(state['closed'])} closed")
     sched = {"catalog": time.time()}

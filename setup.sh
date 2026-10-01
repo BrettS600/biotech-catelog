@@ -66,6 +66,7 @@ WorkingDirectory=$BASE/repo
 EnvironmentFile=$ENV_FILE
 Environment=COLLECTOR_HOME=$BASE
 Environment=PYTHONUNBUFFERED=1
+ExecStartPre=-/usr/bin/git -C $BASE/repo pull -q --ff-only
 ExecStart=$BASE/venv/bin/python $BASE/repo/collector.py
 Restart=always
 RestartSec=15
