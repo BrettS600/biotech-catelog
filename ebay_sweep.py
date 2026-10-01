@@ -4,7 +4,7 @@ ebay_sweep.py  -  eBay side of the catalog. Runs on GitHub Actions every 15 minu
 
 Each run:
   1. SWEEP   pulls every raw (Ungraded) Pokemon single listed on eBay US since the last run,
-             $25-$200, fixed price, and matches each title to one card in the PriceCharting
+             $25-$500, fixed price, and matches each title to one card in the PriceCharting
              catalog (set + card number + variant). Unmatched titles are kept for review.
   2. TRACK   notices listings that vanished from the newest-first results (hourly presence sweep)
              and confirms each with one getItem call: sold or merely ended, and when. Every
@@ -51,9 +51,9 @@ STATE_NAME = "ebay_state.json.gz.enc"
 LIVE_DIR = "live"
 LIVE_NAME = "ebay_live.bin"
 
-SWEEP_PRICE = (25, 200)      # listing price band pulled from eBay (wider than the tab's $50-150,
+SWEEP_PRICE = (25, 500)      # listing price band pulled from eBay (wider than the tab's $50-500,
                              # so a $60 copy of a $100 card is seen)
-TAB_PRICE = (50, 150)        # the tab's default filter; only affects what goes in the live file
+TAB_PRICE = (50, 500)        # the tab's default filter; only affects what goes in the live file
 CATEGORY_CCG_SINGLES = "183454"          # Toys & Hobbies > Collectible Card Games > CCG Individual Cards
 COND_UNGRADED = "4000"                   # eBay condition id: Ungraded (2750 = Graded)
 MARKETPLACE = "EBAY_US"
@@ -667,8 +667,8 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
                 matched += 1
                 c = cat.cards[ci]
                 parsed = parse_number(rec["title"])
-                if parsed and parsed[3] is not None and how == "number+set" and score >= 0.85:
-                    d = state["denoms"].setdefault(c["set"], {})
+                if parsed and parsed[3] is not None and not parsed[0] and how == "number+set" and score >= 0.85:
+                    d = state["denoms"].setdefault(c["set"], {})          # the set's printed size, learned from titles
                     d[str(parsed[3])] = d.get(str(parsed[3]), 0) + 1
                 rec.update({"card": c["id"], "how": how, "tcond": title_condition(rec["title"]),
                             "first": ts(NOW), "src": qname, "checked": None, "checked_age": 0.0,
@@ -1591,6 +1591,17 @@ def deal_calib(state):
     return rows
 
 
+def set_sizes(state):
+    """Printed size of each set ("36/123" -> 123), the denominator seen most often in matched titles, once it has
+    been seen 5 times. The page shows card numbers as number/size on every tab."""
+    out = {}
+    for setname, d in state.get("denoms", {}).items():
+        best = max(d, key=d.get)
+        if d[best] >= 5:
+            out[setname] = int(best)
+    return out
+
+
 def build_live(state, cards, lp):
     day_ago = NOW - timedelta(hours=24)
     live = []
@@ -1623,7 +1634,7 @@ def build_live(state, cards, lp):
                  "undercut": UNDERCUT, "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D, "minSales": ANCHOR_MIN,
                  "sellUnderA": SELL_UNDER_A, "sellNoFloor": SELL_NO_FLOOR, "reviewRatio": REVIEW_RATIO},
         "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
-        "deals": deal_calib(state),
+        "deals": deal_calib(state), "sets": set_sizes(state),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }
 
