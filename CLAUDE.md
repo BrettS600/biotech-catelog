@@ -13,15 +13,17 @@ Three tabs:
    volume drift) and a per-card Trend popup with a chart and a buy-gate table.
 2. **eBay Catalog** — one row per card, numbers computed ONLY from eBay (PriceCharting is used just as the
    list of card identities). Four colored header bands: Observed (blue, independent inputs),
-   Rates (green, from Observed), Decisions (amber, depend on λ, the book, and the Confidence/Margin boxes),
+   Rates (green, from Observed), Decisions (amber: Anchor / Floor / Sell / P(sale in window) / Exp. days / Max buy /
+   Net / Hot — depend on the two anchors and the Confidence, Window and Margin boxes),
    Trends (purple: the PriceCharting trend formulas applied to a 7-day median of raw sale totals, from the
    collector's per-card daily rollup kept 120 days; an eBay Trend popup shares the PriceCharting chart code).
-3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with the card's P₄₈, the
-   listing's Max buy / Profit $ / ROI %, a PASS/reason verdict, Risk (scam-screen tier), Photos, Status and
+3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with the card's Anchor, this
+   listing's own Sell $ / Max buy / Profit $ / ROI %, a PASS/reason verdict, Risk (scam-screen tier), Photos, Status and
    Time (h). Filters: Profit, ROI, "Listed within N h" (one number), a Condition chip (NM / LP / n/s),
    "Show suspects". Listings with < 2 photos are left out; a "Scam screen" button shows the calibration table.
 
-Top bar: Confidence (default 70%), "Only show hits" (Raw Data → PASS rows only), Margin (default 15%),
+Top bar: Confidence (default 70%) and Window (default 48 h) — together the liquidity rule — "Only show hits"
+(Raw Data → PASS rows only), Margin (default 10%),
 LP correction chips (read-only, three price tiers, see below), Calibration checkbox, README button (the
 README modal contains the full method walkthrough — keep it in sync when the model changes).
 Every table header has a `?` (help) and an eye (collapse the column to a thin strip; remembered per tab).
@@ -36,7 +38,7 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   pushed through the connector in one call.
   Decision columns are recomputed in the browser (`decide()`), mirroring `compute_stats()` in the
   collector — keep the two in step.
-- `ebay_sweep.py` — the eBay collector, every 15 min. Sweep (newly listed, Ungraded condition id 4000,
+- `ebay_sweep.py` — the collector's statistics module (and the manual-only Actions fallback). Sweep (newly listed, Ungraded condition id 4000,
   category 183454, $25–200, fixed price, US) → title matching → tracking (hourly presence sweep +
   single `getItem` calls; batch getItems is partner-only) → per-card stats → `live/ebay_live.bin`.
   `api_get()` retries connection errors; a failed lookup in enrich/track skips that listing, never the run.
@@ -45,7 +47,8 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   for the trend rollup. `--dry-run` uses `fixtures/`.
 - `.github/workflows/update_catalog.yml` — daily 10:00 UTC + manual. Downloads snapshots from the
   release, builds, staticrypts, deploys Pages, uploads new snapshots. Counts only `pc_catalog_*` assets.
-- `.github/workflows/ebay_sweep.yml` — `*/15 * * * *`, concurrency group `ebay`. Runs the collector, then
+- `.github/workflows/ebay_sweep.yml` — manual only (`workflow_dispatch`; the schedule was removed 2026-10-01 when the
+  machine took over), concurrency group `ebay`. Runs the collector, then
   force-pushes `live/ebay_live.bin` to a one-commit `live` branch (the page fetches it via
   raw.githubusercontent.com, which allows CORS; release assets do not).
 - `requirements.txt` — pandas, numpy, requests, cryptography.
@@ -56,7 +59,7 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   never committed. Encryption: AES-256-GCM, key from SITE_PASSWORD (PBKDF2), layout salt16|nonce12|ct.
 - The eBay live file uses a deterministic key (PBKDF2 of SITE_PASSWORD with fixed salt
   `biotech-catalog-live-v1`) embedded in the page as `HKEY`; the history shards use the same key.
-- The `live` branch is force-pushed every 15 min on purpose (no history growth).
+- The `live` branch is force-pushed every couple of minutes by the machine on purpose (no history growth).
 
 ## Secrets / variables (GitHub → Settings → Secrets and variables → Actions)
 `PC_DOWNLOAD_URL` (PriceCharting CSV link or bare token), `SITE_PASSWORD`, `EBAY_CLIENT_ID` (App ID),
@@ -97,17 +100,35 @@ card that has a λ and a price in $40–200 every ~48 h (~1,200 calls/day) so th
 stay honest, and drop the day-10/30 checks for cheap listings. State growth (open listings never reaching their
 day-30 check are never closed as stale) also needs a rule.
 
-## The model (short)
+## The model (short) — the two-anchor version (2026-10-01; see README sections 3–9 for the worked example)
 - λ = raw sales/day = 25th percentile of Gamma(k + ½, D), k = comparable sales in 30 d, D = days observed.
   No PriceCharting prior (decision: eBay-only). λ is NOT calibrated — the PRICE is (below).
-- Buyers in T days ~ Poisson(λT). Depth n = largest n ≤ 3 with P(≥ n) ≥ Confidence, held at 0 until the card
-  has PRICE_MIN_SALES = 3 sales (a new card with 2 sales in 2 days clears 70% by luck). P₂₄/P₄₈ = pₙ − $1
-  (book of comparable open copies by buyer total; Best Offer copies ranked at 90%), falling back to the
-  sold median / 80th percentile; P₄₈ capped at the sold 80th percentile; Window $ = p₁ − $1 when n = 0.
-- All eBay prices are buyer totals (item + shipping). Brett lists with FREE shipping at P₄₈, Best Offer
-  auto-accept at P₂₄.
-- Gate: net = P × (1 − 0.1325 × 1.065) − 0.30 − 4.50; max buy = net ÷ (1 + margin); a listing PASSes when
-  item + shipping + 6.25% tax ≤ max buy. Comparable = NM/LP/not stated, seller ≥ 98%.
+- Anchor A (`anchor()`): the card's comparable sales in 30 d (60 d if < ANCHOR_MIN = 5), LP lifted to NM-equivalent,
+  trimmed (Tukey fences ∩ median/4..×4), recency-weighted (half-life 10 d), centred with a weighted median under
+  8 sales and weighted Hodges–Lehmann from 8 (`robust_center()`). A_fast = median of sales that sold within 48 h of
+  listing when there are ≥ 8 of them. The gate is shut while A_n < 5 ("too few sales").
+- Floor L (`credible()`): cheapest open comparable copy (BO at 90%, LP lifted) that is not watch/suspect, not from a
+  seller under 50 ratings or under the feedback bar, not under 75% of A, and not older than 1.6/λ days (1..7).
+  Top 5 credible copies travel in the live file (`cred`) so the page can judge a listing with itself left out.
+- Sell S (`sell_price()`): min(L − $0.50, 0.95 × A), capped by A_fast, rounded down to .99; 0.93 × A with no floor.
+  The old P₂₄/P₄₈ = pₙ − $1 depth rule is gone (it let the worst listing in the book set the price and assumed
+  strictly cheapest-first buying); do not bring it back.
+- Liquidity (`is_liquid()`): λ ≥ −ln(1 − Confidence) / (Window/24) and, once measured, sell-through ≥ 50%. The
+  Confidence and Window boxes on the page set this; 48 h at 80% needs λ ≥ 0.8 (~24 sales/month), 72 h at 70% needs
+  0.4. This is Brett's choice and the biggest lever on how many cards are eligible — it is exposed, not hidden.
+- Gate (`verdict()` / `listing_decision()`, mirrored by `verdictOf()` / `listingDecide()` on the page): photos ≥ 2,
+  not suspect, A present, A_n ≥ 5, liquid, comparable condition, seller bar, then "review" if the listing is under
+  45% of A, else PASS when all-in (item + shipping + 6.25% tax) ≤ Max buy where
+  net = S × (1 − 0.1325 × 1.065) − 0.40 − 4.50 − 0.30 and Max buy = net ÷ (1 + margin), margin default 10%.
+  Each listing's S is computed with its own floor = the cheapest credible copy OTHER than itself. LP listings are
+  judged at the LP-discounted S. Verdict strings: PASS, review, over max buy, not liquid, too few sales (n),
+  no sales yet, suspect, fewer than 2 photos, condition X, seller < N%.
+- Measurement: every new listing is stamped with ratio0 = price / A; `deal_calib()` tabulates closed listings by
+  that ratio with how fast they sold (shown in the Scam screen modal as "How fast cheap listings go"). This is
+  the data that decides whether new-listing scanning can produce hits at all; the next sourcing step (a daily
+  Best Offer list on aged listings of liquid cards, auctions, resurfacing price drops on Raw Data) waits on it.
+- All eBay prices are buyer totals (item + shipping). Brett lists with FREE shipping at S, Best Offer on with
+  auto-accept ~3% under; unsold at 36–48 h → 0.90 × A.
 - Hot card = 5 checks, then confirmed by the next 3 listings selling within 48 h.
 - Condition: NM, LP and not-stated count in every COUNT (demand and supply are condition-blind); every LP
   PRICE is lifted to NM-equivalent (total ÷ (1 − LP discount)) before the book, sold median/80th, P₄₈ and
@@ -139,9 +160,17 @@ day-30 check are never closed as stale) also needs a rule.
   $50–150 (adjustable); collector sweeps $25–200 on purpose (deals sit below the band, books above it).
 - Retail buy/sell columns removed. Free shipping when selling. 48 h is the planned sell window, not 24.
 - Rate stays as measured; calibrate the price. Don't change the model before data can check it.
+- The sell price is anchored on sold comps (A) with the credible floor (L) as the undercut target; the fee wedge
+  (~24% of a sale) is why hits need ~31% off at a 10% margin — explain that before touching the gate again.
+- Housekeeping Brett should do: verify the real label cost; look into a MA resale certificate filed with eBay
+  (removes the 6.25% buying tax — breakeven 24% → <19%); confirm eBay payout timing.
 - Keep it simple; don't over-build. Brett prefers fewer, larger flips; ≥15% margin, ≥$5 per flip.
 
 ## Roadmap (in order)
+0. Sourcing, once the deal-speed table has two weeks of data: a daily Best Offer list (aged listings of liquid
+   cards, offer at this listing's Max buy), an auction watch (liquid cards ending at off-hours), and resurfacing
+   price drops / relists on Raw Data (they never appear as "new"). eBay's API cannot send offers or bids: the
+   site produces the list, Brett clicks.
 1. After 2–3 weeks: compare Hot cards' λ with ln 2 ÷ (median hours to sale ÷ 24); if consistently higher,
    use the waiting-time λ when Sell-thru ≥ 80% and Days supply < 3 (supply-capped demand).
 2. Tune the title matcher from the Unmatched list (aliases in `SET_ALIASES`, `VARIANT_WORDS`, `REJECT`).
