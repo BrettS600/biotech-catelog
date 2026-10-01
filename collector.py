@@ -75,7 +75,9 @@ SWEEP_OVERLAP_MIN = 5            # a page covers ~15 min of listings; sweeping e
 REREAD_BAND = (35, 200)          # listing price band that gets re-read (cheap copies of pricey cards are
                                  # caught by the book check instead)
 REREAD_MAX_AGE_D = 10
-REREAD_CADENCE = [(1.0, 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24 * 3600)]   # (age <= days, every s)
+REREAD_CADENCE = [(1.0, 2 * 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24 * 3600)]   # (age <= days, every s)
+# a one-hour window holds ~450 in-band listings (3 pages); re-reading day-1 windows every two hours keeps the
+# re-reads near 900 calls/day instead of 1,700
 REREAD_MAX_PAGES = 8
 REREAD_MAX_PER_CYCLE = 6
 CONFIRM_MAX_PER_CYCLE = 12
