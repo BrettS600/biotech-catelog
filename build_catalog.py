@@ -449,7 +449,8 @@ gate_json = json.dumps(GATE_CONST)
 TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 SET_NAME_ALIASES = {"base set": "base", "expedition": "expedition base set", "scarlet violet 151": "151",
                     "pokemon go": "go", "team magma team aqua": "team magma vs team aqua",
-                    "unleashed": "hs unleashed", "undaunted": "hs undaunted", "triumphant": "hs triumphant"}
+                    "unleashed": "hs unleashed", "undaunted": "hs undaunted", "triumphant": "hs triumphant",
+                    "fire red leaf green": "firered leafgreen"}
 SERIES_PREFIXES = ("scarlet violet", "sword shield", "sun moon", "xy", "black white", "diamond pearl",
                    "heartgold soulsilver", "platinum", "ex")
 
@@ -484,6 +485,8 @@ def set_totals(set_names):
         if "promo" in n:
             continue
         n = SET_NAME_ALIASES.get(n, n)
+        if n.startswith("mcdonalds ") and not n.startswith("mcdonalds collection"):
+            n = "mcdonalds collection " + n[len("mcdonalds "):]
         tot = by_norm.get(n)
         if tot is None:
             for series in SERIES_PREFIXES:                  # "scarlet violet obsidian flames" -> "obsidian flames"
@@ -495,7 +498,7 @@ def set_totals(set_names):
         else:
             out[name] = tot
     print(f"Set sizes: {len(out)} of {len(set_names)} sets matched to the Pokemon TCG set list"
-          + (f"; unmatched: {', '.join(missed[:60])}" + (" ..." if len(missed) > 60 else "") if missed else ""))
+          + (f"; unmatched ({len(missed)}): {', '.join(missed)}" if missed else ""))
     return out
 
 
