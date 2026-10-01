@@ -7,6 +7,7 @@
     <label title="Your planned sell window; with Confidence it sets the sales rate a card needs">Window <input type="number" id="win" min="24" max="168" step="24" value="48">h</label>
     <label title="Raw Data: show only listings whose ROI clears your Margin (verdict PASS)"><input type="checkbox" id="hits"> Only show hits</label>
     <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="10">%</label>
+    <label title="Sales tax you pay when buying (MA 6.25%). Set it to 0 the day eBay approves your resale certificate">Buy tax <input type="number" id="buytax" min="0" max="15" step="0.25" value="6.25">%</label>
     <span class="lpc" id="lpc" title="LP correction, by the card's NM price tier">LP correction <span class="lpt" id="lpt">—</span><button class="help" data-h="lp">?</button></span>
     <label id="callab" title="Shift the sell price by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
     <button class="readme" id="readme-btn">README</button>

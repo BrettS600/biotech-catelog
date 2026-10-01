@@ -284,10 +284,11 @@ function settings() {
   const conf = Math.min(0.95, Math.max(0.5, (+$('conf').value || 70) / 100));
   const window = Math.min(168, Math.max(24, +$('win').value || 48));
   const margin = Math.min(0.5, Math.max(0, (+$('margin').value || 0) / 100));
+  const buytax = Math.min(0.15, Math.max(0, (+$('buytax').value || 0) / 100));     // 0 once the resale certificate is approved
   const g = (LIVE.data && LIVE.data.gate) || GATE_EBAY;
   const cal = (LIVE.data && LIVE.data.calib) || {};
   const use = $('usecal').checked;
-  return {conf, window, margin, fee: g.fee * (1 + g.buyerTax), fixed: g.fixed, shipOut: g.shipOut, supplies: g.supplies || 0, tax: g.tax,
+  return {conf, window, margin, fee: g.fee * (1 + g.buyerTax), fixed: g.fixed, shipOut: g.shipOut, supplies: g.supplies || 0, tax: buytax,
           minSales: g.minSales || 5, undercut: g.undercut == null ? 0.5 : g.undercut, sellUnderA: g.sellUnderA || 0.95, sellNoFloor: g.sellNoFloor || 0.93,
           review: g.reviewRatio || 0.45, d48: use && cal.h48 && cal.h48.delta != null ? cal.h48.delta / 100 : 0};
 }
@@ -405,7 +406,7 @@ function rebuildLive() {
                                    : 'price calibration: ' + (c48.n || 0) + ' of 150 outcomes collected — not applied yet';
   $('callab').title = calTxt;
   $('meta-ec').textContent = 'eBay Catalog · data as of ' + live.t.replace('T', ' ').replace('Z', ' UTC') + ' (' + ageText(live.t) + ') · ' +
-    live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h needs λ ≥ ' + lamMin(S).toFixed(2) + '/day · margin ' + Math.round(S.margin * 100) + '%';
+    live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h needs λ ≥ ' + lamMin(S).toFixed(2) + '/day · margin ' + Math.round(S.margin * 100) + '% · buy tax ' + (S.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
   $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · as of ' + ageText(live.t);
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   tables.ec.apply(); tables.er.apply();
@@ -442,9 +443,9 @@ function tickAge() {
   $('meta-er').textContent = $('meta-er').textContent.replace(/as of .*$/, 'as of ' + a);
 }
 // settings: remembered in this browser; any change re-derives the amber band and the verdicts
-try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.win) $('win').value = sv.win; if (sv.margin != null && sv.v2) $('margin').value = sv.margin; if (sv.usecal != null) $('usecal').checked = sv.usecal; if (sv.hits != null) $('hits').checked = sv.hits; } catch (e) {}
-['conf', 'win', 'margin', 'usecal', 'hits'].forEach(id => $(id).addEventListener('input', () => {
-  try { localStorage.setItem('ebay-settings', JSON.stringify({v2: 1, conf: $('conf').value, win: $('win').value, margin: $('margin').value, usecal: $('usecal').checked, hits: $('hits').checked})); } catch (e) {}
+try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.win) $('win').value = sv.win; if (sv.margin != null && sv.v2) $('margin').value = sv.margin; if (sv.buytax != null) $('buytax').value = sv.buytax; if (sv.usecal != null) $('usecal').checked = sv.usecal; if (sv.hits != null) $('hits').checked = sv.hits; } catch (e) {}
+['conf', 'win', 'margin', 'buytax', 'usecal', 'hits'].forEach(id => $(id).addEventListener('input', () => {
+  try { localStorage.setItem('ebay-settings', JSON.stringify({v2: 1, conf: $('conf').value, win: $('win').value, margin: $('margin').value, buytax: $('buytax').value, usecal: $('usecal').checked, hits: $('hits').checked})); } catch (e) {}
   rebuildLive();
 }));
 
