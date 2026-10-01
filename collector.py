@@ -699,6 +699,14 @@ def main():
     if not es.PASSWORD and not DRY_RUN:
         raise SystemExit("SITE_PASSWORD is missing (set it in /etc/pokemon-collector.env)")
     es.log = es_quiet_log
+    _get_token = es.get_token
+
+    def guarded_token():                                     # the module exits on a bad credential; here we retry
+        try:
+            return _get_token()
+        except SystemExit as e:
+            raise RuntimeError(str(e))
+    es.get_token = guarded_token
     log(f"Collector starting ({'dry run' if DRY_RUN else BASE}); pid {os.getpid()}")
     while True:
         try:
