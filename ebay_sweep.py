@@ -81,10 +81,30 @@ DAILY_REFRESH_D = 3          # the last N days are recomputed every run (late-co
 MED_WINDOW_D = 7             # the price series = median sold total over a trailing 7-day window ...
 MED_MIN_SALES = 3            # ... needing at least this many sales in the window
 STAT_WINDOW_D = 30           # window for lambda, mu, sold prices, sell-through
-CONFIDENCE = 0.70            # depth pricing: P(at least n buyers) >= this
-DEPTH_CAP = 3                # never price off deeper than the 3rd cheapest copy
-PRICE_MIN_SALES = 3          # P24/P48 need this many sales behind lambda; below it only the Window price is offered
-UNDERCUT = 1.00              # dollars under the reference copy
+CONFIDENCE = 0.70            # liquidity rule: P(at least one buyer inside the sell window) >= this
+SELL_WINDOW_H = 48           # the planned sell window (the page lets Brett change both)
+DEPTH_CAP = 3                # calibration records keep the rank a listing entered the book at (<= this)
+# --- the sell price: two anchors ---
+# A = what buyers actually pay: recency-weighted robust centre of the card's sales (median under 8, Hodges-
+#     Lehmann from 8), after trimming outliers; needs ANCHOR_MIN sales in 30 d (else 60 d) to be trusted.
+# L = the cheapest CREDIBLE competing copy: not a watch/suspect copy, not a thin seller, not more than 25%
+#     under A (that is a deal or junk, not a price), not a copy that has sat longer than this card's buyers allow.
+# S = min(L - UNDERCUT, SELL_UNDER_A * A); with no credible L, SELL_NO_FLOOR * A; capped by the median of fast
+#     sales when there are enough of them. Rounded down to .99.
+ANCHOR_WINDOW_D = 30
+ANCHOR_WIDE_D = 60           # fallback window when the 30-day one holds fewer than ANCHOR_MIN sales
+ANCHOR_MIN = 5               # sales needed before the gate trusts A
+ANCHOR_HL_MIN = 8            # Hodges-Lehmann from this many trimmed sales; weighted median below
+ANCHOR_HALF_LIFE_D = 10.0    # a sale 10 days old counts half as much as one today
+FAST_MIN = 8                 # fast-sale cross-check needs this many sales that sold within FAST_HRS of listing
+FAST_HRS = 48
+SELL_UNDER_A = 0.95
+SELL_NO_FLOOR = 0.93
+UNDERCUT = 0.50              # dollars under the credible floor
+CRED_MIN_FB = 50             # a copy from a seller with fewer ratings is shown but never sets the price
+CRED_MIN_RATIO = 0.75        # a copy under this share of A is a deal or junk, not a reference
+STALE_K = 1.6                # a copy sat longer than STALE_K / lambda days (1..7) has been passed over by buyers
+REVIEW_RATIO = 0.45          # a listing under this share of A goes to manual review, not the gate
 BO_HAIRCUT = 0.90            # Best Offer listings rank at 90% of ask
 # Seller feedback bar, count-aware: 100+ ratings need 98%, 20-99 need 95%, under 20 the % is ignored
 # (one negative at 20 ratings reads 95%). Failing the bar is a scam-score signal and a gate reason.
@@ -113,10 +133,11 @@ HOT_CONFIRM_N = 3
 # ---- Gate (keep in step with build_catalog.py) ----
 FEE_PCT = 0.1325             # eBay final value fee, trading cards
 BUYER_TAX = 0.065            # eBay charges the fee on the buyer's total incl. their sales tax
-FEE_FIXED = 0.30
-SHIP_OUT = 4.50
-TAX = 0.0625                 # sales tax you pay when buying (MA)
-MARGIN = 0.15
+FEE_FIXED = 0.40             # eBay per-order fee on orders over $10
+SHIP_OUT = 4.50              # tracked label; verify against real label costs
+SUPPLIES = 0.30              # sleeve, top loader, bubble mailer
+TAX = 0.0625                 # sales tax you pay when buying (MA) - a resale certificate filed with eBay removes it
+MARGIN = 0.10                # default; deal flow, not capital, is the limit, so a lower margin on liquid cards wins
 FEE_EFF = FEE_PCT * (1 + BUYER_TAX)
 
 UTC = timezone.utc
@@ -672,7 +693,7 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "url": rec["url"],
         # what the model believed when this listing first appeared (for price calibration)
         "lam0": rec.get("lam0"), "rank0": rec.get("rank0"), "p48_0": rec.get("p48_0"), "p24_0": rec.get("p24_0"),
-        "eff0": rec.get("eff0"),
+        "eff0": rec.get("eff0"), "ratio0": rec.get("ratio0"),
         # scam-screen stamp at close (calibration record) and the listing facts behind it
         "seller": rec.get("seller"), "n_img": rec.get("n_img"), "qty": rec.get("qty"), "ret": rec.get("ret"),
         "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
@@ -1022,9 +1043,126 @@ def r2(v):
     return None if v is None else round(v, 2)
 
 
-def gate(csell):
-    net = csell * (1 - FEE_EFF) - FEE_FIXED - SHIP_OUT
-    return round(net, 2), round(net / (1 + MARGIN), 2)
+def gate(csell, margin=MARGIN):
+    net = csell * (1 - FEE_EFF) - FEE_FIXED - SHIP_OUT - SUPPLIES
+    return round(net, 2), round(net / (1 + margin), 2)
+
+
+# ---------------- the two anchors ----------------
+def weighted_median(vals, weights):
+    pairs = sorted(zip(vals, weights))
+    total = sum(w for _, w in pairs)
+    acc = 0.0
+    for v, w in pairs:
+        acc += w
+        if acc >= total / 2:
+            return v
+    return pairs[-1][0]
+
+
+def robust_center(vals, weights):
+    """Weighted median under ANCHOR_HL_MIN points; weighted Hodges-Lehmann (median of pairwise averages,
+    weights multiplied) from there - the same idea as the Theil-Sen slope, about 15% less noisy than a median."""
+    if not vals:
+        return None
+    if len(vals) < ANCHOR_HL_MIN:
+        return weighted_median(vals, weights)
+    walsh, ww = [], []
+    for i in range(len(vals)):
+        for j in range(i, len(vals)):
+            walsh.append((vals[i] + vals[j]) / 2)
+            ww.append(weights[i] * weights[j])
+    return weighted_median(walsh, ww)
+
+
+def trim_sales(vals):
+    """Tukey fences (1.5 IQR) intersected with median/4 .. median*4; the fences only with 4+ points."""
+    if not vals:
+        return []
+    v = sorted(vals)
+    med = pct(v, 0.5)
+    lo, hi = med / 4, med * 4
+    if len(v) >= 4:
+        q1, q3 = pct(v, 0.25), pct(v, 0.75)
+        iqr = q3 - q1
+        lo, hi = max(lo, q1 - 1.5 * iqr), min(hi, q3 + 1.5 * iqr)
+    return [x for x in v if lo <= x <= hi]
+
+
+def anchor(sold, nm_eq):
+    """(A, sales used, window days, A_fast) from a card's comparable sales. sold = closed records, newest
+    last. The 30-day window is widened to 60 when it holds fewer than ANCHOR_MIN sales."""
+    for win in (ANCHOR_WINDOW_D, ANCHOR_WIDE_D):
+        start = NOW - timedelta(days=win)
+        recs = [r for r in sold if r["total"] is not None and parse_ts(r["closed"]) >= start]
+        if len(recs) >= ANCHOR_MIN or win == ANCHOR_WIDE_D:
+            break
+    if not recs:
+        return None, 0, None, None
+    vals = [nm_eq(r) for r in recs]
+    keep = set(trim_sales(vals))
+    kept = [(nm_eq(r), r) for r in recs if nm_eq(r) in keep]
+    ages = [hours_between(parse_ts(r["closed"]), NOW) / 24 for _, r in kept]
+    weights = [0.5 ** (a / ANCHOR_HALF_LIFE_D) for a in ages]
+    a = robust_center([v for v, _ in kept], weights)
+    fast = [(v, 0.5 ** (hours_between(parse_ts(r["closed"]), NOW) / 24 / ANCHOR_HALF_LIFE_D))
+            for v, r in kept if r.get("hrs") is not None and r["hrs"] <= FAST_HRS]
+    a_fast = weighted_median([v for v, _ in fast], [w for _, w in fast]) if len(fast) >= FAST_MIN else None
+    return r2(a), len(kept), win, r2(a_fast)
+
+
+def stale_days(lam):
+    """How long a credible copy can sit before buyers have evidently passed on it."""
+    if not lam:
+        return None
+    return min(7.0, max(1.0, STALE_K / lam))
+
+
+def credible(book, a, lam):
+    """The copies allowed to set the floor, cheapest first: [[id, effective price], ...] (top 5).
+    Each record must carry _eff (NM-equivalent total, Best Offer at 90%)."""
+    out = []
+    limit = stale_days(lam)
+    for r in book:
+        if r.get("tier") in ("watch", "suspect"):
+            continue
+        if r.get("fb") is None or r["fb"] < CRED_MIN_FB or seller_bar(r) is not None:
+            continue
+        if a and r["_eff"] < CRED_MIN_RATIO * a:
+            continue
+        if limit is not None:
+            origin = parse_ts(r.get("origin") or r["first"]) or parse_ts(r["first"])
+            if hours_between(origin, NOW) / 24 > limit:
+                continue
+        out.append([r["id"], r["_eff"]])
+        if len(out) == 5:
+            break
+    return out
+
+
+def round99(x):
+    return None if x is None else max(0.99, math.floor(x) - 0.01)
+
+
+def sell_price(floor, a, a_fast):
+    """S = min(floor - UNDERCUT, SELL_UNDER_A * A), capped by the fast-sale median when there is one;
+    SELL_NO_FLOOR * A with no credible floor. None without an anchor."""
+    if a is None:
+        return None
+    cap = SELL_UNDER_A * a
+    if a_fast is not None:
+        cap = min(cap, a_fast)
+    s = min(floor - UNDERCUT, cap) if floor is not None else SELL_NO_FLOOR * a
+    return round99(s)
+
+
+def is_liquid(lam, st, conf=CONFIDENCE, window_h=SELL_WINDOW_H):
+    """P(at least one buyer inside the window) >= conf, i.e. lambda >= -ln(1 - conf) / T; and the measured
+    sell-through, once there is one, at least 50%."""
+    if not lam:
+        return False
+    lam_min = -math.log(1 - conf) / (window_h / 24.0)
+    return lam >= lam_min and (st is None or st >= 0.5)
 
 
 def lp_correction(state):
@@ -1243,11 +1381,6 @@ def compute_stats(state, cat, lp):
         for r in book:
             r["_eff"] = round(nm_eq(r) * (BO_HAIRCUT if r["bo"] else 1.0), 2)
         book.sort(key=lambda r: r["_eff"])
-        # a watch-tier copy never sits alone as the cheapest: the first clean copy takes p1
-        if book and book[0].get("tier") == "watch":
-            j = next((i for i, r in enumerate(book) if r.get("tier") != "watch"), None)
-            if j is not None:
-                book.insert(0, book.pop(j))
         N = len(book)
         p = [r["_eff"] for r in book[:3]] + [None] * 3
         new30 = sum(1 for r in opens[cid] + closed[cid] if comparable(r) and parse_ts(r["first"]) >= win_start)
@@ -1264,44 +1397,27 @@ def compute_stats(state, cat, lp):
                    and 7 <= hours_between(parse_ts(r["first"]), NOW) / 24 <= STAT_WINDOW_D + 7]
         st_sold = [r for r in st_pool if r.get("out") == "sold" and r["hrs"] <= 7 * 24]
         st = round(len(st_sold) / len(st_pool), 3) if len(st_pool) >= 3 else None
-        # --- pricing ---
-        n24, n48 = depth(lam, 1), depth(lam, 2)
-        if lam is not None and k < PRICE_MIN_SALES:
-            n24 = n48 = 0            # two sales on a new card can clear the bar by luck: no 24/48 h claim yet
-        price = smed if k >= 3 else (p[0] if p[0] is not None else smed)
-        p24 = p48 = None
-        if lam is not None:
-            if n24 and N >= n24:
-                p24 = p[n24 - 1] - UNDERCUT
-            elif n24 and smed is not None:
-                p24 = smed if p[0] is None else min(smed, p[0] - UNDERCUT)
-            if n48 and N >= n48:
-                p48 = p[n48 - 1] - UNDERCUT
-            elif n48 and s80 is not None:
-                p48 = s80 if p[0] is None else min(s80, p[0] - UNDERCUT)
-            cap = s80 if s80 is not None else (smed * 1.15 if smed else None)
-            if p48 is not None and cap is not None:
-                p48 = min(p48, cap)
-            if p24 is not None and p48 is not None:
-                p48 = max(p48, p24)
-        # price for the honest window when 24/48 h are not on offer: cheapest copy minus the undercut
-        pw = None
-        if lam is not None:
-            pw = (p[0] - UNDERCUT) if p[0] is not None else smed
-            if pw is not None and cap is not None:
-                pw = min(pw, cap)
-        prob24 = round((1 - math.exp(-lam)) * 100, 1) if lam else None
-        edays = round(-math.log(1 - CONFIDENCE) / lam, 1) if lam else None       # 70% window, rank 1
-        csell, basis = (p24, "24h") if p24 is not None else (p48, "48h") if p48 is not None else (pw, "window")
+        # --- pricing: the two anchors ---
+        A, A_n, A_win, A_fast = anchor(sold_sorted, nm_eq)
+        cred = credible(book, A, lam)
+        L = cred[0][1] if cred else None
+        S = sell_price(L, A, A_fast)
+        price = A if A is not None else (p[0] if p[0] is not None else smed)
+        probT = round((1 - math.exp(-lam * SELL_WINDOW_H / 24)) * 100, 1) if lam else None
+        edays = round(-math.log(1 - CONFIDENCE) / lam, 1) if lam else None       # days at rank 1 to reach the confidence
+        liq = is_liquid(lam, st)
+        csell, basis = (S, "sell") if S is not None else (None, None)
         net, maxbuy = gate(csell) if csell is not None else (None, None)
-        # Calibration record: for listings that appeared this run, remember the model's claim about
-        # them - lambda, their rank in the book, and the P48 / P24 the model would have set. Later,
-        # "did it sell within 48 h" vs "how far above/below P48 it was priced" calibrates the price.
+        # Calibration record: for listings that appeared this run, remember the model's claim about them -
+        # lambda, their rank in the book, the sell price S and their price relative to A. Later, "did it sell
+        # within 48 h" vs "how far above/below S it was priced" calibrates the price, and the cheap ones
+        # (ratio0) show how fast underpriced copies actually go.
         for rank, r in enumerate(book, start=1):
             if r["first"] == ts(NOW) and r.get("rank0") is None:
                 r["lam0"], r["rank0"], r["eff0"] = lam, rank, r["_eff"]
-                r["p48_0"] = r2(p48) if p48 is not None else None
-                r["p24_0"] = r2(p24) if p24 is not None else None
+                r["p48_0"] = S
+                r["p24_0"] = None
+                r["ratio0"] = round(r["_eff"] / A, 3) if A else None
         # --- hot-card checks ---
         checks = {
             "sales": k >= HOT_MIN_SALES,
@@ -1347,8 +1463,9 @@ def compute_stats(state, cat, lp):
             "tr": tr, "hist": hist if hist and any(hist["sales"]) else None,
             "price": r2(price), "k": k, "D": round(D, 1), "lam": lam, "N": N, "p1": p[0], "p2": p[1], "p3": p[2],
             "mu": mu, "dos": dos, "io": io_, "smed": r2(smed), "s80": r2(s80), "hrs": hrs, "st": None if st is None else round(st * 100, 1),
-            "n24": n24, "n48": n48, "p24": r2(p24), "p48": r2(p48), "pw": r2(pw), "basis": basis if csell is not None else None,
-            "prob24": prob24, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy, "hot": hot, "confirm": confirm,
+            "A": A, "A_n": A_n, "A_win": A_win, "A_fast": A_fast, "cred": cred, "L": L, "S": S, "liquid": liq,
+            "basis": basis, "probT": probT, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy,
+            "hot": hot, "confirm": confirm,
             "checks": [key for key, v in checks.items() if not v], "lpd": round(lpd * 100, 1),
             "book": [[r["id"], r["total"], r["item"], r["ship"], r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
                       round(hours_between(parse_ts(r["origin"] or r["first"]) or NOW, NOW), 1), r["url"], r["title"]]
@@ -1362,6 +1479,7 @@ def compute_stats(state, cat, lp):
     return cards
 
 
+CAL_SINCE = "2026-10-01T18:00:00Z"   # the sell price changed model here; earlier stamps measured a different claim
 CAL_BUCKETS = [(-999, -15), (-15, -10), (-10, -5), (-5, -2), (-2, 2), (2, 5), (5, 10), (10, 20), (20, 999)]
 CAL_MIN_TOTAL = 150          # outcomes needed before an adjustment is published
 CAL_MIN_BUCKET = 25          # ... and in each of the two buckets around the 70% crossing
@@ -1379,8 +1497,8 @@ def calibrate(state, horizon_h, key):
         if not ref or r.get("eff0") is None or r.get("rank0") is None or r["rank0"] > DEPTH_CAP:
             continue
         first = parse_ts(r["first"])
-        if first is None or first > cutoff:
-            continue                                  # outcome not knowable yet
+        if first is None or first > cutoff or r["first"] < CAL_SINCE:
+            continue                                  # outcome not knowable yet, or stamped by the old model
         out = r.get("out")
         if out == "gone":
             continue                                  # unknown outcome
@@ -1411,17 +1529,23 @@ def calibrate(state, horizon_h, key):
             "rows": [[b["lo"], b["hi"], b["n"], b["sold"], round(100 * b["sold"] / b["n"], 1) if b["n"] else None] for b in rows]}
 
 
-def listing_gate(rec, cs):
-    """(net, maxbuy) for one listing: the card's gate, discounted when the listing says LP."""
-    if not cs or cs.get("maxbuy") is None:
-        return None, None
-    if rec.get("tcond") == "LP" and cs.get("csell") is not None:
-        return gate(cs["csell"] * (1 - cs.get("lpd", LP_DEFAULT_PCT) / 100))
-    return cs["net"], cs["maxbuy"]
+def listing_decision(rec, cs):
+    """(sell price, net, maxbuy) for ONE listing: the card's floor is taken from the credible copies other than
+    this listing (you buy it, it leaves the market, your relist competes with what remains), and an LP listing
+    sells at the LP discount."""
+    if not cs or cs.get("A") is None:
+        return None, None, None
+    floor = next((eff for iid, eff in cs.get("cred", []) if iid != rec["id"]), None)
+    s = sell_price(floor, cs["A"], cs.get("A_fast"))
+    if s is None:
+        return None, None, None
+    sell = s * (1 - cs.get("lpd", LP_DEFAULT_PCT) / 100) if rec.get("tcond") == "LP" else s
+    net, maxbuy = gate(sell)
+    return s, net, maxbuy
 
 
 def verdict(rec, cs):
-    """Gate verdict for one listing given its card's stats."""
+    """Gate verdict for one listing given its card's stats (collector defaults: 70% / 48 h / 10% margin)."""
     if rec["total"] is None:
         return "no price", None
     allin = round(rec["total"] + (rec["item"] or 0) * TAX, 2)
@@ -1429,18 +1553,42 @@ def verdict(rec, cs):
         return "fewer than 2 photos", allin
     if rec.get("tier") == "suspect":
         return "suspect", allin
-    if not cs or cs.get("maxbuy") is None:
+    if not cs or cs.get("A") is None:
         return ("no sales yet" if cs else "no data yet"), allin
-    if cs.get("price") and rec["total"] < 0.5 * cs["price"]:
-        return "too cheap - scam check", allin
+    if cs.get("A_n", 0) < ANCHOR_MIN:
+        return f"too few sales ({cs.get('A_n', 0)})", allin
+    if not cs.get("liquid"):
+        return "not liquid", allin
     if rec.get("tcond", "UNK") not in COMPARABLE_CONDS:
         return "condition " + rec.get("tcond", "?"), allin
     bar = seller_bar(rec)
     if bar is not None:
         return f"seller < {bar:.0f}%", allin
-    if allin <= listing_gate(rec, cs)[1]:
+    if rec["total"] < REVIEW_RATIO * cs["A"]:
+        return "review", allin
+    s, net, maxbuy = listing_decision(rec, cs)
+    if maxbuy is None:
+        return "no sales yet", allin
+    if allin <= maxbuy:
         return "PASS", allin
     return "over max buy", allin
+
+
+DEAL_BUCKETS = [(0.0, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, 1.0)]
+
+
+def deal_calib(state):
+    """How fast cheap listings actually go: closed listings by price-to-anchor at first sight."""
+    rows = []
+    for lo, hi in DEAL_BUCKETS:
+        recs = [r for r in state["closed"] if r.get("ratio0") is not None and lo <= r["ratio0"] < hi
+                and r.get("out") in ("sold", "ended", "gone", "stale")]
+        sold = [r for r in recs if r["out"] == "sold" and r.get("hrs") is not None]
+        rows.append({"lo": lo, "hi": hi, "n": len(recs), "sold": len(sold),
+                     "sold_1h": sum(1 for r in sold if r["hrs"] <= 1), "sold_6h": sum(1 for r in sold if r["hrs"] <= 6),
+                     "sold_24h": sum(1 for r in sold if r["hrs"] <= 24), "sold_48h": sum(1 for r in sold if r["hrs"] <= 48),
+                     "med_hrs": r2(pct([r["hrs"] for r in sold], 0.5)) if sold else None})
+    return rows
 
 
 def build_live(state, cards, lp):
@@ -1453,14 +1601,16 @@ def build_live(state, cards, lp):
         cs = cards.get(str(r["card"]))
         v, allin = verdict(r, cs)
         origin = parse_ts(r.get("origin") or r["first"]) or parse_ts(r["first"])
+        s_own = listing_decision(r, cs)[0]
         live.append([r["id"], r["card"], r["first"], round(hours_between(origin, NOW), 1), r["title"],
                      r["item"], r["ship"], r["total"], allin,
                      cs["price"] if cs else None,
                      None if not cs or not cs.get("price") or r["total"] is None else round((r["total"] / cs["price"] - 1) * 100, 1),
-                     listing_gate(r, cs)[1], v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
+                     listing_decision(r, cs)[2], v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
                      r.get("out") or "open", r["url"], r.get("img"), r.get("how"),
                      r.get("hrs") if r.get("out") else None,          # 21: hours from listing to outcome
-                     r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", [])])   # 22-25: photos, tier, score, signals
+                     r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", []),   # 22-25: photos, tier, score, signals
+                     s_own])                                                                     # 26: this listing's own sell price
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
@@ -1468,10 +1618,12 @@ def build_live(state, cards, lp):
         "t": ts(NOW), "runs": state["runs"], "calls_today": state["calls"].get(TODAY, 0),
         "n_open": len(state["open"]), "n_closed": len(state["closed"]), "n_cards": len(cards),
         "n_live": len(live), "n_pass": passes, "band": TAB_PRICE,
-        "gate": {"fee": FEE_PCT, "buyerTax": BUYER_TAX, "fixed": FEE_FIXED, "shipOut": SHIP_OUT, "tax": TAX,
-                 "margin": MARGIN, "confidence": CONFIDENCE, "depthCap": DEPTH_CAP, "undercut": UNDERCUT,
-                 "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D, "minSales": PRICE_MIN_SALES},
+        "gate": {"fee": FEE_PCT, "buyerTax": BUYER_TAX, "fixed": FEE_FIXED, "shipOut": SHIP_OUT, "supplies": SUPPLIES,
+                 "tax": TAX, "margin": MARGIN, "confidence": CONFIDENCE, "sellWindowH": SELL_WINDOW_H,
+                 "undercut": UNDERCUT, "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D, "minSales": ANCHOR_MIN,
+                 "sellUnderA": SELL_UNDER_A, "sellNoFloor": SELL_NO_FLOOR, "reviewRatio": REVIEW_RATIO},
         "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
+        "deals": deal_calib(state),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }
 
