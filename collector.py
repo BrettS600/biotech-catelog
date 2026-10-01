@@ -707,6 +707,7 @@ def main():
     if not es.PASSWORD and not DRY_RUN:
         raise SystemExit("SITE_PASSWORD is missing (set it in /etc/pokemon-collector.env)")
     es.log = es_quiet_log
+    es.TAX = float(os.environ.get("BUY_TAX_PCT", str(es.TAX * 100))) / 100   # 0 once eBay approves the resale certificate
     _get_token = es.get_token
 
     def guarded_token():                                     # the module exits on a bad credential; here we retry
@@ -715,7 +716,7 @@ def main():
         except SystemExit as e:
             raise RuntimeError(str(e))
     es.get_token = guarded_token
-    log(f"Collector starting ({'dry run' if DRY_RUN else BASE}); pid {os.getpid()}")
+    log(f"Collector starting ({'dry run' if DRY_RUN else BASE}); pid {os.getpid()}; buying tax {es.TAX * 100:.2f}%")
     while True:
         try:
             state = load_state()

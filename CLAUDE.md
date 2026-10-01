@@ -23,7 +23,9 @@ Three tabs:
    "Show suspects". Listings with < 2 photos are left out; a "Scam screen" button shows the calibration table.
 
 Top bar: Confidence (default 70%) and Window (default 48 h) — together the liquidity rule — "Only show hits"
-(Raw Data → PASS rows only), Margin (default 10%),
+(Raw Data → PASS rows only), Margin (default 10%), Buy tax (default 6.25%; Brett sets it to 0 the day eBay approves
+his MA resale certificate — the machine's own figure is the BUY_TAX_PCT line in /etc/pokemon-collector.env, default 6.25,
+and only affects the hourly log counts),
 LP correction chips (read-only, three price tiers, see below), Calibration checkbox, README button (the
 README modal contains the full method walkthrough — keep it in sync when the model changes).
 Every table header has a `?` (help) and an eye (collapse the column to a thin strip; remembered per tab).
@@ -162,8 +164,9 @@ day-30 check are never closed as stale) also needs a rule.
 - Rate stays as measured; calibrate the price. Don't change the model before data can check it.
 - The sell price is anchored on sold comps (A) with the credible floor (L) as the undercut target; the fee wedge
   (~24% of a sale) is why hits need ~31% off at a 10% margin — explain that before touching the gate again.
-- Housekeeping Brett should do: verify the real label cost; look into a MA resale certificate filed with eBay
-  (removes the 6.25% buying tax — breakeven 24% → <19%); confirm eBay payout timing.
+- Housekeeping Brett should do: verify the real label cost; register as a MA vendor and file an ST-4 resale certificate
+  with eBay's tax-exemption program (removes the 6.25% buying tax — breakeven 24% → <19%; then Buy tax box → 0 and
+  BUY_TAX_PCT=0 on the machine); confirm eBay payout timing.
 - Keep it simple; don't over-build. Brett prefers fewer, larger flips; ≥15% margin, ≥$5 per flip.
 
 ## Roadmap (in order)
