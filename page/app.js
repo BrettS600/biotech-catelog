@@ -1,5 +1,6 @@
 const DATA = __DATA__;
 const SETS = __SETS__;
+const SET_TOTALS = __SET_TOTALS__;        // printed set sizes from the Pokemon TCG dataset, matched at build time
 const GATE = __GATE__;
 const PAGE = 300;
 const RANGE_COLS = [5, 6, 7, 8, 9, 10, 12, 13];
@@ -20,12 +21,16 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
    everywhere; each table supplies its own rows, extra cells and numeric range filters.
    Every row's last element is its default-order index. */
 const ordOf = r => r[r.length - 1];
+// card numbers print as number/size ("36/123"): the size comes from the Pokemon TCG dataset (SET_TOTALS, matched at
+// build time); a set that did not match uses the size the collector learned from eBay titles, which arrives with the
+// live data; prefixed numbers (TG05, SV001) are shown as printed
+const numCell = (num, set) => { const t = SET_TOTALS[set] || (LIVE.sets && LIVE.sets[set]); return esc(num) + (t && /^\d+[a-z]?$/.test(String(num)) ? '<span class="dim">/' + t + '</span>' : ''); };
 const cells4 = r =>
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
-  '<td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' + (r[4] || dash) + '</td>';
+  '<td>' + esc(r[2]) + '</td><td class="num">' + numCell(r[3], r[2]) + '</td><td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
 const badge = (txt, cls) => '<span class="badge' + (cls ? ' ' + cls : '') + '">' + esc(txt) + '</span>';
-const LIVE = {data: null, ec: [], er: [], prevT: null};      // filled by loadLive(); prevT = the previous data's stamp
+const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // filled by loadLive(); prevT = the previous data's stamp; sets = printed set sizes
 
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
@@ -47,7 +52,7 @@ const TABLES = {
   //   Trends: 30 spm 31 d7 32 d30 33 pos 34 vdp 35 vd 36 vol 37 ts | 38 net 39 A_n | 40 ord
   ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 20, 22, 25, 38, 30, 32, 37],
        labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 30: 'Sales/month', 32: 'Δ30d %', 37: 'Slope %/mo'},
-       defaults: {17: [50, 150]},
+       defaults: {17: [50, 500]},
        hay: r => r[1] + ' ' + r[2],
        row: r => cells4(r) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
@@ -368,6 +373,8 @@ function sellerBar(fb, pct) {
 function rebuildLive() {
   const live = LIVE.data; if (!live) return;
   const S = settings();
+  const hadSets = !!LIVE.sets; LIVE.sets = live.sets || {};
+  if (!hadSets) tables.pc.apply();                      // the PriceCharting tab can now show number/size too
   LIVE.ec = []; LIVE.er = []; LIVE.dec = {};
   for (const [cid, c] of Object.entries(live.cards)) {
     const base = idRow.get(+cid); if (!base) continue;
