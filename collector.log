@@ -1,0 +1,885 @@
+kemon-collector); pid 31888
+2026-10-01 15:30:06 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:30:22 Collector starting (/opt/pokemon-collector); pid 31890
+2026-10-01 15:30:22 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:30:38 Collector starting (/opt/pokemon-collector); pid 31892
+2026-10-01 15:30:38 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:30:54 Collector starting (/opt/pokemon-collector); pid 31894
+2026-10-01 15:30:54 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:31:10 Collector starting (/opt/pokemon-collector); pid 31896
+2026-10-01 15:31:11 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:31:26 Collector starting (/opt/pokemon-collector); pid 31898
+2026-10-01 15:31:27 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:31:42 Collector starting (/opt/pokemon-collector); pid 31900
+2026-10-01 15:31:43 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:31:58 Collector starting (/opt/pokemon-collector); pid 31902
+2026-10-01 15:31:59 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:32:14 Collector starting (/opt/pokemon-collector); pid 31904
+2026-10-01 15:32:15 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:32:31 Collector starting (/opt/pokemon-collector); pid 31906
+2026-10-01 15:32:31 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:32:47 Collector starting (/opt/pokemon-collector); pid 31908
+2026-10-01 15:32:47 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:33:03 Collector starting (/opt/pokemon-collector); pid 31910
+2026-10-01 15:33:03 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:33:19 Collector starting (/opt/pokemon-collector); pid 31912
+2026-10-01 15:33:19 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:33:35 Collector starting (/opt/pokemon-collector); pid 31914
+2026-10-01 15:33:35 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:33:51 Collector starting (/opt/pokemon-collector); pid 31916
+2026-10-01 15:33:51 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:34:07 Collector starting (/opt/pokemon-collector); pid 31918
+2026-10-01 15:34:07 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:34:23 Collector starting (/opt/pokemon-collector); pid 31921
+2026-10-01 15:34:23 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:34:39 Collector starting (/opt/pokemon-collector); pid 31923
+2026-10-01 15:34:40 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:34:55 Collector starting (/opt/pokemon-collector); pid 31926
+2026-10-01 15:34:57 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:35:05 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:35:21 Collector starting (/opt/pokemon-collector); pid 31931
+2026-10-01 15:35:21 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:35:37 Collector starting (/opt/pokemon-collector); pid 31934
+2026-10-01 15:35:37 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:35:53 Collector starting (/opt/pokemon-collector); pid 31937
+2026-10-01 15:35:53 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:36:09 Collector starting (/opt/pokemon-collector); pid 31939
+2026-10-01 15:36:10 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:36:25 Collector starting (/opt/pokemon-collector); pid 31941
+2026-10-01 15:36:26 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:36:41 Collector starting (/opt/pokemon-collector); pid 31943
+2026-10-01 15:36:42 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:36:57 Collector starting (/opt/pokemon-collector); pid 31947
+2026-10-01 15:36:57 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:37:13 Collector starting (/opt/pokemon-collector); pid 31949
+2026-10-01 15:37:14 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:37:29 Collector starting (/opt/pokemon-collector); pid 31951
+2026-10-01 15:37:31 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:37:39 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:37:55 Collector starting (/opt/pokemon-collector); pid 31953
+2026-10-01 15:37:56 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:38:05 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:38:21 Collector starting (/opt/pokemon-collector); pid 31955
+2026-10-01 15:38:21 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:38:37 Collector starting (/opt/pokemon-collector); pid 31957
+2026-10-01 15:38:37 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:38:53 Collector starting (/opt/pokemon-collector); pid 31959
+2026-10-01 15:38:54 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:39:02 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:39:18 Collector starting (/opt/pokemon-collector); pid 31962
+2026-10-01 15:39:20 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:39:27 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:39:43 Collector starting (/opt/pokemon-collector); pid 31965
+2026-10-01 15:39:44 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:39:51 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:40:07 Collector starting (/opt/pokemon-collector); pid 31969
+2026-10-01 15:40:09 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:40:15 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:40:32 Collector starting (/opt/pokemon-collector); pid 31971
+2026-10-01 15:40:32 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:40:48 Collector starting (/opt/pokemon-collector); pid 31974
+2026-10-01 15:40:48 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:41:04 Collector starting (/opt/pokemon-collector); pid 31976
+2026-10-01 15:41:04 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:41:20 Collector starting (/opt/pokemon-collector); pid 31978
+2026-10-01 15:41:21 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:41:28 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:41:45 Collector starting (/opt/pokemon-collector); pid 31980
+2026-10-01 15:41:46 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:41:52 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:42:09 Collector starting (/opt/pokemon-collector); pid 31982
+2026-10-01 15:42:10 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:42:17 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:42:34 Collector starting (/opt/pokemon-collector); pid 31984
+2026-10-01 15:42:35 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:42:41 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 20841 open, 1567 closed
+2026-10-01 15:42:57 Collector starting (/opt/pokemon-collector); pid 31986
+2026-10-01 15:42:58 State seeded from the release copy: 20841 open, 1567 closed.
+2026-10-01 15:43:14 Collector starting (/opt/pokemon-collector); pid 31988
+2026-10-01 15:43:14 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:43:31 Collector starting (/opt/pokemon-collector); pid 31990
+2026-10-01 15:43:31 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:43:47 Collector starting (/opt/pokemon-collector); pid 31992
+2026-10-01 15:43:47 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:44:03 Collector starting (/opt/pokemon-collector); pid 31994
+2026-10-01 15:44:03 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:44:19 Collector starting (/opt/pokemon-collector); pid 31996
+2026-10-01 15:44:21 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:44:27 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:44:43 Collector starting (/opt/pokemon-collector); pid 31999
+2026-10-01 15:44:44 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:44:50 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:45:06 Collector starting (/opt/pokemon-collector); pid 32004
+2026-10-01 15:45:08 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:45:15 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:45:31 Collector starting (/opt/pokemon-collector); pid 32006
+2026-10-01 15:45:33 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:45:39 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:45:56 Collector starting (/opt/pokemon-collector); pid 32009
+2026-10-01 15:45:57 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:46:05 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:46:21 Collector starting (/opt/pokemon-collector); pid 32013
+2026-10-01 15:46:23 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:46:30 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:46:46 Collector starting (/opt/pokemon-collector); pid 32015
+2026-10-01 15:46:47 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:46:54 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:47:10 Collector starting (/opt/pokemon-collector); pid 32017
+2026-10-01 15:47:11 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:47:18 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:47:34 Collector starting (/opt/pokemon-collector); pid 32019
+2026-10-01 15:47:35 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:47:41 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:47:57 Collector starting (/opt/pokemon-collector); pid 32021
+2026-10-01 15:47:58 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:48:06 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:48:22 Collector starting (/opt/pokemon-collector); pid 32023
+2026-10-01 15:48:23 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:48:29 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:48:46 Collector starting (/opt/pokemon-collector); pid 32025
+2026-10-01 15:48:47 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:48:53 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:49:09 Collector starting (/opt/pokemon-collector); pid 32027
+2026-10-01 15:49:10 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:49:17 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:49:33 Collector starting (/opt/pokemon-collector); pid 32030
+2026-10-01 15:49:34 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:49:41 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:49:57 Collector starting (/opt/pokemon-collector); pid 32032
+2026-10-01 15:49:58 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:50:07 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:50:23 Collector starting (/opt/pokemon-collector); pid 32036
+2026-10-01 15:50:25 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:50:32 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:50:48 Collector starting (/opt/pokemon-collector); pid 32038
+2026-10-01 15:50:50 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:50:57 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:51:14 Collector starting (/opt/pokemon-collector); pid 32040
+2026-10-01 15:51:15 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:51:22 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:51:38 Collector starting (/opt/pokemon-collector); pid 32043
+2026-10-01 15:51:40 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:51:46 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:52:02 Collector starting (/opt/pokemon-collector); pid 32045
+2026-10-01 15:52:04 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:52:10 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:52:27 Collector starting (/opt/pokemon-collector); pid 32047
+2026-10-01 15:52:28 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:52:35 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:52:51 Collector starting (/opt/pokemon-collector); pid 32049
+2026-10-01 15:52:52 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:52:59 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:53:15 Collector starting (/opt/pokemon-collector); pid 32051
+2026-10-01 15:53:16 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:53:23 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:53:39 Collector starting (/opt/pokemon-collector); pid 32053
+2026-10-01 15:53:40 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:53:46 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:54:03 Collector starting (/opt/pokemon-collector); pid 32055
+2026-10-01 15:54:04 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:54:11 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:54:27 Collector starting (/opt/pokemon-collector); pid 32057
+2026-10-01 15:54:28 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:54:34 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:54:50 Collector starting (/opt/pokemon-collector); pid 32060
+2026-10-01 15:54:52 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:54:57 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:55:13 Collector starting (/opt/pokemon-collector); pid 32066
+2026-10-01 15:55:15 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:55:22 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:55:39 Collector starting (/opt/pokemon-collector); pid 32069
+2026-10-01 15:55:40 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:55:46 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:56:02 Collector starting (/opt/pokemon-collector); pid 32071
+2026-10-01 15:56:04 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:56:20 Collector starting (/opt/pokemon-collector); pid 32073
+2026-10-01 15:56:21 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:56:28 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:56:44 Collector starting (/opt/pokemon-collector); pid 32075
+2026-10-01 15:56:45 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:56:52 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:57:08 Collector starting (/opt/pokemon-collector); pid 32078
+2026-10-01 15:57:09 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:57:15 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:57:31 Collector starting (/opt/pokemon-collector); pid 32080
+2026-10-01 15:57:32 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:57:38 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:57:54 Collector starting (/opt/pokemon-collector); pid 32082
+2026-10-01 15:57:55 State seeded from the release copy: 21015 open, 1569 closed.
+2026-10-01 15:58:03 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21015 open, 1569 closed
+2026-10-01 15:58:19 Collector starting (/opt/pokemon-collector); pid 32090
+2026-10-01 15:58:19 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:58:35 Collector starting (/opt/pokemon-collector); pid 32092
+2026-10-01 15:58:35 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:58:51 Collector starting (/opt/pokemon-collector); pid 32094
+2026-10-01 15:58:51 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:59:07 Collector starting (/opt/pokemon-collector); pid 32096
+2026-10-01 15:59:07 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:59:23 Collector starting (/opt/pokemon-collector); pid 32098
+2026-10-01 15:59:23 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 15:59:39 Collector starting (/opt/pokemon-collector); pid 32101
+2026-10-01 15:59:41 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 15:59:47 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:00:04 Collector starting (/opt/pokemon-collector); pid 32106
+2026-10-01 16:00:05 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:00:14 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:00:30 Collector starting (/opt/pokemon-collector); pid 32108
+2026-10-01 16:00:32 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:00:39 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:00:55 Collector starting (/opt/pokemon-collector); pid 32111
+2026-10-01 16:00:55 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:01:11 Collector starting (/opt/pokemon-collector); pid 32113
+2026-10-01 16:01:11 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:01:27 Collector starting (/opt/pokemon-collector); pid 32116
+2026-10-01 16:01:27 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:01:43 Collector starting (/opt/pokemon-collector); pid 32166
+2026-10-01 16:01:43 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:01:59 Collector starting (/opt/pokemon-collector); pid 32168
+2026-10-01 16:01:59 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:02:15 Collector starting (/opt/pokemon-collector); pid 32170
+2026-10-01 16:02:16 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:02:23 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:02:39 Collector starting (/opt/pokemon-collector); pid 32173
+2026-10-01 16:02:40 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:02:46 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:03:03 Collector starting (/opt/pokemon-collector); pid 32175
+2026-10-01 16:03:04 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:03:11 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:03:27 Collector starting (/opt/pokemon-collector); pid 32177
+2026-10-01 16:03:29 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:03:35 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:03:51 Collector starting (/opt/pokemon-collector); pid 32179
+2026-10-01 16:03:52 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:03:59 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:04:15 Collector starting (/opt/pokemon-collector); pid 32181
+2026-10-01 16:04:17 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:04:23 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:04:39 Collector starting (/opt/pokemon-collector); pid 32186
+2026-10-01 16:04:41 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:04:47 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:05:03 Collector starting (/opt/pokemon-collector); pid 32191
+2026-10-01 16:05:03 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:05:19 Collector starting (/opt/pokemon-collector); pid 32194
+2026-10-01 16:05:19 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:05:35 Collector starting (/opt/pokemon-collector); pid 32196
+2026-10-01 16:05:35 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:05:51 Collector starting (/opt/pokemon-collector); pid 32200
+2026-10-01 16:05:53 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:06:00 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:06:16 Collector starting (/opt/pokemon-collector); pid 32202
+2026-10-01 16:06:16 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:06:32 Collector starting (/opt/pokemon-collector); pid 32204
+2026-10-01 16:06:32 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:06:48 Collector starting (/opt/pokemon-collector); pid 32206
+2026-10-01 16:06:48 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:07:04 Collector starting (/opt/pokemon-collector); pid 32208
+2026-10-01 16:07:06 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:07:13 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:07:29 Collector starting (/opt/pokemon-collector); pid 32210
+2026-10-01 16:07:31 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:07:37 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:07:53 Collector starting (/opt/pokemon-collector); pid 32212
+2026-10-01 16:07:53 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:08:09 Collector starting (/opt/pokemon-collector); pid 32214
+2026-10-01 16:08:09 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:08:25 Collector starting (/opt/pokemon-collector); pid 32216
+2026-10-01 16:08:25 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:08:41 Collector starting (/opt/pokemon-collector); pid 32218
+2026-10-01 16:08:41 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:08:57 Collector starting (/opt/pokemon-collector); pid 32221
+2026-10-01 16:08:57 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:09:13 Collector starting (/opt/pokemon-collector); pid 32223
+2026-10-01 16:09:15 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:09:21 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:09:37 Collector starting (/opt/pokemon-collector); pid 32225
+2026-10-01 16:09:38 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:09:44 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:10:01 Collector starting (/opt/pokemon-collector); pid 32228
+2026-10-01 16:10:01 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:10:17 Collector starting (/opt/pokemon-collector); pid 32274
+2026-10-01 16:10:19 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:10:25 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:10:41 Collector starting (/opt/pokemon-collector); pid 32363
+2026-10-01 16:10:43 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:10:49 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:11:06 Collector starting (/opt/pokemon-collector); pid 32365
+2026-10-01 16:11:06 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:11:22 Collector starting (/opt/pokemon-collector); pid 32367
+2026-10-01 16:11:22 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:11:38 Collector starting (/opt/pokemon-collector); pid 32371
+2026-10-01 16:11:38 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:11:54 Collector starting (/opt/pokemon-collector); pid 32373
+2026-10-01 16:11:54 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:12:10 Collector starting (/opt/pokemon-collector); pid 32375
+2026-10-01 16:12:11 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:12:18 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:12:34 Collector starting (/opt/pokemon-collector); pid 32377
+2026-10-01 16:12:36 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:12:42 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:12:58 Collector starting (/opt/pokemon-collector); pid 32379
+2026-10-01 16:12:59 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:13:07 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:13:24 Collector starting (/opt/pokemon-collector); pid 32383
+2026-10-01 16:13:26 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:13:32 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:13:49 Collector starting (/opt/pokemon-collector); pid 32385
+2026-10-01 16:13:50 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:13:57 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:14:13 Collector starting (/opt/pokemon-collector); pid 32387
+2026-10-01 16:14:14 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:14:23 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:14:39 Collector starting (/opt/pokemon-collector); pid 32390
+2026-10-01 16:14:40 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:14:47 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:15:03 Collector starting (/opt/pokemon-collector); pid 32402
+2026-10-01 16:15:03 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:15:19 Collector starting (/opt/pokemon-collector); pid 32406
+2026-10-01 16:15:19 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:15:35 Collector starting (/opt/pokemon-collector); pid 32409
+2026-10-01 16:15:35 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:15:51 Collector starting (/opt/pokemon-collector); pid 32419
+2026-10-01 16:15:51 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:16:07 Collector starting (/opt/pokemon-collector); pid 32421
+2026-10-01 16:16:08 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:16:23 Collector starting (/opt/pokemon-collector); pid 32423
+2026-10-01 16:16:24 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:16:39 Collector starting (/opt/pokemon-collector); pid 32425
+2026-10-01 16:16:39 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:16:55 Collector starting (/opt/pokemon-collector); pid 32427
+2026-10-01 16:16:57 State seeded from the release copy: 21084 open, 1572 closed.
+2026-10-01 16:17:04 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21084 open, 1572 closed
+2026-10-01 16:17:20 Collector starting (/opt/pokemon-collector); pid 32433
+2026-10-01 16:17:22 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:17:29 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:17:45 Collector starting (/opt/pokemon-collector); pid 32435
+2026-10-01 16:17:46 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:17:53 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:18:09 Collector starting (/opt/pokemon-collector); pid 32437
+2026-10-01 16:18:11 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:18:17 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:18:33 Collector starting (/opt/pokemon-collector); pid 32439
+2026-10-01 16:18:35 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:18:41 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:18:58 Collector starting (/opt/pokemon-collector); pid 32441
+2026-10-01 16:18:58 Could not seed state from the release (403 Client Error: rate limit exceeded for url: https://api.github.com/repos/BrettS600/biotech-catelog/releases/tags/snapshots); starting fresh.
+2026-10-01 16:19:14 Collector starting (/opt/pokemon-collector); pid 32443
+2026-10-01 16:19:15 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:19:22 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:19:39 Collector starting (/opt/pokemon-collector); pid 32458
+2026-10-01 16:19:40 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:19:47 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:20:04 Collector starting (/opt/pokemon-collector); pid 32463
+2026-10-01 16:20:06 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:20:14 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:20:31 Collector starting (/opt/pokemon-collector); pid 32466
+2026-10-01 16:20:32 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:20:39 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:20:56 Collector starting (/opt/pokemon-collector); pid 32470
+2026-10-01 16:20:57 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:21:05 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:21:21 Collector starting (/opt/pokemon-collector); pid 32472
+2026-10-01 16:21:22 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:21:29 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:21:45 Collector starting (/opt/pokemon-collector); pid 32474
+2026-10-01 16:21:46 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:21:53 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:22:09 Collector starting (/opt/pokemon-collector); pid 32476
+2026-10-01 16:22:10 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:22:17 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:22:33 Collector starting (/opt/pokemon-collector); pid 32479
+2026-10-01 16:22:34 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:22:41 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:22:57 Collector starting (/opt/pokemon-collector); pid 32481
+2026-10-01 16:22:58 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:23:06 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:23:22 Collector starting (/opt/pokemon-collector); pid 32483
+2026-10-01 16:23:24 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:23:31 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:23:47 Collector starting (/opt/pokemon-collector); pid 32487
+2026-10-01 16:23:48 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:23:55 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:24:11 Collector starting (/opt/pokemon-collector); pid 32489
+2026-10-01 16:24:12 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:24:18 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:24:34 Collector starting (/opt/pokemon-collector); pid 32491
+2026-10-01 16:24:36 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:24:43 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:24:59 Collector starting (/opt/pokemon-collector); pid 32494
+2026-10-01 16:25:00 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:25:07 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:25:24 Collector starting (/opt/pokemon-collector); pid 32499
+2026-10-01 16:25:25 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:25:33 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:25:49 Collector starting (/opt/pokemon-collector); pid 32505
+2026-10-01 16:25:50 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:25:57 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:26:13 Collector starting (/opt/pokemon-collector); pid 32507
+2026-10-01 16:26:14 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:26:20 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:26:36 Collector starting (/opt/pokemon-collector); pid 32509
+2026-10-01 16:26:38 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:26:45 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:27:01 Collector starting (/opt/pokemon-collector); pid 32511
+2026-10-01 16:27:03 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:27:09 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:27:25 Collector starting (/opt/pokemon-collector); pid 32513
+2026-10-01 16:27:27 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:27:34 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:27:50 Collector starting (/opt/pokemon-collector); pid 32515
+2026-10-01 16:27:51 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:27:57 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:28:13 Collector starting (/opt/pokemon-collector); pid 32517
+2026-10-01 16:28:14 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:28:21 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:28:37 Collector starting (/opt/pokemon-collector); pid 32521
+2026-10-01 16:28:38 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:28:44 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:29:01 Collector starting (/opt/pokemon-collector); pid 32523
+2026-10-01 16:29:02 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:29:11 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:29:27 Collector starting (/opt/pokemon-collector); pid 32525
+2026-10-01 16:29:28 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:29:36 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:29:52 Collector starting (/opt/pokemon-collector); pid 32527
+2026-10-01 16:29:53 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:29:59 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:30:16 Collector starting (/opt/pokemon-collector); pid 32532
+2026-10-01 16:30:17 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:30:24 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:30:40 Collector starting (/opt/pokemon-collector); pid 32534
+2026-10-01 16:30:42 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:30:49 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:31:06 Collector starting (/opt/pokemon-collector); pid 32538
+2026-10-01 16:31:07 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:31:14 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:31:31 Collector starting (/opt/pokemon-collector); pid 32540
+2026-10-01 16:31:32 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:31:39 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:31:55 Collector starting (/opt/pokemon-collector); pid 32542
+2026-10-01 16:31:56 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:32:03 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:32:19 Collector starting (/opt/pokemon-collector); pid 32544
+2026-10-01 16:32:21 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:32:28 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:32:44 Collector starting (/opt/pokemon-collector); pid 32550
+2026-10-01 16:32:46 State seeded from the release copy: 21146 open, 1576 closed.
+2026-10-01 16:32:54 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21146 open, 1576 closed
+2026-10-01 16:36:45 Collector starting (/opt/pokemon-collector); pid 33133
+2026-10-01 16:36:46 State seeded from the release copy: 21245 open, 1576 closed.
+2026-10-01 16:36:53 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21245 open, 1576 closed
+2026-10-01 16:36:53 Rate limit: could not read the analytics API (eBay token request failed: HTTP 401 {"error":"invalid_client","error_description":"client authentication failed"}) - using own count
+2026-10-01 16:36:53 Cycle failed:
+ {r.text[:200]}")
+SystemExit: eBay token request failed: HTTP 401 {"error":"invalid_client","error_description":"client authentication failed"}
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/pokemon-collector/repo/collector.py", line 738, in main
+    cycle(state, cat, sched, counters)
+  File "/opt/pokemon-collector/repo/collector.py", line 596, in cycle
+    read, new, matched, unmatched = es.sweep(state, cat, queries=queries, overlap_min=SWEEP_OVERLAP_MIN, quiet=True)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/repo/ebay_sweep.py", line 628, in sweep
+    for items, _oldest in search_pages(state, qname, SWEEP_MAX_PAGES, cutoff):
+  File "/opt/pokemon-collector/repo/ebay_sweep.py", line 605, in search_pages
+    j = api_get(state, "/buy/browse/v1/item_summary/search", dict(q, offset=str(page * 200)))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/repo/ebay_sweep.py", line 518, in api_get
+    headers = {"Authorization": "Bearer " + get_token(),
+                                            ^^^^^^^^^^^
+  File "/opt/pokemon-collector/repo/collector.py", line 708, in guarded_token
+    raise RuntimeError(str(e))
+RuntimeError: eBay token request failed: HTTP 401 {"error":"invalid_client","error_description":"client authentication failed"}
+
+2026-10-01 16:41:11 Collector starting (/opt/pokemon-collector); pid 33657
+2026-10-01 16:41:12 State seeded from the release copy: 21245 open, 1576 closed.
+2026-10-01 16:41:20 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21245 open, 1576 closed
+2026-10-01 16:41:20 Rate limit: 3450 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 16:41:24 Self-test: window 2026-10-01T15:00:00Z +1h returned 200 listings (total 451); known listing found
+2026-10-01 16:41:24 Self-test: date-window re-reads ENABLED
+2026-10-01 16:41:34 Hour: discovery read 251 summaries, 54 new, 33 matched, 21 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 2 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 1 publishes | median indexing lag 8.6 min
+2026-10-01 16:41:34 Now: 21278 open, 1576 closed, 5049 cards with data, 6911 listings in 24 h, 1 pass the gate; budget 3450 left, 2.64 optional calls/min, 0 tokens; 2666 calls today
+2026-10-01 16:41:34 Scam screen: 16712 clean, 4046 watch, 520 suspect among open listings; signals: est 6111, fb0 3961, fb1 3298, img 927, top 601, pct 518, slow 449, ret 397, p50 366, p65 276, p75 195, burst 115, dup 24, qty 1
+2026-10-01 17:16:30 Code updated d422b0b -> 2aee2a1: .github/workflows/ebay_sweep.yml, collector.py
+2026-10-01 17:16:32 Restarting on the new code.
+2026-10-01 17:16:49 Collector starting (/opt/pokemon-collector); pid 34014
+2026-10-01 17:16:55 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21466 open, 1578 closed
+2026-10-01 17:16:56 Rate limit: 3140 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 17:17:10 Hour: discovery read 251 summaries, 4 new, 4 matched, 0 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 2 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 1 publishes | median indexing lag 4.3 min
+2026-10-01 17:17:10 Now: 21470 open, 1578 closed, 5065 cards with data, 6933 listings in 24 h, 1 pass the gate; budget 3140 left, 2.43 optional calls/min, 0 tokens; 2805 calls today
+2026-10-01 17:17:10 Scam screen: 16871 clean, 4071 watch, 528 suspect among open listings; signals: est 6166, fb0 3993, fb1 3322, img 980, top 605, pct 519, slow 480, ret 397, p50 369, p65 281, p75 196, burst 115, dup 24, qty 1
+2026-10-01 17:22:06 Code updated 2aee2a1 -> 3900111: CLAUDE.md, page/app.js, page/style.css
+2026-10-01 17:27:10 Code updated 3900111 -> 2fec4e1: page/help.js
+2026-10-01 18:16:56 Rate limit: 2930 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 18:17:10 Hour: discovery read 12544 summaries, 481 new, 304 matched, 177 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 12 sold, 13 ended, 0 gone, 121 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.1 min
+2026-10-01 18:17:10 Now: 21749 open, 1603 closed, 5095 cards with data, 6988 listings in 24 h, 1 pass the gate; budget 2930 left, 2.44 optional calls/min, 0 tokens; 3023 calls today
+2026-10-01 18:17:10 Scam screen: 17109 clean, 4103 watch, 537 suspect among open listings; signals: est 6243, fb0 4016, fb1 3382, img 1048, top 609, slow 534, pct 528, ret 397, p50 377, p65 286, p75 200, burst 117, dup 24, qty 1
+2026-10-01 18:27:09 Code updated 2fec4e1 -> 8f21ced: ebay_sweep.py
+2026-10-01 18:27:10 Restarting on the new code.
+2026-10-01 18:27:27 Collector starting (/opt/pokemon-collector); pid 34679
+2026-10-01 18:27:35 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 21783 open, 1605 closed
+2026-10-01 18:27:35 Rate limit: 2890 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 18:27:47 Hour: discovery read 244 summaries, 5 new, 4 matched, 1 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 1 sold, 0 ended, 0 gone, 1 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 1 publishes | median indexing lag 4.1 min
+2026-10-01 18:27:47 Now: 21786 open, 1606 closed, 5097 cards with data, 6924 listings in 24 h, 0 pass the gate; budget 2890 left, 2.44 optional calls/min, 0 tokens; 3064 calls today
+2026-10-01 18:27:47 Scam screen: 17138 clean, 4112 watch, 536 suspect among open listings; signals: est 6250, fb0 4024, fb1 3387, img 1050, top 609, slow 548, pct 529, ret 396, p50 377, p65 283, p75 201, burst 118, dup 24, qty 1
+2026-10-01 18:37:47 Code updated 8f21ced -> 0f431be: page/app.js, page/body.html
+2026-10-01 19:12:45 Code updated 0f431be -> 389eb57: 
+2026-10-01 19:17:48 Code updated 389eb57 -> 25de1d2: 
+2026-10-01 19:22:45 Code updated 25de1d2 -> 8371c1e: CLAUDE.md, page/help.js
+2026-10-01 19:27:35 Rate limit: 2670 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 19:27:48 Hour: discovery read 12649 summaries, 495 new, 356 matched, 139 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 17 sold, 9 ended, 3 gone, 118 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.1 min
+2026-10-01 19:27:48 Now: 22113 open, 1635 closed, 5132 cards with data, 7034 listings in 24 h, 0 pass the gate; budget 2670 left, 2.44 optional calls/min, 0 tokens; 3283 calls today
+2026-10-01 19:27:48 Scam screen: 17469 clean, 4143 watch, 501 suspect among open listings; signals: est 6353, fb0 4086, fb1 3455, img 1104, slow 639, top 610, pct 536, p50 363, p65 298, ret 261, p75 246, burst 95, dup 24, qty 1
+2026-10-01 19:47:46 Code updated 8371c1e -> a71a3d0: collector.py
+2026-10-01 19:47:48 Restarting on the new code.
+2026-10-01 19:48:05 Collector starting (/opt/pokemon-collector); pid 36414
+2026-10-01 19:48:12 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 22238 open, 1645 closed
+2026-10-01 19:48:12 Rate limit: 2590 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 19:48:26 Hour: discovery read 254 summaries, 6 new, 6 matched, 0 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 3 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 1 publishes | median indexing lag 4.0 min
+2026-10-01 19:48:26 Now: 22244 open, 1645 closed, 5154 cards with data, 6913 listings in 24 h, 0 pass the gate; budget 2590 left, 2.43 optional calls/min, 0 tokens; 3360 calls today
+2026-10-01 19:48:26 Verdicts: no sales yet 3545, over max buy 924, too few sales (1) 878, fewer than 2 photos 577, too few sales (2) 371, too few sales (3) 286, suspect 229, too few sales (4) 60, condition HP 19, seller < 95% 14, seller < 98% 10
+2026-10-01 19:48:26 Cards: 25 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 25 both
+2026-10-01 19:48:26 Scam screen: 17578 clean, 4167 watch, 499 suspect among open listings; signals: est 6409, fb0 4103, fb1 3477, img 1116, slow 676, top 611, pct 544, p50 363, p65 297, ret 258, p75 248, burst 94, dup 24, qty 1
+2026-10-01 20:13:22 Code updated a71a3d0 -> df9f167: page/app.js, page/body.html
+2026-10-01 20:18:25 Code updated df9f167 -> 9f958e5: page/help.js
+2026-10-01 20:23:22 Code updated 9f958e5 -> 3d93811: page/help.js
+2026-10-01 20:28:24 Code updated 3d93811 -> dafa7a3: CLAUDE.md, collector.py
+2026-10-01 20:28:26 Restarting on the new code.
+2026-10-01 20:28:42 Collector starting (/opt/pokemon-collector); pid 38612; buying tax 6.25%
+2026-10-01 20:28:48 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 22545 open, 1649 closed
+2026-10-01 20:28:49 Rate limit: 2440 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 20:29:03 Hour: discovery read 255 summaries, 10 new, 9 matched, 1 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 3 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 1 publishes | median indexing lag 3.9 min
+2026-10-01 20:29:03 Now: 22554 open, 1649 closed, 5179 cards with data, 7002 listings in 24 h, 0 pass the gate; budget 2440 left, 2.43 optional calls/min, 0 tokens; 3510 calls today
+2026-10-01 20:29:03 Verdicts: no sales yet 3557, over max buy 948, too few sales (1) 880, fewer than 2 photos 631, too few sales (2) 366, too few sales (3) 288, suspect 228, too few sales (4) 59, condition HP 21, seller < 95% 14, seller < 98% 10
+2026-10-01 20:29:03 Cards: 25 with 5+ sales behind the anchor, 68 liquid at the collector's defaults, 25 both
+2026-10-01 20:29:03 Scam screen: 17856 clean, 4196 watch, 502 suspect among open listings; signals: est 6562, fb0 4136, fb1 3532, img 1184, slow 745, top 614, pct 545, p50 363, p65 301, ret 256, p75 250, burst 92, dup 24, qty 1
+2026-10-01 20:53:58 Code updated dafa7a3 -> 1d30c92: collector.py, ebay_sweep.py, page/body.html
+2026-10-01 20:54:00 Restarting on the new code.
+2026-10-01 20:54:17 Collector starting (/opt/pokemon-collector); pid 39903; buying tax 6.25%
+2026-10-01 20:54:24 Catalog pc_catalog_2026-10-01.csv.gz.enc; state: 22703 open, 1664 closed
+2026-10-01 20:54:25 Rate limit: 2350 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 20:54:38 Hour: discovery read 268 summaries, 25 new, 19 matched, 6 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 1 sold, 2 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 1 publishes | median indexing lag 3.9 min
+2026-10-01 20:54:38 Now: 22719 open, 1667 closed, 5199 cards with data, 6883 listings in 24 h, 0 pass the gate; budget 2350 left, 2.43 optional calls/min, 0 tokens; 3605 calls today
+2026-10-01 20:54:38 Verdicts: no sales yet 3499, over max buy 937, too few sales (1) 855, fewer than 2 photos 640, too few sales (2) 354, too few sales (3) 271, suspect 222, too few sales (4) 59, condition HP 21, seller < 95% 14, seller < 98% 11
+2026-10-01 20:54:38 Cards: 25 with 5+ sales behind the anchor, 68 liquid at the collector's defaults, 25 both
+2026-10-01 20:54:38 Scam screen: 17966 clean, 4225 watch, 528 suspect among open listings; signals: est 6620, fb0 4178, fb1 3563, img 1227, slow 792, top 615, pct 547, p50 374, p65 305, ret 256, p75 255, burst 100, dup 24, qty 1
+2026-10-01 21:19:36 Code updated 1d30c92 -> 086cd96: build_catalog.py
+2026-10-01 21:24:37 Code updated 086cd96 -> eea4edb: page/app.js
+2026-10-01 21:29:35 Code updated eea4edb -> 7e7926e: CLAUDE.md, page/help.js
+2026-10-01 21:34:37 Code updated 7e7926e -> edbc70e: build_catalog.py
+2026-10-01 21:54:25 Rate limit: 2130 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 21:54:39 Hour: discovery read 12762 summaries, 748 new, 548 matched, 200 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 24 sold, 14 ended, 9 gone, 99 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.8 min
+2026-10-01 21:54:39 Now: 23220 open, 1716 closed, 5290 cards with data, 6976 listings in 24 h, 0 pass the gate; budget 2130 left, 2.43 optional calls/min, 0 tokens; 3823 calls today
+2026-10-01 21:54:39 Verdicts: no sales yet 3457, over max buy 969, too few sales (1) 828, fewer than 2 photos 796, too few sales (2) 342, too few sales (3) 282, suspect 208, too few sales (4) 49, condition HP 20, seller < 95% 14, seller < 98% 11
+2026-10-01 21:54:39 Cards: 26 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 26 both
+2026-10-01 21:54:39 Scam screen: 18364 clean, 4310 watch, 546 suspect among open listings; signals: est 6837, fb0 4253, fb1 3636, img 1419, slow 941, top 617, pct 560, p50 385, p65 325, p75 262, ret 254, burst 110, dup 24, qty 1
+2026-10-01 22:54:25 Rate limit: 1910 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 22:54:40 Hour: discovery read 12639 summaries, 707 new, 516 matched, 191 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 24 sold, 10 ended, 0 gone, 111 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-01 22:54:40 Now: 23702 open, 1750 closed, 5323 cards with data, 7041 listings in 24 h, 0 pass the gate; budget 1910 left, 2.42 optional calls/min, 0 tokens; 4040 calls today
+2026-10-01 22:54:40 Verdicts: no sales yet 3395, over max buy 973, too few sales (1) 873, fewer than 2 photos 863, too few sales (2) 359, too few sales (3) 244, suspect 198, too few sales (4) 92, condition HP 21, seller < 95% 12, seller < 98% 11
+2026-10-01 22:54:40 Cards: 26 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 26 both
+2026-10-01 22:54:40 Scam screen: 18748 clean, 4406 watch, 548 suspect among open listings; signals: est 7016, fb0 4328, fb1 3699, img 1515, slow 1106, top 618, pct 571, p50 402, p65 338, p75 276, ret 256, burst 99, dup 24, qty 1
+2026-10-01 23:54:25 Rate limit: 1690 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-01 23:54:39 Hour: discovery read 12643 summaries, 635 new, 471 matched, 164 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 23 sold, 7 ended, 0 gone, 116 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-01 23:54:39 Now: 24143 open, 1782 closed, 5362 cards with data, 7046 listings in 24 h, 0 pass the gate; budget 1690 left, 2.42 optional calls/min, 0 tokens; 4258 calls today
+2026-10-01 23:54:39 Verdicts: no sales yet 3343, over max buy 967, fewer than 2 photos 921, too few sales (1) 884, too few sales (2) 357, too few sales (3) 231, suspect 199, too few sales (4) 99, condition HP 24, seller < 95% 12, seller < 98% 9
+2026-10-01 23:54:39 Cards: 27 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 27 both
+2026-10-01 23:54:39 Scam screen: 19053 clean, 4516 watch, 574 suspect among open listings; signals: est 7146, fb0 4423, fb1 3785, img 1591, slow 1277, top 623, pct 585, p50 422, p65 355, p75 274, ret 264, burst 100, dup 24, qty 1
+2026-10-02 00:54:25 Rate limit: 1470 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 00:54:39 Hour: discovery read 12709 summaries, 644 new, 472 matched, 172 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 25 sold, 2 ended, 0 gone, 118 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.9 min
+2026-10-02 00:54:39 Now: 24588 open, 1809 closed, 5432 cards with data, 7170 listings in 24 h, 0 pass the gate; budget 1470 left, 2.41 optional calls/min, 0 tokens; 199 calls today
+2026-10-02 00:54:39 Verdicts: no sales yet 3346, over max buy 992, fewer than 2 photos 959, too few sales (1) 878, too few sales (2) 386, too few sales (3) 244, suspect 214, too few sales (4) 102, condition HP 27, seller < 95% 13, seller < 98% 9
+2026-10-02 00:54:39 Cards: 27 with 5+ sales behind the anchor, 70 liquid at the collector's defaults, 27 both
+2026-10-02 00:54:39 Scam screen: 19367 clean, 4621 watch, 600 suspect among open listings; signals: est 7250, fb0 4539, fb1 3855, img 1661, slow 1443, top 633, pct 600, p50 424, p65 356, p75 278, ret 257, burst 113, dup 24, qty 1
+2026-10-02 01:54:25 Rate limit: 1260 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 01:54:39 Hour: discovery read 12759 summaries, 740 new, 478 matched, 262 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 27 sold, 9 ended, 0 gone, 109 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 01:54:39 Now: 25030 open, 1845 closed, 5471 cards with data, 7084 listings in 24 h, 0 pass the gate; budget 1260 left, 2.43 optional calls/min, 0 tokens; 416 calls today
+2026-10-02 01:54:39 Verdicts: no sales yet 3291, fewer than 2 photos 1029, over max buy 983, too few sales (1) 847, too few sales (2) 346, too few sales (3) 231, suspect 203, too few sales (4) 107, condition HP 28, seller < 95% 10, seller < 98% 9
+2026-10-02 01:54:39 Cards: 28 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 28 both
+2026-10-02 01:54:39 Scam screen: 19687 clean, 4739 watch, 604 suspect among open listings; signals: est 7348, fb0 4644, fb1 3933, img 1749, slow 1601, top 635, pct 609, p50 431, p65 363, p75 277, ret 259, burst 106, dup 24, qty 1
+2026-10-02 02:54:31 Rate limit: 1040 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 02:54:46 Hour: discovery read 12692 summaries, 639 new, 512 matched, 127 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 18 sold, 11 ended, 0 gone, 117 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 02:54:46 Now: 25513 open, 1874 closed, 5565 cards with data, 7192 listings in 24 h, 0 pass the gate; budget 1040 left, 2.43 optional calls/min, 0 tokens; 634 calls today
+2026-10-02 02:54:46 Verdicts: no sales yet 3305, fewer than 2 photos 1147, over max buy 1037, too few sales (1) 860, too few sales (2) 329, too few sales (3) 186, suspect 171, too few sales (4) 108, condition HP 33, seller < 98% 10, seller < 95% 6
+2026-10-02 02:54:46 Cards: 31 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 31 both
+2026-10-02 02:54:46 Scam screen: 20083 clean, 4854 watch, 576 suspect among open listings; signals: est 7555, fb0 4726, fb1 3985, img 1880, slow 1740, top 644, pct 611, p50 432, p65 366, p75 285, ret 254, burst 75, dup 24, qty 1
+2026-10-02 03:55:25 Rate limit: 820 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 03:55:40 Hour: discovery read 12886 summaries, 691 new, 483 matched, 208 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 27 sold, 11 ended, 0 gone, 110 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.8 min
+2026-10-02 03:55:40 Now: 25958 open, 1912 closed, 5609 cards with data, 7125 listings in 24 h, 0 pass the gate; budget 820 left, 2.43 optional calls/min, 0 tokens; 855 calls today
+2026-10-02 03:55:40 Verdicts: no sales yet 3297, fewer than 2 photos 1172, over max buy 1013, too few sales (1) 826, too few sales (2) 330, too few sales (3) 175, suspect 159, too few sales (4) 106, condition HP 32, seller < 98% 10, seller < 95% 5
+2026-10-02 03:55:40 Cards: 31 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 31 both
+2026-10-02 03:55:40 Scam screen: 20462 clean, 4913 watch, 583 suspect among open listings; signals: est 7766, fb0 4778, fb1 4032, img 1937, slow 1911, top 645, pct 619, p50 436, p65 374, p75 292, ret 255, burst 75, dup 24, qty 1
+2026-10-02 04:55:25 Rate limit: 600 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 04:55:40 Hour: discovery read 12607 summaries, 539 new, 415 matched, 124 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 29 sold, 3 ended, 0 gone, 114 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 04:55:40 Now: 26341 open, 1944 closed, 5642 cards with data, 7227 listings in 24 h, 0 pass the gate; budget 600 left, 2.41 optional calls/min, 0 tokens; 1073 calls today
+2026-10-02 04:55:40 Verdicts: no sales yet 3305, fewer than 2 photos 1231, over max buy 1041, too few sales (1) 802, too few sales (2) 341, too few sales (3) 189, suspect 160, too few sales (4) 111, condition HP 33, seller < 98% 10, seller < 95% 4
+2026-10-02 04:55:40 Cards: 31 with 5+ sales behind the anchor, 73 liquid at the collector's defaults, 31 both
+2026-10-02 04:55:40 Scam screen: 20796 clean, 4952 watch, 593 suspect among open listings; signals: est 7923, fb0 4821, fb1 4100, slow 2087, img 2030, top 648, pct 620, p50 443, p65 375, p75 296, ret 254, burst 81, dup 24, qty 1
+2026-10-02 05:55:25 Rate limit: 380 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 05:55:40 Hour: discovery read 12555 summaries, 396 new, 291 matched, 105 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 20 sold, 7 ended, 0 gone, 118 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.1 min
+2026-10-02 05:55:40 Now: 26605 open, 1971 closed, 5670 cards with data, 7276 listings in 24 h, 0 pass the gate; budget 380 left, 2.36 optional calls/min, 0 tokens; 1290 calls today
+2026-10-02 05:55:40 Verdicts: no sales yet 3284, fewer than 2 photos 1296, over max buy 1037, too few sales (1) 804, too few sales (2) 347, too few sales (3) 193, suspect 165, too few sales (4) 103, condition HP 31, seller < 98% 10, seller < 95% 5, condition MP 1
+2026-10-02 05:55:40 Cards: 32 with 5+ sales behind the anchor, 74 liquid at the collector's defaults, 32 both
+2026-10-02 05:55:40 Scam screen: 21006 clean, 4985 watch, 614 suspect among open listings; signals: est 8040, fb0 4859, fb1 4121, slow 2204, img 2129, top 649, pct 624, p50 457, p65 389, p75 304, ret 253, burst 89, dup 24, qty 1
+2026-10-02 06:50:56 Cycle failed:
+ "Bearer " + get_token(),
+                                            ^^^^^^^^^^^
+  File "/opt/pokemon-collector/repo/collector.py", line 715, in guarded_token
+    return _get_token()
+           ^^^^^^^^^^^^
+  File "/opt/pokemon-collector/repo/ebay_sweep.py", line 519, in get_token
+    r = requests.post(f"{API}/identity/v1/oauth2/token",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/venv/lib/python3.12/site-packages/requests/api.py", line 134, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/venv/lib/python3.12/site-packages/requests/api.py", line 71, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/venv/lib/python3.12/site-packages/requests/sessions.py", line 651, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/venv/lib/python3.12/site-packages/requests/sessions.py", line 784, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/pokemon-collector/venv/lib/python3.12/site-packages/requests/adapters.py", line 711, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
+
+2026-10-02 06:56:51 Rate limit: 180 of 5000 calls left (buy.browse), resets 2026-10-02T07:00:00.000Z, window 86400 s
+2026-10-02 06:57:10 Hour: discovery read 11964 summaries, 202 new, 153 matched, 49 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 22 sold, 5 ended, 1 gone, 119 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 06:57:10 Now: 26730 open, 1999 closed, 5683 cards with data, 7310 listings in 24 h, 0 pass the gate; budget 180 left, 8.35 optional calls/min, 0 tokens; 1507 calls today
+2026-10-02 06:57:10 Verdicts: no sales yet 3261, fewer than 2 photos 1337, over max buy 1050, too few sales (1) 796, too few sales (2) 350, too few sales (3) 196, suspect 167, too few sales (4) 104, condition HP 32, seller < 98% 11, seller < 95% 5, condition MP 1
+2026-10-02 06:57:10 Cards: 32 with 5+ sales behind the anchor, 53 liquid at the collector's defaults, 32 both
+2026-10-02 06:57:10 Scam screen: 21112 clean, 4991 watch, 627 suspect among open listings; signals: est 8095, fb0 4875, fb1 4129, slow 2266, img 2172, top 649, pct 627, p50 464, p65 390, p75 309, ret 253, burst 96, dup 24, qty 1
+2026-10-02 07:56:51 Rate limit: 4960 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 07:57:01 Hour: discovery read 12394 summaries, 116 new, 73 matched, 43 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 3 sold, 2 ended, 0 gone, 14 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-02 07:57:01 Now: 26798 open, 2004 closed, 5691 cards with data, 7294 listings in 24 h, 0 pass the gate; budget 4960 left, 2.28 optional calls/min, 0 tokens; 1597 calls today
+2026-10-02 07:57:01 Verdicts: no sales yet 3242, fewer than 2 photos 1345, over max buy 1050, too few sales (1) 792, too few sales (2) 350, too few sales (3) 197, suspect 165, too few sales (4) 104, condition HP 32, seller < 98% 11, seller < 95% 5, condition MP 1
+2026-10-02 07:57:01 Cards: 32 with 5+ sales behind the anchor, 50 liquid at the collector's defaults, 32 both
+2026-10-02 07:57:01 Scam screen: 21168 clean, 5000 watch, 630 suspect among open listings; signals: est 8127, fb0 4883, fb1 4138, slow 2297, img 2189, top 649, pct 630, p50 466, p65 391, p75 309, ret 253, burst 96, dup 24, qty 1
+2026-10-02 08:56:51 Rate limit: 4750 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 08:57:02 Hour: discovery read 12565 summaries, 87 new, 63 matched, 24 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 22 sold, 6 ended, 1 gone, 108 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-02 08:57:02 Now: 26832 open, 2034 closed, 5695 cards with data, 7223 listings in 24 h, 0 pass the gate; budget 4750 left, 2.28 optional calls/min, 0 tokens; 1806 calls today
+2026-10-02 08:57:02 Verdicts: no sales yet 3188, fewer than 2 photos 1345, over max buy 1067, too few sales (1) 779, too few sales (2) 341, too few sales (3) 189, suspect 164, too few sales (4) 94, condition HP 37, seller < 98% 12, seller < 95% 5, condition MP 2
+2026-10-02 08:57:02 Cards: 34 with 5+ sales behind the anchor, 50 liquid at the collector's defaults, 34 both
+2026-10-02 08:57:02 Scam screen: 21196 clean, 5000 watch, 636 suspect among open listings; signals: est 8136, fb0 4887, fb1 4138, slow 2305, img 2200, top 649, pct 631, p50 470, p65 396, p75 319, ret 254, burst 96, dup 24, qty 1
+2026-10-02 09:56:51 Rate limit: 4540 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 09:57:02 Hour: discovery read 12831 summaries, 102 new, 88 matched, 14 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 19 sold, 15 ended, 2 gone, 101 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 28 publishes | median indexing lag 4.0 min
+2026-10-02 09:57:02 Now: 26884 open, 2070 closed, 5711 cards with data, 7258 listings in 24 h, 0 pass the gate; budget 4540 left, 2.28 optional calls/min, 0 tokens; 2015 calls today
+2026-10-02 09:57:02 Verdicts: no sales yet 3183, fewer than 2 photos 1389, over max buy 1075, too few sales (1) 777, too few sales (2) 331, too few sales (3) 195, suspect 163, too few sales (4) 87, condition HP 39, seller < 98% 12, seller < 95% 5, condition MP 2
+2026-10-02 09:57:02 Cards: 35 with 5+ sales behind the anchor, 51 liquid at the collector's defaults, 35 both
+2026-10-02 09:57:02 Scam screen: 21248 clean, 4999 watch, 637 suspect among open listings; signals: est 8175, fb0 4887, fb1 4138, slow 2315, img 2250, top 653, pct 632, p50 470, p65 399, p75 318, ret 254, burst 97, dup 24, qty 1
+2026-10-02 10:56:51 Rate limit: 4330 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 10:57:04 Hour: discovery read 13158 summaries, 82 new, 61 matched, 21 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 18 sold, 8 ended, 1 gone, 109 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-02 10:57:04 Now: 26918 open, 2097 closed, 5712 cards with data, 7260 listings in 24 h, 0 pass the gate; budget 4330 left, 2.27 optional calls/min, 0 tokens; 2223 calls today
+2026-10-02 10:57:04 Verdicts: no sales yet 3156, fewer than 2 photos 1400, over max buy 1079, too few sales (1) 771, too few sales (2) 346, too few sales (3) 198, suspect 164, too few sales (4) 87, condition HP 39, seller < 98% 13, seller < 95% 5, condition MP 2
+2026-10-02 10:57:04 Cards: 36 with 5+ sales behind the anchor, 51 liquid at the collector's defaults, 36 both
+2026-10-02 10:57:04 Scam screen: 21272 clean, 5007 watch, 639 suspect among open listings; signals: est 8190, fb0 4894, fb1 4140, slow 2332, img 2261, top 651, pct 635, p50 471, p65 399, p75 321, ret 253, burst 97, dup 24, qty 1
+2026-10-02 11:56:51 Rate limit: 4120 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 11:57:04 Hour: discovery read 12886 summaries, 82 new, 46 matched, 36 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 20 sold, 8 ended, 0 gone, 109 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-02 11:57:04 Now: 26936 open, 2125 closed, 5719 cards with data, 7233 listings in 24 h, 0 pass the gate; budget 4120 left, 2.27 optional calls/min, 0 tokens; 2432 calls today
+2026-10-02 11:57:04 Verdicts: no sales yet 3146, fewer than 2 photos 1409, over max buy 1063, too few sales (1) 769, too few sales (2) 344, too few sales (3) 194, suspect 162, too few sales (4) 87, condition HP 39, seller < 98% 13, seller < 95% 5, condition MP 2
+2026-10-02 11:57:04 Cards: 36 with 5+ sales behind the anchor, 51 liquid at the collector's defaults, 36 both
+2026-10-02 11:57:04 Scam screen: 21289 clean, 5010 watch, 637 suspect among open listings; signals: est 8198, fb0 4896, fb1 4142, slow 2349, img 2275, top 651, pct 634, p50 470, p65 397, p75 323, ret 251, burst 97, dup 24, qty 1
+2026-10-02 12:56:51 Rate limit: 3910 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 12:57:04 Hour: discovery read 12587 summaries, 178 new, 119 matched, 59 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 16 sold, 10 ended, 0 gone, 110 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-02 12:57:04 Now: 27029 open, 2151 closed, 5724 cards with data, 7261 listings in 24 h, 0 pass the gate; budget 3910 left, 2.27 optional calls/min, 0 tokens; 2640 calls today
+2026-10-02 12:57:04 Verdicts: no sales yet 3163, fewer than 2 photos 1412, over max buy 1064, too few sales (1) 780, too few sales (2) 344, too few sales (3) 193, suspect 162, too few sales (4) 87, condition HP 37, seller < 98% 12, seller < 95% 5, condition MP 2
+2026-10-02 12:57:04 Cards: 36 with 5+ sales behind the anchor, 51 liquid at the collector's defaults, 36 both
+2026-10-02 12:57:04 Scam screen: 21358 clean, 5034 watch, 637 suspect among open listings; signals: est 8239, fb0 4919, fb1 4145, slow 2374, img 2286, top 651, pct 635, p50 469, p65 400, p75 324, ret 251, burst 97, dup 24, qty 1
+2026-10-02 13:56:51 Rate limit: 3700 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 13:57:04 Hour: discovery read 12641 summaries, 310 new, 178 matched, 132 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 20 sold, 7 ended, 0 gone, 109 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.1 min
+2026-10-02 13:57:04 Now: 27180 open, 2179 closed, 5737 cards with data, 7321 listings in 24 h, 0 pass the gate; budget 3700 left, 2.27 optional calls/min, 0 tokens; 2848 calls today
+2026-10-02 13:57:04 Verdicts: no sales yet 3173, fewer than 2 photos 1416, over max buy 1086, too few sales (1) 757, too few sales (2) 371, too few sales (3) 215, suspect 164, too few sales (4) 85, condition HP 36, seller < 98% 11, seller < 95% 5, condition MP 2
+2026-10-02 13:57:04 Cards: 36 with 5+ sales behind the anchor, 52 liquid at the collector's defaults, 36 both
+2026-10-02 13:57:04 Scam screen: 21462 clean, 5077 watch, 641 suspect among open listings; signals: est 8284, fb0 4961, fb1 4161, slow 2411, img 2300, top 651, pct 636, p50 471, p65 407, p75 328, ret 251, burst 97, dup 24, qty 1
+2026-10-02 14:54:58 Catalog refreshed: pc_catalog_2026-10-02.csv.gz.enc
+2026-10-02 14:56:51 Rate limit: 3500 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 14:57:03 Hour: discovery read 12647 summaries, 392 new, 281 matched, 111 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 22 sold, 7 ended, 0 gone, 108 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 28 publishes | median indexing lag 4.1 min
+2026-10-02 14:57:03 Now: 27432 open, 2208 closed, 5754 cards with data, 7380 listings in 24 h, 0 pass the gate; budget 3500 left, 2.28 optional calls/min, 0 tokens; 3057 calls today
+2026-10-02 14:57:03 Verdicts: no sales yet 3116, fewer than 2 photos 1434, over max buy 1148, too few sales (1) 778, too few sales (2) 374, too few sales (3) 206, suspect 169, too few sales (4) 97, condition HP 38, seller < 98% 12, seller < 95% 6, condition MP 2
+2026-10-02 14:57:03 Cards: 36 with 5+ sales behind the anchor, 53 liquid at the collector's defaults, 36 both
+2026-10-02 14:57:03 Scam screen: 21648 clean, 5127 watch, 657 suspect among open listings; signals: est 8373, fb0 5020, fb1 4185, slow 2470, img 2323, top 654, pct 638, p50 476, p65 420, p75 344, ret 252, burst 104, dup 24, qty 1
+2026-10-02 15:56:51 Rate limit: 3290 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 15:57:03 Hour: discovery read 12439 summaries, 673 new, 458 matched, 215 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 21 sold, 14 ended, 0 gone, 101 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.3 min
+2026-10-02 15:57:03 Now: 27855 open, 2243 closed, 5836 cards with data, 7508 listings in 24 h, 0 pass the gate; budget 3290 left, 2.28 optional calls/min, 0 tokens; 3265 calls today
+2026-10-02 15:57:03 Verdicts: no sales yet 3056, fewer than 2 photos 1565, over max buy 1194, too few sales (1) 780, too few sales (2) 364, too few sales (3) 219, suspect 169, too few sales (4) 98, condition HP 38, seller < 98% 14, seller < 95% 9, condition MP 2
+2026-10-02 15:57:03 Cards: 36 with 5+ sales behind the anchor, 53 liquid at the collector's defaults, 36 both
+2026-10-02 15:57:03 Scam screen: 22011 clean, 5177 watch, 667 suspect among open listings; signals: est 8482, fb0 5061, fb1 4246, slow 2657, img 2472, top 662, pct 648, p50 487, p65 426, p75 356, ret 251, burst 106, dup 24, qty 1
+2026-10-02 16:56:51 Rate limit: 3080 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 16:57:02 Hour: discovery read 12597 summaries, 574 new, 433 matched, 141 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 25 sold, 27 ended, 0 gone, 85 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.3 min
+2026-10-02 16:57:02 Now: 28236 open, 2295 closed, 5901 cards with data, 7594 listings in 24 h, 0 pass the gate; budget 3080 left, 2.28 optional calls/min, 0 tokens; 3474 calls today
+2026-10-02 16:57:02 Verdicts: no sales yet 3066, fewer than 2 photos 1585, over max buy 1232, too few sales (1) 778, too few sales (2) 362, too few sales (3) 196, suspect 188, too few sales (4) 117, condition HP 43, seller < 98% 15, seller < 95% 10, condition MP 2
+2026-10-02 16:57:02 Cards: 36 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 36 both
+2026-10-02 16:57:02 Scam screen: 22297 clean, 5221 watch, 718 suspect among open listings; signals: est 8641, fb0 5113, fb1 4312, slow 2745, img 2526, top 675, pct 658, p50 518, p65 426, p75 362, ret 251, burst 144, dup 24, qty 1
+2026-10-02 17:57:21 Rate limit: 2880 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 17:57:35 Hour: discovery read 12385 summaries, 587 new, 458 matched, 129 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 22 sold, 53 ended, 0 gone, 60 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.2 min
+2026-10-02 17:57:35 Now: 28619 open, 2370 closed, 5933 cards with data, 7729 listings in 24 h, 0 pass the gate; budget 2880 left, 2.29 optional calls/min, 0 tokens; 3680 calls today
+2026-10-02 17:57:35 Verdicts: no sales yet 3035, fewer than 2 photos 1572, over max buy 1314, too few sales (1) 846, too few sales (2) 363, too few sales (3) 201, suspect 193, too few sales (4) 125, condition HP 48, seller < 98% 19, seller < 95% 11, condition MP 2
+2026-10-02 17:57:35 Cards: 36 with 5+ sales behind the anchor, 55 liquid at the collector's defaults, 36 both
+2026-10-02 17:57:35 Scam screen: 22620 clean, 5267 watch, 732 suspect among open listings; signals: est 8774, fb0 5159, fb1 4387, slow 2830, img 2604, top 678, pct 665, p50 522, p65 429, p75 368, ret 249, burst 155, dup 24, qty 1
+2026-10-02 18:57:21 Rate limit: 2670 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 18:57:35 Hour: discovery read 12655 summaries, 733 new, 553 matched, 180 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 32 sold, 11 ended, 0 gone, 94 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.1 min
+2026-10-02 18:57:35 Now: 29129 open, 2413 closed, 5980 cards with data, 7989 listings in 24 h, 0 pass the gate; budget 2670 left, 2.29 optional calls/min, 0 tokens; 3889 calls today
+2026-10-02 18:57:35 Verdicts: no sales yet 3104, fewer than 2 photos 1603, over max buy 1390, too few sales (1) 890, too few sales (2) 383, too few sales (3) 209, suspect 203, too few sales (4) 122, condition HP 52, seller < 98% 20, seller < 95% 11, condition MP 2
+2026-10-02 18:57:35 Cards: 37 with 5+ sales behind the anchor, 56 liquid at the collector's defaults, 37 both
+2026-10-02 18:57:35 Scam screen: 23011 clean, 5363 watch, 755 suspect among open listings; signals: est 8928, fb0 5255, fb1 4481, slow 2956, img 2667, top 682, pct 663, p50 540, p65 448, p75 379, ret 251, burst 161, dup 24, qty 1
+2026-10-02 19:57:21 Rate limit: 2460 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 19:57:35 Hour: discovery read 12663 summaries, 867 new, 605 matched, 262 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 39 sold, 8 ended, 0 gone, 90 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 19:57:35 Now: 29687 open, 2461 closed, 6020 cards with data, 8211 listings in 24 h, 0 pass the gate; budget 2460 left, 2.29 optional calls/min, 0 tokens; 4098 calls today
+2026-10-02 19:57:35 Verdicts: no sales yet 3112, fewer than 2 photos 1620, over max buy 1531, too few sales (1) 898, too few sales (2) 424, suspect 210, too few sales (3) 205, too few sales (4) 123, condition HP 56, seller < 98% 18, seller < 95% 11, condition MP 3
+2026-10-02 19:57:35 Cards: 37 with 5+ sales behind the anchor, 57 liquid at the collector's defaults, 37 both
+2026-10-02 19:57:35 Scam screen: 23469 clean, 5440 watch, 778 suspect among open listings; signals: est 9085, fb0 5340, fb1 4574, slow 3117, img 2738, top 685, pct 668, p50 550, p65 454, p75 389, ret 252, burst 170, dup 24, qty 1
+2026-10-02 20:57:21 Rate limit: 2250 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 20:57:34 Hour: discovery read 12622 summaries, 885 new, 647 matched, 238 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 26 sold, 5 ended, 1 gone, 106 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 3.9 min
+2026-10-02 20:57:34 Now: 30302 open, 2493 closed, 6073 cards with data, 8388 listings in 24 h, 0 pass the gate; budget 2250 left, 2.28 optional calls/min, 0 tokens; 4308 calls today
+2026-10-02 20:57:34 Verdicts: no sales yet 3079, fewer than 2 photos 1689, over max buy 1635, too few sales (1) 910, too few sales (2) 432, too few sales (3) 217, suspect 211, too few sales (4) 126, condition HP 53, seller < 98% 22, seller < 95% 11, condition MP 3
+2026-10-02 20:57:34 Cards: 37 with 5+ sales behind the anchor, 56 liquid at the collector's defaults, 37 both
+2026-10-02 20:57:34 Scam screen: 23973 clean, 5560 watch, 769 suspect among open listings; signals: est 9287, fb0 5431, fb1 4657, slow 3327, img 2919, top 691, pct 683, p50 555, p65 460, p75 400, ret 251, burst 150, dup 24, qty 1
+2026-10-02 21:57:21 Rate limit: 2050 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 21:57:33 Hour: discovery read 12906 summaries, 884 new, 646 matched, 238 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 30 sold, 11 ended, 0 gone, 96 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 21:57:33 Now: 30907 open, 2534 closed, 6123 cards with data, 8487 listings in 24 h, 0 pass the gate; budget 2050 left, 2.3 optional calls/min, 0 tokens; 4517 calls today
+2026-10-02 21:57:33 Verdicts: no sales yet 3115, over max buy 1742, fewer than 2 photos 1585, too few sales (1) 930, too few sales (2) 449, suspect 222, too few sales (3) 216, too few sales (4) 126, condition HP 61, seller < 98% 27, seller < 95% 11, condition MP 3
+2026-10-02 21:57:33 Cards: 37 with 5+ sales behind the anchor, 57 liquid at the collector's defaults, 37 both
+2026-10-02 21:57:33 Scam screen: 24428 clean, 5690 watch, 789 suspect among open listings; signals: est 9417, fb0 5560, fb1 4788, slow 3553, img 3006, top 701, pct 697, p50 561, p65 465, p75 411, ret 248, burst 158, dup 24, qty 1
+2026-10-02 22:57:22 Rate limit: 1830 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 22:57:33 Hour: discovery read 12756 summaries, 885 new, 632 matched, 253 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 24 sold, 7 ended, 1 gone, 106 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-02 22:57:33 Now: 31507 open, 2567 closed, 6150 cards with data, 8605 listings in 24 h, 0 pass the gate; budget 1830 left, 2.28 optional calls/min, 0 tokens; 4727 calls today
+2026-10-02 22:57:33 Verdicts: no sales yet 3094, over max buy 1845, fewer than 2 photos 1593, too few sales (1) 944, too few sales (2) 439, suspect 223, too few sales (3) 200, too few sales (4) 151, condition HP 62, seller < 98% 30, seller < 95% 21, condition MP 3
+2026-10-02 22:57:33 Cards: 37 with 5+ sales behind the anchor, 59 liquid at the collector's defaults, 37 both
+2026-10-02 22:57:33 Scam screen: 24902 clean, 5802 watch, 803 suspect among open listings; signals: est 9585, fb0 5653, fb1 4876, slow 3773, img 3108, pct 715, top 703, p50 578, p65 484, p75 430, ret 249, burst 154, dup 24, qty 1
+2026-10-02 23:57:21 Rate limit: 1630 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-02 23:57:33 Hour: discovery read 12760 summaries, 772 new, 577 matched, 195 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 20 sold, 7 ended, 0 gone, 110 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.9 min
+2026-10-02 23:57:33 Now: 32057 open, 2594 closed, 6189 cards with data, 8685 listings in 24 h, 0 pass the gate; budget 1630 left, 2.3 optional calls/min, 0 tokens; 4936 calls today
+2026-10-02 23:57:33 Verdicts: no sales yet 3063, over max buy 1935, fewer than 2 photos 1592, too few sales (1) 969, too few sales (2) 416, suspect 219, too few sales (3) 203, too few sales (4) 166, condition HP 65, seller < 98% 31, seller < 95% 21, condition MP 5
+2026-10-02 23:57:33 Cards: 38 with 5+ sales behind the anchor, 59 liquid at the collector's defaults, 38 both
+2026-10-02 23:57:33 Scam screen: 25318 clean, 5929 watch, 810 suspect among open listings; signals: est 9743, fb0 5752, fb1 5015, slow 3965, img 3204, pct 732, top 705, p50 597, p65 494, p75 430, ret 248, burst 141, dup 24, qty 1
+2026-10-03 00:57:22 Rate limit: 1420 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 00:57:33 Hour: discovery read 12629 summaries, 854 new, 615 matched, 239 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 19 sold, 9 ended, 0 gone, 110 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 00:57:33 Now: 32644 open, 2622 closed, 6225 cards with data, 8829 listings in 24 h, 0 pass the gate; budget 1420 left, 2.3 optional calls/min, 0 tokens; 203 calls today
+2026-10-03 00:57:33 Verdicts: no sales yet 3026, over max buy 2050, fewer than 2 photos 1620, too few sales (1) 976, too few sales (2) 434, suspect 215, too few sales (3) 210, too few sales (4) 167, condition HP 72, seller < 98% 35, seller < 95% 19, condition MP 5
+2026-10-03 00:57:33 Cards: 38 with 5+ sales behind the anchor, 60 liquid at the collector's defaults, 38 both
+2026-10-03 00:57:33 Scam screen: 25788 clean, 6036 watch, 820 suspect among open listings; signals: est 9905, fb0 5862, fb1 5100, slow 4154, img 3302, pct 740, top 710, p50 601, p65 505, p75 438, ret 246, burst 137, dup 24, qty 1
+2026-10-03 01:57:21 Rate limit: 1210 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 01:57:34 Hour: discovery read 12622 summaries, 869 new, 712 matched, 157 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 26 sold, 5 ended, 0 gone, 108 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.9 min
+2026-10-03 01:57:34 Now: 33325 open, 2655 closed, 6267 cards with data, 9091 listings in 24 h, 0 pass the gate; budget 1210 left, 2.3 optional calls/min, 0 tokens; 414 calls today
+2026-10-03 01:57:34 Verdicts: no sales yet 3028, over max buy 2187, fewer than 2 photos 1692, too few sales (1) 985, too few sales (2) 445, suspect 236, too few sales (3) 224, too few sales (4) 150, condition HP 79, seller < 98% 38, seller < 95% 21, condition MP 5, review 1
+2026-10-03 01:57:34 Cards: 39 with 5+ sales behind the anchor, 60 liquid at the collector's defaults, 39 both
+2026-10-03 01:57:34 Scam screen: 26281 clean, 6178 watch, 866 suspect among open listings; signals: est 10090, fb0 6029, fb1 5197, slow 4387, img 3441, pct 748, top 715, p50 614, p65 522, p75 443, ret 247, burst 160, dup 24, qty 1
+2026-10-03 02:57:21 Rate limit: 990 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 02:57:34 Hour: discovery read 12547 summaries, 833 new, 678 matched, 155 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 23 sold, 11 ended, 0 gone, 104 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 02:57:34 Now: 33969 open, 2689 closed, 6312 cards with data, 9259 listings in 24 h, 0 pass the gate; budget 990 left, 2.26 optional calls/min, 0 tokens; 624 calls today
+2026-10-03 02:57:34 Verdicts: no sales yet 3073, over max buy 2296, fewer than 2 photos 1607, too few sales (1) 1054, too few sales (2) 448, suspect 248, too few sales (3) 227, too few sales (4) 157, condition HP 81, seller < 98% 41, seller < 95% 22, condition MP 4, review 1
+2026-10-03 02:57:34 Cards: 40 with 5+ sales behind the anchor, 60 liquid at the collector's defaults, 40 both
+2026-10-03 02:57:34 Scam screen: 26701 clean, 6383 watch, 885 suspect among open listings; signals: est 10243, fb0 6235, fb1 5290, slow 4590, img 3487, pct 758, top 717, p50 629, p65 526, p75 454, ret 247, burst 165, dup 24, qty 1
+2026-10-03 03:57:26 Rate limit: 790 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 03:57:38 Hour: discovery read 12149 summaries, 632 new, 505 matched, 127 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 34 sold, 5 ended, 1 gone, 93 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-03 03:57:38 Now: 34434 open, 2729 closed, 6333 cards with data, 9273 listings in 24 h, 0 pass the gate; budget 790 left, 2.31 optional calls/min, 0 tokens; 826 calls today
+2026-10-03 03:57:38 Verdicts: no sales yet 2965, over max buy 2384, fewer than 2 photos 1630, too few sales (1) 1044, too few sales (2) 423, suspect 275, too few sales (3) 253, too few sales (4) 147, condition HP 82, seller < 98% 41, seller < 95% 24, condition MP 4, review 1
+2026-10-03 03:57:38 Cards: 41 with 5+ sales behind the anchor, 60 liquid at the collector's defaults, 41 both
+2026-10-03 03:57:38 Scam screen: 27038 clean, 6478 watch, 918 suspect among open listings; signals: est 10333, fb0 6358, fb1 5369, slow 4784, img 3567, pct 763, top 719, p50 628, p65 535, p75 473, ret 250, burst 192, dup 24, qty 1
+2026-10-03 04:57:26 Rate limit: 580 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 04:57:39 Hour: discovery read 12552 summaries, 444 new, 330 matched, 114 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 25 sold, 9 ended, 2 gone, 103 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 04:57:39 Now: 34728 open, 2765 closed, 6352 cards with data, 9186 listings in 24 h, 0 pass the gate; budget 580 left, 2.31 optional calls/min, 0 tokens; 1037 calls today
+2026-10-03 04:57:39 Verdicts: no sales yet 2909, over max buy 2434, fewer than 2 photos 1566, too few sales (1) 1025, too few sales (2) 383, suspect 294, too few sales (3) 275, too few sales (4) 144, condition HP 83, seller < 98% 44, seller < 95% 24, condition MP 4, review 1
+2026-10-03 04:57:39 Cards: 41 with 5+ sales behind the anchor, 61 liquid at the collector's defaults, 41 both
+2026-10-03 04:57:39 Scam screen: 27275 clean, 6520 watch, 933 suspect among open listings; signals: est 10380, fb0 6441, fb1 5435, slow 4905, img 3606, pct 765, top 720, p50 598, p65 530, p75 491, ret 249, burst 214, dup 24, qty 1
+2026-10-03 05:57:26 Rate limit: 370 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 05:57:39 Hour: discovery read 12501 summaries, 394 new, 306 matched, 88 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 11 sold, 12 ended, 1 gone, 114 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 05:57:39 Now: 35010 open, 2789 closed, 6362 cards with data, 9205 listings in 24 h, 0 pass the gate; budget 370 left, 2.32 optional calls/min, 0 tokens; 1247 calls today
+2026-10-03 05:57:39 Verdicts: no sales yet 2897, over max buy 2487, fewer than 2 photos 1534, too few sales (1) 1026, too few sales (2) 382, suspect 293, too few sales (3) 276, too few sales (4) 152, condition HP 84, seller < 98% 44, seller < 95% 25, condition MP 4, review 1
+2026-10-03 05:57:39 Cards: 41 with 5+ sales behind the anchor, 62 liquid at the collector's defaults, 41 both
+2026-10-03 05:57:39 Scam screen: 27478 clean, 6595 watch, 937 suspect among open listings; signals: est 10477, fb0 6508, fb1 5477, slow 5047, img 3670, pct 767, top 720, p50 598, p65 535, p75 504, ret 246, burst 214, dup 24, qty 1
+2026-10-03 06:57:26 Rate limit: 160 of 5000 calls left (buy.browse), resets 2026-10-03T07:00:00.000Z, window 86400 s
+2026-10-03 06:57:40 Hour: discovery read 12463 summaries, 305 new, 174 matched, 131 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 36 sold, 18 ended, 0 gone, 87 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.9 min
+2026-10-03 06:57:40 Now: 35130 open, 2843 closed, 6375 cards with data, 9238 listings in 24 h, 0 pass the gate; budget 160 left, 2.71 optional calls/min, 0 tokens; 1460 calls today
+2026-10-03 06:57:40 Verdicts: no sales yet 2901, over max buy 2522, fewer than 2 photos 1517, too few sales (1) 1038, too few sales (2) 403, suspect 287, too few sales (3) 271, too few sales (4) 138, condition HP 84, seller < 98% 44, seller < 95% 27, condition MP 5, review 1
+2026-10-03 06:57:40 Cards: 42 with 5+ sales behind the anchor, 62 liquid at the collector's defaults, 42 both
+2026-10-03 06:57:40 Scam screen: 27558 clean, 6642 watch, 930 suspect among open listings; signals: est 10508, fb0 6541, fb1 5507, slow 5130, img 3689, pct 765, top 720, p50 598, p65 537, p75 508, ret 246, burst 208, dup 24, qty 1
+2026-10-03 07:57:26 Rate limit: 4980 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 07:57:39 Hour: discovery read 7325 summaries, 165 new, 122 matched, 43 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 0 sold, 1 ended, 0 gone, 5 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 07:57:39 Now: 35251 open, 2844 closed, 6380 cards with data, 9287 listings in 24 h, 0 pass the gate; budget 4980 left, 2.29 optional calls/min, 0 tokens; 1505 calls today
+2026-10-03 07:57:39 Verdicts: no sales yet 2916, over max buy 2537, fewer than 2 photos 1511, too few sales (1) 1056, too few sales (2) 398, suspect 291, too few sales (3) 273, too few sales (4) 141, condition HP 87, seller < 98% 45, seller < 95% 26, condition MP 5, review 1
+2026-10-03 07:57:39 Cards: 42 with 5+ sales behind the anchor, 62 liquid at the collector's defaults, 42 both
+2026-10-03 07:57:39 Scam screen: 27639 clean, 6676 watch, 936 suspect among open listings; signals: est 10525, fb0 6577, fb1 5545, slow 5157, img 3700, pct 766, top 720, p50 602, p65 540, p75 510, ret 246, burst 208, dup 24, qty 1
+2026-10-03 08:57:26 Rate limit: 4770 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 08:57:39 Hour: discovery read 12677 summaries, 184 new, 89 matched, 95 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 35 sold, 15 ended, 0 gone, 88 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 08:57:39 Now: 35290 open, 2894 closed, 6386 cards with data, 9313 listings in 24 h, 0 pass the gate; budget 4770 left, 2.29 optional calls/min, 0 tokens; 1715 calls today
+2026-10-03 08:57:39 Verdicts: no sales yet 2906, over max buy 2574, fewer than 2 photos 1518, too few sales (1) 1075, too few sales (2) 369, too few sales (3) 306, suspect 291, too few sales (4) 107, condition HP 89, seller < 98% 46, seller < 95% 26, condition MP 5, review 1
+2026-10-03 08:57:39 Cards: 44 with 5+ sales behind the anchor, 63 liquid at the collector's defaults, 44 both
+2026-10-03 08:57:39 Scam screen: 27661 clean, 6684 watch, 945 suspect among open listings; signals: est 10521, fb0 6588, fb1 5554, slow 5186, img 3718, pct 766, top 721, p50 607, p65 543, p75 502, ret 245, burst 212, dup 24, qty 1
+2026-10-03 09:57:26 Rate limit: 4560 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 09:57:39 Hour: discovery read 12780 summaries, 144 new, 106 matched, 38 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 28 sold, 9 ended, 0 gone, 100 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 09:57:39 Now: 35359 open, 2931 closed, 6394 cards with data, 9331 listings in 24 h, 0 pass the gate; budget 4560 left, 2.29 optional calls/min, 0 tokens; 1924 calls today
+2026-10-03 09:57:39 Verdicts: no sales yet 2903, over max buy 2582, fewer than 2 photos 1479, too few sales (1) 1077, too few sales (2) 360, suspect 330, too few sales (3) 324, too few sales (4) 107, condition HP 91, seller < 98% 46, seller < 95% 26, condition MP 5, review 1
+2026-10-03 09:57:39 Cards: 44 with 5+ sales behind the anchor, 63 liquid at the collector's defaults, 44 both
+2026-10-03 09:57:39 Scam screen: 27665 clean, 6707 watch, 987 suspect among open listings; signals: est 10531, fb0 6636, fb1 5556, slow 5206, img 3729, pct 771, top 721, p50 623, p65 546, p75 510, ret 250, burst 249, dup 24, qty 1
+2026-10-03 10:57:26 Rate limit: 4350 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 10:57:39 Hour: discovery read 12574 summaries, 61 new, 41 matched, 20 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 35 sold, 15 ended, 3 gone, 85 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-03 10:57:39 Now: 35347 open, 2984 closed, 6396 cards with data, 9311 listings in 24 h, 0 pass the gate; budget 4350 left, 2.29 optional calls/min, 0 tokens; 2134 calls today
+2026-10-03 10:57:39 Verdicts: no sales yet 2885, over max buy 2584, fewer than 2 photos 1469, too few sales (1) 1082, too few sales (2) 364, suspect 336, too few sales (3) 310, too few sales (4) 110, condition HP 93, seller < 98% 45, seller < 95% 26, condition MP 5, review 2
+2026-10-03 10:57:39 Cards: 46 with 5+ sales behind the anchor, 66 liquid at the collector's defaults, 46 both
+2026-10-03 10:57:39 Scam screen: 27645 clean, 6705 watch, 997 suspect among open listings; signals: est 10539, fb0 6630, fb1 5553, slow 5217, img 3730, pct 769, top 721, p50 641, p65 557, p75 520, burst 248, ret 247, dup 24, qty 1
+2026-10-03 11:57:26 Rate limit: 4140 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 11:57:40 Hour: discovery read 12464 summaries, 187 new, 111 matched, 76 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 27 sold, 15 ended, 0 gone, 96 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 11:57:40 Now: 35416 open, 3027 closed, 6403 cards with data, 9376 listings in 24 h, 0 pass the gate; budget 4140 left, 2.29 optional calls/min, 0 tokens; 2344 calls today
+2026-10-03 11:57:40 Verdicts: no sales yet 2901, over max buy 2600, fewer than 2 photos 1473, too few sales (1) 1080, too few sales (2) 370, suspect 334, too few sales (3) 330, too few sales (4) 110, condition HP 100, seller < 98% 45, seller < 95% 26, condition MP 5, review 2
+2026-10-03 11:57:40 Cards: 46 with 5+ sales behind the anchor, 67 liquid at the collector's defaults, 46 both
+2026-10-03 11:57:40 Scam screen: 27692 clean, 6725 watch, 999 suspect among open listings; signals: est 10550, fb0 6639, fb1 5580, slow 5239, img 3748, pct 783, top 721, p50 643, p65 558, p75 518, burst 249, ret 246, dup 24, qty 1
+2026-10-03 12:57:26 Rate limit: 3930 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 12:57:40 Hour: discovery read 12560 summaries, 185 new, 127 matched, 58 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 37 sold, 2 ended, 0 gone, 98 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 4.0 min
+2026-10-03 12:57:40 Now: 35504 open, 3066 closed, 6412 cards with data, 9384 listings in 24 h, 0 pass the gate; budget 3930 left, 2.29 optional calls/min, 0 tokens; 2553 calls today
+2026-10-03 12:57:40 Verdicts: no sales yet 2897, over max buy 2620, fewer than 2 photos 1478, too few sales (1) 1043, too few sales (2) 387, suspect 339, too few sales (3) 317, too few sales (4) 126, condition HP 100, seller < 98% 44, seller < 95% 26, condition MP 5, review 2
+2026-10-03 12:57:40 Cards: 47 with 5+ sales behind the anchor, 70 liquid at the collector's defaults, 47 both
+2026-10-03 12:57:40 Scam screen: 27721 clean, 6771 watch, 1012 suspect among open listings; signals: est 10545, fb0 6673, fb1 5604, slow 5268, img 3764, pct 792, top 712, p50 649, p65 584, p75 530, burst 249, ret 245, dup 24, qty 1
+2026-10-03 13:58:01 Rate limit: 3730 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 13:58:14 Hour: discovery read 12133 summaries, 274 new, 196 matched, 78 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 35 sold, 8 ended, 0 gone, 90 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 3.9 min
+2026-10-03 13:58:14 Now: 35657 open, 3110 closed, 6430 cards with data, 9396 listings in 24 h, 0 pass the gate; budget 3730 left, 2.3 optional calls/min, 0 tokens; 2756 calls today
+2026-10-03 13:58:14 Verdicts: no sales yet 2880, over max buy 2632, fewer than 2 photos 1490, too few sales (1) 1050, too few sales (2) 366, too few sales (3) 344, suspect 330, too few sales (4) 125, condition HP 102, seller < 98% 45, seller < 95% 26, condition MP 4, review 2
+2026-10-03 13:58:14 Cards: 47 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 47 both
+2026-10-03 13:58:14 Scam screen: 27843 clean, 6805 watch, 1009 suspect among open listings; signals: est 10583, fb0 6695, fb1 5632, slow 5308, img 3790, pct 796, top 714, p50 650, p65 597, p75 532, ret 245, burst 243, dup 24, qty 1
+2026-10-03 14:55:28 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-03 14:55:37 Catalog refreshed: pc_catalog_2026-10-03.csv.gz.enc
+2026-10-03 14:57:50 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-03 14:58:53 Rate limit: 3530 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 14:59:06 Hour: discovery read 12209 summaries, 375 new, 297 matched, 78 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 35 sold, 5 ended, 0 gone, 94 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 28 publishes | median indexing lag 3.9 min
+2026-10-03 14:59:06 Now: 35914 open, 3150 closed, 6455 cards with data, 9395 listings in 24 h, 1 pass the gate; budget 3530 left, 2.32 optional calls/min, 0 tokens; 2960 calls today
+2026-10-03 14:59:06 Verdicts: no sales yet 2901, over max buy 2626, fewer than 2 photos 1483, too few sales (1) 1026, too few sales (2) 377, too few sales (3) 347, suspect 318, too few sales (4) 135, condition HP 100, seller < 98% 44, seller < 95% 26, no data yet 5, condition MP 4, review 2, PASS 1
+2026-10-03 14:59:06 Cards: 47 with 5+ sales behind the anchor, 73 liquid at the collector's defaults, 47 both
+2026-10-03 14:59:06 Scam screen: 28046 clean, 6861 watch, 1007 suspect among open listings; signals: est 10656, fb0 6737, fb1 5692, slow 5343, img 3822, pct 803, top 714, p50 656, p65 610, p75 542, ret 248, burst 232, dup 24, qty 1
+2026-10-03 15:02:08 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-03 15:04:24 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-03 15:06:41 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-03 15:59:28 Rate limit: 3330 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 15:59:44 Hour: discovery read 11780 summaries, 748 new, 511 matched, 237 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 32 sold, 7 ended, 1 gone, 91 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 27 publishes | median indexing lag 4.0 min
+2026-10-03 15:59:44 Now: 36385 open, 3190 closed, 6543 cards with data, 9460 listings in 24 h, 1 pass the gate; budget 3330 left, 2.33 optional calls/min, 0 tokens; 3159 calls today
+2026-10-03 15:59:44 Verdicts: no sales yet 2869, over max buy 2668, fewer than 2 photos 1530, too few sales (1) 1028, too few sales (2) 411, too few sales (3) 347, suspect 299, too few sales (4) 130, condition HP 102, seller < 98% 42, seller < 95% 23, no data yet 5, condition MP 4, PASS 1, review 1
+2026-10-03 15:59:44 Cards: 48 with 5+ sales behind the anchor, 52 liquid at the collector's defaults, 48 both
+2026-10-03 15:59:44 Scam screen: 28434 clean, 6953 watch, 998 suspect among open listings; signals: est 10748, fb0 6812, fb1 5747, slow 5553, img 4002, pct 814, top 714, p50 660, p65 621, p75 560, ret 249, burst 210, dup 24, qty 1
+2026-10-03 16:59:28 Rate limit: 3120 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 16:59:45 Hour: discovery read 12781 summaries, 569 new, 414 matched, 155 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 41 sold, 7 ended, 0 gone, 92 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 4.0 min
+2026-10-03 16:59:45 Now: 36751 open, 3239 closed, 6562 cards with data, 9436 listings in 24 h, 2 pass the gate; budget 3120 left, 2.33 optional calls/min, 0 tokens; 3371 calls today
+2026-10-03 16:59:45 Verdicts: no sales yet 2801, over max buy 2669, fewer than 2 photos 1522, too few sales (1) 1071, too few sales (2) 408, too few sales (3) 351, suspect 306, too few sales (4) 132, condition HP 98, seller < 98% 41, seller < 95% 25, condition MP 4, no data yet 4, review 2, PASS 2
+2026-10-03 16:59:45 Cards: 49 with 5+ sales behind the anchor, 52 liquid at the collector's defaults, 49 both
+2026-10-03 16:59:45 Scam screen: 28691 clean, 7050 watch, 1010 suspect among open listings; signals: est 10842, fb0 6888, fb1 5835, slow 5636, img 4052, pct 831, top 715, p50 666, p65 646, p75 590, ret 248, burst 204, dup 24, qty 1
+2026-10-03 17:59:55 Rate limit: 2900 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 18:02:13 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-03 18:02:13 Hour: discovery read 12654 summaries, 609 new, 473 matched, 136 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 37 sold, 11 ended, 0 gone, 92 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 3.9 min
+2026-10-03 18:02:13 Now: 37176 open, 3287 closed, 6582 cards with data, 9453 listings in 24 h, 2 pass the gate; budget 2900 left, 2.33 optional calls/min, 0 tokens; 3583 calls today
+2026-10-03 18:02:13 Verdicts: no sales yet 2816, over max buy 2693, fewer than 2 photos 1493, too few sales (1) 1073, too few sales (2) 403, too few sales (3) 351, suspect 305, too few sales (4) 147, condition HP 99, seller < 98% 38, seller < 95% 24, no data yet 4, condition MP 3, review 2, PASS 2
+2026-10-03 18:02:13 Cards: 50 with 5+ sales behind the anchor, 53 liquid at the collector's defaults, 50 both
+2026-10-03 18:02:13 Scam screen: 29031 clean, 7130 watch, 1015 suspect among open listings; signals: est 10955, fb0 6961, fb1 5942, slow 5724, img 4099, pct 849, top 718, p50 678, p65 643, p75 604, ret 249, burst 199, dup 24, qty 1
+2026-10-03 19:00:20 Rate limit: 2700 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 19:00:36 Hour: discovery read 12220 summaries, 645 new, 493 matched, 152 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 42 sold, 7 ended, 1 gone, 85 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 29 publishes | median indexing lag 3.9 min
+2026-10-03 19:00:36 Now: 37619 open, 3337 closed, 6607 cards with data, 9397 listings in 24 h, 2 pass the gate; budget 2700 left, 2.34 optional calls/min, 0 tokens; 3788 calls today
+2026-10-03 19:00:36 Verdicts: no sales yet 2761, over max buy 2700, fewer than 2 photos 1508, too few sales (1) 1052, too few sales (2) 425, too few sales (3) 326, suspect 289, too few sales (4) 162, condition HP 99, seller < 98% 37, seller < 95% 27, no data yet 4, condition MP 3, review 2, PASS 2
+2026-10-03 19:00:36 Cards: 53 with 5+ sales behind the anchor, 55 liquid at the collector's defaults, 53 both
+2026-10-03 19:00:36 Scam screen: 29384 clean, 7232 watch, 1003 suspect among open listings; signals: est 11100, fb0 7042, fb1 6021, slow 5818, img 4175, pct 868, top 718, p50 675, p65 649, p75 617, ret 250, burst 181, dup 32, qty 1
+2026-10-03 20:00:20 Rate limit: 2490 of 5000 calls left (buy.browse), resets 2026-10-04T07:00:00.000Z, window 86400 s
+2026-10-03 20:00:37 Hour: discovery read 12655 summaries, 611 new, 464 matched, 147 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 34 sold, 12 ended, 1 gone, 94 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 closed stale | 30 publishes | median indexing lag 3.9 min
+2026-10-03 20:00:37 Now: 38036 open, 3384 closed, 6630 cards with data, 9254 listings in 24 h, 2 pass the gate; budget 2490 left, 2.35 optional calls/min, 0 tokens; 4001 calls today
+2026-10-03 20:00:37 Verdicts: no sales yet 2706, over max buy 2631, fewer than 2 photos 1500, too few sales (1) 1035, too few sales (2) 415, suspect 311, too few sales (3) 307, too few sales (4) 171, condition HP 100, seller < 98% 39, seller < 95% 28, no data yet 4, condition MP 3, review 2, PASS 2
+2026-10-03 20:00:38 Cards: 54 with 5+ sales behind the anchor, 56 liquid at the collector's defaults, 54 both
+2026-10-03 20:00:38 Scam screen: 29699 clean, 7303 watch, 1034 suspect among open listings; signals: est 11238, fb0 7128, fb1 6086, slow 5908, img 4239, pct 877, top 726, p50 685, p65 669, p75 635, ret 251, burst 194, dup 32, qty 1
