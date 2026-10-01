@@ -3,11 +3,12 @@
   <button class="tab" data-t="ec">eBay Catalog</button>
   <button class="tab" data-t="er">eBay Raw Data</button>
   <div class="tools">
-    <label title="Chance of a sale inside the window that the P₂₄ / P₄₈ prices are set for">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
+    <label title="A card is liquid when at least one buyer is this likely to arrive inside the window">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
+    <label title="Your planned sell window; with Confidence it sets the sales rate a card needs">Window <input type="number" id="win" min="24" max="168" step="24" value="48">h</label>
     <label title="Raw Data: show only listings whose ROI clears your Margin (verdict PASS)"><input type="checkbox" id="hits"> Only show hits</label>
-    <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="15">%</label>
+    <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="10">%</label>
     <span class="lpc" id="lpc" title="LP correction, by the card's NM price tier">LP correction <span class="lpt" id="lpt">—</span><button class="help" data-h="lp">?</button></span>
-    <label id="callab" title="Shift P₄₈ / P₂₄ by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
+    <label id="callab" title="Shift the sell price by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
     <button class="readme" id="readme-btn">README</button>
   </div>
 </nav>
@@ -50,7 +51,7 @@
 <!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
 <section class="panel" id="p-ec" hidden>
 <div class="meta" id="meta-ec">eBay Catalog · loading live data…</div>
-<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$150. Numbers refresh every 15 minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
+<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$150. Numbers refresh every couple of minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
 <div class="controls">
   <input type="search" id="q-ec" placeholder="Search card or set…">
   <select id="set-ec"><option value="">All sets (release order)</option></select>
@@ -66,7 +67,7 @@
     <th colspan="4">Card</th>
     <th colspan="11" class="g-obs">Observed on eBay — independent inputs</th>
     <th colspan="4" class="g-rate">Rates — computed from Observed</th>
-    <th colspan="10" class="g-dec">Decisions — depend on λ, the book, Confidence and Margin</th>
+    <th colspan="8" class="g-dec">Decisions — depend on the anchor, the credible floor, Confidence, Window and Margin</th>
     <th colspan="8" class="g-tr">Trends — from a 7-day median of raw sale totals</th>
     <th></th>
   </tr>
@@ -90,23 +91,21 @@
     <th data-k="17" class="num g-rate">Price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
     <th data-k="18" class="num g-rate">Days supply<span class="s">⇅</span><button class="help" data-h="ec_dos">?</button></th>
     <th data-k="19" class="num g-rate">In/out<span class="s">⇅</span><button class="help" data-h="ec_io">?</button></th>
-    <th data-k="20" class="num g-dec">n₂₄<span class="s">⇅</span><button class="help" data-h="ec_n24">?</button></th>
-    <th data-k="21" class="num g-dec">n₄₈<span class="s">⇅</span><button class="help" data-h="ec_n24">?</button></th>
-    <th data-k="22" class="num g-dec">P₂₄ $<span class="s">⇅</span><button class="help" data-h="ec_p24">?</button></th>
-    <th data-k="23" class="num g-dec">P₄₈ $<span class="s">⇅</span><button class="help" data-h="ec_p48">?</button></th>
-    <th data-k="24" class="num g-dec">Window $<span class="s">⇅</span><button class="help" data-h="ec_pw">?</button></th>
-    <th data-k="25" class="num g-dec">P(≤24h) %<span class="s">⇅</span><button class="help" data-h="ec_prob">?</button></th>
-    <th data-k="26" class="num g-dec">Exp. days<span class="s">⇅</span><button class="help" data-h="ec_edays">?</button></th>
-    <th data-k="27" class="num g-dec">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
-    <th data-k="40" class="num g-dec">Net $<span class="s">⇅</span><button class="help" data-h="ec_net">?</button></th>
-    <th data-k="28" class="g-dec">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
-    <th data-k="32" class="num g-tr">Sales/month<span class="s">⇅</span><button class="help" data-h="et_spm">?</button></th>
-    <th data-k="33" class="num g-tr">Δ7d %<span class="s">⇅</span><button class="help" data-h="et_d7">?</button></th>
-    <th data-k="34" class="num g-tr">Δ30d %<span class="s">⇅</span><button class="help" data-h="et_d30">?</button></th>
-    <th data-k="35" class="num g-tr">Range 90d %<span class="s">⇅</span><button class="help" data-h="et_pos">?</button></th>
-    <th data-k="36" class="num g-tr">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="et_vd">?</button></th>
-    <th data-k="38" class="num g-tr">Volatility %<span class="s">⇅</span><button class="help" data-h="et_vol">?</button></th>
-    <th data-k="39" class="num g-tr">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="et_ts">?</button></th>
+    <th data-k="20" class="num g-dec">Anchor $<span class="s">⇅</span><button class="help" data-h="ec_A">?</button></th>
+    <th data-k="21" class="num g-dec">Floor $<span class="s">⇅</span><button class="help" data-h="ec_L">?</button></th>
+    <th data-k="22" class="num g-dec">Sell $<span class="s">⇅</span><button class="help" data-h="ec_S">?</button></th>
+    <th data-k="23" class="num g-dec">P(sale in window) %<span class="s">⇅</span><button class="help" data-h="ec_prob">?</button></th>
+    <th data-k="24" class="num g-dec">Exp. days<span class="s">⇅</span><button class="help" data-h="ec_edays">?</button></th>
+    <th data-k="25" class="num g-dec">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
+    <th data-k="38" class="num g-dec">Net $<span class="s">⇅</span><button class="help" data-h="ec_net">?</button></th>
+    <th data-k="26" class="g-dec">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
+    <th data-k="30" class="num g-tr">Sales/month<span class="s">⇅</span><button class="help" data-h="et_spm">?</button></th>
+    <th data-k="31" class="num g-tr">Δ7d %<span class="s">⇅</span><button class="help" data-h="et_d7">?</button></th>
+    <th data-k="32" class="num g-tr">Δ30d %<span class="s">⇅</span><button class="help" data-h="et_d30">?</button></th>
+    <th data-k="33" class="num g-tr">Range 90d %<span class="s">⇅</span><button class="help" data-h="et_pos">?</button></th>
+    <th data-k="34" class="num g-tr">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="et_vd">?</button></th>
+    <th data-k="36" class="num g-tr">Volatility %<span class="s">⇅</span><button class="help" data-h="et_vol">?</button></th>
+    <th data-k="37" class="num g-tr">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="et_ts">?</button></th>
     <th class="g-tr">Trend<button class="help" data-h="et_trend">?</button></th>
     <th>Book<button class="help" data-h="ec_book">?</button></th>
   </tr></thead>
@@ -144,9 +143,9 @@
     <th data-k="8" class="num">Ship $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
     <th data-k="9" class="num">Total $<span class="s">⇅</span><button class="help" data-h="er_total">?</button></th>
     <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
-    <th data-k="11" class="num">Card price $<span class="s">⇅</span><button class="help" data-h="ec_price">?</button></th>
-    <th data-k="12" class="num">vs price %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
-    <th data-k="26" class="num">P₄₈ $<span class="s">⇅</span><button class="help" data-h="ec_p48">?</button></th>
+    <th data-k="11" class="num">Anchor $<span class="s">⇅</span><button class="help" data-h="ec_A">?</button></th>
+    <th data-k="12" class="num">vs anchor %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
+    <th data-k="26" class="num">Sell $<span class="s">⇅</span><button class="help" data-h="ec_S">?</button></th>
     <th data-k="13" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
     <th data-k="24" class="num">Profit $<span class="s">⇅</span><button class="help" data-h="er_profit">?</button></th>
     <th data-k="25" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="er_roi">?</button></th>
@@ -164,7 +163,7 @@
 </table>
 </div>
 <button class="more" id="more-er" hidden>Show more</button>
-<footer>Listings are pulled from eBay every 15 minutes (raw singles, fixed price, $25–$200, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below the card's Max buy.</footer>
+<footer>Listings are pulled from eBay every minute (raw singles, fixed price, $25–$200, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below this listing's Max buy.</footer>
 </section>
 
 <div class="ov" id="rov">

@@ -40,13 +40,13 @@ const TABLES = {
       '<td class="num">' + fmtPct(r[12], false, 2) + '</td>' +
       '<td class="num">' + fmtPct(r[13]) + '</td>' +
       '<td><button class="tbtn" data-i="' + ordOf(r) + '">Trend</button></td>'},
-  // eBay Catalog row (three bands): 0 id 1 card 2 set 3 # 4 released |
+  // eBay Catalog row (four bands): 0 id 1 card 2 set 3 # 4 released |
   //   Observed: 5 k 6 D 7 N 8 p1 9 p2 10 p3 11 mu 12 smed 13 s80 14 hrs 15 st |
   //   Rates: 16 lam 17 price 18 dos 19 io |
-  //   Decisions: 20 n24 21 n48 22 p24 23 p48 24 pw 25 prob24 26 edays 27 maxbuy 28 hot 29 basis 30 confirm 31 checks |
-  //   Trends: 32 spm 33 d7 34 d30 35 pos 36 vdp 37 vd 38 vol 39 ts | 40 net | 41 ord
-  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 22, 23, 27, 40, 32, 34, 39],
-       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 22: 'P₂₄ $', 23: 'P₄₈ $', 27: 'Max buy $', 40: 'Net $', 32: 'Sales/month', 34: 'Δ30d %', 39: 'Slope %/mo'},
+  //   Decisions: 20 A 21 L 22 sell 23 probT 24 edays 25 maxbuy 26 hot 27 liquid 28 confirm 29 checks |
+  //   Trends: 30 spm 31 d7 32 d30 33 pos 34 vdp 35 vd 36 vol 37 ts | 38 net 39 A_n | 40 ord
+  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 20, 22, 25, 38, 30, 32, 37],
+       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 30: 'Sales/month', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 150]},
        hay: r => r[1] + ' ' + r[2],
        row: r => cells4(r) +
@@ -62,24 +62,25 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[17]) + '</td>' +
       '<td class="num">' + fmtNum(r[18], 1) + '</td>' +
       '<td class="num">' + fmtNum(r[19], 2) + '</td>' +
-      '<td class="num">' + fmtInt(r[20]) + '</td><td class="num">' + fmtInt(r[21]) + '</td>' +
-      '<td class="num">' + fmtMoney(r[22]) + '</td><td class="num">' + fmtMoney(r[23]) + '</td><td class="num">' + fmtMoney(r[24]) + '</td>' +
-      '<td class="num">' + fmtPct(r[25], false, 0) + '</td>' +
-      '<td class="num">' + fmtNum(r[26], 1) + '</td>' +
-      '<td class="num">' + (r[27] == null ? dash : '<b>' + fmtMoney(r[27]) + '</b>' + (r[29] && r[29] !== '24h' ? ' <span class="dim">(' + r[29] + ')</span>' : '')) + '</td>' +
-      '<td class="num">' + fmtMoney(r[40]) + '</td>' +
-      '<td>' + (r[28] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[28] === 'candidate' ? badge('Hot ' + r[30] + '/3', 'hot') : r[31] && r[31].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[31].join(', ')) + '">fails ' + r[31].length + '</span>' : dash) + '</td>' +
-      '<td class="num">' + fmtInt(r[32]) + '</td>' +
-      '<td class="num">' + fmtPct(r[33]) + '</td>' +
-      '<td class="num">' + fmtPct(r[34]) + '</td>' +
-      '<td class="num">' + fmtPct(r[35], false, 0) + '</td>' +
-      '<td class="num">' + (r[37] == null ? dash : '<span class="' + (r[37] > 0 ? 'up' : r[37] < 0 ? 'down' : '') + '">' + (r[37] > 0 ? '+' : '') + r[37] + (r[36] == null ? '' : ' (' + (r[36] > 0 ? '+' : '') + r[36].toFixed(1) + '%)') + '</span>') + '</td>' +
-      '<td class="num">' + fmtPct(r[38], false, 2) + '</td>' +
-      '<td class="num">' + fmtPct(r[39]) + '</td>' +
+      '<td class="num"' + (r[39] ? ' title="' + r[39] + ' sales behind the anchor"' : '') + '>' + fmtMoney(r[20]) + (r[20] != null && r[39] < (LIVE.data && LIVE.data.gate && LIVE.data.gate.minSales || 5) ? ' <span class="dim">thin</span>' : '') + '</td>' +
+      '<td class="num">' + fmtMoney(r[21]) + '</td>' +
+      '<td class="num">' + (r[22] == null ? dash : '<b>' + fmtMoney(r[22]) + '</b>') + '</td>' +
+      '<td class="num">' + fmtPct(r[23], false, 0) + '</td>' +
+      '<td class="num">' + fmtNum(r[24], 1) + '</td>' +
+      '<td class="num">' + (r[25] == null ? dash : '<b>' + fmtMoney(r[25]) + '</b>' + (r[27] ? '' : ' <span class="dim" title="too slow for the window at this confidence">illiquid</span>')) + '</td>' +
+      '<td class="num">' + fmtMoney(r[38]) + '</td>' +
+      '<td>' + (r[26] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[26] === 'candidate' ? badge('Hot ' + r[28] + '/3', 'hot') : r[29] && r[29].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[29].join(', ')) + '">fails ' + r[29].length + '</span>' : dash) + '</td>' +
+      '<td class="num">' + fmtInt(r[30]) + '</td>' +
+      '<td class="num">' + fmtPct(r[31]) + '</td>' +
+      '<td class="num">' + fmtPct(r[32]) + '</td>' +
+      '<td class="num">' + fmtPct(r[33], false, 0) + '</td>' +
+      '<td class="num">' + (r[35] == null ? dash : '<span class="' + (r[35] > 0 ? 'up' : r[35] < 0 ? 'down' : '') + '">' + (r[35] > 0 ? '+' : '') + r[35] + (r[34] == null ? '' : ' (' + (r[34] > 0 ? '+' : '') + r[34].toFixed(1) + '%)') + '</span>') + '</td>' +
+      '<td class="num">' + fmtPct(r[36], false, 2) + '</td>' +
+      '<td class="num">' + fmtPct(r[37]) + '</td>' +
       '<td><button class="tbtn ebtn" data-id="' + r[0] + '">Trend</button></td>' +
       '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
-  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 p48
+  // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 sell (this listing's own)
   // 27 time (h: to outcome, or open so far) 28 note (LP discount applied) 29 tier 30 risk rank 31 score 32 photos 33 signals
   // 34 first seen (ISO) 35 ord
   er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
@@ -99,7 +100,7 @@ const TABLES = {
       '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + fmtMoney(r[13]) + (r[28] ? ' <span class="dim">LP</span>' : '') + '</td>' +
       '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[25]) + '</td>' +
-      '<td>' + (r[14] === 'PASS' ? badge('PASS', 'pass') : /scam|suspect/.test(r[14]) ? badge(r[14], 'warn') : badge(r[14])) + '</td>' +
+      '<td>' + (r[14] === 'PASS' ? badge('PASS', 'pass') : r[14] === 'review' ? '<span title="under 45% of the anchor: more often misidentified, damaged or fake than a bargain - check the photos and the seller">' + badge('review', 'watch') + '</span>' : /scam|suspect/.test(r[14]) ? badge(r[14], 'warn') : badge(r[14])) + '</td>' +
       '<td>' + riskCell(r) + '</td>' +
       '<td class="num">' + (r[32] == null ? dash : r[32]) + '</td>' +
       '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
@@ -275,47 +276,54 @@ function ageText(iso) {
   const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
   return m < 60 ? m + ' min ago' : (m / 60).toFixed(1) + ' h ago';
 }
-/* ---- Decisions recomputed in the browser, so Confidence and Margin can be changed live ----
-   Mirrors compute_stats() in ebay_sweep.py. Observed and Rates never change here; only the amber band. */
-const CAP = 3, UNDERCUT = 1.0;
-const poissonGe = (m, n) => { if (n <= 0) return 1; let p = Math.exp(-m), cum = p; for (let k = 1; k < n; k++) { p *= m / k; cum += p; } return Math.max(0, 1 - cum); };
-const depth = (lam, T, conf) => { if (lam == null) return null; let best = 0; for (let n = 1; n <= CAP; n++) if (poissonGe(lam * T, n) >= conf) best = n; return best; };
+/* ---- Decisions recomputed in the browser, so Confidence, Window and Margin can be changed live ----
+   Mirrors compute_stats() / listing_decision() / verdict() in ebay_sweep.py. Observed and Rates never change here. */
 const r2 = v => v == null ? null : Math.round(v * 100) / 100;
+const r1 = v => v == null ? null : Math.round(v * 10) / 10;
 function settings() {
   const conf = Math.min(0.95, Math.max(0.5, (+$('conf').value || 70) / 100));
+  const window = Math.min(168, Math.max(24, +$('win').value || 48));
   const margin = Math.min(0.5, Math.max(0, (+$('margin').value || 0) / 100));
   const g = (LIVE.data && LIVE.data.gate) || GATE_EBAY;
   const cal = (LIVE.data && LIVE.data.calib) || {};
   const use = $('usecal').checked;
-  return {conf, margin, fee: g.fee * (1 + g.buyerTax), fixed: g.fixed, shipOut: g.shipOut, tax: g.tax, minSales: g.minSales || 3,
-          d48: use && cal.h48 && cal.h48.delta != null ? cal.h48.delta / 100 : 0,
-          d24: use && cal.h24 && cal.h24.delta != null ? cal.h24.delta / 100 : 0};
+  return {conf, window, margin, fee: g.fee * (1 + g.buyerTax), fixed: g.fixed, shipOut: g.shipOut, supplies: g.supplies || 0, tax: g.tax,
+          minSales: g.minSales || 5, undercut: g.undercut == null ? 0.5 : g.undercut, sellUnderA: g.sellUnderA || 0.95, sellNoFloor: g.sellNoFloor || 0.93,
+          review: g.reviewRatio || 0.45, d48: use && cal.h48 && cal.h48.delta != null ? cal.h48.delta / 100 : 0};
 }
+const round99 = x => x == null ? null : Math.max(0.99, Math.floor(x) - 0.01);
+// the sell price: just under the credible floor, never above 95% of the anchor (or the fast-sale median), rounded to .99
+function sellPrice(floor, A, Afast, S) {
+  if (A == null) return null;
+  let cap = S.sellUnderA * A;
+  if (Afast != null) cap = Math.min(cap, Afast);
+  let s = floor != null ? Math.min(floor - S.undercut, cap) : S.sellNoFloor * A;
+  return round99(s * (1 + S.d48));                     // measured price calibration, if any
+}
+// liquidity: at least one buyer inside the window at this confidence, i.e. lambda >= -ln(1 - conf) / T days
+const lamMin = S => -Math.log(1 - S.conf) / (S.window / 24);
+const isLiquid = (lam, st, S) => !!lam && lam >= lamMin(S) && (st == null || st >= 50);
 function decide(c, S) {
-  const lam = c.lam, N = c.N, p = [c.p1, c.p2, c.p3], smed = c.smed, s80 = c.s80;
-  let n24 = depth(lam, 1, S.conf), n48 = depth(lam, 2, S.conf);
-  if (lam != null && (c.k || 0) < S.minSales) n24 = n48 = 0;    // sale floor: no 24/48 h price on 1-2 sales
-  let p24 = null, p48 = null, pw = null;
-  if (lam != null) {
-    if (n24 && N >= n24) p24 = p[n24 - 1] - UNDERCUT;
-    else if (n24 && smed != null) p24 = p[0] == null ? smed : Math.min(smed, p[0] - UNDERCUT);
-    if (n48 && N >= n48) p48 = p[n48 - 1] - UNDERCUT;
-    else if (n48 && s80 != null) p48 = p[0] == null ? s80 : Math.min(s80, p[0] - UNDERCUT);
-    const cap = s80 != null ? s80 : (smed != null ? smed * 1.15 : null);
-    if (p48 != null && cap != null) p48 = Math.min(p48, cap);
-    if (p24 != null && p48 != null) p48 = Math.max(p48, p24);
-    pw = p[0] != null ? p[0] - UNDERCUT : smed;
-    if (pw != null && cap != null) pw = Math.min(pw, cap);
-    if (p48 != null) p48 = p48 * (1 + S.d48);          // measured price calibration, if any
-    if (p24 != null) p24 = p24 * (1 + S.d24);
-  }
-  const prob24 = lam ? (1 - Math.exp(-lam)) * 100 : null;
+  const lam = c.lam, A = c.A, cred = c.cred || [];
+  const L = cred.length ? cred[0][1] : null;
+  const sell = sellPrice(L, A, c.A_fast, S);
+  const probT = lam ? (1 - Math.exp(-lam * S.window / 24)) * 100 : null;
   const edays = lam ? -Math.log(1 - S.conf) / lam : null;
-  const [csell, basis] = p24 != null ? [p24, '24h'] : p48 != null ? [p48, '48h'] : [pw, 'window'];
   let net = null, maxbuy = null;
-  if (csell != null) { net = csell * (1 - S.fee) - S.fixed - S.shipOut; maxbuy = net / (1 + S.margin); }
-  return {n24, n48, p24: r2(p24), p48: r2(p48), pw: r2(pw), prob24: prob24 == null ? null : Math.round(prob24 * 10) / 10,
-          edays: edays == null ? null : Math.round(edays * 10) / 10, csell: r2(csell), net: r2(net), maxbuy: r2(maxbuy), basis: csell == null ? null : basis};
+  if (sell != null) { net = sell * (1 - S.fee) - S.fixed - S.shipOut - S.supplies; maxbuy = net / (1 + S.margin); }
+  return {A, L, sell, liquid: isLiquid(lam, c.st, S), probT: r1(probT), edays: r1(edays), net: r2(net), maxbuy: r2(maxbuy)};
+}
+// one listing: its floor is the cheapest credible copy OTHER than itself (you buy it, it leaves the market);
+// an LP listing sells at the LP discount
+function listingDecide(x, cs, S) {
+  if (!cs || cs.A == null) return {sell: null, net: null, maxbuy: null, note: null};
+  const f = (cs.cred || []).find(e => e[0] !== x[0]);
+  const s = sellPrice(f ? f[1] : null, cs.A, cs.A_fast, S);
+  if (s == null) return {sell: null, net: null, maxbuy: null, note: null};
+  const d = x[13] === 'LP' ? lpFrac(cs.A) : 0, sellv = s * (1 - d);
+  const net = sellv * (1 - S.fee) - S.fixed - S.shipOut - S.supplies, maxbuy = net / (1 + S.margin);
+  return {sell: s, net: r2(net), maxbuy: r2(maxbuy),
+          note: d ? 'LP: sells about ' + fmtMoneyPlain(r2(sellv)) + ' (' + (d * 100).toFixed(1) + '% under the NM sell price of ' + fmtMoneyPlain(s) + ')' : null};
 }
 // LP correction: the discount (fraction) for a card at this NM price, from the collector's measured tiers
 const LP_FALLBACK = {default: 12, tiers: [{lo: 0, hi: 100, pct: 12, n: 0, src: 'default'}, {lo: 100, hi: 150, pct: 12, n: 0, src: 'default'}, {lo: 150, hi: 1e9, pct: 12, n: 0, src: 'default'}]};
@@ -326,32 +334,28 @@ function lpFrac(price) {
   const hit = t.find(x => price >= x.lo && price < x.hi);
   return (hit || t[t.length - 1]).pct / 100;
 }
-function lpAdjust(cs, S) {
-  // an LP listing sells at the card's gate price minus the LP discount; net and max buy follow
-  const d = lpFrac(cs.price);
-  if (cs.csell == null) return {net: cs.net, maxbuy: cs.maxbuy, note: null};
-  const sell = cs.csell * (1 - d), net = sell * (1 - S.fee) - S.fixed - S.shipOut, maxbuy = net / (1 + S.margin);
-  return {net: r2(net), maxbuy: r2(maxbuy),
-          note: 'LP: sells about ' + fmtMoneyPlain(r2(sell)) + ' (' + (d * 100).toFixed(1) + '% under the NM price of ' + fmtMoneyPlain(cs.csell) + ') - if it were NM, max buy ' + fmtMoneyPlain(cs.maxbuy)};
-}
 function paintLp() {
   const lp = lpInfo();
   $('lpt').innerHTML = lp.tiers.map(t => '<span class="' + (t.src === 'tier' ? 'meas' : '') + '" title="' + (t.src === 'tier' ? 'measured in this tier from ' + t.n + ' LP sales' : t.src === 'global' ? 'this tier has ' + t.n + ' LP sales (needs ' + lp.minSales + '); using the ratio measured across all tiers' : 'no measurement yet (' + t.n + ' LP sales in this tier, needs ' + lp.minSales + '); using the 12% default') + '"><i>' + (t.lo === 0 ? '<$' + t.hi : t.hi >= 1e9 ? '$' + t.lo + '+' : '$' + t.lo + '–' + t.hi) + '</i>' + t.pct + '%</span>').join('');
 }
 const COMPARABLE = new Set(['NM', 'LP', 'UNK']);
 function verdictOf(x, cs, S) {
-  // x = raw live row from the collector; cs = decided card stats
+  // x = raw live row from the collector; cs = decided card stats. Same order as verdict() in the collector.
   const total = x[7], item = x[5];
-  if (total == null) return ['no price', null];
+  if (total == null) return ['no price', null, null];
   const allin = Math.round((total + (item || 0) * S.tax) * 100) / 100;
-  if (x[22] != null && x[22] < 2) return ['fewer than 2 photos', allin];
-  if (x[23] === 'suspect') return ['suspect', allin];
-  if (!cs || cs.maxbuy == null) return [cs ? 'no sales yet' : 'no data yet', allin];
-  if (cs.price && total < 0.5 * cs.price) return ['too cheap - scam check', allin];
-  if (!COMPARABLE.has(x[13])) return ['condition ' + x[13], allin];
+  if (x[22] != null && x[22] < 2) return ['fewer than 2 photos', allin, null];
+  if (x[23] === 'suspect') return ['suspect', allin, null];
+  if (!cs || cs.A == null) return [cs ? 'no sales yet' : 'no data yet', allin, null];
+  if ((cs.A_n || 0) < S.minSales) return ['too few sales (' + (cs.A_n || 0) + ')', allin, null];
+  if (!cs.liquid) return ['not liquid', allin, null];
+  if (!COMPARABLE.has(x[13])) return ['condition ' + x[13], allin, null];
   const bar = sellerBar(x[15], x[16]);
-  if (bar != null) return ['seller < ' + bar + '%', allin];
-  return [allin <= cs.maxbuy ? 'PASS' : 'over max buy', allin];
+  if (bar != null) return ['seller < ' + bar + '%', allin, null];
+  const d = listingDecide(x, cs, S);
+  if (total < S.review * cs.A) return ['review', allin, d];
+  if (d.maxbuy == null) return ['no sales yet', allin, d];
+  return [allin <= d.maxbuy ? 'PASS' : 'over max buy', allin, d];
 }
 // count-aware feedback bar (mirrors seller_bar() in the collector): 100+ ratings need 98%, 20-99 need 95%
 function sellerBar(fb, pct) {
@@ -372,28 +376,26 @@ function rebuildLive() {
     LIVE.ec.push([base[0], base[1], base[2], base[3], base[4],
                   c.k, c.D, c.N, c.p1, c.p2, c.p3, c.mu, c.smed, c.s80, c.hrs, c.st,
                   c.lam, c.price, c.dos, c.io,
-                  d.n24, d.n48, d.p24, d.p48, d.pw, d.prob24, d.edays, d.maxbuy, hot, d.basis, c.confirm, c.checks,
+                  d.A, d.L, d.sell, d.probT, d.edays, d.maxbuy, hot, d.liquid, c.confirm, c.checks,
                   t.spm == null ? null : t.spm, t.d7 == null ? null : t.d7, t.d30 == null ? null : t.d30, t.pos == null ? null : t.pos,
                   t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
-                  d.net, LIVE.ec.length]);
+                  d.net, c.A_n || 0, LIVE.ec.length]);
   }
   let passes = 0, hiddenImg = 0, hiddenSus = 0;
   live.live.forEach(x => {
     const base = idRow.get(x[1]); if (!base) return;
     const cs = LIVE.dec[String(x[1])];
-    // LP listings sell below the NM gate price: discount the sell side, then net, max buy, profit and verdict follow
-    let csl = cs, note = null;
-    if (cs && x[13] === 'LP') { const a = lpAdjust(cs, S); csl = Object.assign({}, cs, {net: a.net, maxbuy: a.maxbuy}); note = a.note; }
-    const [v, allin] = verdictOf(x, csl, S);
+    const [v, allin, dd] = verdictOf(x, cs, S);
+    const d = dd || listingDecide(x, cs, S), note = d.note;
     if (v === 'PASS') passes++;
-    const profit = csl && csl.net != null && allin != null ? Math.round((csl.net - allin) * 100) / 100 : null;
+    const profit = d.net != null && allin != null ? Math.round((d.net - allin) * 100) / 100 : null;
     const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
     const status = x[17], tHours = status === 'open' ? x[3] : (x[21] != null ? x[21] : x[3]);
     const tier = x[23] || 'clean', nimg = x[22] == null ? 99 : x[22];
     if (nimg < 2) hiddenImg++; else if (tier === 'suspect') hiddenSus++;
     LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
-                  cs ? cs.price : null, cs && cs.price && x[7] != null ? Math.round((x[7] / cs.price - 1) * 1000) / 10 : null,
-                  csl ? csl.maxbuy : null, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, cs ? cs.p48 : null,
+                  cs ? cs.A : null, cs && cs.A && x[7] != null ? Math.round((x[7] / cs.A - 1) * 1000) / 10 : null,
+                  d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
                   tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2], LIVE.er.length]);
   });
   $('nsus').textContent = hiddenSus;
@@ -403,7 +405,7 @@ function rebuildLive() {
                                    : 'price calibration: ' + (c48.n || 0) + ' of 150 outcomes collected — not applied yet';
   $('callab').title = calTxt;
   $('meta-ec').textContent = 'eBay Catalog · data as of ' + live.t.replace('T', ' ').replace('Z', ' UTC') + ' (' + ageText(live.t) + ') · ' +
-    live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · confidence ' + Math.round(S.conf * 100) + '% · margin ' + Math.round(S.margin * 100) + '%';
+    live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h needs λ ≥ ' + lamMin(S).toFixed(2) + '/day · margin ' + Math.round(S.margin * 100) + '%';
   $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · as of ' + ageText(live.t);
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   tables.ec.apply(); tables.er.apply();
@@ -440,9 +442,9 @@ function tickAge() {
   $('meta-er').textContent = $('meta-er').textContent.replace(/as of .*$/, 'as of ' + a);
 }
 // settings: remembered in this browser; any change re-derives the amber band and the verdicts
-try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.margin != null) $('margin').value = sv.margin; if (sv.usecal != null) $('usecal').checked = sv.usecal; if (sv.hits != null) $('hits').checked = sv.hits; } catch (e) {}
-['conf', 'margin', 'usecal', 'hits'].forEach(id => $(id).addEventListener('input', () => {
-  try { localStorage.setItem('ebay-settings', JSON.stringify({conf: $('conf').value, margin: $('margin').value, usecal: $('usecal').checked, hits: $('hits').checked})); } catch (e) {}
+try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (sv.conf) $('conf').value = sv.conf; if (sv.win) $('win').value = sv.win; if (sv.margin != null && sv.v2) $('margin').value = sv.margin; if (sv.usecal != null) $('usecal').checked = sv.usecal; if (sv.hits != null) $('hits').checked = sv.hits; } catch (e) {}
+['conf', 'win', 'margin', 'usecal', 'hits'].forEach(id => $(id).addEventListener('input', () => {
+  try { localStorage.setItem('ebay-settings', JSON.stringify({v2: 1, conf: $('conf').value, win: $('win').value, margin: $('margin').value, usecal: $('usecal').checked, hits: $('hits').checked})); } catch (e) {}
   rebuildLive();
 }));
 
@@ -454,10 +456,11 @@ function openBook(cid) {
   $('bsub').textContent = base[2] + ' · #' + base[3];
   const hrsTxt = h => h == null ? '—' : h < 48 ? h.toFixed(0) + ' h' : (h / 24).toFixed(1) + ' d';
   let h = '<div class="sum">';
-  h += '<span>Price <b>' + fmtMoney(c.price) + '</b></span><span>λ <b>' + (c.lam == null ? '—' : c.lam.toFixed(2)) + '/day</b> (' + c.k + ' sales in ' + c.D + ' d)</span>';
-  h += '<span>n₂₄ <b>' + (c.n24 == null ? '—' : c.n24) + '</b> · n₄₈ <b>' + (c.n48 == null ? '—' : c.n48) + '</b></span>';
-  h += '<span>P₂₄ <b>' + fmtMoney(c.p24) + '</b> · P₄₈ <b>' + fmtMoney(c.p48) + '</b> · window <b>' + fmtMoney(c.pw) + '</b></span>';
-  h += '<span>Max buy <b>' + fmtMoney(c.maxbuy) + '</b>' + (c.basis ? ' <span class="dim">from the ' + c.basis + ' price</span>' : '') + '</span>';
+  const S = settings();
+  h += '<span>Anchor <b>' + fmtMoney(c.A) + '</b> <span class="dim">(' + (c.A_n || 0) + ' sales' + (c.A_win ? ', ' + c.A_win + ' d' : '') + (c.A_fast != null ? ', fast-sale median ' + fmtMoneyPlain(c.A_fast) : '') + ')</span></span>';
+  h += '<span>λ <b>' + (c.lam == null ? '—' : c.lam.toFixed(2)) + '/day</b> (' + c.k + ' sales in ' + c.D + ' d) · ' + (c.liquid ? '<b class="up">liquid</b>' : '<b class="down">not liquid</b>') + ' <span class="dim">(needs λ ≥ ' + lamMin(S).toFixed(2) + ' for ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h)</span></span>';
+  h += '<span>Credible floor <b>' + fmtMoney(c.L) + '</b> <span class="dim">(' + (c.cred ? c.cred.length : 0) + ' credible of ' + c.N + ' open)</span> · Sell <b>' + fmtMoney(c.sell) + '</b></span>';
+  h += '<span>Max buy <b>' + fmtMoney(c.maxbuy) + '</b> <span class="dim">net ' + fmtMoneyPlain(c.net) + ' at ' + Math.round(S.margin * 100) + '% margin</span></span>';
   if (c.checks && c.checks.length) h += '<span class="dim">Hot checks failing: ' + esc(c.checks.join(', ')) + '</span>';
   else if (c.hot) h += '<span>' + (c.hot === 2 ? badge('Hot ✓ confirmed', 'hot2') : badge('Hot candidate · ' + c.confirm + '/3 confirmed', 'hot')) + '</span>';
   h += '</div>';
@@ -465,8 +468,9 @@ function openBook(cid) {
   if (!c.book.length) h += '<p class="dim">None open right now.</p>';
   else {
     h += '<table><thead><tr><th>Rank</th><th class="num">Total $</th><th class="num">Item $</th><th class="num">Ship $</th><th>Cond</th><th>Offer</th><th class="num">Seller</th><th class="num">Listed</th><th>Title</th></tr></thead><tbody>';
+    const credIds = new Set((c.cred || []).map(e => e[0]));
     c.book.forEach((b, i) => {
-      h += '<tr><td>' + (i + 1) + '</td><td class="num">' + fmtMoney(b[1]) + (b[5] ? ' <span class="dim">(' + fmtMoney(Math.round(b[1] * GATE_LIVE().boHaircut * 100) / 100) + ' ranked)</span>' : '') + '</td><td class="num">' + fmtMoney(b[2]) + '</td><td class="num">' + (b[3] === 0 ? 'free' : fmtMoney(b[3])) + '</td><td>' + (b[4] === 'UNK' ? '<span class="dim">n/s</span>' : b[4]) + '</td><td>' + (b[5] ? 'BO' : '—') + '</td><td class="num">' + fmtInt(b[6]) + (b[7] != null ? ' · ' + b[7].toFixed(1) + '%' : '') + '</td><td class="num">' + hrsTxt(b[8]) + '</td><td class="ttl"><a href="' + esc(b[9]) + '" target="_blank" rel="noopener">' + esc(b[10]) + '</a></td></tr>';
+      h += '<tr' + (credIds.has(b[0]) ? '' : ' class="sus" title="not a credible price-setter: thin seller, watch tier, far under the anchor, or sat too long"') + '><td>' + (i + 1) + (credIds.has(b[0]) ? '' : ' <span class="dim">·</span>') + '</td><td class="num">' + fmtMoney(b[1]) + (b[5] ? ' <span class="dim">(' + fmtMoney(Math.round(b[1] * GATE_LIVE().boHaircut * 100) / 100) + ' ranked)</span>' : '') + '</td><td class="num">' + fmtMoney(b[2]) + '</td><td class="num">' + (b[3] === 0 ? 'free' : fmtMoney(b[3])) + '</td><td>' + (b[4] === 'UNK' ? '<span class="dim">n/s</span>' : b[4]) + '</td><td>' + (b[5] ? 'BO' : '—') + '</td><td class="num">' + fmtInt(b[6]) + (b[7] != null ? ' · ' + b[7].toFixed(1) + '%' : '') + '</td><td class="num">' + hrsTxt(b[8]) + '</td><td class="ttl"><a href="' + esc(b[9]) + '" target="_blank" rel="noopener">' + esc(b[10]) + '</a></td></tr>';
     });
     h += '</tbody></table>';
   }
@@ -492,6 +496,12 @@ function openScam() {
   h += '<h3>By tier</h3><table>' + head + '<tbody>' + ['clean', 'watch', 'suspect'].map(t => row(t, sc.tiers[t] || {})).join('') + '</tbody></table>';
   const keys = Object.keys(sc.labels || {});
   h += '<h3>By signal</h3><table>' + head + '<tbody>' + keys.map(k => row(sc.labels[k], sc.signals[k] || {})).join('') + '</tbody></table>';
+  const deals = (LIVE.data && LIVE.data.deals) || [];
+  if (deals.length) {
+    h += '<h3>How fast cheap listings go</h3><p class="dim">Closed listings by their price relative to the card\'s anchor when first seen. This is the measurement behind the hit-rate question: if listings at 60\u201370% of the anchor vanish within an hour, the scanner has to be faster; if they sit, they were cheap for a reason.</p>';
+    h += '<table><thead><tr><th>Price vs anchor</th><th class="num">closed</th><th class="num">sold</th><th class="num">\u2264 1 h</th><th class="num">\u2264 6 h</th><th class="num">\u2264 24 h</th><th class="num">\u2264 48 h</th><th class="num">median h to sale</th></tr></thead><tbody>' +
+      deals.map(b => '<tr><td>' + Math.round(b.lo * 100) + '\u2013' + Math.round(b.hi * 100) + '%</td><td class="num">' + b.n + '</td><td class="num">' + b.sold + '</td><td class="num">' + b.sold_1h + '</td><td class="num">' + b.sold_6h + '</td><td class="num">' + b.sold_24h + '</td><td class="num">' + b.sold_48h + '</td><td class="num">' + (b.med_hrs == null ? '\u2014' : b.med_hrs) + '</td></tr>').join('') + '</tbody></table>';
+  }
   const sus = LIVE.er.filter(r => r[29] === 'suspect');
   h += '<h3>Suspect listings right now (' + sus.length + ')</h3>';
   if (!sus.length) h += '<p class="dim">None.</p>';
@@ -535,7 +545,7 @@ window.loadShard = async function (n) {
 
 const COLORS = {loose: '#3b82f6', sell: '#22c55e', buy: '#f59e0b', vol: '#9ca3af', ref: '#a78bfa'};
 const LABEL_PC = {loose: 'Ungraded', sell: 'Retail sell', buy: 'Retail buy', vol: 'Sales/yr', ref: '90d high/low + conservative sell'};
-const LABEL_EB = {loose: 'Sold median (7d)', sell: 'Cheapest ask', buy: '', vol: 'Sales/day', ref: '90d high/low + P₄₈'};
+const LABEL_EB = {loose: 'Sold median (7d)', sell: 'Cheapest ask', buy: '', vol: 'Sales/day', ref: '90d high/low + Sell'};
 let LABEL = LABEL_PC;
 let cur = null;               // {dates, vol, loose, sell, buy, st, anchor, refs, labels}
 let pts = [];
@@ -559,7 +569,7 @@ function openTrendEbay(cid) {
   if (!h || !t) { cur = null; $('note').textContent = 'No eBay sales recorded for this card yet. The rollup adds one point per day.'; return; }
   const dates = h.sales.map((_, k) => { const d = new Date(Date.parse(h.start + 'T00:00:00Z') + k * 86400000); return d.toISOString().slice(0, 10); });
   cur = {dates, vol: h.sales, loose: h.price, sell: h.ask, buy: h.sales.map(() => null), st: t, anchor: c.price,
-         refs: [['90d high', t.hi], ['90d low', t.lo], ['P₄₈', c.p48]], ebay: c};
+         refs: [['90d high', t.hi], ['90d low', t.lo], ['Sell', c.sell]], ebay: c};
   drawChart(); renderStatsEbay();
 }
 function renderStatsEbay() {
@@ -574,8 +584,8 @@ function renderStatsEbay() {
   h += cell('Volume drift 30d', s.vd == null ? '—' : (s.vd > 0 ? '+' : '') + s.vd + (s.vdp == null ? '' : ' (' + pctPlain(s.vdp) + ')'), s.days < 60 ? 'needs 60 days (' + s.days + ' so far)' : 'last 30 days vs the 30 before');
   h += cell('Slope 30d', pctPlain(s.ts), s.ts != null ? 'Theil–Sen · middle half ' + pctPlain(s.tsq1) + ' to ' + pctPlain(s.tsq3) + ' /mo' : 'needs 30 days and 10 points');
   h += cell('λ', c.lam == null ? '—' : c.lam.toFixed(2) + '/day', c.k + ' sales in ' + c.D + ' d');
-  h += cell('P₄₈ · P₂₄', fmtMoneyPlain(c.p48) + ' · ' + fmtMoneyPlain(c.p24), 'n₄₈ ' + (c.n48 == null ? '—' : c.n48) + ' · n₂₄ ' + (c.n24 == null ? '—' : c.n24));
-  h += cell('Max buy', fmtMoneyPlain(c.maxbuy), c.basis ? 'from the ' + c.basis + ' price' : '');
+  h += cell('Sell · Anchor', fmtMoneyPlain(c.sell) + ' · ' + fmtMoneyPlain(c.A), 'floor ' + fmtMoneyPlain(c.L) + ' · ' + (c.liquid ? 'liquid' : 'not liquid'));
+  h += cell('Max buy', fmtMoneyPlain(c.maxbuy), 'net ' + fmtMoneyPlain(c.net));
   $('stats').innerHTML = h;
   $('gate').innerHTML = '<p class="why">Price line = median of raw sale totals over a trailing 7-day window (blank when fewer than 3 sales in the window). Bars = sales that day. History starts the day the collector was switched on; the trend columns fill in at 7 / 30 / 60 days like the PriceCharting tab.</p>';
 }
