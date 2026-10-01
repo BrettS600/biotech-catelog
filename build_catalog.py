@@ -51,7 +51,7 @@ ENCRYPT_SNAPSHOTS = True   # False only if the repo is private (needs GitHub Pro
 
 # ---- Gate assumptions behind "Max buy $" (edit to taste; the page shows them) ----
 FEE_PCT = 0.1325        # eBay final value fee for trading cards
-FEE_FIXED = 0.30        # eBay per-order fee
+FEE_FIXED = 0.40        # eBay per-order fee (orders over $10)
 SHIP_OUT = 4.50         # what you pay to ship a sold card (tracked)
 SHIP_IN = 4.00          # typical shipping charged by the seller when you buy
 TAX = 0.0625            # sales tax on the item price when you buy (MA)
@@ -443,6 +443,64 @@ data_json = json.dumps(rows, separators=(",", ":"), ensure_ascii=False)
 sets_json = json.dumps(sets_in_order, ensure_ascii=False)
 gate_json = json.dumps(GATE_CONST)
 
+# ---- printed set sizes ("36/123" -> 123) from the open Pokemon TCG dataset, matched to PriceCharting's set names.
+# The page shows every card number as number/size; sets that do not match fall back to sizes the collector learns
+# from eBay titles, and the bare number after that. Unmatched names are printed so aliases can be added here.
+TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
+SET_NAME_ALIASES = {"base set": "base", "expedition": "expedition base set", "scarlet violet 151": "151",
+                    "pokemon go": "go", "team magma team aqua": "team magma vs team aqua",
+                    "unleashed": "hs unleashed", "undaunted": "hs undaunted", "triumphant": "hs triumphant"}
+SERIES_PREFIXES = ("scarlet violet", "sword shield", "sun moon", "xy", "black white", "diamond pearl",
+                   "heartgold soulsilver", "platinum", "ex")
+
+
+def norm_set(name):
+    s = str(name).lower().replace("\u00e9", "e").replace("&", " ").replace("'", "")
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
+    toks = [t for t in s.split() if t not in ("and", "the")]
+    if toks and toks[0] == "pokemon":
+        toks = toks[1:]
+    return " ".join(toks)
+
+
+def set_totals(set_names):
+    try:
+        r = requests.get(TCG_SETS_URL, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"Set sizes: could not fetch the Pokemon TCG set list ({e}); the page falls back to sizes learned from eBay titles")
+        return {}
+    by_norm = {}
+    for st in data:
+        if "promo" in st.get("name", "").lower():          # promos print SWSH001-style numbers, no size
+            continue
+        tot = st.get("printedTotal") or st.get("total")
+        if tot:
+            by_norm[norm_set(st["name"])] = int(tot)
+    out, missed = {}, []
+    for name in set_names:
+        n = norm_set(name)
+        if "promo" in n:
+            continue
+        n = SET_NAME_ALIASES.get(n, n)
+        tot = by_norm.get(n)
+        if tot is None:
+            for series in SERIES_PREFIXES:                  # "scarlet violet obsidian flames" -> "obsidian flames"
+                if n.startswith(series + " ") and by_norm.get(n[len(series) + 1:]):
+                    tot = by_norm[n[len(series) + 1:]]
+                    break
+        if tot is None:
+            missed.append(name)
+        else:
+            out[name] = tot
+    print(f"Set sizes: {len(out)} of {len(set_names)} sets matched to the Pokemon TCG set list"
+          + (f"; unmatched: {', '.join(missed[:60])}" + (" ..." if len(missed) > 60 else "") if missed else ""))
+    return out
+
+
+set_totals_json = json.dumps(set_totals(sets_in_order), ensure_ascii=False)
+
 PAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "page")
 def page_part(name):
     with open(os.path.join(PAGE_DIR, name), encoding="utf-8") as f:
@@ -477,6 +535,7 @@ html = (html.replace("__UPDATED__", today)
             .replace("__NCARDS__", f"{n_cards:,}")
             .replace("__NSETS__", str(len(sets_in_order)))
             .replace("__GATE__", gate_json)
+            .replace("__SET_TOTALS__", set_totals_json)
             .replace("__SETS__", sets_json)
             .replace("__DATA__", data_json))
 
