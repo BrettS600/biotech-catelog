@@ -120,7 +120,7 @@
 <!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
 <section class="panel" id="p-er" hidden>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
-<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
+<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
 <div class="controls">
   <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
@@ -129,6 +129,7 @@
 <div class="ranges" id="ranges-er">
   <div class="range condchip" id="condchip"><span class="lbl">Condition</span><label><input type="checkbox" id="cond-NM-er" checked> NM</label><label><input type="checkbox" id="cond-LP-er" checked> LP</label><label><input type="checkbox" id="cond-UNK-er" checked> n/s</label></div>
   <div class="range condchip" id="suschip"><label><input type="checkbox" id="showsus-er"> Show suspects (<span id="nsus">0</span>)</label></div>
+  <div class="range condchip" id="mmchip" title="Only listings priced under 40% of the card's PriceCharting price: treated as wrong matches, never hits - the list to check by hand for a real steal"><label><input type="checkbox" id="mm-er"> Too cheap only (<span id="nmm">0</span>)</label></div>
   <button class="reset" id="reset-er">Reset filters</button>
 </div>
 <div class="wrap">
@@ -144,6 +145,8 @@
     <th data-k="8" class="num">Ship $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
     <th data-k="9" class="num">Total $<span class="s">⇅</span><button class="help" data-h="er_total">?</button></th>
     <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
+    <th data-k="35" class="num">PC ungraded $<span class="s">⇅</span><button class="help" data-h="er_pc">?</button></th>
+    <th data-k="36" class="num">vs PC %<span class="s">⇅</span><button class="help" data-h="er_vspc">?</button></th>
     <th data-k="11" class="num">Anchor $<span class="s">⇅</span><button class="help" data-h="ec_A">?</button></th>
     <th data-k="12" class="num">vs anchor %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
     <th data-k="26" class="num">Sell $<span class="s">⇅</span><button class="help" data-h="ec_S">?</button></th>
@@ -164,7 +167,7 @@
 </table>
 </div>
 <button class="more" id="more-er" hidden>Show more</button>
-<footer>Listings are pulled from eBay every minute (raw singles, fixed price, $25–$500, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below this listing's Max buy.</footer>
+<footer>Listings are pulled from eBay every minute (raw singles, fixed price, $25–$500, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below this listing's Max buy; "PASS ✓" means the collector has also read the listing's item specifics and they agree with the matched card.</footer>
 </section>
 
 <div class="ov" id="rov">

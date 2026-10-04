@@ -87,11 +87,13 @@ const TABLES = {
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
   // 14 verdict 15 cond 16 bo 17 fb 18 pct 19 status 20 url 21 img 22 itemId 23 how 24 profit 25 roi 26 sell (this listing's own)
   // 27 time (h: to outcome, or open so far) 28 note (LP discount applied) 29 tier 30 risk rank 31 score 32 photos 33 signals
-  // 34 first seen (ISO) 35 ord
+  // 34 first seen (ISO) 35 PriceCharting ungraded $ 36 vs PC % 37 mismatch flag ('low' / 'high')
+  // 38 item-specifics check ('ok' / 'conflict' / 'none') 39 what that check found 40 ord
   er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked),
+       inserted: {v: 2, at: 10, n: 2},                    // two columns were added at position 10 (see makeTable)
+       extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low'),
        rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => cells4(r) +
@@ -99,13 +101,14 @@ const TABLES = {
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
       '<td class="num">' + fmtMoney(r[7]) + '</td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
       '<td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[35]) + '</td><td class="num">' + fmtPct(r[36]) + '</td>' +
       '<td class="num">' + fmtMoney(r[11]) + '</td>' +
       '<td class="num">' + fmtPct(r[12]) + '</td>' +
       '<td class="num">' + fmtMoney(r[26]) + '</td>' +
       '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + fmtMoney(r[13]) + (r[28] ? ' <span class="dim">LP</span>' : '') + '</td>' +
       '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[25]) + '</td>' +
-      '<td>' + (r[14] === 'PASS' ? badge('PASS', 'pass') : r[14] === 'review' ? '<span title="under 45% of the anchor: more often misidentified, damaged or fake than a bargain - check the photos and the seller">' + badge('review', 'watch') + '</span>' : /scam|suspect/.test(r[14]) ? badge(r[14], 'warn') : badge(r[14])) + '</td>' +
+      '<td>' + verdictCell(r) + '</td>' +
       '<td>' + riskCell(r) + '</td>' +
       '<td class="num">' + (r[32] == null ? dash : r[32]) + '</td>' +
       '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
@@ -123,6 +126,23 @@ function riskCell(r) {
   if (r[29] === 'suspect') return '<span title="' + esc(title) + '">' + badge('suspect', 'sus') + '</span>';
   if (r[29] === 'watch') return '<span title="' + esc(title) + '">' + badge('watch', 'watch') + '</span>';
   return '<span class="dim" title="' + esc(title) + '">—</span>';
+}
+// verdict badge; the identity checks explain themselves on hover
+const pcPct = (k, d) => Math.round(((LIVE.data && LIVE.data.gate && LIVE.data.gate[k]) || d) * 100);
+function verdictCell(r) {
+  const v = r[14], why = (r[39] || []).join(' · ');
+  const tip = (t, b) => '<span title="' + esc(t) + '">' + b + '</span>';
+  if (v === 'PASS') {
+    if (r[38] === 'ok') return tip('the item specifics agree with the matched card' + (why ? ' (note: ' + why + ')' : '') + ' - still look at the photos', badge('PASS ✓', 'pass'));
+    return tip(r[38] === 'none' ? 'the seller filled in no usable item specifics, so the match rests on the title alone: confirm the card from the photos'
+                                : 'item specifics not read yet (the collector reads them within a couple of minutes of a hit): confirm the card from the photos',
+               badge('PASS', 'pass') + ' <span class="dim">ID?</span>');
+  }
+  if (v === 'ID conflict') return tip('passes on price, but the item specifics describe another card: ' + why, badge('ID conflict', 'warn'));
+  if (v === 'mismatch: too cheap') return tip('under ' + pcPct('pcLow', 0.4) + '% of the PriceCharting price: treated as a wrong match (another printing or language, a lot, a fake - far more often than a bargain). Never a hit, left out of the statistics; check it by hand', badge('mismatch ↓', 'watch'));
+  if (v === 'mismatch: too high') return tip('over ' + pcPct('pcHigh', 3) + '% of the PriceCharting price: treated as a wrong match and left out of the statistics', badge('mismatch ↑'));
+  if (v === 'review') return tip('under 45% of the anchor: more often misidentified, damaged or fake than a bargain - check the photos and the seller', badge('review', 'watch'));
+  return /scam|suspect/.test(v) ? badge(v, 'warn') : badge(v);
 }
 // Raw Data condition filter (NM / LP / n/s chips); MP and HP rows show only when all three are ticked
 const COND_IDS = ['NM', 'LP', 'UNK'];
@@ -199,6 +219,13 @@ function makeTable(id, cfg) {
   const headRow = document.querySelector('#p-' + id + ' thead tr:last-child');
   let hiddenCols = new Set();
   try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + id) || '[]')); } catch (e) {}
+  if (cfg.inserted) try {                                 // columns added since the choice was saved: keep it on the same columns
+    const mark = 'cols-' + id + '-v' + cfg.inserted.v;
+    if (!localStorage.getItem(mark)) {
+      hiddenCols = new Set([...hiddenCols].map(ci => ci >= cfg.inserted.at ? ci + cfg.inserted.n : ci));
+      localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); localStorage.setItem(mark, '1');
+    }
+  } catch (e) {}
   const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
   const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6c1.6 0 3 .3 4.3.9l-1.6 1.6A6 6 0 0 0 12 8c-4.4 0-7.2 3.2-8.1 4 .5.5 1.6 1.7 3.2 2.6l-1.5 1.5C3.4 14.7 2 12 2 12zm20 0s-3.5 6-10 6c-1.6 0-3-.3-4.3-.9l1.6-1.6c.8.3 1.7.5 2.7.5 4.4 0 7.2-3.2 8.1-4-.5-.5-1.6-1.7-3.2-2.6l1.5-1.5C20.6 9.3 22 12 22 12zM4 20 20 4l1.4 1.4L5.4 21.4z" fill="currentColor"/></svg>';
   const paintHeads = () => [...headRow.children].forEach((th, ci) => {
@@ -231,6 +258,8 @@ function makeTable(id, cfg) {
   const conds = [...document.querySelectorAll('#ranges-' + id + ' #condchip input')];
   const sus = document.querySelector('#ranges-' + id + ' #showsus-' + id);
   if (sus) sus.addEventListener('input', () => { $('suschip').classList.toggle('on', sus.checked); t.apply(); });
+  const mm = document.querySelector('#ranges-' + id + ' #mm-' + id);
+  if (mm) mm.addEventListener('input', () => { $('mmchip').classList.toggle('on', mm.checked); t.apply(); });
   if (conds.length) {
     try { const sv = JSON.parse(localStorage.getItem('cond-' + id) || 'null'); if (sv) conds.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
     conds.forEach(c => c.addEventListener('input', () => {
@@ -245,6 +274,7 @@ function makeTable(id, cfg) {
     maxes.forEach(k => { el('max' + k).value = ''; });
     conds.forEach(c => { c.checked = true; }); if (conds.length) { $('condchip').classList.remove('on'); try { localStorage.removeItem('cond-' + id); } catch (e) {} }
     if (sus) { sus.checked = false; $('suschip').classList.remove('on'); }
+    if (mm) { mm.checked = false; $('mmchip').classList.remove('on'); }
     t.apply();
   });
   sel.addEventListener('change', t.apply);
@@ -352,6 +382,7 @@ function verdictOf(x, cs, S) {
   const allin = Math.round((total + (item || 0) * S.tax) * 100) / 100;
   if (x[22] != null && x[22] < 2) return ['fewer than 2 photos', allin, null];
   if (x[23] === 'suspect') return ['suspect', allin, null];
+  if (x[28]) return [x[28] === 'low' ? 'mismatch: too cheap' : 'mismatch: too high', allin, null];   // far from PriceCharting: a wrong match
   if (!cs || cs.A == null) return [cs ? 'no sales yet' : 'no data yet', allin, null];
   if ((cs.A_n || 0) < S.minSales) return ['too few sales (' + (cs.A_n || 0) + ')', allin, null];
   if (!cs.liquid) return ['not liquid', allin, null];
@@ -361,7 +392,7 @@ function verdictOf(x, cs, S) {
   const d = listingDecide(x, cs, S);
   if (total < S.review * cs.A) return ['review', allin, d];
   if (d.maxbuy == null) return ['no sales yet', allin, d];
-  return [allin <= d.maxbuy ? 'PASS' : 'over max buy', allin, d];
+  return [allin <= d.maxbuy ? (x[29] === 'conflict' ? 'ID conflict' : 'PASS') : 'over max buy', allin, d];
 }
 // count-aware feedback bar (mirrors seller_bar() in the collector): 100+ ratings need 98%, 20-99 need 95%
 function sellerBar(fb, pct) {
@@ -389,7 +420,7 @@ function rebuildLive() {
                   t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
                   d.net, c.A_n || 0, LIVE.ec.length]);
   }
-  let passes = 0, hiddenImg = 0, hiddenSus = 0;
+  let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0;
   live.live.forEach(x => {
     const base = idRow.get(x[1]); if (!base) return;
     const cs = LIVE.dec[String(x[1])];
@@ -400,13 +431,17 @@ function rebuildLive() {
     const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
     const status = x[17], tHours = status === 'open' ? x[3] : (x[21] != null ? x[21] : x[3]);
     const tier = x[23] || 'clean', nimg = x[22] == null ? 99 : x[22];
-    if (nimg < 2) hiddenImg++; else if (tier === 'suspect') hiddenSus++;
+    if (nimg < 2) hiddenImg++; else if (tier === 'suspect') hiddenSus++; else if (x[28] === 'low') tooCheap++;
+    // PriceCharting's ungraded price: the one the collector judged the listing against, else today's from the catalog tab
+    const pc = x[27] != null ? x[27] : base[6];
+    const vspc = pc && x[7] != null ? Math.round((x[7] / pc - 1) * 1000) / 10 : null;
     LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
                   cs ? cs.A : null, cs && cs.A && x[7] != null ? Math.round((x[7] / cs.A - 1) * 1000) / 10 : null,
                   d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
-                  tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2], LIVE.er.length]);
+                  tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
+                  pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [], LIVE.er.length]);
   });
-  $('nsus').textContent = hiddenSus;
+  $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap;
   paintLp();
   const cal = live.calib || {}, c48 = cal.h48 || {}, c24 = cal.h24 || {};
   const calTxt = c48.delta != null ? 'price calibration ' + (c48.delta > 0 ? '+' : '') + c48.delta + '% from ' + c48.n + ' outcomes' + (S.d48 ? ' (applied)' : ' (off)')
@@ -414,7 +449,7 @@ function rebuildLive() {
   $('callab').title = calTxt;
   $('meta-ec').textContent = 'eBay Catalog · data as of ' + live.t.replace('T', ' ').replace('Z', ' UTC') + ' (' + ageText(live.t) + ') · ' +
     live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h needs λ ≥ ' + lamMin(S).toFixed(2) + '/day · margin ' + Math.round(S.margin * 100) + '% · buy tax ' + (S.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
-  $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · as of ' + ageText(live.t);
+  $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · ' + tooCheap + ' too cheap vs PriceCharting · as of ' + ageText(live.t);
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   tables.ec.apply(); tables.er.apply();
 }
