@@ -139,6 +139,20 @@ refused. Nobody has measured the matcher's accuracy yet (see Roadmap 2). What gu
   Reverse Holo / Oversized / non-English languages, roughly 4 filtered searches every 15-30 minutes.
 - Unmatched reasons, first hour measured: no card number 68, rejected 55, no set/name agreement 30, ambiguous set 8,
   ambiguous variant 6, printing not in catalog 4 - titles with no card number are the biggest recall loss.
+- First look at the real flagged listings (2026-10-04, read off the unlocked site through Chrome): of 224 too-cheap
+  flags in 24 h about 80% were 30th Celebration Classic Collection reprints filed under the ORIGINAL card (Lugia
+  149/147 -> Aquapolis: the reprints carry the original number and total), most of the rest scam-screen suspects, no
+  real steals in the 75 read. Of 957 too-high flags most were plain overpricing (43% on cards PriceCharting values
+  under $8.34, seen only because the sweep starts at $25), then NM vintage reverse holos, stamped / error printings
+  and a few wrong cards. Fixed the same day (MATCH_VERSION 2): an anniversary word in the title ("30th", "25th",
+  "Celebrations", "Classic Collection") bars every card printed before that year; the name check goes by the first
+  word that is not generic (`nkey`, GENERIC_NAME), so "Mega Mewtwo EX" is no longer Mega Lucario ex; "Non-Holo" no
+  longer claims the [Holo] row; "Stage 2" is stripped so its 2 is not Base Set 2's; and `title_condition()` no longer
+  reads hit points ("120 HP") as Heavily Played - that one had kept about 860 listings a day (9%) out of the
+  statistics and the gate.
+- `rematch()` and MATCH_VERSION: when the matcher changes, bump MATCH_VERSION. On its next start the collector runs
+  the current matcher over every stored open and closed listing (moves it, drops it, re-reads the condition) and
+  rebuilds the daily rollup, so an old mistake does not sit in the numbers for weeks.
 - `wrong_card(rec)` (a mismatch flag or an ID conflict) keeps a listing out of `comparable()` and of every sold
   statistic: lambda, the anchor, the book, the daily rollup, the LP correction, the calibration tables.
 - Live rows carry 27 pc, 28 pcm, 29 idv, 30 idr (appended, so an older page keeps working); the page mirrors the

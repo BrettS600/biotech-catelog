@@ -160,6 +160,8 @@ PRINTING_DAILY_MAX = 150     # ... and this many per UTC day
 PRINT_FIT = (0.6, 1.7)       # "fits" = the listing's total is within this share of that printing's PriceCharting price
 PENDING_MIN_TOTAL = 40.0     # an ambiguous-printing listing waits for a lookup only at or above this price ...
 PENDING_KEEP_H = 12          # ... and for at most this long
+MATCH_VERSION = 2            # bump when the title matcher changes: every stored listing is then matched again
+                             # (rematch()) the next time the collector starts, so old mistakes do not linger
 # 3. Printed set totals ("36/123" -> 123) from the open Pokemon TCG dataset, the same source the page uses
 TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 
@@ -327,7 +329,13 @@ SET_ALIASES = {
     "blw": "black white", "cl": "call of legends", "tm": "triumphant", "ud": "undaunted", "ul": "unleashed",
     "1st": "1st", "first": "1st", "wotc": "", "holo": "holo", "rh": "reverse holo",
     "masterball": "master ball", "pokeball": "poke ball", "oversized": "jumbo", "oversize": "jumbo",
+    "30c": "30th celebration", "25th": "25th celebrations",
 }
+# Words around a Pokemon's name that many different cards share: the name check goes by the first word that is not
+# one of these ("Mega Lucario ex" must show "lucario"; a "Mega Mewtwo EX" title used to pass on "mega" and "ex").
+GENERIC_NAME = {"mega", "m", "dark", "light", "shining", "radiant", "team", "rocket", "rockets", "galarian", "alolan",
+                "hisuian", "paldean", "ex", "gx", "v", "vmax", "vstar", "lv", "x", "y", "prime", "legend", "break",
+                "star", "delta", "species", "tag", "crystal", "the", "of", "and"}
 VARIANT_WORDS = {  # PriceCharting bracket text -> tokens that must all appear in the title
     "reverse holo": ["reverse"], "reverse foil": ["reverse"], "1st edition": ["1st", "edition"],
     "shadowless": ["shadowless"], "holo": ["holo"], "cosmos holo": ["cosmos"], "staff": ["staff"],
@@ -348,7 +356,8 @@ COND_WORDS = [
     (re.compile(r"\b(near mint|nm|mint|pack fresh|nm/m|nm-m)\b", re.I), "NM"),
     (re.compile(r"\b(lightly played|light play|lp|nm/lp|nm-lp|excellent)\b", re.I), "LP"),
     (re.compile(r"\b(moderately played|moderate play|mp|very good)\b", re.I), "MP"),
-    (re.compile(r"\b(heavily played|heavy play|hp|poor)\b", re.I), "HP"),
+    # "HP" next to a number is the card's hit points ("120 HP", "HP 180"), which most catalog-style titles carry
+    (re.compile(r"\b(heavily played|heavy play|poor)\b|(?<!\d)(?<!\d[\s-])\bhp\b(?!\s?[:=]?\s?\d)", re.I), "HP"),
 ]
 COMPARABLE_CONDS = {"NM", "LP", "UNK"}
 
@@ -459,6 +468,7 @@ class Catalog:
                 "id": int(float(r["id"])), "name": base, "variant": variant, "num": num,
                 "pre": pre, "n": n, "suf": suf, "set": setname, "stoks": stoks,
                 "ntoks": norm_tokens(base), "vtoks": expand_aliases(norm_tokens(variant)),
+                "nkey": next((t for t in norm_tokens(base) if t not in GENERIC_NAME), (norm_tokens(base) or ["?"])[0]),
                 "epid": str(r.get("epid", "")).strip(), "release": release, "rel": rel,
                 # PriceCharting's ungraded price and sales/yr: used only by the wrong-match check (pc_flag)
                 "pc": money(r.get("loose-price", "")), "vol": whole(r.get("sales-volume", "")),
@@ -594,7 +604,7 @@ def epid_match(cat, idxs, parsed, tset):
         official = cat.totals.get(c["set"])
         if parsed[3] is not None and not parsed[0] and official is not None and official != parsed[3]:
             return None                               # "4/130" on a /102 set: let the title matcher decide
-    if (c["ntoks"] or ["?"])[0] not in tset:
+    if c["nkey"] not in tset:
         return None
     group = cat.by_key[key]
     if unknown_printing(cat, group, tset):
@@ -610,7 +620,8 @@ def match_title(cat, title, epid, denoms, out=None):
     if rj:
         return None, "rejected: " + rj.group(1).lower(), 0
     parsed = parse_number(title)
-    ttoks = expand_aliases(norm_tokens(title))
+    # "Stage 2" is the card's evolution stage; its "2" must not read as the "2" of Base Set 2
+    ttoks = expand_aliases(norm_tokens(re.sub(r"\bstage\s?[12]\b", " ", title, flags=re.I)))
     tset = set(ttoks)
     if epid and epid in cat.by_epid:
         ci = epid_match(cat, cat.by_epid[epid], parsed, tset)
@@ -628,6 +639,8 @@ def match_title(cat, title, epid, denoms, out=None):
         if pre != c["pre"]:                       # "TG20" and "#20" are different cards
             continue
         if suf and c["suf"] and suf != c["suf"]:
+            continue
+        if c["nkey"] not in tset:                 # the Pokemon's own name has to be there
             continue
         # set score: idf-weighted share of the set's words found in the title;
         # the set's single most distinctive word alone is worth 0.6 ("151", "jungle", "fossil")
@@ -649,26 +662,35 @@ def match_title(cat, title, epid, denoms, out=None):
         if set_score < 0.5 and not den_ok:
             continue
         ntoks = c["ntoks"] or ["?"]
-        if ntoks[0] not in tset:                  # the Pokemon's name has to be there
-            continue
         name_hits = sum(1 for t in ntoks if t in tset)
         name_score = name_hits / len(ntoks)
         if name_score < 0.5:
             continue
         score = 0.6 * max(set_score, 0.9 if den_ok else 0) + 0.4 * name_score
-        scored.append((round(score, 4), round(hitw, 4), i, set_score >= 0.5, den_ok, den_bad, name_hits))
+        hit_a = sum(w for t, w in weights.items() if t in tset and not (len(t) == 1 and t.isdigit()))
+        scored.append((round(score, 4), round(hitw, 4), i, set_score >= 0.5, den_ok, den_bad, name_hits, hit_a))
     if not scored:
         return None, "no set/name agreement", 0
+    # Anniversary reprints carry the ORIGINAL card's number and total ("Lugia 149/147"), so the title's "30th" /
+    # "25th" / "Celebrations" / "Classic Collection" is the only thing that tells them from the original: such a
+    # listing cannot be a card printed before the anniversary year.
+    year = 2026 if "30th" in tset else 2021 if (("celebrations" in tset or ("classic" in tset and "collection" in tset))
+                                                and "mcdonalds" not in tset and "mcdonald" not in tset) else None
+    if year:
+        cut = datetime(year, 1, 1).date().toordinal()
+        scored = [x for x in scored if not (cat.cards[x[2]]["rel"] and cat.cards[x[2]]["rel"] < cut)]
+        if not scored:
+            return None, "anniversary reprint, not the original", 0
     # The printed total settles it between two sets that both fit the title's words ("Charizard 4/130 Base" is
     # Base Set 2, not Base Set): a set whose total contradicts the title gives way to one whose total matches -
     # unless the title names it with more distinctive words ("Celebrations" on a 4/102 Classic Collection reprint).
-    ok_w = max((x[1] for x in scored if x[4]), default=None)
+    ok_w = max((x[7] for x in scored if x[4]), default=None)      # words, not a stray single digit
     if ok_w is not None:
-        scored = [x for x in scored if not (x[5] and x[1] <= ok_w)]
+        scored = [x for x in scored if not (x[5] and x[7] <= ok_w)]
     # best first: score, then the set's words in the title, then how much of the title the card's name explains
     # ("Charizard ex 006/165" is the 151 card, not Expedition's plain Charizard with the same number and total)
     scored.sort(key=lambda x: (x[0], x[1], x[6]), reverse=True)
-    best_s, best_w, best_i, by_set, _, bad, best_k = scored[0]
+    best_s, best_w, best_i, by_set, _, bad, best_k, _ = scored[0]
     best_set = cat.cards[best_i]["set"]
     group = [x[2] for x in scored if cat.cards[x[2]]["set"] == best_set]           # that card's printings
     others = [x for x in scored if cat.cards[x[2]]["set"] != best_set]
@@ -690,12 +712,13 @@ def resolve_variant(cat, idxs, tset):
     unknown_printing() first."""
     if len(idxs) == 1:
         return idxs[0]
+    non_holo = "non" in tset and "holo" in tset                 # "Non-Holo" is not a claim to the [Holo] printing
     claimed = []
     for i in idxs:
         c = cat.cards[i]
         if c["variant"]:
             need = need_of(c)
-            if all(w in tset for w in need):
+            if all(w in tset for w in need) and not (non_holo and set(need) == {"holo"}):
                 claimed.append((len(need), len(c["variant"]), i))
     if claimed:                                     # the most specific printing the title names:
         claimed.sort(reverse=True)                  # "Master Ball reverse holo" is the Master Ball row, not Reverse Holo
@@ -704,7 +727,7 @@ def resolve_variant(cat, idxs, tset):
     if len(plain) == 1:
         return plain[0]
     holo = [i for i in idxs if cat.cards[i]["variant"] in ("holo", "cosmos holo")]
-    if not plain and len(holo) == 1 and len(idxs) == 2:
+    if not plain and len(holo) == 1 and len(idxs) == 2 and not non_holo:
         return holo[0]
     return None
 
@@ -1111,6 +1134,41 @@ def pc_flag(rec, c):
     if ratio < PC_LOW:
         return "low" if rec.get("tcond", "UNK") in COMPARABLE_CONDS else ""
     return "high" if ratio > PC_HIGH else ""
+
+
+def rematch(state, cat):
+    """Run the current matcher over every stored listing - open and closed. A listing an older matcher filed under
+    the wrong card moves to the right one, one it should not have matched at all is dropped, and the condition
+    words are read again. A printing that came from the item specifics is kept. The daily rollup is rebuilt from
+    the corrected records. -> (moved, dropped, conditions changed)"""
+    n = {"moved": 0, "dropped": 0, "cond": 0}
+
+    def redo(r):
+        title = r.get("title") or ""
+        t = title_condition(title)
+        if t != r.get("tcond", "UNK"):
+            r["tcond"] = t
+            n["cond"] += 1
+        if "specifics" in (r.get("how") or ""):
+            return True
+        ci, how, _ = match_title(cat, title, r.get("epid") or "", state["denoms"])
+        if ci is None:
+            n["dropped"] += 1
+            return False
+        if cat.cards[ci]["id"] != r["card"]:
+            n["moved"] += 1
+            r["card"] = cat.cards[ci]["id"]
+            for k in ("lam0", "rank0", "p48_0", "p24_0", "eff0", "ratio0", "idv", "idr", "pcm"):
+                r.pop(k, None)                            # judged afresh against the right card
+        if "how" in r:
+            r["how"] = how
+        return True
+
+    state["open"] = {iid: r for iid, r in state["open"].items() if redo(r)}
+    state["closed"] = [r for r in state["closed"] if redo(r)]
+    state["daily"] = {}
+    state["match_v"] = MATCH_VERSION
+    return n["moved"], n["dropped"], n["cond"]
 
 
 def stamp_pc(state, cat):
@@ -2135,6 +2193,8 @@ def main():
         raise SystemExit("SITE_PASSWORD secret is missing (it encrypts the state and the live file).")
     cat = load_catalog()
     state = load_state()
+    if state.get("match_v") != MATCH_VERSION:
+        log("Re-matched every stored listing: %d moved to another card, %d dropped, %d conditions re-read" % rematch(state, cat))
     state["runs"] = state.get("runs", 0) + 1
     if state["calls"].get(TODAY, 0) >= 4950:
         log("Daily API limit reached - skipping this run.")     # backstop only; lookup_budget() keeps us under it

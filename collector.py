@@ -830,6 +830,12 @@ def main():
         log(f"Inherited flags: {kept} kept for confirmation, {cleared} cleared as too old")
     state["vps"]["catalog"] = cat_name
     log(f"Catalog {cat_name}; state: {len(state['open'])} open, {len(state['closed'])} closed")
+    if state.get("match_v") != es.MATCH_VERSION:              # the matcher changed: correct what the old one filed
+        t0 = time.time()
+        moved, dropped, cond = es.rematch(state, cat)
+        log(f"Re-matched every stored listing with the current matcher in {time.time() - t0:.0f} s: {moved} moved to "
+            f"another card, {dropped} dropped as no longer matching, {cond} conditions re-read; now "
+            f"{len(state['open'])} open, {len(state['closed'])} closed")
     sched = {"catalog": time.time()}
     counters = defaultdict(int)
     while True:
