@@ -160,7 +160,7 @@ PRINTING_DAILY_MAX = 150     # ... and this many per UTC day
 PRINT_FIT = (0.6, 1.7)       # "fits" = the listing's total is within this share of that printing's PriceCharting price
 PENDING_MIN_TOTAL = 40.0     # an ambiguous-printing listing waits for a lookup only at or above this price ...
 PENDING_KEEP_H = 12          # ... and for at most this long
-MATCH_VERSION = 2            # bump when the title matcher changes: every stored listing is then matched again
+MATCH_VERSION = 3            # bump when the title matcher changes: every stored listing is then matched again
                              # (rematch()) the next time the collector starts, so old mistakes do not linger
 # 3. Printed set totals ("36/123" -> 123) from the open Pokemon TCG dataset, the same source the page uses
 TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
@@ -473,6 +473,13 @@ class Catalog:
                 # PriceCharting's ungraded price and sales/yr: used only by the wrong-match check (pc_flag)
                 "pc": money(r.get("loose-price", "")), "vol": whole(r.get("sales-volume", "")),
             })
+        first = {}                               # each set's earliest dated card ...
+        for c in self.cards:
+            if c["rel"] and c["rel"] < first.get(c["set"], 10 ** 9):
+                first[c["set"]] = c["rel"]
+        for c in self.cards:                     # ... dates its undated rows (variant rows often have none); not in promo
+            if c["rel"] is None and "promo" not in c["set"].lower():   # sets, whose cards span decades
+                c["rel"] = first.get(c["set"])
         self.by_id = {c["id"]: c for c in self.cards}
         self.by_epid = {}                        # eBay product id -> card indexes (usually one)
         for i, c in enumerate(self.cards):
@@ -623,6 +630,8 @@ def match_title(cat, title, epid, denoms, out=None):
     # "Stage 2" is the card's evolution stage; its "2" must not read as the "2" of Base Set 2
     ttoks = expand_aliases(norm_tokens(re.sub(r"\bstage\s?[12]\b", " ", title, flags=re.I)))
     tset = set(ttoks)
+    if "celebrations" in tset:                    # "30th Celebrations" is the set PriceCharting calls "30th Celebration"
+        tset.add("celebration")
     if epid and epid in cat.by_epid:
         ci = epid_match(cat, cat.by_epid[epid], parsed, tset)
         if ci is not None:
@@ -677,10 +686,15 @@ def match_title(cat, title, epid, denoms, out=None):
     year = 2026 if "30th" in tset else 2021 if (("celebrations" in tset or ("classic" in tset and "collection" in tset))
                                                 and "mcdonalds" not in tset and "mcdonald" not in tset) else None
     if year:
-        cut = datetime(year, 1, 1).date().toordinal()
-        scored = [x for x in scored if not (cat.cards[x[2]]["rel"] and cat.cards[x[2]]["rel"] < cut)]
-        if not scored:
-            return None, "anniversary reprint, not the original", 0
+        mark = "30th" if year == 2026 else "celebrations"
+        named = [x for x in scored if mark in cat.cards[x[2]]["stoks"]]
+        if named:                                 # the anniversary set has this card: that is the one
+            scored = named
+        else:
+            cut = datetime(year, 1, 1).date().toordinal()
+            scored = [x for x in scored if not (cat.cards[x[2]]["rel"] and cat.cards[x[2]]["rel"] < cut)]
+            if not scored:
+                return None, "anniversary reprint, not the original", 0
     # The printed total settles it between two sets that both fit the title's words ("Charizard 4/130 Base" is
     # Base Set 2, not Base Set): a set whose total contradicts the title gives way to one whose total matches -
     # unless the title names it with more distinctive words ("Celebrations" on a 4/102 Classic Collection reprint).
@@ -711,6 +725,9 @@ def resolve_variant(cat, idxs, tset):
     """Pick one row among a card's printings; None when the title is unclear. Callers rule out
     unknown_printing() first."""
     if len(idxs) == 1:
+        c = cat.cards[idxs[0]]
+        if any(w in c["vtoks"] for w in ("jumbo", "staff", "prerelease")) and not all(w in tset for w in need_of(c)):
+            return None                             # a jumbo / staff / prerelease row is never the default printing
         return idxs[0]
     non_holo = "non" in tset and "holo" in tset                 # "Non-Holo" is not a claim to the [Holo] printing
     claimed = []

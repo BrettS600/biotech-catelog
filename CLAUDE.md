@@ -144,10 +144,12 @@ refused. Nobody has measured the matcher's accuracy yet (see Roadmap 2). What gu
   149/147 -> Aquapolis: the reprints carry the original number and total), most of the rest scam-screen suspects, no
   real steals in the 75 read. Of 957 too-high flags most were plain overpricing (43% on cards PriceCharting values
   under $8.34, seen only because the sweep starts at $25), then NM vintage reverse holos, stamped / error printings
-  and a few wrong cards. Fixed the same day (MATCH_VERSION 2): an anniversary word in the title ("30th", "25th",
-  "Celebrations", "Classic Collection") bars every card printed before that year; the name check goes by the first
+  and a few wrong cards. Fixed the same day (MATCH_VERSION 2, then 3): an anniversary word in the title ("30th", "25th",
+  "Celebrations", "Classic Collection") sends the listing to the anniversary set's own row when it has one, and
+  otherwise bars every card printed before that year (an undated row takes its set's date - PriceCharting leaves
+  rows like Charizard [Black Dot Error] undated, and they slipped through at first); the name check goes by the first
   word that is not generic (`nkey`, GENERIC_NAME), so "Mega Mewtwo EX" is no longer Mega Lucario ex; "Non-Holo" no
-  longer claims the [Holo] row; "Stage 2" is stripped so its 2 is not Base Set 2's; and `title_condition()` no longer
+  longer claims the [Holo] row; a lone [Jumbo] / [Staff] / [Prerelease] row is never the default; "Stage 2" is stripped so its 2 is not Base Set 2's; and `title_condition()` no longer
   reads hit points ("120 HP") as Heavily Played - that one had kept about 860 listings a day (9%) out of the
   statistics and the gate.
 - `rematch()` and MATCH_VERSION: when the matcher changes, bump MATCH_VERSION. On its next start the collector runs
