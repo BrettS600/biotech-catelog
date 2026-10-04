@@ -164,6 +164,18 @@ refused. Nobody has measured the matcher's accuracy yet (see Roadmap 2). What gu
   search.json, items.json (with localizedAspects), state.json; `match_title` cases for shared totals, reprints,
   variants, ePIDs and rejects; the page in jsdom.
 
+Spare-call order since 2026-10-04 (`cycle()` step 3): identity lookups -> window re-reads -> one book check ->
+confirmations -> keyword checks / enrich. Two starvation bugs led here: confirmations once took every token, so no
+window was re-read for three days; then a 5-token reserve on confirmations plus unreserved book checks (34cf4e3) let
+the book checks take everything - 0 windows and 0 confirmations an hour while about 650 listings an hour were
+flagged as gone. The rules now: when a re-read is due and the bucket cannot pay for it yet, nothing after it spends
+that minute (so the bucket reaches the price of a big window); book checks cover only copies the re-reads cannot see
+(`rereadable()`), on cards with an anchor, one per cycle; confirmations get all the rest, in `confirm_queue()` order -
+price band first, then the card's PriceCharting sales count (a where-to-look prior, never a model input: only a
+fast-selling card can pass the gate, and its rate is only right if nearly all its sales are seen), newest flag first;
+a listing flagged as gone leaves the book at once (`compute_stats`) and is dropped after VANISH_KEEP_D days if no
+lookup reached it. The hourly "Waiting:" log line shows the three queues - read it before changing this again.
+
 ## Capacity (measured 2026-09-30 on the Actions design; the machine design above is the answer to it)
 Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.
 Following every listing to its outcome (checks at day 3/10/30) is ~11x over budget and can never catch up; the

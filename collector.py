@@ -82,7 +82,8 @@ REREAD_CADENCE = [(1.0, 3 * 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24
 # then daily to day 10: about 1,700 calls a day, leaving ~1,400 for the confirmations the re-reads produce
 WINDOW_SETTLE_S = 1800           # a window is re-read only once it has been closed this long (indexing lag ~4 min,
                                  # with a long tail): re-reading the current hour flags listings not indexed yet
-CONFIRM_RESERVE = 5              # confirmations never spend the bucket below this, so re-reads can afford a window
+VANISH_KEEP_D = 3                # a listing flagged as gone and still unconfirmed after this many days is dropped
+                                 # (outcome unknown), so the confirmation queue cannot grow without end
 CHEAP_DROP_D = 2                 # open listings under the re-read band are dropped (not closed) after this many days:
                                  # nothing would ever check them, and they only cost memory
 FLAG_MAX_AGE_D = 3               # suspect flags inherited from the Actions version are kept only this fresh
@@ -92,7 +93,7 @@ CONFIRM_MAX_PER_CYCLE = 12
 FALSE_ALARM_LIMIT = 2            # missing from its window twice while still open -> stop re-reading it
 BOOK_BAND = (40, 500)            # card price band whose cheapest copies get re-verified
 BOOK_RECHECK_S = 48 * 3600
-BOOK_MAX_PER_CYCLE = 3
+BOOK_MAX_PER_CYCLE = 1
 KW_CHECK_AGES_D = [1, 3]         # listings found only by the keyword query cannot be re-read: getItem instead
 KW_MAX_PER_CYCLE = 2
 STALE_D = 14                     # an open listing this old is closed as unsold (nothing re-reads it past day 10)
@@ -447,22 +448,40 @@ def confirm(state, iid, rec, why):
     return "open"
 
 
-def confirm_queue(state):
-    """Vanished listings, most valuable first: in the book band before cheap, newest flag first."""
-    q = [(0 if in_band(r, BOOK_BAND) else 1, r.get("vanished"), iid) for iid, r in state["open"].items() if r.get("vanished")]
-    q.sort()
-    return [iid for _, _, iid in q]
+def confirm_queue(state, cat):
+    """Vanished listings in the order they are worth a lookup. There are far more of them than lookups (hundreds an
+    hour against about two a minute), so the order is the policy: listings in the price band first; then the cards
+    that sell the most, by PriceCharting's sales count, because only a fast-selling card can ever pass the gate
+    and its sales rate is only right if nearly all of its sales are seen; newest flag first within a card.
+    (PriceCharting's count is used to decide where to look, never as a number in the model.)"""
+    flagged = sorted(((r["vanished"], iid) for iid, r in state["open"].items() if r.get("vanished")), reverse=True)
+
+    def worth(x):
+        r = state["open"][x[1]]
+        return (0 if in_band(r, BOOK_BAND) else 1, -((cat.by_id.get(r["card"]) or {}).get("vol") or 0))
+    flagged.sort(key=worth)                                  # a stable sort: newest flag first within a card
+    return [iid for _, iid in flagged]
+
+
+def rereadable(rec):
+    """True when the window re-reads will notice this listing disappearing (so nothing else needs to watch it)."""
+    st = rec_start(rec)
+    return rec.get("src") == "aspect" and not rec.get("nocheck") and in_band(rec, REREAD_BAND) and st is not None \
+        and (es.NOW - st).total_seconds() / 86400 <= REREAD_MAX_AGE_D
 
 
 def book_queue(state, cards):
-    """Copies that set prices: the 3 cheapest open copies of every priced card in the band, not checked in 48 h."""
+    """Copies that set prices and that the window re-reads cannot see (under the re-read band, found only by the
+    keyword query, older than the re-reads go): the 3 cheapest open copies of every card that has an anchor, not
+    checked in 48 h. Copies the re-reads do cover are confirmed through the vanished queue instead - checking them
+    here as well took every spare lookup and left none for the re-reads or the confirmations (2026-10-04)."""
     out = []
     for cid, c in cards.items():
-        if c.get("lam") is None or c.get("price") is None or not (BOOK_BAND[0] <= c["price"] <= BOOK_BAND[1]):
+        if c.get("A_n", 0) < es.ANCHOR_MIN or c.get("price") is None or not (BOOK_BAND[0] <= c["price"] <= BOOK_BAND[1]):
             continue
         for entry in c.get("book", [])[:3]:
             rec = state["open"].get(entry[0])
-            if not rec:
+            if not rec or rereadable(rec):
                 continue
             last = es.parse_ts(rec.get("checked") or rec.get("seen_open") or "")
             if last is None or (es.NOW - last).total_seconds() >= BOOK_RECHECK_S:
@@ -501,6 +520,18 @@ def drop_cheap(state):
         t = rec.get("total")
         if (t is None or t < REREAD_BAND[0]) and not rec.get("vanished") \
                 and es.hours_between(es.parse_ts(rec["first"]), es.NOW) / 24 > CHEAP_DROP_D:
+            del state["open"][iid]
+            n += 1
+    return n
+
+
+def drop_unconfirmed(state):
+    """Listings flagged as gone that no lookup reached in VANISH_KEEP_D days: removed with no closed record (sold or
+    merely ended is unknown, so they count in nothing)."""
+    n = 0
+    for iid, rec in list(state["open"].items()):
+        t = es.parse_ts(rec.get("vanished") or "")
+        if t and (es.NOW - t).total_seconds() / 86400 > VANISH_KEEP_D:
             del state["open"][iid]
             n += 1
     return n
@@ -670,49 +701,59 @@ def cycle(state, cat, sched, counters):
             aspect_trial(state, cat)
         except Exception as e:
             log(f"Aspect trial: stopped ({e})")
-    # 3. optional work, paid for with tokens: window re-reads first (they are what finds the sales), then the
-    #    confirmations they produce (which may not drain the bucket below a reserve, or re-reads starve - that
-    #    happened for three days), then the price-setting copies, the keyword-only listings, scam enrichment
+    # 3. optional work, paid for with tokens, in this order:
+    #    a. identity lookups for listings that clear the gate (rare, and they decide a hit)
+    #    b. window re-reads - they are what notices a listing has gone. When one is due and the bucket cannot pay for
+    #       it yet, NOTHING below spends this minute: otherwise the bucket never reaches the price of a big window and
+    #       no window is ever read again (that happened twice: the confirmations starved the re-reads for three days,
+    #       then the book checks starved both - 0 windows and 0 confirmations an hour on 2026-10-04)
+    #    c. one book check for a price-setting copy the re-reads cannot see
+    #    d. confirmations of vanished listings, with everything that is left (see confirm_queue for the order)
+    #    e. keyword-only listings, scam enrichment
     cards = counters.get("_cards") or {}
     n_id = min(es.VERIFY_MAX_CALLS, int(v.get("tokens", 0))) if cards else 0
-    if n_id > 0:                                             # identity first: it is what decides a hit, and it is rare
+    if n_id > 0:
         done = es.verify_hits(state, cat, cards, n_id)
         v["tokens"] -= done
         counters["verified"] += done
+    saving = False
     if v.get("window_ok"):
         for last, key, n in due_windows(state, now)[:REREAD_MAX_PER_CYCLE]:
             est = max(1, math.ceil(n * 1.5 / 200))
             if not spend(state, est):
+                saving = True
                 break
             pages, present, flagged, repriced = reread_window(state, key, n)
             v["tokens"] += est - pages                       # charge what it actually cost
             counters["windows"] += 1; counters["window_pages"] += pages
             counters["flagged"] += flagged; counters["repriced"] += repriced
-    for iid in confirm_queue(state)[:CONFIRM_MAX_PER_CYCLE]:
-        if v.get("tokens", 0.0) - COST_CONFIRM < CONFIRM_RESERVE or not spend(state, COST_CONFIRM):
-            break
-        out = confirm(state, iid, state["open"][iid], "vanished")
-        counters["confirm_" + out] += 1
-    for iid in book_queue(state, cards)[:BOOK_MAX_PER_CYCLE]:
-        if not spend(state, COST_BOOK):
-            break
-        out = confirm(state, iid, state["open"][iid], "book")
-        counters["book_" + out] += 1
-    for iid in kw_queue(state)[:KW_MAX_PER_CYCLE]:
-        if not spend(state, COST_KW):
-            break
-        out = confirm(state, iid, state["open"][iid], "kw")
-        counters["kw_" + out] += 1
-    if due("enrich", ENRICH_EVERY_S):
-        n = min(3, int(v.get("tokens", 0)))
-        if n > 0:
-            before = state["calls"].get(es.TODAY, 0)
-            es.enrich(state, n)
-            v["tokens"] -= state["calls"].get(es.TODAY, 0) - before
+    if not saving:
+        for iid in book_queue(state, cards)[:BOOK_MAX_PER_CYCLE]:
+            if not spend(state, COST_BOOK):
+                break
+            out = confirm(state, iid, state["open"][iid], "book")
+            counters["book_" + out] += 1
+        for iid in confirm_queue(state, cat)[:CONFIRM_MAX_PER_CYCLE]:
+            if not spend(state, COST_CONFIRM):
+                break
+            out = confirm(state, iid, state["open"][iid], "vanished")
+            counters["confirm_" + out] += 1
+        for iid in kw_queue(state)[:KW_MAX_PER_CYCLE]:
+            if not spend(state, COST_KW):
+                break
+            out = confirm(state, iid, state["open"][iid], "kw")
+            counters["kw_" + out] += 1
+        if due("enrich", ENRICH_EVERY_S):
+            n = min(3, int(v.get("tokens", 0)))
+            if n > 0:
+                before = state["calls"].get(es.TODAY, 0)
+                es.enrich(state, n)
+                v["tokens"] -= state["calls"].get(es.TODAY, 0) - before
     # 4. housekeeping, statistics, live file
     if due("prune", 3600):
         counters["stale"] += close_stale(state)
         counters["dropped"] += drop_cheap(state)
+        counters["unconfirmed"] += drop_unconfirmed(state)
         es.prune(state)
     es.stamp_pc(state, cat)                                  # listings priced far from PriceCharting = wrong matches
     es.score_listings(state)
@@ -757,6 +798,9 @@ def cycle(state, cat, sched, counters):
         log(f"Now: {len(state['open'])} open, {len(state['closed'])} closed, {live['n_cards']} cards with data, "
             f"{live['n_live']} listings in 24 h, {live['n_pass']} pass the gate; budget {v['remaining']} left, "
             f"{v['per_min']} optional calls/min, {int(v.get('tokens', 0))} tokens; {live['calls_today']} calls today")
+        log(f"Waiting: {sum(1 for r in state['open'].values() if r.get('vanished'))} vanished listings to confirm, "
+            f"{len(due_windows(state, now))} windows due for a re-read, {len(book_queue(state, cards))} book copies due; "
+            f"{counters['unconfirmed']} dropped unconfirmed after {VANISH_KEEP_D} days")
         verdicts = Counter(x[12] for x in live["live"])             # where the last 24 h of listings stop at the gate
         log("Verdicts: " + ", ".join(f"{k} {n}" for k, n in verdicts.most_common()))
         anchored = sum(1 for c in cards.values() if c.get("A_n", 0) >= es.ANCHOR_MIN)

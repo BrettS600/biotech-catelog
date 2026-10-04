@@ -1793,7 +1793,7 @@ def update_daily(state, lp):
                 fresh[str(r["card"])][d][2] += 1
     today = NOW.date().isoformat()
     for r in state["open"].values():                    # today's cheapest ask per card
-        if comparable(r) and r["total"] is not None:
+        if comparable(r) and r["total"] is not None and not r.get("vanished"):
             eff = round(r["total"] * (BO_HAIRCUT if r["bo"] else 1.0), 2)
             cell = fresh[str(r["card"])][today]
             if cell[1] is None or eff < cell[1]:
@@ -1917,11 +1917,13 @@ def compute_stats(state, cat, lp):
         # --- LP normalization: prices of LP copies are lifted to NM-equivalent for every price stat.
         # The tier is picked from the card's raw sold median (or cheapest ask before any sale).
         raw_tot = [r["total"] for r in sold if r["total"] is not None]
-        raw_ask = [r["total"] for r in opens[cid] if comparable(r) and r["total"] is not None]
+        # a listing the collector has flagged as gone from eBay ("vanished", waiting for its lookup) is not a
+        # competing copy any more: it stays out of the book whether it sold or merely ended
+        raw_ask = [r["total"] for r in opens[cid] if comparable(r) and r["total"] is not None and not r.get("vanished")]
         lpd = lp_frac(lp, pct(raw_tot, 0.5) if len(raw_tot) >= 3 else (min(raw_ask) if raw_ask else pct(raw_tot, 0.5)))
         nm_eq = lambda r: r["total"] / (1 - lpd) if r.get("tcond") == "LP" else r["total"]
         # --- supply (the book) ---
-        book = [r for r in opens[cid] if comparable(r) and r["total"] is not None]
+        book = [r for r in opens[cid] if comparable(r) and r["total"] is not None and not r.get("vanished")]
         for r in book:
             r["_eff"] = round(nm_eq(r) * (BO_HAIRCUT if r["bo"] else 1.0), 2)
         book.sort(key=lambda r: r["_eff"])
