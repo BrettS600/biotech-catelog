@@ -152,6 +152,14 @@ PC_NEW_SET_D = 30            # ... and the card was released at least this many 
 #    specifics - card number, card name, set, language, card size, finish - are compared with the matched card.
 VERIFY_MAX_CALLS = 2         # identity lookups per run (per minute on the always-on machine)
 VERIFY_DAILY_MAX = 200       # ... and per UTC day
+#    The same lookup also settles WHICH PRINTING a listing is when the title leaves it open: the specifics' Finish /
+#    Features / Card Size are matched to the bracketed printings PriceCharting lists for the card. Spent on unmatched
+#    "ambiguous variant" titles and on mismatch-flagged listings that another printing's price would fit.
+PRINTING_EVERY_S = 600       # at most one such lookup every 10 minutes ...
+PRINTING_DAILY_MAX = 150     # ... and this many per UTC day
+PRINT_FIT = (0.6, 1.7)       # "fits" = the listing's total is within this share of that printing's PriceCharting price
+PENDING_MIN_TOTAL = 40.0     # an ambiguous-printing listing waits for a lookup only at or above this price ...
+PENDING_KEEP_H = 12          # ... and for at most this long
 # 3. Printed set totals ("36/123" -> 123) from the open Pokemon TCG dataset, the same source the page uses
 TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 
@@ -555,14 +563,21 @@ def need_of(c):
     return VARIANT_WORDS.get(c["variant"]) or c["vtoks"] or c["variant"].split()
 
 
-def unknown_printing(cat, idxs, tset):
-    """True when the title names a printing the catalog does not list for this card."""
+def missing_printing(cat, idxs, tset):
+    """The printing these words name that the catalog does not list for this card ("jumbo", "reverse"...), else None."""
     name = set(cat.cards[idxs[0]]["ntoks"])
     for word, need in CLAIM_WORDS.items():
         if all(w in tset for w in need) and not all(w in name for w in need) \
                 and not any(all(w in cat.cards[i]["vtoks"] for w in need) for i in idxs):
-            return True
-    return False
+            if word == "shadowless" and all(w in tset for w in CLAIM_WORDS["1st edition"]):
+                continue                              # every 1st Edition Base card is shadowless: that row covers it
+            return word
+    return None
+
+
+def unknown_printing(cat, idxs, tset):
+    """True when the title names a printing the catalog does not list for this card."""
+    return missing_printing(cat, idxs, tset) is not None
 
 
 def epid_match(cat, idxs, parsed, tset):
@@ -588,8 +603,9 @@ def epid_match(cat, idxs, parsed, tset):
     return choice if choice is not None else (idxs[0] if len(idxs) == 1 else None)
 
 
-def match_title(cat, title, epid, denoms):
-    """Return (card_index, method, score) or (None, reason, 0)."""
+def match_title(cat, title, epid, denoms, out=None):
+    """Return (card_index, method, score) or (None, reason, 0). When the title fits one card but not one printing
+    of it ("ambiguous variant"), that card's catalog rows are left in out["group"] for the item specifics to settle."""
     rj = REJECT.search(title)
     if rj:
         return None, "rejected: " + rj.group(1).lower(), 0
@@ -662,6 +678,8 @@ def match_title(cat, title, epid, denoms):
         return None, "printing not in catalog", 0   # ... and the catalog has no such printing of this card
     choice = resolve_variant(cat, group, tset)
     if choice is None:
+        if out is not None:
+            out["group"] = group
         return None, "ambiguous variant", 0
     how = "number+set" if by_set else "number+total"
     return choice, how + (" (total differs)" if bad else ""), best_s
@@ -845,10 +863,16 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
                     continue
                 new += 1
                 state["seen"][iid] = ts(NOW)
-                ci, how, score = match_title(cat, rec["title"], rec["epid"], state["denoms"])
+                out = {}
+                ci, how, score = match_title(cat, rec["title"], rec["epid"], state["denoms"], out)
                 if ci is None:
                     unmatched += 1
                     state["unmatched"].append([ts(NOW), iid, rec["title"], rec["total"], rec["url"], how])
+                    if out.get("group") and (rec["total"] or 0) >= PENDING_MIN_TOTAL:   # one card, printing unclear
+                        g = cat.cards[out["group"][0]]
+                        rec.update({"ckey": [g["set"], g["pre"], g["n"], g["suf"]], "first": ts(NOW), "src": qname,
+                                    "tcond": title_condition(rec["title"])})
+                        state.setdefault("pending", {})[iid] = rec
                     continue
                 matched += 1
                 c = cat.cards[ci]
@@ -1116,16 +1140,30 @@ def item_facts(r, it):
         r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
 
 
-def check_identity(cat, c, it):
-    """Compare the seller's item specifics with the catalog card the title was matched to.
-    -> ('ok' | 'conflict' | 'none', [what disagreed, or notes]); 'none' = nothing usable was filled in.
-    Hard conflicts: another card number, another card name, a set name that fits a different set clearly better,
-    a language other than English, graded, a jumbo card, a printing (reverse, 1st edition...) the matched row is not."""
+def specifics(it):
+    """getItem payload -> {item specific name (lower case): [values]}"""
     asp = defaultdict(list)
-    for a in it.get("localizedAspects") or []:
+    for a in (it or {}).get("localizedAspects") or []:
         name, val = str(a.get("name", "")).strip().lower(), a.get("value")
         if name and val not in (None, ""):
             asp[name].append(str(val).strip())
+    return asp
+
+
+def printing_words(asp):
+    """What a seller's Finish / Features / Card Size specifics say, as title words ("reverse", "holo", "jumbo")."""
+    return set(expand_aliases(norm_tokens(" ".join(asp.get("finish", []) + asp.get("features", []) + asp.get("card size", [])))))
+
+
+def check_identity(cat, c, it, title=""):
+    """Compare the seller's item specifics with the catalog card the title was matched to.
+    -> (status, notes, move). status: 'ok' | 'conflict' | 'none' ('none' = nothing usable was filled in); notes say
+    what disagreed; move = the catalog row to file the listing under instead, when the specifics name another
+    printing of the same card that the catalog lists (Finish: Reverse Holo -> the [Reverse Holo] row).
+    Hard conflicts: another card number, another card name, a set name that fits a different set clearly better,
+    a language other than English, graded, a printing the catalog does not list for this card (a jumbo...).
+    Silence proves nothing: a plain "Holo", or no Finish at all, never moves a listing."""
+    asp = specifics(it)
     first = lambda *names: next((asp[n][0] for n in names if asp.get(n)), None)
     bad, notes = [], []
     num_ok = name_ok = set_ok = False
@@ -1159,20 +1197,21 @@ def check_identity(cat, c, it):
         bad.append(f"language {lang}")
     if (first("graded") or "").lower().startswith("y"):
         bad.append("graded")
-    size = (first("card size") or "").lower()
-    if ("jumbo" in size or "oversize" in size) and "jumbo" not in c["vtoks"]:
-        bad.append("jumbo card")
-    said = set(expand_aliases(norm_tokens(" ".join(asp.get("finish", []) + asp.get("features", [])))))
-    for word, need in CLAIM_WORDS.items():
-        if all(w in said for w in need) and not all(w in c["vtoks"] for w in need) \
-                and not all(w in c["ntoks"] for w in need) \
-                and not (word == "shadowless" and "1st" in c["vtoks"]):      # every 1st Edition Base card is shadowless
-            bad.append(f"printing {word}")
+    # the printing: what Finish / Features / Card Size say, against the rows PriceCharting lists for this card
+    said, move = printing_words(asp), None
+    group = cat.by_key[(c["set"], c["pre"], c["n"], c["suf"])]
+    gone = missing_printing(cat, group, said)
+    if gone:
+        bad.append(f"printing {gone} (the catalog lists none for this card)")
+    elif any(cat.cards[i]["variant"] and set(need_of(cat.cards[i])) - {"holo"}
+             and all(w in said for w in need_of(cat.cards[i])) for i in group):
+        pick = resolve_variant(cat, group, said | set(expand_aliases(norm_tokens(title))))
+        if pick is not None and cat.cards[pick]["id"] != c["id"]:      # the specifics name another row of this card
+            move = cat.cards[pick]
+            notes.append(f"filed under [{move['variant'] or 'plain'}] from the item specifics")
     if bad:
-        return "conflict", bad
-    if num_ok or (name_ok and set_ok):
-        return "ok", notes
-    return "none", notes
+        return "conflict", bad, None
+    return ("ok" if num_ok or (name_ok and set_ok) else "none"), notes, move
 
 
 def wants_id_check(rec, cs):
@@ -1191,25 +1230,90 @@ def wants_id_check(rec, cs):
     return None
 
 
+def printing_fits(cat, rec):
+    """A mismatch-flagged listing on a card with several printings, one of which is priced where the listing is:
+    the title probably left the printing out, and the item specifics may name it."""
+    c = cat.by_id.get(rec["card"])
+    if not c or not rec.get("total"):
+        return False
+    for i in cat.by_key[(c["set"], c["pre"], c["n"], c["suf"])]:
+        o = cat.cards[i]
+        if o["id"] != c["id"] and o.get("pc") and PRINT_FIT[0] <= rec["total"] / o["pc"] <= PRINT_FIT[1]:
+            return True
+    return False
+
+
+def refile(rec, c):
+    """Move a listing to another printing of the same card (the row its item specifics name)."""
+    rec["card"], rec["how"] = c["id"], (rec.get("how") or "title") + "+specifics"
+    rec["pc"], rec["pcm"] = c.get("pc"), pc_flag(rec, c)
+    for k in ("lam0", "rank0", "p48_0", "p24_0", "eff0", "ratio0"):     # stamps made against the other row's book
+        rec.pop(k, None)
+
+
+def settle_pending(state, cat, iid, rec, it):
+    """An unmatched "ambiguous variant" listing, now with its item specifics: file it under the printing they
+    name, or let it go. -> what happened, for the log."""
+    del state["pending"][iid]
+    idxs = cat.by_key.get(tuple(rec.get("ckey") or ()), [])
+    if not it or not idxs:
+        return "gone"
+    words = printing_words(specifics(it)) | set(expand_aliases(norm_tokens(rec["title"])))
+    if missing_printing(cat, idxs, words):
+        return "printing not in catalog"
+    pick = resolve_variant(cat, idxs, words)
+    if pick is None:
+        return "still unclear"
+    c = cat.cards[pick]
+    status, notes, _ = check_identity(cat, c, it, rec["title"])
+    if status == "conflict":
+        return "conflict: " + ", ".join(notes)
+    rec.pop("ckey", None)
+    item_facts(rec, it)
+    rec.update({"card": c["id"], "how": "specifics", "checked": None, "checked_age": 0.0, "suspect": False,
+                "rev": None, "hist": [], "enriched": True, "idv": status,
+                "idr": notes + ["printing taken from the item specifics"]})
+    rec["pc"], rec["pcm"] = c.get("pc"), pc_flag(rec, c)
+    state["open"][iid] = rec
+    return f"filed as {c['name']}" + (f" [{c['variant']}]" if c["variant"] else "") + f" #{c['num']}"
+
+
 def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
-    """Read the item specifics of listings from the last 24 h that clear the price gate, best first: one full
-    getItem each, once per listing. Returns how many lookups were made."""
+    """Item-specifics lookups: one full getItem per listing, once each, most valuable first. Returns how many.
+      rank 0-2  listings from the last 24 h that clear the price gate (wants_id_check)
+      rank 3    unmatched "ambiguous variant" listings (state["pending"]) on a card that has an anchor
+      rank 4    listings flagged too cheap where another printing of the card is priced where the listing is
+      rank 5    the other ambiguous-variant listings          rank 6  too-high flags another printing fits
+    Ranks 0-2 may use VERIFY_DAILY_MAX lookups a day; ranks 3-6 get one every PRINTING_EVERY_S, PRINTING_DAILY_MAX a day."""
     used = {d: k for d, k in state.get("idchecks", {}).items() if d == TODAY}
-    state["idchecks"] = used
+    pused = {d: k for d, k in state.get("printchecks", {}).items() if d == TODAY}
+    state["idchecks"], state["printchecks"] = used, pused
+    pend = state.setdefault("pending", {})
     day_ago = ts(NOW - timedelta(hours=24))
     queue = []
     for iid, r in state["open"].items():
         if r.get("idv") or r["first"] < day_ago:        # ISO stamps compare as text
             continue
         rank = wants_id_check(r, cards.get(str(r["card"])))
+        if rank is None and r.get("pcm") and printing_fits(cat, r):
+            rank = 4 if r["pcm"] == "low" else 6
         if rank is not None:
-            queue.append((rank, r.get("total") or 0, iid))
+            queue.append((rank, -(r.get("total") or 0), iid))
+    for iid, r in pend.items():
+        idxs = cat.by_key.get(tuple(r.get("ckey") or ()), [])
+        anchored = any((cards.get(str(cat.cards[i]["id"])) or {}).get("A_n", 0) >= ANCHOR_MIN for i in idxs)
+        queue.append((3 if anchored else 5, -(r.get("total") or 0), iid))
     queue.sort()
     n = 0
-    for _, _, iid in queue:
-        if n >= max_calls or used.get(TODAY, 0) >= VERIFY_DAILY_MAX:
+    for rank, _, iid in queue:
+        if n >= max_calls:
             break
-        r, c = state["open"][iid], cat.by_id.get(state["open"][iid]["card"])
+        if rank <= 2:
+            if used.get(TODAY, 0) >= VERIFY_DAILY_MAX:
+                continue
+        elif pused.get(TODAY, 0) >= PRINTING_DAILY_MAX or time.time() - state.get("print_last", 0) < PRINTING_EVERY_S:
+            continue
+        r = pend[iid] if iid in pend else state["open"][iid]
         if DRY_RUN:
             it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
         else:
@@ -1218,14 +1322,23 @@ def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
             except RuntimeError as e:
                 log(f"ID check: lookup failed for {iid} ({e})")
                 continue
-        used[TODAY] = used.get(TODAY, 0) + 1
         n += 1
+        if rank <= 2:
+            used[TODAY] = used.get(TODAY, 0) + 1
+        else:
+            pused[TODAY], state["print_last"] = pused.get(TODAY, 0) + 1, time.time()
+        if iid in pend:
+            log(f"ID check: printing unclear - {r['title'][:70]} -> {settle_pending(state, cat, iid, r, it)}")
+            continue
+        c = cat.by_id.get(r["card"])
         if not it or not c:
             r["idv"], r["idr"] = "none", ["listing no longer there"]
             continue
         item_facts(r, it)
         r["enriched"] = True
-        r["idv"], r["idr"] = check_identity(cat, c, it)
+        r["idv"], r["idr"], move = check_identity(cat, c, it, r["title"])
+        if move is not None:
+            refile(r, move)
         log(f"ID check: {r['idv']} - {r['title'][:70]} -> {c['name']} #{c['num']} ({c['set']})"
             + (f": {', '.join(r['idr'])}" if r["idr"] else ""))
     return n
@@ -2000,6 +2113,8 @@ def prune(state):
     state["calls"] = {d: n for d, n in state["calls"].items() if d >= (NOW - timedelta(days=7)).date().isoformat()}
     day_ago_s = int(time.time()) - 86400
     state["recent_calls"] = [t for t in state.get("recent_calls", []) if t >= day_ago_s]
+    keep = ts(NOW - timedelta(hours=PENDING_KEEP_H))
+    state["pending"] = {k: r for k, r in state.get("pending", {}).items() if r["first"] >= keep}
 
 
 # ---------------- main ----------------

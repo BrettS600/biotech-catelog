@@ -116,6 +116,17 @@ refused. Nobody has measured the matcher's accuracy yet (see Roadmap 2). What gu
   (`Catalog.set_fit()`), language, graded, card size and finish/features are compared with the matched card ->
   `rec["idv"]` = ok / conflict / none, `rec["idr"]` = what disagreed. A conflict turns PASS into "ID conflict". On the
   machine these lookups run first among the optional work (<= VERIFY_MAX_CALLS a minute, VERIFY_DAILY_MAX a day).
+- The same lookup settles the PRINTING (2026-10-04, Brett's idea): Finish / Features / Card Size are read as title
+  words (`printing_words()`) and matched to the bracketed printings the card has. If they name another row of the
+  same card, the listing is re-filed there (`refile()`, `how` gets "+specifics") instead of being called a conflict;
+  a printing the catalog lacks is still a conflict; a bare "Holo" or silence moves nothing. Lookups beyond the gate
+  (ranks 3-6 in `verify_hits()`, one per PRINTING_EVERY_S, PRINTING_DAILY_MAX a day): unmatched "ambiguous variant"
+  titles kept in `state["pending"]` (>= PENDING_MIN_TOTAL, PENDING_KEEP_H hours; `settle_pending()` files them with
+  `how` = "specifics"), and mismatch-flagged listings that another printing's PriceCharting price fits (PRINT_FIT).
+  Hourly log lines "Printing: ..." and "Unmatched this hour: ..." (by reason) show whether it earns its calls.
+- Trial, not a feature yet: `aspect_trial()` in collector.py (TRIAL_RUNS times, log only, ~17 calls) tests whether
+  eBay's filtered search (`aspect_filter` Finish:{Reverse Holo} etc.) could tell every listing's printing for a few
+  calls an hour. Read the "Aspect trial:" log lines, decide, then set TRIAL_RUNS = 0 or delete it.
 - `wrong_card(rec)` (a mismatch flag or an ID conflict) keeps a listing out of `comparable()` and of every sold
   statistic: lambda, the anchor, the book, the daily rollup, the LP correction, the calibration tables.
 - Live rows carry 27 pc, 28 pcm, 29 idv, 30 idr (appended, so an older page keeps working); the page mirrors the

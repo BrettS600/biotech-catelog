@@ -103,6 +103,12 @@ SAFETY = 150                     # calls never planned into
 TOKEN_CAP = 80                   # optional work can burst up to this many calls in one cycle
 COST_CONFIRM, COST_BOOK, COST_KW = 1, 1, 1
 
+# ---------------- one-off trial: can a filtered search stand in for reading item specifics one by one? ----------------
+TRIAL_RUNS = 2                   # how many times aspect_trial() runs (0 = off); it only writes to the log
+TRIAL_EVERY_S = 12 * 3600
+TRIAL_CLAIMS = [("Finish", "Reverse Holo", "reverse"), ("Features", "1st Edition", "1st"),
+                ("Card Size", "Jumbo", "jumbo"), ("Language", "Japanese", "japanese")]
+
 DRY_RUN = "--dry-run" in sys.argv
 ONCE = "--once" in sys.argv
 
@@ -537,6 +543,36 @@ def selftest_window(state):
     log("Self-test: date-window re-reads " + ("ENABLED" if found else "DISABLED (none of 3 known listings came back) - tell Claude"))
 
 
+def aspect_trial(state, cat):
+    """eBay's search can filter on an item specific (aspect_filter). If "Finish: Reverse Holo" really returns the
+    reverse holos, a few searches an hour would tell every listing's printing without one lookup per listing.
+    This measures it and logs what it finds; it changes nothing else. About 17 calls a run."""
+    q, path = dict(es.QUERIES["aspect"]), "/buy/browse/v1/item_summary/search"
+    j = es.api_get(state, path, dict(q, limit="1", fieldgroups="ASPECT_REFINEMENTS"))
+    log(f"Aspect trial: {j.get('total')} raw singles in the price band right now; how sellers fill in the specifics:")
+    for a in (j.get("refinement") or {}).get("aspectDistributions") or []:
+        if a.get("localizedAspectName") in ("Finish", "Features", "Card Size", "Language", "Graded"):
+            vals = sorted(((v.get("matchCount") or 0, str(v.get("localizedAspectValue")))
+                           for v in a.get("aspectValueDistributions") or []), reverse=True)[:8]
+            log(f"Aspect trial:   {a['localizedAspectName']}: " + ", ".join(f"{val} {n}" for n, val in vals))
+    for name, value, word in TRIAL_CLAIMS:
+        j = es.api_get(state, path, dict(q, aspect_filter=q["aspect_filter"] + f",{name}:{{{value}}}"))
+        items = j.get("itemSummaries") or []
+        in_title = sum(1 for x in items if word in x.get("title", "").lower())
+        tracked = [state["open"][x["itemId"]] for x in items if x.get("itemId") in state["open"]]
+        other_row = sum(1 for r in tracked if word not in " ".join((cat.by_id.get(r["card"]) or {}).get("vtoks", [])))
+        agree = checked = 0
+        for x in items[:3]:                                  # read three of them the slow way: does the filter tell the truth?
+            it = es.api_get(state, f"/buy/browse/v1/item/{x['itemId']}", {}, ok_404=True) or {}
+            vals = [str(a.get("value")) for a in it.get("localizedAspects") or [] if a.get("name") == name]
+            checked += 1
+            agree += any(value.lower() in val.lower() for val in vals)
+            log(f"Aspect trial:     {x.get('title', '')[:60]} -> {name}: {', '.join(vals) or 'blank'}")
+        log(f"Aspect trial: {name} = {value}: {j.get('total')} listings ({len(items)} read); {in_title} say '{word}' in "
+            f"the title; {len(tracked)} are tracked here, {other_row} of them under a row that is not {value}; "
+            f"lookups agree on {agree} of {checked}")
+
+
 # ---------------- publishing ----------------
 def git(*args, cwd=LIVE_DIR, check=True):
     env = dict(os.environ)
@@ -628,6 +664,12 @@ def cycle(state, cat, sched, counters):
         v["lags"] = v.get("lags", [])[-500:]
     if not v.get("window_ok") and due("selftest", 1800):
         selftest_window(state)
+    if not DRY_RUN and v.get("trial_runs", 0) < TRIAL_RUNS and remaining > 400 and due("trial", TRIAL_EVERY_S):
+        v["trial_runs"] = v.get("trial_runs", 0) + 1
+        try:
+            aspect_trial(state, cat)
+        except Exception as e:
+            log(f"Aspect trial: stopped ({e})")
     # 3. optional work, paid for with tokens: window re-reads first (they are what finds the sales), then the
     #    confirmations they produce (which may not drain the bucket below a reserve, or re-reads starve - that
     #    happened for three days), then the price-setting copies, the keyword-only listings, scam enrichment
@@ -727,6 +769,14 @@ def cycle(state, cat, sched, counters):
             f"{es.PC_HIGH:.0%} (kept out of the statistics); item specifics read on {sum(ids.values())} open listings "
             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
             f"printed totals for {len(cat.totals)} sets")
+        by_spec = sum(1 for r in state["open"].values() if (r.get("how") or "").endswith("specifics"))
+        log(f"Printing: {by_spec} open listings filed under a printing their item specifics named; "
+            f"{len(state.get('pending', {}))} unmatched 'ambiguous variant' listings waiting for a lookup; "
+            f"{state.get('printchecks', {}).get(es.TODAY, 0)} printing lookups today")
+        hour_ago = es.ts(now - timedelta(hours=1))
+        why = Counter("no card #" if u[5].startswith("no card #") else u[5].split(":")[0]
+                      for u in state["unmatched"] if u[0] >= hour_ago)
+        log("Unmatched this hour: " + (", ".join(f"{k} {n}" for k, n in why.most_common()) or "none"))
         for k in ("Scam screen", "LP correction", "Enrich", "ID check"):
             if k in _es_last:
                 log(_es_last[k])
