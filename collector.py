@@ -104,10 +104,10 @@ TOKEN_CAP = 80                   # optional work can burst up to this many calls
 COST_CONFIRM, COST_BOOK, COST_KW = 1, 1, 1
 
 # ---------------- one-off trial: can a filtered search stand in for reading item specifics one by one? ----------------
-TRIAL_RUNS = 2                   # how many times aspect_trial() runs (0 = off); it only writes to the log
+TRIAL_RUNS = 0                   # how many times aspect_trial() runs (0 = off; it ran on 2026-10-04, see CLAUDE.md)
 TRIAL_EVERY_S = 12 * 3600
 TRIAL_CLAIMS = [("Finish", "Reverse Holo", "reverse"), ("Features", "1st Edition", "1st"),
-                ("Card Size", "Jumbo", "jumbo"), ("Language", "Japanese", "japanese")]
+                ("Card Size", "Oversized", "jumbo"), ("Language", "Japanese", "japanese")]
 
 DRY_RUN = "--dry-run" in sys.argv
 ONCE = "--once" in sys.argv

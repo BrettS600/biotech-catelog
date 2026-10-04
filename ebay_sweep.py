@@ -1155,14 +1155,17 @@ def printing_words(asp):
     return set(expand_aliases(norm_tokens(" ".join(asp.get("finish", []) + asp.get("features", []) + asp.get("card size", [])))))
 
 
-def check_identity(cat, c, it, title=""):
+def check_identity(cat, c, it, title="", total=None):
     """Compare the seller's item specifics with the catalog card the title was matched to.
     -> (status, notes, move). status: 'ok' | 'conflict' | 'none' ('none' = nothing usable was filled in); notes say
     what disagreed; move = the catalog row to file the listing under instead, when the specifics name another
     printing of the same card that the catalog lists (Finish: Reverse Holo -> the [Reverse Holo] row).
     Hard conflicts: another card number, another card name, a set name that fits a different set clearly better,
     a language other than English, graded, a printing the catalog does not list for this card (a jumbo...).
-    Silence proves nothing: a plain "Holo", or no Finish at all, never moves a listing."""
+    Silence proves nothing: a plain "Holo", or no Finish at all, never moves a listing. And the specifics are not
+    believed blindly either - sellers stuff Features (the 2026-10-04 trial found "1st Edition" on a listing titled
+    "Unlimited"): a move needs a title that names no printing of its own and a price that fits the printing named;
+    otherwise the disagreement is a conflict, to be settled from the photos."""
     asp = specifics(it)
     first = lambda *names: next((asp[n][0] for n in names if asp.get(n)), None)
     bad, notes = [], []
@@ -1203,12 +1206,21 @@ def check_identity(cat, c, it, title=""):
     gone = missing_printing(cat, group, said)
     if gone:
         bad.append(f"printing {gone} (the catalog lists none for this card)")
-    elif any(cat.cards[i]["variant"] and set(need_of(cat.cards[i])) - {"holo"}
-             and all(w in said for w in need_of(cat.cards[i])) for i in group):
-        pick = resolve_variant(cat, group, said | set(expand_aliases(norm_tokens(title))))
-        if pick is not None and cat.cards[pick]["id"] != c["id"]:      # the specifics name another row of this card
-            move = cat.cards[pick]
-            notes.append(f"filed under [{move['variant'] or 'plain'}] from the item specifics")
+    else:
+        named = [cat.cards[i] for i in group if cat.cards[i]["variant"] and set(need_of(cat.cards[i])) - {"holo"}
+                 and all(w in said for w in need_of(cat.cards[i]))]
+        if named and not any(x["id"] == c["id"] for x in named):      # they name a printing this listing is not filed under
+            ttoks = set(expand_aliases(norm_tokens(title)))
+            pick = resolve_variant(cat, group, said | ttoks)
+            m = cat.cards[pick] if pick is not None else named[0]
+            if c["variant"] or "unlimited" in ttoks:                  # ... and the title names a different one
+                bad.append(f"printing: the title says {c['variant'] or 'unlimited'}, the item specifics say {m['variant']}")
+            elif total and m.get("pc") and not PRINT_FIT[0] <= total / m["pc"] <= PRINT_FIT[1]:
+                bad.append(f"printing: the item specifics say {m['variant']}, but the price does not fit that printing "
+                           f"(PriceCharting ${m['pc']:,.2f})")
+            elif m["id"] != c["id"]:
+                move = m
+                notes.append(f"filed under [{m['variant']}] from the item specifics")
     if bad:
         return "conflict", bad, None
     return ("ok" if num_ok or (name_ok and set_ok) else "none"), notes, move
@@ -1336,7 +1348,7 @@ def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
             continue
         item_facts(r, it)
         r["enriched"] = True
-        r["idv"], r["idr"], move = check_identity(cat, c, it, r["title"])
+        r["idv"], r["idr"], move = check_identity(cat, c, it, r["title"], r.get("total"))
         if move is not None:
             refile(r, move)
         log(f"ID check: {r['idv']} - {r['title'][:70]} -> {c['name']} #{c['num']} ({c['set']})"
