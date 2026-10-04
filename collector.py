@@ -12,6 +12,8 @@ GitHub Actions cycle (sweep / presence walk / scheduled getItem checks) with a l
   as they appear CONFIRM     one getItem per vanished listing: sold vs ended, when, at what price
   every 48 h     BOOK CHECK  the 3 cheapest open copies of every priced card are re-verified,
                              so a sold copy cannot sit in the book as a phantom
+  as they appear ID CHECK    a listing that clears the price gate has its item specifics read (one
+                             getItem) and compared with the matched card, ahead of all other optional work
   every cycle    STATS       the per-card numbers, the live file for the site
   every 2 min    PUBLISH     live/ebay_live.bin + collector.log (+ hourly state backup) are
                              force-pushed to the one-commit "live" branch with a deploy key
@@ -629,6 +631,12 @@ def cycle(state, cat, sched, counters):
     # 3. optional work, paid for with tokens: window re-reads first (they are what finds the sales), then the
     #    confirmations they produce (which may not drain the bucket below a reserve, or re-reads starve - that
     #    happened for three days), then the price-setting copies, the keyword-only listings, scam enrichment
+    cards = counters.get("_cards") or {}
+    n_id = min(es.VERIFY_MAX_CALLS, int(v.get("tokens", 0))) if cards else 0
+    if n_id > 0:                                             # identity first: it is what decides a hit, and it is rare
+        done = es.verify_hits(state, cat, cards, n_id)
+        v["tokens"] -= done
+        counters["verified"] += done
     if v.get("window_ok"):
         for last, key, n in due_windows(state, now)[:REREAD_MAX_PER_CYCLE]:
             est = max(1, math.ceil(n * 1.5 / 200))
@@ -643,7 +651,6 @@ def cycle(state, cat, sched, counters):
             break
         out = confirm(state, iid, state["open"][iid], "vanished")
         counters["confirm_" + out] += 1
-    cards = counters.get("_cards") or {}
     for iid in book_queue(state, cards)[:BOOK_MAX_PER_CYCLE]:
         if not spend(state, COST_BOOK):
             break
@@ -665,6 +672,7 @@ def cycle(state, cat, sched, counters):
         counters["stale"] += close_stale(state)
         counters["dropped"] += drop_cheap(state)
         es.prune(state)
+    es.stamp_pc(state, cat)                                  # listings priced far from PriceCharting = wrong matches
     es.score_listings(state)
     lp = es.lp_correction(state)
     es.update_daily(state, lp)
@@ -713,7 +721,13 @@ def cycle(state, cat, sched, counters):
         liquid = sum(1 for c in cards.values() if c.get("liquid"))
         log(f"Cards: {anchored} with 5+ sales behind the anchor, {liquid} liquid at the collector's defaults, "
             f"{sum(1 for c in cards.values() if c.get('liquid') and c.get('A_n', 0) >= es.ANCHOR_MIN)} both")
-        for k in ("Scam screen", "LP correction", "Enrich"):
+        flags = Counter(r.get("pcm") or "-" for r in state["open"].values())
+        ids = Counter(r["idv"] for r in state["open"].values() if r.get("idv"))
+        log(f"Identity: {flags['low']} open listings under {es.PC_LOW:.0%} of the PriceCharting price, {flags['high']} over "
+            f"{es.PC_HIGH:.0%} (kept out of the statistics); item specifics read on {sum(ids.values())} open listings "
+            f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
+            f"printed totals for {len(cat.totals)} sets")
+        for k in ("Scam screen", "LP correction", "Enrich", "ID check"):
             if k in _es_last:
                 log(_es_last[k])
         for k in list(counters):

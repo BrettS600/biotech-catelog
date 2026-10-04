@@ -19,8 +19,10 @@ Three tabs:
    collector's per-card daily rollup kept 120 days; an eBay Trend popup shares the PriceCharting chart code).
 3. **eBay Raw Data** — every matched raw listing first seen in the last 24 h, with the card's Anchor, this
    listing's own Sell $ / Max buy / Profit $ / ROI %, a PASS/reason verdict, Risk (scam-screen tier), Photos, Status and
-   Time (h). Filters: Profit, ROI, "Listed within N h" (one number), a Condition chip (NM / LP / n/s),
-   "Show suspects". Listings with < 2 photos are left out; a "Scam screen" button shows the calibration table.
+   Time (h), plus PC ungraded $ and vs PC % (the PriceCharting price of the matched card and the listing's distance
+   from it - the wrong-match rule, see "Is it the right card?"). Filters: Profit, ROI, "Listed within N h" (one
+   number), a Condition chip (NM / LP / n/s), "Show suspects", "Too cheap only" (the mismatch-low list to check by
+   hand). Listings with < 2 photos are left out; a "Scam screen" button shows the calibration table.
 
 Top bar: Confidence (default 70%) and Window (default 48 h) — together the liquidity rule — "Only show hits"
 (Raw Data → PASS rows only), Margin (default 10%), Buy tax (default 6.25%; Brett sets it to 0 the day eBay approves
@@ -90,6 +92,39 @@ works before re-reads are enabled (`window_ok`). The Actions workflow `ebay_swee
 once the machine is confirmed publishing); it must not run on a schedule at the same time, since both force-push
 the `live` branch.
 
+## Is it the right card? (identity checks, added 2026-10-04 at Brett's request)
+Brett's two fears: buying a card that was matched to the wrong (dearer) catalog row, and missing deals the matcher
+refused. Nobody has measured the matcher's accuracy yet (see Roadmap 2). What guards identity now, all in `ebay_sweep.py`:
+- `match_title()`: REJECT words -> ePID (only when the title agrees: `epid_match()` checks the card number, the printed
+  total and the name; the old code trusted the ePID blindly) -> card number -> set, by its words in the title or its
+  printed total -> the card's name must be in the title -> the printing (`resolve_variant()`: the most specific claimed
+  variant wins, so "Master Ball reverse holo" is the Master Ball row). `unknown_printing()` / CLAIM_WORDS: a title that
+  names a printing the catalog lacks for that card (reverse, 1st edition, shadowless, jumbo, Master/Poke Ball, staff,
+  prerelease, cosmos) is unmatched ("printing not in catalog"), never filed under the plain card.
+- Printed set totals come from the open Pokemon TCG dataset (`official_totals()`, cached on the Catalog as
+  `cat.totals`; the same alias rules as `set_totals()` in build_catalog.py - keep the two in step). Sizes learned from
+  titles (`state["denoms"]`) remain the fallback. Between two sets that both fit a title, the one whose total matches
+  wins unless the other is named with more distinctive words ("4/130 Base" -> Base Set 2; "4/102 Celebrations" stays
+  Celebrations). A match whose total contradicts the set reads "number+set (total differs)" in `how`.
+- Price against PriceCharting (`pc_flag()`, stamped every cycle by `stamp_pc()` as `rec["pc"]`, `rec["pcm"]`): total
+  under PC_LOW (40%) or over PC_HIGH (300%) of the card's PriceCharting ungraded price = a wrong match. Skipped when
+  PriceCharting has under PC_MIN_SALES (20) sales/yr, when the set is under PC_NEW_SET_D (30) days old, and on the
+  low side for MP/HP copies. Verdicts "mismatch: too cheap" / "mismatch: too high". Brett asked for this as a HARD
+  rule (not a warning); the too-cheap ones stay visible on Raw Data behind the "Too cheap only" chip.
+- Item specifics (`verify_hits()` -> `check_identity()`): a listing from the last 24 h that clears the price gate at
+  any margin (liquidity ignored, review band included) gets ONE full getItem; card number, card name, set
+  (`Catalog.set_fit()`), language, graded, card size and finish/features are compared with the matched card ->
+  `rec["idv"]` = ok / conflict / none, `rec["idr"]` = what disagreed. A conflict turns PASS into "ID conflict". On the
+  machine these lookups run first among the optional work (<= VERIFY_MAX_CALLS a minute, VERIFY_DAILY_MAX a day).
+- `wrong_card(rec)` (a mismatch flag or an ID conflict) keeps a listing out of `comparable()` and of every sold
+  statistic: lambda, the anchor, the book, the daily rollup, the LP correction, the calibration tables.
+- Live rows carry 27 pc, 28 pcm, 29 idv, 30 idr (appended, so an older page keeps working); the page mirrors the
+  verdict in `verdictOf()` / `verdictCell()`. The hourly log line "Identity: ..." counts the flags.
+- Tests used for this change (rebuild them the same way): a `fixtures/` folder with catalog.csv (id, console-name,
+  product-name, epid, release-date, loose-price, sales-volume), sets.json (a copy of the dataset's sets/en.json),
+  search.json, items.json (with localizedAspects), state.json; `match_title` cases for shared totals, reprints,
+  variants, ePIDs and rejects; the page in jsdom.
+
 ## Capacity (measured 2026-09-30 on the Actions design; the machine design above is the answer to it)
 Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.
 Following every listing to its outcome (checks at day 3/10/30) is ~11x over budget and can never catch up; the
@@ -158,7 +193,9 @@ day-30 check are never closed as stale) also needs a rule.
 - Raw Data leaves out listings with fewer than 2 photos (Brett needs front + back); the Catalog keeps them.
 
 ## Decisions already made (don't relitigate)
-- eBay only for the eBay tabs; PriceCharting is the identity list. Default filter = card's eBay price
+- eBay only for the eBay tabs; PriceCharting is the identity list. One exception (Brett, 2026-10-04): PriceCharting's
+  ungraded price is the wrong-match check (under 40% / over 300% = mismatch) and a Raw Data column - never a pricing
+  input. Default filter = card's eBay price
   $50–500 (adjustable; raised from $150 on 2026-10-01 when Brett asked for $500 cards); collector sweeps $25–500
   (deals sit below the band). The three tabs show card numbers as number/printed set size ("36/123"), header "Set / Card"
   at Brett's request. The size comes from the open Pokemon TCG dataset (PokemonTCG/pokemon-tcg-data, sets/en.json),
@@ -181,7 +218,10 @@ day-30 check are never closed as stale) also needs a rule.
    site produces the list, Brett clicks.
 1. After 2–3 weeks: compare Hot cards' λ with ln 2 ÷ (median hours to sale ÷ 24); if consistently higher,
    use the waiting-time λ when Sell-thru ≥ 80% and Days supply < 3 (supply-capped demand).
-2. Tune the title matcher from the Unmatched list (aliases in `SET_ALIASES`, `VARIANT_WORDS`, `REJECT`).
+2. Measure the matcher, then tune it. Brett hand-checks ~150 of the cheapest-looking matches (Raw Data sorted by
+   vs PC % ascending): the share that are really the card in the first columns is the first accuracy number, and the
+   checked listings become the gold set for every later matcher change. Then tune from that and from the Unmatched
+   list (`SET_ALIASES`, `VARIANT_WORDS`, `CLAIM_WORDS`, `REJECT`, and the PC_* cutoffs).
 3. Deal alerts (e.g. open a GitHub issue when a listing PASSes) — optional, off by default.
 4. Make history shards incremental once a year of snapshots makes the daily rebuild slow.
 5. A flip ledger (card, buy, list, sold, hours) as the real calibration set.
@@ -192,6 +232,11 @@ directly (`push_files`); the workflow is then triggered by clicking "Run workflo
 Chrome extension (the connector has no Actions tools). Verify a push by comparing the blob SHA
 (`sha1("blob <size>\0" + bytes)`) with the directory listing. Claude Code (desktop) is the faster route
 for larger changes; Brett has not adopted it yet.
+Files too big to type through the connector (`ebay_sweep.py` is ~100 KB) go through Claude in Chrome instead: open
+github.com/BrettS600/biotech-catelog/upload/main (or .../upload/main/page for the page files) and, with the JavaScript
+tool, fetch the current file from raw.githubusercontent.com, apply the change as line edits, check the git blob SHA
+against the tested copy, put the result on the page's file input (`#upload-manifest-files-input`: a DataTransfer plus a
+`change` event) and click "Commit changes" - one commit per folder. (`file_upload` does not accept sandbox paths.)
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

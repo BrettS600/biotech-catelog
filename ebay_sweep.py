@@ -21,12 +21,20 @@ Each run:
   4. PUBLISH writes live/ebay_live.bin (encrypted) which the site fetches - listings posted in
              the last 24 hours, the per-card statistics, each card's book and daily history.
 
+Is it the right card? Three checks sit on top of the title match (settings: "identity checks"):
+  - the set's printed total ("/165", from the open Pokemon TCG dataset) decides between two sets that
+    both fit the title, and an eBay product id is trusted only when the title agrees with it;
+  - a listing priced far from the card's PriceCharting ungraded price is treated as a wrong match:
+    out of every statistic, never a hit, listed on Raw Data for a look by hand;
+  - a listing that clears the price gate has its eBay item specifics read once (one getItem) and
+    compared with the matched card; a conflict blocks the PASS.
+
 State lives in one encrypted file on the "snapshots" release (ebay_state.json.gz.enc):
 open listings, closed listings for the last 60 days, seen ids, learned set totals, API usage.
 
 Secrets: EBAY_CLIENT_ID  EBAY_CLIENT_SECRET  SITE_PASSWORD      Optional variable: BUYER_ZIP
-The card list comes from the newest PriceCharting snapshot on the release; nothing else from
-PriceCharting is used here.
+The card list comes from the newest PriceCharting snapshot on the release. PriceCharting's ungraded
+price is used for one thing only - the wrong-match check above; every price statistic is eBay's.
 """
 import base64
 import gzip
@@ -129,6 +137,23 @@ HOT_MIN_SALES = 5
 HOT_MIN_SELLTHRU = 0.80
 HOT_MAX_HRS = 48
 HOT_CONFIRM_N = 3
+
+# --- is it the right card? (identity checks) ---
+# 1. Price against PriceCharting. A listing whose total is far from the card's PriceCharting ungraded price is
+#    treated as a wrong match ("mismatch"): it never passes the gate and stays out of every statistic. Too-cheap
+#    ones are still shown on Raw Data so a real steal can be checked by hand. This is the only place a
+#    PriceCharting price is used on the eBay side.
+PC_LOW = 0.40                # total under 40% of the PriceCharting ungraded price -> "mismatch: too cheap"
+PC_HIGH = 3.00               # total over 300% of it -> "mismatch: too high"
+PC_MIN_SALES = 20            # the rule only applies when PriceCharting has this many sales/yr behind its price ...
+PC_NEW_SET_D = 30            # ... and the card was released at least this many days ago (new-set prices fall
+                             # faster than PriceCharting follows them)
+# 2. Item specifics. A listing that clears the price gate (at any margin) is looked up once and the seller's item
+#    specifics - card number, card name, set, language, card size, finish - are compared with the matched card.
+VERIFY_MAX_CALLS = 2         # identity lookups per run (per minute on the always-on machine)
+VERIFY_DAILY_MAX = 200       # ... and per UTC day
+# 3. Printed set totals ("36/123" -> 123) from the open Pokemon TCG dataset, the same source the page uses
+TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 
 # ---- Gate (keep in step with build_catalog.py) ----
 FEE_PCT = 0.1325             # eBay final value fee, trading cards
@@ -255,6 +280,13 @@ def money(v):
         return None
 
 
+def whole(v):
+    try:
+        return int(float(str(v).replace(",", "").strip()))
+    except ValueError:
+        return None
+
+
 def number_parts(num):
     m = re.match(r"^(\D*?)(\d+)(.*)$", str(num))
     if m:
@@ -286,6 +318,7 @@ SET_ALIASES = {
     "dex": "dark explorers", "nxd": "next destinies", "nvi": "noble victories", "epo": "emerging powers",
     "blw": "black white", "cl": "call of legends", "tm": "triumphant", "ud": "undaunted", "ul": "unleashed",
     "1st": "1st", "first": "1st", "wotc": "", "holo": "holo", "rh": "reverse holo",
+    "masterball": "master ball", "pokeball": "poke ball", "oversized": "jumbo", "oversize": "jumbo",
 }
 VARIANT_WORDS = {  # PriceCharting bracket text -> tokens that must all appear in the title
     "reverse holo": ["reverse"], "reverse foil": ["reverse"], "1st edition": ["1st", "edition"],
@@ -313,9 +346,76 @@ COMPARABLE_CONDS = {"NM", "LP", "UNK"}
 
 
 def norm_tokens(s):
-    s = s.lower().replace("&", " ").replace("'", "").replace("\u2019", "").replace("-", " ")
+    s = s.lower().replace("\u00e9", "e").replace("&", " ").replace("'", "").replace("\u2019", "").replace("-", " ")
     s = re.sub(r"[^a-z0-9 ]+", " ", s)
     return [t for t in s.split() if t and t not in STOP]
+
+
+# Printed set sizes from the open Pokemon TCG dataset, matched to PriceCharting's set names exactly the way
+# build_catalog.py does it for the page (keep the two in step: same aliases, same rules). A size learned from eBay
+# titles (state["denoms"]) is the fallback for sets the dataset does not have yet.
+SET_NAME_ALIASES = {"base set": "base", "expedition": "expedition base set", "scarlet violet 151": "151",
+                    "pokemon go": "go", "team magma team aqua": "team magma vs team aqua",
+                    "unleashed": "hs unleashed", "undaunted": "hs undaunted", "triumphant": "hs triumphant",
+                    "fire red leaf green": "firered leafgreen"}
+SERIES_PREFIXES = ("scarlet violet", "sword shield", "sun moon", "xy", "black white", "diamond pearl",
+                   "heartgold soulsilver", "platinum", "ex")
+_totals_cache = {}
+
+
+def norm_set(name):
+    s = str(name).lower().replace("\u00e9", "e").replace("&", " ").replace("'", "")
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
+    toks = [t for t in s.split() if t not in ("and", "the")]
+    if toks and toks[0] == "pokemon":
+        toks = toks[1:]
+    return " ".join(toks)
+
+
+def official_totals(set_names):
+    """{PriceCharting set name: printed size}. A failed download keeps the sizes from the last good one."""
+    global _totals_cache
+    try:
+        if DRY_RUN:
+            p = os.path.join("fixtures", "sets.json")
+            data = json.load(open(p)) if os.path.exists(p) else []
+        else:
+            r = requests.get(TCG_SETS_URL, timeout=60)
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        log(f"Set sizes: could not fetch the Pokemon TCG set list ({e}); keeping {len(_totals_cache)} from before")
+        return dict(_totals_cache)
+    by_norm = {}
+    for st in data:
+        if "promo" in st.get("name", "").lower():          # promos print SWSH001-style numbers, no size
+            continue
+        tot = st.get("printedTotal") or st.get("total")
+        if tot:
+            by_norm[norm_set(st["name"])] = int(tot)
+    out = {}
+    for name in set_names:
+        n = norm_set(name)
+        if "promo" in n:
+            continue
+        n = SET_NAME_ALIASES.get(n, n)
+        if n.startswith("mcdonalds ") and not n.startswith("mcdonalds collection"):
+            n = "mcdonalds collection " + n[len("mcdonalds "):]
+        tot = by_norm.get(n)
+        if tot is None:
+            for series in SERIES_PREFIXES:                  # "scarlet violet obsidian flames" -> "obsidian flames"
+                if n.startswith(series + " ") and by_norm.get(n[len(series) + 1:]):
+                    tot = by_norm[n[len(series) + 1:]]
+                    break
+        if tot is not None:
+            out[name] = tot
+    if out:
+        _totals_cache = out
+    return out
+
+
+def stem(t):
+    return t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t
 
 
 class Catalog:
@@ -324,8 +424,9 @@ class Catalog:
     def __init__(self, df):
         self.cards = []
         self.by_num = defaultdict(list)          # numeric card number -> card indexes
+        self.by_key = defaultdict(list)          # (set, prefix, number, suffix) -> the printings of that one card
         set_tokens_all = Counter()               # how many SETS use each word
-        seen_sets = set()
+        self.set_toks = {}                       # set name -> its words
         for _, r in df.iterrows():
             name_full = str(r["product-name"]).strip()
             m = re.search(r"#(\S+)\s*$", name_full)
@@ -338,22 +439,48 @@ class Catalog:
             pre, n, suf = number_parts(num)
             setname = str(r["console-name"]).strip()
             stoks = norm_tokens(setname)
-            if setname not in seen_sets:
-                seen_sets.add(setname)
+            release = str(r.get("release-date", "")).strip()[:10]
+            try:
+                rel = datetime.strptime(release, "%Y-%m-%d").date().toordinal()
+            except ValueError:
+                rel = None                             # no release date: treated as an old card
+            if setname not in self.set_toks:
+                self.set_toks[setname] = stoks
                 set_tokens_all.update(set(stoks))
             self.cards.append({
                 "id": int(float(r["id"])), "name": base, "variant": variant, "num": num,
                 "pre": pre, "n": n, "suf": suf, "set": setname, "stoks": stoks,
-                "ntoks": norm_tokens(base), "epid": str(r.get("epid", "")).strip(),
-                "release": str(r.get("release-date", "")).strip()[:10],
+                "ntoks": norm_tokens(base), "vtoks": expand_aliases(norm_tokens(variant)),
+                "epid": str(r.get("epid", "")).strip(), "release": release, "rel": rel,
+                # PriceCharting's ungraded price and sales/yr: used only by the wrong-match check (pc_flag)
+                "pc": money(r.get("loose-price", "")), "vol": whole(r.get("sales-volume", "")),
             })
+        self.by_id = {c["id"]: c for c in self.cards}
+        self.by_epid = {}                        # eBay product id -> card indexes (usually one)
         for i, c in enumerate(self.cards):
             self.by_num[c["n"]].append(i)
-        n_sets = len({c["set"] for c in self.cards})
+            self.by_key[(c["set"], c["pre"], c["n"], c["suf"])].append(i)
+            if c["epid"] and c["epid"] not in ("", "nan"):
+                self.by_epid.setdefault(c["epid"], []).append(i)
+        n_sets = len(self.set_toks)
         # rarer set words are more informative: "flames" beats "base"
         self.set_idf = {t: math.log((n_sets + 1) / (k + 1)) + 0.5 for t, k in set_tokens_all.items()}
-        self.by_epid = {c["epid"]: i for i, c in enumerate(self.cards) if c["epid"] and c["epid"] not in ("", "nan")}
-        log(f"Catalog: {len(self.cards):,} cards, {n_sets} sets, {len(self.by_epid):,} with an ePID.")
+        self.totals = official_totals(sorted(self.set_toks))        # set name -> printed size ("/165")
+        log(f"Catalog: {len(self.cards):,} cards, {n_sets} sets, {len(self.by_epid):,} ePIDs, "
+            f"printed totals for {len(self.totals)} sets.")
+
+    def set_fit(self, text, setname):
+        """How well a set name written by a seller (the Set item specific) fits the matched set and the best
+        other set: (weight of its words found in the matched set, best weight in any other set, that set)."""
+        words = {stem(t) for t in expand_aliases(norm_tokens(text))}
+        mine, best, best_set = 0.0, 0.0, None
+        for name, toks in self.set_toks.items():
+            w = sum(self.set_idf[t] for t in set(toks) if stem(t) in words)
+            if name == setname:
+                mine = w
+            elif w > best:
+                best, best_set = w, name
+        return mine, best, best_set
 
 
 def load_catalog():
@@ -415,7 +542,50 @@ def expand_aliases(tokens):
     return out
 
 
-CLAIM_WORDS = {"reverse": ["reverse"], "1st edition": ["1st", "edition"], "shadowless": ["shadowless"]}
+# Printing words: when the title says one of these and the catalog lists no such printing for the card, the listing
+# is left unmatched - filing it under the plain card would price the wrong thing (a jumbo, a reverse holo, a
+# Master Ball pattern). Words that are part of the card's own name ("Reverse Valley", the "Master Ball" item) don't count.
+CLAIM_WORDS = {"reverse": ["reverse"], "1st edition": ["1st", "edition"], "shadowless": ["shadowless"],
+               "master ball": ["master", "ball"], "poke ball": ["poke", "ball"], "jumbo": ["jumbo"],
+               "staff": ["staff"], "prerelease": ["prerelease"], "cosmos": ["cosmos"]}
+
+
+def need_of(c):
+    """The title words that name this printing: the VARIANT_WORDS entry, else the bracket text's own words."""
+    return VARIANT_WORDS.get(c["variant"]) or c["vtoks"] or c["variant"].split()
+
+
+def unknown_printing(cat, idxs, tset):
+    """True when the title names a printing the catalog does not list for this card."""
+    name = set(cat.cards[idxs[0]]["ntoks"])
+    for word, need in CLAIM_WORDS.items():
+        if all(w in tset for w in need) and not all(w in name for w in need) \
+                and not any(all(w in cat.cards[i]["vtoks"] for w in need) for i in idxs):
+            return True
+    return False
+
+
+def epid_match(cat, idxs, parsed, tset):
+    """The catalog row behind the eBay product id (ePID) a listing carries - trusted only when the title agrees
+    with it, because sellers pick the wrong catalog product: the same card number when the title shows one, a
+    printed total that does not contradict the set, and the card's name. The printing is settled from the title."""
+    c = cat.cards[idxs[0]]
+    key = (c["set"], c["pre"], c["n"], c["suf"])
+    if any((cat.cards[i]["set"], cat.cards[i]["pre"], cat.cards[i]["n"], cat.cards[i]["suf"]) != key for i in idxs):
+        return None                                   # one ePID on several different cards tells us nothing
+    if parsed:
+        if parsed[0] != c["pre"] or parsed[1] != c["n"]:
+            return None
+        official = cat.totals.get(c["set"])
+        if parsed[3] is not None and not parsed[0] and official is not None and official != parsed[3]:
+            return None                               # "4/130" on a /102 set: let the title matcher decide
+    if (c["ntoks"] or ["?"])[0] not in tset:
+        return None
+    group = cat.by_key[key]
+    if unknown_printing(cat, group, tset):
+        return None
+    choice = resolve_variant(cat, group, tset)
+    return choice if choice is not None else (idxs[0] if len(idxs) == 1 else None)
 
 
 def match_title(cat, title, epid, denoms):
@@ -423,17 +593,19 @@ def match_title(cat, title, epid, denoms):
     rj = REJECT.search(title)
     if rj:
         return None, "rejected: " + rj.group(1).lower(), 0
-    if epid and epid in cat.by_epid:
-        return cat.by_epid[epid], "epid", 1.0
     parsed = parse_number(title)
+    ttoks = expand_aliases(norm_tokens(title))
+    tset = set(ttoks)
+    if epid and epid in cat.by_epid:
+        ci = epid_match(cat, cat.by_epid[epid], parsed, tset)
+        if ci is not None:
+            return ci, "epid", 1.0
     if not parsed:
         return None, "no card number", 0
     pre, n, suf, den = parsed
     cands = cat.by_num.get(n, [])
     if not cands:
         return None, f"no card #{n}", 0
-    ttoks = expand_aliases(norm_tokens(title))
-    tset = set(ttoks)
     scored = []
     for i in cands:
         c = cat.cards[i]
@@ -449,53 +621,67 @@ def match_title(cat, title, epid, denoms):
         set_score = hitw / tot
         if weights and max(weights, key=weights.get) in tset:
             set_score = max(set_score, 0.6)
-        # a learned set total ("/165") can stand in for a missing set name
-        den_ok = False
-        if den is not None:
+        # the set's printed total ("/165") can stand in for a missing set name: the official size from the
+        # Pokemon TCG dataset, or (for sets the dataset lacks) the size learned from eBay titles
+        den_ok = den_bad = False
+        if den is not None and not pre:
+            official = cat.totals.get(c["set"])
             dmap = denoms.get(c["set"], {})
-            if dmap and dmap.get(str(den), 0) >= 5 and dmap.get(str(den)) == max(dmap.values()):
-                den_ok = True
+            learned = bool(dmap) and dmap.get(str(den), 0) >= 5 and dmap.get(str(den)) == max(dmap.values())
+            den_ok = official == den or learned
+            den_bad = official is not None and not den_ok
         if set_score < 0.5 and not den_ok:
             continue
         ntoks = c["ntoks"] or ["?"]
         if ntoks[0] not in tset:                  # the Pokemon's name has to be there
             continue
-        name_score = sum(1 for t in ntoks if t in tset) / len(ntoks)
+        name_hits = sum(1 for t in ntoks if t in tset)
+        name_score = name_hits / len(ntoks)
         if name_score < 0.5:
             continue
         score = 0.6 * max(set_score, 0.9 if den_ok else 0) + 0.4 * name_score
-        scored.append((round(score, 4), round(hitw, 4), i, set_score >= 0.5))
+        scored.append((round(score, 4), round(hitw, 4), i, set_score >= 0.5, den_ok, den_bad, name_hits))
     if not scored:
         return None, "no set/name agreement", 0
-    scored.sort(reverse=True)
-    best_s, best_w, best_i, by_set = scored[0]
+    # The printed total settles it between two sets that both fit the title's words ("Charizard 4/130 Base" is
+    # Base Set 2, not Base Set): a set whose total contradicts the title gives way to one whose total matches -
+    # unless the title names it with more distinctive words ("Celebrations" on a 4/102 Classic Collection reprint).
+    ok_w = max((x[1] for x in scored if x[4]), default=None)
+    if ok_w is not None:
+        scored = [x for x in scored if not (x[5] and x[1] <= ok_w)]
+    # best first: score, then the set's words in the title, then how much of the title the card's name explains
+    # ("Charizard ex 006/165" is the 151 card, not Expedition's plain Charizard with the same number and total)
+    scored.sort(key=lambda x: (x[0], x[1], x[6]), reverse=True)
+    best_s, best_w, best_i, by_set, _, bad, best_k = scored[0]
     best_set = cat.cards[best_i]["set"]
-    group = [i for s_, w_, i, _ in scored if cat.cards[i]["set"] == best_set]      # that card's variants
-    others = [(s_, w_) for s_, w_, i, _ in scored if cat.cards[i]["set"] != best_set]
-    if others and best_s - others[0][0] < 0.15 and best_w <= others[0][1]:
+    group = [x[2] for x in scored if cat.cards[x[2]]["set"] == best_set]           # that card's printings
+    others = [x for x in scored if cat.cards[x[2]]["set"] != best_set]
+    if others and best_s - others[0][0] < 0.15 and best_w <= others[0][1] and best_k <= others[0][6]:
         return None, "ambiguous set", 0
+    if unknown_printing(cat, group, tset):          # the title says reverse / 1st ed / jumbo / Master Ball ...
+        return None, "printing not in catalog", 0   # ... and the catalog has no such printing of this card
     choice = resolve_variant(cat, group, tset)
     if choice is None:
         return None, "ambiguous variant", 0
-    return choice, ("number+set" if by_set else "number+total"), best_s
+    how = "number+set" if by_set else "number+total"
+    return choice, how + (" (total differs)" if bad else ""), best_s
 
 
 def resolve_variant(cat, idxs, tset):
-    """Pick one row among a card's printings; None when the title is unclear."""
-    def claims(v):
-        need = VARIANT_WORDS.get(v)
-        if need is None:
-            need = v.split()
-        return all(w in tset for w in need)
-    for word, need in CLAIM_WORDS.items():         # the title says reverse / 1st ed / shadowless ...
-        if all(w in tset for w in need) and not any(word in cat.cards[i]["variant"] for i in idxs):
-            return None                             # ... and the catalog has no such printing here
+    """Pick one row among a card's printings; None when the title is unclear. Callers rule out
+    unknown_printing() first."""
     if len(idxs) == 1:
         return idxs[0]
-    claimed = [(len(cat.cards[i]["variant"]), i) for i in idxs if cat.cards[i]["variant"] and claims(cat.cards[i]["variant"])]
-    if claimed:
-        claimed.sort(reverse=True)
-        return claimed[0][1]
+    claimed = []
+    for i in idxs:
+        c = cat.cards[i]
+        if c["variant"]:
+            need = need_of(c)
+            if all(w in tset for w in need):
+                claimed.append((len(need), len(c["variant"]), i))
+    if claimed:                                     # the most specific printing the title names:
+        claimed.sort(reverse=True)                  # "Master Ball reverse holo" is the Master Ball row, not Reverse Holo
+        return claimed[0][2]
     plain = [i for i in idxs if not cat.cards[i]["variant"]]
     if len(plain) == 1:
         return plain[0]
@@ -667,12 +853,13 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
                 matched += 1
                 c = cat.cards[ci]
                 parsed = parse_number(rec["title"])
-                if parsed and parsed[3] is not None and not parsed[0] and how == "number+set" and score >= 0.85:
+                if parsed and parsed[3] is not None and not parsed[0] and how.startswith("number+set") and score >= 0.85:
                     d = state["denoms"].setdefault(c["set"], {})          # the set's printed size, learned from titles
                     d[str(parsed[3])] = d.get(str(parsed[3]), 0) + 1
                 rec.update({"card": c["id"], "how": how, "tcond": title_condition(rec["title"]),
                             "first": ts(NOW), "src": qname, "checked": None, "checked_age": 0.0,
                             "suspect": False, "rev": None, "hist": []})
+                rec["pc"], rec["pcm"] = c.get("pc"), pc_flag(rec, c)
                 state["open"][iid] = rec
     state["last_sweep"] = ts(NOW)
     if not quiet:
@@ -698,6 +885,7 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "seller": rec.get("seller"), "n_img": rec.get("n_img"), "qty": rec.get("qty"), "ret": rec.get("ret"),
         "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
         **({"tier": rec["tier"]} if "tier" in rec else {}),
+        **{k: rec[k] for k in ("pc", "pcm", "idv", "idr") if k in rec},     # identity checks, as they stood
     })
     del state["open"][iid]
 
@@ -875,8 +1063,172 @@ def seller_bar(rec):
     return None
 
 
+def wrong_card(rec):
+    """An identity check says this listing is probably not the card it was matched to."""
+    return bool(rec.get("pcm")) or rec.get("idv") == "conflict"
+
+
 def comparable(rec):
-    return rec.get("tcond", "UNK") in COMPARABLE_CONDS and rec.get("tier") != "suspect"
+    return rec.get("tcond", "UNK") in COMPARABLE_CONDS and rec.get("tier") != "suspect" and not wrong_card(rec)
+
+
+# ---------------- identity checks: is the listing really the card it was matched to? ----------------
+def pc_flag(rec, c):
+    """'low' / 'high' when the listing's total is implausibly far from the card's PriceCharting ungraded price -
+    far more often a wrong match (another printing, another language, a lot, a fake) than a real price - else ''.
+    Skipped when PriceCharting's own price is thin or the set is new, and on the low side for MP/HP copies,
+    which are cheap for a reason."""
+    total, pc = rec.get("total"), (c or {}).get("pc")
+    if not total or not pc or (c.get("vol") or 0) < PC_MIN_SALES:
+        return ""
+    if c.get("rel") and NOW.date().toordinal() - c["rel"] < PC_NEW_SET_D:
+        return ""
+    ratio = total / pc
+    if ratio < PC_LOW:
+        return "low" if rec.get("tcond", "UNK") in COMPARABLE_CONDS else ""
+    return "high" if ratio > PC_HIGH else ""
+
+
+def stamp_pc(state, cat):
+    """Judge every open listing against today's PriceCharting price (prices move, listings get repriced) and
+    every closed one that was never judged. Runs each cycle before the statistics; it is a dictionary lookup."""
+    for r in state["open"].values():
+        c = cat.by_id.get(r["card"])
+        if c:
+            r["pc"], r["pcm"] = c.get("pc"), pc_flag(r, c)
+    for r in state["closed"]:
+        if "pcm" not in r:
+            c = cat.by_id.get(r["card"])
+            r["pc"], r["pcm"] = (c.get("pc"), pc_flag(r, c)) if c else (None, "")
+
+
+def item_facts(r, it):
+    """Quantity, returns and photo count from a full getItem payload (the scam score uses them)."""
+    av = (it.get("estimatedAvailabilities") or [{}])[0]
+    q = av.get("estimatedAvailableQuantity")
+    if q is None:
+        q = av.get("estimatedRemainingQuantity")
+    r["qty"] = q
+    rt = it.get("returnTerms") or {}
+    if "returnsAccepted" in rt:
+        r["ret"] = bool(rt["returnsAccepted"])
+    if it.get("additionalImages") is not None:
+        r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
+
+
+def check_identity(cat, c, it):
+    """Compare the seller's item specifics with the catalog card the title was matched to.
+    -> ('ok' | 'conflict' | 'none', [what disagreed, or notes]); 'none' = nothing usable was filled in.
+    Hard conflicts: another card number, another card name, a set name that fits a different set clearly better,
+    a language other than English, graded, a jumbo card, a printing (reverse, 1st edition...) the matched row is not."""
+    asp = defaultdict(list)
+    for a in it.get("localizedAspects") or []:
+        name, val = str(a.get("name", "")).strip().lower(), a.get("value")
+        if name and val not in (None, ""):
+            asp[name].append(str(val).strip())
+    first = lambda *names: next((asp[n][0] for n in names if asp.get(n)), None)
+    bad, notes = [], []
+    num_ok = name_ok = set_ok = False
+    num = first("card number")
+    p = (parse_number(num) or parse_number("#" + num)) if num else None
+    if p:
+        if p[1] != c["n"] or (p[0] and p[0] != c["pre"]):
+            bad.append(f"card number {num}")
+        else:
+            num_ok = True
+            official = cat.totals.get(c["set"])
+            if p[3] is not None and not p[0] and official is not None and official != p[3]:
+                notes.append(f"printed total {p[3]} vs {official}")
+    name = first("card name", "character")
+    if name:
+        ntoks, want = set(norm_tokens(name)), c["ntoks"] or ["?"]
+        if ntoks:
+            if sum(1 for t in want if t in ntoks) / len(want) >= 0.5 or max(want, key=len) in ntoks:
+                name_ok = True
+            else:
+                bad.append(f"card name {name}")
+    setv = first("set")
+    if setv:
+        mine, other, other_set = cat.set_fit(setv, c["set"])
+        if other > 1.5 * mine:                         # its words belong to a different set
+            bad.append(f"set {setv}")
+        elif mine > 0:
+            set_ok = True
+    lang = first("language")
+    if lang and "english" not in lang.lower():
+        bad.append(f"language {lang}")
+    if (first("graded") or "").lower().startswith("y"):
+        bad.append("graded")
+    size = (first("card size") or "").lower()
+    if ("jumbo" in size or "oversize" in size) and "jumbo" not in c["vtoks"]:
+        bad.append("jumbo card")
+    said = set(expand_aliases(norm_tokens(" ".join(asp.get("finish", []) + asp.get("features", [])))))
+    for word, need in CLAIM_WORDS.items():
+        if all(w in said for w in need) and not all(w in c["vtoks"] for w in need) \
+                and not all(w in c["ntoks"] for w in need) \
+                and not (word == "shadowless" and "1st" in c["vtoks"]):      # every 1st Edition Base card is shadowless
+            bad.append(f"printing {word}")
+    if bad:
+        return "conflict", bad
+    if num_ok or (name_ok and set_ok):
+        return "ok", notes
+    return "none", notes
+
+
+def wants_id_check(rec, cs):
+    """0 / 1 / 2 when the listing deserves one lookup of its item specifics (a PASS at the collector's settings,
+    the review band, a PASS at some smaller margin or with no buying tax - the page lets Brett change those and
+    the liquidity rule), else None."""
+    if rec.get("idv") or rec.get("total") is None or not cs or cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
+        return None
+    v, _ = verdict(rec, dict(cs, liquid=True))
+    if v in ("PASS", "review"):
+        return 0 if v == "PASS" and cs.get("liquid") else 1
+    if v == "over max buy":
+        net = listing_decision(rec, cs)[1]
+        if net is not None and rec["total"] <= net:
+            return 2
+    return None
+
+
+def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
+    """Read the item specifics of listings from the last 24 h that clear the price gate, best first: one full
+    getItem each, once per listing. Returns how many lookups were made."""
+    used = {d: k for d, k in state.get("idchecks", {}).items() if d == TODAY}
+    state["idchecks"] = used
+    day_ago = ts(NOW - timedelta(hours=24))
+    queue = []
+    for iid, r in state["open"].items():
+        if r.get("idv") or r["first"] < day_ago:        # ISO stamps compare as text
+            continue
+        rank = wants_id_check(r, cards.get(str(r["card"])))
+        if rank is not None:
+            queue.append((rank, r.get("total") or 0, iid))
+    queue.sort()
+    n = 0
+    for _, _, iid in queue:
+        if n >= max_calls or used.get(TODAY, 0) >= VERIFY_DAILY_MAX:
+            break
+        r, c = state["open"][iid], cat.by_id.get(state["open"][iid]["card"])
+        if DRY_RUN:
+            it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
+        else:
+            try:
+                it = api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+            except RuntimeError as e:
+                log(f"ID check: lookup failed for {iid} ({e})")
+                continue
+        used[TODAY] = used.get(TODAY, 0) + 1
+        n += 1
+        if not it or not c:
+            r["idv"], r["idr"] = "none", ["listing no longer there"]
+            continue
+        item_facts(r, it)
+        r["enriched"] = True
+        r["idv"], r["idr"] = check_identity(cat, c, it)
+        log(f"ID check: {r['idv']} - {r['title'][:70]} -> {c['name']} #{c['num']} ({c['set']})"
+            + (f": {', '.join(r['idr'])}" if r["idr"] else ""))
+    return n
 
 
 # ---------------- scam screen ----------------
@@ -923,7 +1275,7 @@ def score_listings(state):
     # second-cheapest open ask per card, the price reference before a card has a price of its own
     asks = defaultdict(list)
     for r in opens:
-        if r.get("total") is not None and r.get("tcond", "UNK") in COMPARABLE_CONDS:
+        if r.get("total") is not None and r.get("tcond", "UNK") in COMPARABLE_CONDS and not wrong_card(r):
             asks[r["card"]].append((r["total"], r["id"]))
     tiers, fired = Counter(), Counter()
     for r in opens:
@@ -1024,16 +1376,7 @@ def enrich(state, max_calls=ENRICH_MAX_CALLS):
         r["enriched"] = True
         if not it:
             continue
-        av = (it.get("estimatedAvailabilities") or [{}])[0]
-        q = av.get("estimatedAvailableQuantity")
-        if q is None:
-            q = av.get("estimatedRemainingQuantity")
-        r["qty"] = q
-        rt = it.get("returnTerms") or {}
-        if "returnsAccepted" in rt:
-            r["ret"] = bool(rt["returnsAccepted"])
-        if it.get("additionalImages") is not None:
-            r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
+        item_facts(r, it)
         n += 1
     if cands:
         log(f"Enrich: {n} of {len(cands)} candidate listings looked up for quantity/returns.")
@@ -1171,7 +1514,7 @@ def lp_correction(state):
     all cards, per price tier of the reference price. Ladder: tier (>= LP_MIN_SALES) -> global -> default."""
     by_card = defaultdict(lambda: {"ref": [], "lp": []})
     for r in state["closed"]:
-        if r["out"] != "sold" or r["total"] is None:
+        if r["out"] != "sold" or r["total"] is None or wrong_card(r):
             continue
         c = r.get("tcond", "UNK")
         t = parse_ts(r["closed"])
@@ -1224,7 +1567,8 @@ def update_daily(state, lp):
     ref_price = {}                                       # card -> median raw sold total, to pick the LP tier
     tots = defaultdict(list)
     for r in state["closed"]:
-        if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None:
+        if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None \
+                and not wrong_card(r):
             tots[r["card"]].append(r["total"])
     for cid, v in tots.items():
         ref_price[cid] = pct(v, 0.5)
@@ -1237,7 +1581,7 @@ def update_daily(state, lp):
     fresh = defaultdict(lambda: defaultdict(lambda: [[], None, 0]))
     for r in state["closed"]:
         if r["out"] == "sold" and r.get("tcond", "UNK") in COMPARABLE_CONDS and r["total"] is not None \
-                and r.get("tier") != "suspect":
+                and r.get("tier") != "suspect" and not wrong_card(r):
             d = r["closed"][:10]
             if d in refresh:
                 tot = r["total"] / (1 - lp_frac(lp, ref_price.get(r["card"]))) if r.get("tcond") == "LP" else r["total"]
@@ -1341,7 +1685,7 @@ def trend_stats(days):
 
 
 def compute_stats(state, cat, lp):
-    by_id = {c["id"]: c for c in cat.cards}
+    by_id = cat.by_id
     win_start = NOW - timedelta(days=STAT_WINDOW_D)
     opens = defaultdict(list)
     for iid, rec in state["open"].items():
@@ -1367,7 +1711,7 @@ def compute_stats(state, cat, lp):
         # --- demand ---
         D = max(1.0 / 24, min(STAT_WINDOW_D, hours_between(first_seen[cid], NOW) / 24))
         sold = [r for r in closed[cid] if r["out"] == "sold" and parse_ts(r["closed"]) >= win_start
-                and r.get("tcond", "UNK") in COMPARABLE_CONDS and r.get("tier") != "suspect"]
+                and r.get("tcond", "UNK") in COMPARABLE_CONDS and r.get("tier") != "suspect" and not wrong_card(r)]
         k = len(sold)
         lam = round(gamma_q(k + 0.5, D, 0.25), 3) if k >= 1 else None
         # --- LP normalization: prices of LP copies are lifted to NM-equivalent for every price stat.
@@ -1494,7 +1838,7 @@ def calibrate(state, horizon_h, key):
     recs = list(state["closed"]) + list(state["open"].values())
     for r in recs:
         ref = r.get(key)
-        if not ref or r.get("eff0") is None or r.get("rank0") is None or r["rank0"] > DEPTH_CAP:
+        if not ref or r.get("eff0") is None or r.get("rank0") is None or r["rank0"] > DEPTH_CAP or wrong_card(r):
             continue
         first = parse_ts(r["first"])
         if first is None or first > cutoff or r["first"] < CAL_SINCE:
@@ -1545,7 +1889,8 @@ def listing_decision(rec, cs):
 
 
 def verdict(rec, cs):
-    """Gate verdict for one listing given its card's stats (collector defaults: 70% / 48 h / 10% margin)."""
+    """Gate verdict for one listing given its card's stats (collector defaults: 70% / 48 h / 10% margin).
+    The page mirrors this in verdictOf(); keep the two in step."""
     if rec["total"] is None:
         return "no price", None
     allin = round(rec["total"] + (rec["item"] or 0) * TAX, 2)
@@ -1553,6 +1898,8 @@ def verdict(rec, cs):
         return "fewer than 2 photos", allin
     if rec.get("tier") == "suspect":
         return "suspect", allin
+    if rec.get("pcm"):                               # far from PriceCharting's price: treated as a wrong match
+        return ("mismatch: too cheap" if rec["pcm"] == "low" else "mismatch: too high"), allin
     if not cs or cs.get("A") is None:
         return ("no sales yet" if cs else "no data yet"), allin
     if cs.get("A_n", 0) < ANCHOR_MIN:
@@ -1569,8 +1916,8 @@ def verdict(rec, cs):
     s, net, maxbuy = listing_decision(rec, cs)
     if maxbuy is None:
         return "no sales yet", allin
-    if allin <= maxbuy:
-        return "PASS", allin
+    if allin <= maxbuy:                              # a hit - unless its item specifics say it is another card
+        return ("ID conflict" if rec.get("idv") == "conflict" else "PASS"), allin
     return "over max buy", allin
 
 
@@ -1582,7 +1929,7 @@ def deal_calib(state):
     rows = []
     for lo, hi in DEAL_BUCKETS:
         recs = [r for r in state["closed"] if r.get("ratio0") is not None and lo <= r["ratio0"] < hi
-                and r.get("out") in ("sold", "ended", "gone", "stale")]
+                and r.get("out") in ("sold", "ended", "gone", "stale") and not wrong_card(r)]
         sold = [r for r in recs if r["out"] == "sold" and r.get("hrs") is not None]
         rows.append({"lo": lo, "hi": hi, "n": len(recs), "sold": len(sold),
                      "sold_1h": sum(1 for r in sold if r["hrs"] <= 1), "sold_6h": sum(1 for r in sold if r["hrs"] <= 6),
@@ -1621,7 +1968,9 @@ def build_live(state, cards, lp):
                      r.get("out") or "open", r["url"], r.get("img"), r.get("how"),
                      r.get("hrs") if r.get("out") else None,          # 21: hours from listing to outcome
                      r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", []),   # 22-25: photos, tier, score, signals
-                     s_own])                                                                     # 26: this listing's own sell price
+                     s_own,                                                                      # 26: this listing's own sell price
+                     r.get("pc"), r.get("pcm") or "",             # 27-28: PriceCharting ungraded price, mismatch flag (low/high)
+                     r.get("idv") or "", r.get("idr") or []])     # 29-30: item-specifics check (ok/conflict/none), what it found
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
@@ -1632,7 +1981,8 @@ def build_live(state, cards, lp):
         "gate": {"fee": FEE_PCT, "buyerTax": BUYER_TAX, "fixed": FEE_FIXED, "shipOut": SHIP_OUT, "supplies": SUPPLIES,
                  "tax": TAX, "margin": MARGIN, "confidence": CONFIDENCE, "sellWindowH": SELL_WINDOW_H,
                  "undercut": UNDERCUT, "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D, "minSales": ANCHOR_MIN,
-                 "sellUnderA": SELL_UNDER_A, "sellNoFloor": SELL_NO_FLOOR, "reviewRatio": REVIEW_RATIO},
+                 "sellUnderA": SELL_UNDER_A, "sellNoFloor": SELL_NO_FLOOR, "reviewRatio": REVIEW_RATIO,
+                 "pcLow": PC_LOW, "pcHigh": PC_HIGH, "pcMinSales": PC_MIN_SALES, "pcNewSetD": PC_NEW_SET_D},
         "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
         "deals": deal_calib(state), "sets": set_sizes(state),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
@@ -1669,10 +2019,12 @@ def main():
     enrich(state, enrich_n)
     track(state, max(0, budget - enrich_n))
     prune(state)
+    stamp_pc(state, cat)
     score_listings(state)
     lp = lp_correction(state)
     update_daily(state, lp)
     cards = compute_stats(state, cat, lp)
+    verify_hits(state, cat, cards, min(VERIFY_MAX_CALLS, budget))
     live = build_live(state, cards, lp)
     log("LP correction: " + ", ".join(f"{t['lo']}-{t['hi'] if t['hi'] < 10**9 else '+'}: {t['pct']}% ({t['src']}, n={t['n']})" for t in lp["tiers"]))
     os.makedirs(LIVE_DIR, exist_ok=True)
