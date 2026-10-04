@@ -61,7 +61,7 @@ KNOWN_HOSTS = os.path.join(BASE, ".ssh", "known_hosts")
 
 # ---------------- cadence ----------------
 CYCLE_S = 60
-KW_EVERY_S = 300
+KW_EVERY_S = 600
 PUBLISH_EVERY_S = 120
 CODE_CHECK_EVERY_S = 300
 STATE_BACKUP_EVERY_S = 3600
@@ -72,12 +72,18 @@ SUMMARY_EVERY_S = 3600
 SWEEP_OVERLAP_MIN = 5            # a page covers ~15 min of listings; sweeping every minute, 5 is plenty
 
 # ---------------- outcome detection ----------------
-REREAD_BAND = (35, 500)          # listing price band that gets re-read (cheap copies of pricey cards are
+REREAD_BAND = (40, 500)          # listing price band that gets re-read (cheap copies of pricey cards are
                                  # caught by the book check instead)
 REREAD_MAX_AGE_D = 10
-REREAD_CADENCE = [(1.0, 2 * 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24 * 3600)]   # (age <= days, every s)
-# a one-hour window holds ~450 in-band listings (3 pages); re-reading day-1 windows every two hours keeps the
-# re-reads near 900 calls/day instead of 1,700
+REREAD_CADENCE = [(1.0, 3 * 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24 * 3600)]   # (age <= days, every s)
+# a one-hour window holds ~450 in-band listings (3 pages); day-1 windows every three hours, days 1-3 every six,
+# then daily to day 10: about 1,700 calls a day, leaving ~1,400 for the confirmations the re-reads produce
+WINDOW_SETTLE_S = 1800           # a window is re-read only once it has been closed this long (indexing lag ~4 min,
+                                 # with a long tail): re-reading the current hour flags listings not indexed yet
+CONFIRM_RESERVE = 5              # confirmations never spend the bucket below this, so re-reads can afford a window
+CHEAP_DROP_D = 2                 # open listings under the re-read band are dropped (not closed) after this many days:
+                                 # nothing would ever check them, and they only cost memory
+FLAG_MAX_AGE_D = 3               # suspect flags inherited from the Actions version are kept only this fresh
 REREAD_MAX_PAGES = 8
 REREAD_MAX_PER_CYCLE = 6
 CONFIRM_MAX_PER_CYCLE = 12
@@ -87,7 +93,7 @@ BOOK_RECHECK_S = 48 * 3600
 BOOK_MAX_PER_CYCLE = 3
 KW_CHECK_AGES_D = [1, 3]         # listings found only by the keyword query cannot be re-read: getItem instead
 KW_MAX_PER_CYCLE = 2
-STALE_D = 30                     # an open listing this old is closed as unsold
+STALE_D = 14                     # an open listing this old is closed as unsold (nothing re-reads it past day 10)
 
 # ---------------- budget ----------------
 DAILY_LIMIT = 5000
@@ -325,6 +331,8 @@ def due_windows(state, now):
     due = []
     for key, n in counts.items():
         b0 = datetime.strptime(key, "%Y-%m-%dT%H").replace(tzinfo=timezone.utc)
+        if (now - (b0 + timedelta(hours=1))).total_seconds() < WINDOW_SETTLE_S:
+            continue                                         # still filling, or not yet indexed
         age_d = (now - b0).total_seconds() / 86400
         every = cadence_for(age_d)
         if every is None:
@@ -477,6 +485,19 @@ def close_stale(state):
     return n
 
 
+def drop_cheap(state):
+    """Open listings under the re-read band that nothing will ever check again: removed outright, with no closed
+    record, so they count in nothing (a closed-as-stale record would read as 'did not sell')."""
+    n = 0
+    for iid, rec in list(state["open"].items()):
+        t = rec.get("total")
+        if (t is None or t < REREAD_BAND[0]) and not rec.get("vanished") \
+                and es.hours_between(es.parse_ts(rec["first"]), es.NOW) / 24 > CHEAP_DROP_D:
+            del state["open"][iid]
+            n += 1
+    return n
+
+
 def selftest_window(state):
     """One search that must return a listing we already know: proves the itemStartDate filter works here."""
     if DRY_RUN:
@@ -605,22 +626,23 @@ def cycle(state, cat, sched, counters):
         v["lags"] = v.get("lags", [])[-500:]
     if not v.get("window_ok") and due("selftest", 1800):
         selftest_window(state)
-    # 3. optional work, paid for with tokens: confirmations first (each is probably a sale), then window
-    #    re-reads, then the price-setting copies, then the keyword-only listings, then scam enrichment
-    for iid in confirm_queue(state)[:CONFIRM_MAX_PER_CYCLE]:
-        if not spend(state, COST_CONFIRM):
-            break
-        out = confirm(state, iid, state["open"][iid], "vanished")
-        counters["confirm_" + out] += 1
+    # 3. optional work, paid for with tokens: window re-reads first (they are what finds the sales), then the
+    #    confirmations they produce (which may not drain the bucket below a reserve, or re-reads starve - that
+    #    happened for three days), then the price-setting copies, the keyword-only listings, scam enrichment
     if v.get("window_ok"):
         for last, key, n in due_windows(state, now)[:REREAD_MAX_PER_CYCLE]:
             est = max(1, math.ceil(n * 1.5 / 200))
             if not spend(state, est):
                 break
             pages, present, flagged, repriced = reread_window(state, key, n)
-            v["tokens"] -= max(0, pages - est)
+            v["tokens"] += est - pages                       # charge what it actually cost
             counters["windows"] += 1; counters["window_pages"] += pages
             counters["flagged"] += flagged; counters["repriced"] += repriced
+    for iid in confirm_queue(state)[:CONFIRM_MAX_PER_CYCLE]:
+        if v.get("tokens", 0.0) - COST_CONFIRM < CONFIRM_RESERVE or not spend(state, COST_CONFIRM):
+            break
+        out = confirm(state, iid, state["open"][iid], "vanished")
+        counters["confirm_" + out] += 1
     cards = counters.get("_cards") or {}
     for iid in book_queue(state, cards)[:BOOK_MAX_PER_CYCLE]:
         if not spend(state, COST_BOOK):
@@ -641,6 +663,7 @@ def cycle(state, cat, sched, counters):
     # 4. housekeeping, statistics, live file
     if due("prune", 3600):
         counters["stale"] += close_stale(state)
+        counters["dropped"] += drop_cheap(state)
         es.prune(state)
     es.score_listings(state)
     lp = es.lp_correction(state)
@@ -680,7 +703,7 @@ def cycle(state, cat, sched, counters):
             f"{counters['confirm_sold']} sold, {counters['confirm_ended']} ended, {counters['confirm_gone']} gone, "
             f"{counters['confirm_open']} still open | book checks: {counters['book_sold']} sold, {counters['book_ended'] + counters['book_gone']} ended/gone, "
             f"{counters['book_open']} open | kw checks {counters['kw_sold']} sold / {counters['kw_open']} open | "
-            f"{counters['stale']} closed stale | {counters['published']} publishes | {lag_txt}")
+            f"{counters['stale']} closed stale, {counters['dropped']} cheap dropped | {counters['published']} publishes | {lag_txt}")
         log(f"Now: {len(state['open'])} open, {len(state['closed'])} closed, {live['n_cards']} cards with data, "
             f"{live['n_live']} listings in 24 h, {live['n_pass']} pass the gate; budget {v['remaining']} left, "
             f"{v['per_min']} optional calls/min, {int(v.get('tokens', 0))} tokens; {live['calls_today']} calls today")
@@ -728,9 +751,19 @@ def main():
                 raise
             log(f"Startup failed ({e}); trying again in 5 minutes")
             time.sleep(300)
-    for rec in state["open"].values():                       # listings the Actions version flagged: confirm them here
-        if rec.get("suspect") and not rec.get("vanished"):
-            rec["vanished"] = rec.get("first")
+    kept = cleared = 0
+    for rec in state["open"].values():                       # listings the Actions version flagged as missing
+        if rec.get("suspect"):
+            if es.hours_between(es.parse_ts(rec["first"]), now_utc()) / 24 <= FLAG_MAX_AGE_D:
+                if not rec.get("vanished"):
+                    rec["vanished"] = rec.get("first")
+                kept += 1
+            else:                                            # too old to be worth a call; the stale rule closes it
+                rec["suspect"] = False
+                rec["vanished"] = None
+                cleared += 1
+    if kept or cleared:
+        log(f"Inherited flags: {kept} kept for confirmation, {cleared} cleared as too old")
     state["vps"]["catalog"] = cat_name
     log(f"Catalog {cat_name}; state: {len(state['open'])} open, {len(state['closed'])} closed")
     sched = {"catalog": time.time()}
