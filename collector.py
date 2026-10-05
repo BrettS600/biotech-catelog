@@ -34,6 +34,7 @@ import io
 import json
 import math
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -124,7 +125,9 @@ ALERTS_PER_HOUR = 20             # a ceiling, so a bug can never flood the phone
 # ---------------- trial: do auctions end under max buy? (log only; Brett approved it on 2026-10-04) ----------------
 AUCTION_TRIAL_DAYS = 4           # runs this many days from its first read, then stops by itself (0 = off)
 AUCTION_EVERY_S = 600            # read the 200 auctions ending soonest this often (one search call)
-AUCTION_LOOKUPS_PER_DAY = 100    # final-price lookups a day: one getItem per finished auction on a card we can price
+AUCTION_LOOKUPS_PER_HOUR = 5     # final-price lookups: one getItem per finished auction on a card we can price. Per
+                                 # hour, not per day: a daily cap was used up in the first two hours after midnight UTC,
+                                 # so the first day's sample was all 8-10 PM Eastern
 AUCTION_LOOKUPS_PER_CYCLE = 2
 
 DRY_RUN = "--dry-run" in sys.argv
@@ -766,6 +769,33 @@ def push(title, message, click=None, image=None, priority=5, tags=("moneybag",))
         return False
 
 
+PC_IMG = re.compile(r"https://storage\.googleapis\.com/images\.pricecharting\.com/([A-Za-z0-9_-]+)/\d+\.jpg")
+
+
+def pc_image(state, pid):
+    """PriceCharting's own picture of a card, for the phone's check screen (Brett compares it with the eBay photo:
+    a listing whose title and item specifics both name one card while the photo shows another can only be caught
+    by eye). Their data feed has no image field, so the address is read off the card's public page - one page per
+    card, fetched only when an alert is about to go out. Their terms have no rule against it and robots.txt allows
+    /game/ (both read 2026-10-05). None when it cannot be had; the screen then shows the button instead."""
+    cache = state["vps"].setdefault("pc_img", {})
+    if str(pid) in cache:
+        return cache[str(pid)]
+    try:
+        import requests
+        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=6,
+                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per alert"})
+        m = PC_IMG.search(r.text) if r.status_code == 200 else None
+    except Exception:
+        m = None
+    if not m:
+        return None                                          # not remembered: the next alert for this card tries again
+    cache[str(pid)] = f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg"
+    for k in list(cache)[:-2000]:
+        del cache[k]
+    return cache[str(pid)]
+
+
 def hit_payload(rec, cs, cat, kind="hit"):
     """Everything the check screen shows for one hit or lead, as a compact dict (it travels inside the alert's link)."""
     c = cat.by_id.get(rec["card"]) or {}
@@ -817,6 +847,7 @@ def alert_hits(state, cat, cards, live, cfg):
         if d["nm"][2] is None or d["nm"][2] < cfg["min_profit"]:
             return 0
         d["tk"], d["rq"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back
+        d["pci"] = pc_image(state, d["pid"])
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
                + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings"
@@ -910,7 +941,7 @@ def auction_finish(state, cards, n):
     cutoff = es.ts(es.NOW - timedelta(minutes=3))
     ended = sorted((a["end"], iid) for iid, a in watch.items() if a["end"] < cutoff)
     used = 0
-    for _, iid in ended[:n]:
+    for _, iid in ended[-n:]:                                # the most recently finished: each hour samples itself
         a = watch.pop(iid)
         it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
         used += 1
@@ -1048,15 +1079,15 @@ def cycle(state, cat, sched, counters):
     if AUCTION_TRIAL_DAYS and not DRY_RUN and remaining > 400 and counters.get("_cards"):
         tr = v.setdefault("auction", {})
         tr.setdefault("until", es.ts(now + timedelta(days=AUCTION_TRIAL_DAYS)))
-        if tr.get("day") != es.TODAY:
-            tr["day"], tr["n"] = es.TODAY, 0
+        if tr.get("hour") != es.ts(now)[:13]:
+            tr["hour"], tr["hn"] = es.ts(now)[:13], 0
         if es.ts(now) < tr["until"]:
             try:
                 if due("auctions", AUCTION_EVERY_S):
                     counters["auctions_new"] += auction_read(state, cat, counters["_cards"])
-                k = min(AUCTION_LOOKUPS_PER_CYCLE, AUCTION_LOOKUPS_PER_DAY - tr["n"])
+                k = min(AUCTION_LOOKUPS_PER_CYCLE, AUCTION_LOOKUPS_PER_HOUR - tr["hn"])
                 if k > 0:
-                    tr["n"] += auction_finish(state, counters["_cards"], k)
+                    tr["hn"] += auction_finish(state, counters["_cards"], k)
             except Exception as e:
                 log(f"Auction trial: skipped this minute ({e})")
     if not DRY_RUN and v.get("trial_runs", 0) < TRIAL_RUNS and remaining > 400 and due("trial", TRIAL_EVERY_S):
@@ -1262,6 +1293,9 @@ def main():
             log("Phone alerts: channel set, test alert sent")
     else:
         log("Phone alerts: off (no NTFY_TOPIC in /etc/pokemon-collector.env)")
+    if NTFY_TOPIC and not DRY_RUN:                           # can this machine read PriceCharting's card pages at all?
+        log("PriceCharting pictures for the check screen: " + ("reachable" if pc_image(state, 960299) else
+            "NOT reachable from this machine - the check screen will show the button instead"))
     if state.get("match_v") != es.MATCH_VERSION:              # the matcher changed: correct what the old one filed
         t0 = time.time()
         moved, dropped, cond = es.rematch(state, cat)

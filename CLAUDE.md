@@ -228,6 +228,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   and hit.html posts Brett's final tap back ({"dec": {i, tk, d: nm | lp | no}}, unsigned - the token vouches for
   it). `alert_status()` sends the last 40 as `live["alert"]["hist"]` with each listing's fate; the tab's History card
   shows them. His No taps are the running accuracy check on matching. Not built yet: the auction alerts.
+- PriceCharting's picture on the check screen (2026-10-05): `pc_image()` reads the image address off the matched
+  card's public page when an alert goes out (one page per card, remembered in `state["vps"]["pc_img"]`) and the link
+  carries it as `pci`; hit.html shows it beside the eBay photo and falls back to the button. PriceCharting's API and
+  CSV have no image field; their terms of service have no clause against automated access (the limits are on sharing
+  Price Data with third parties) and robots.txt allows /game/ - both read through Brett's browser that day. An earlier
+  note in this chat that it "needed their permission" was a guess and was wrong.
+- Why the photo check matters: the one hit of Oct 4 (eBay 128114641633) had title AND item specifics for Charizard
+  11/108 Evolutions while its photo showed a Charizard VMAX. No text check can catch that; only the picture does.
+- Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
+  first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
   / 12, all grades) on the matched-card side; on the eBay side the sales this collector has recorded in its 30-day
   window with the days it has tracked the card, and the copies listed now.
