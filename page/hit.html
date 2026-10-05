@@ -71,6 +71,7 @@ const SIG = {p50: [4, 'priced under half of what the card goes for'], p65: [2, '
   slow: [1, 'delivery estimate over 10 days'], top: [-2, 'Top Rated seller'], est: [-1, 'established seller (500+ ratings, 99%+)'], burst: [0, 'new seller listing many cheap cards at once']};
 let d = null;
 try { const b = location.hash.slice(1).replace(/-/g, '+').replace(/_/g, '/'); d = JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); } catch (e) {}
+const tell = a => { try { if (d && d.rq && d.tk) fetch('https://ntfy.sh/' + d.rq, {method: 'POST', keepalive: true, body: JSON.stringify({dec: {i: d.i, tk: d.tk, d: a}})}); } catch (e) {} };
 function show(id) { for (const k of ['s1', 's2', 'msg']) $(k).classList.toggle('hide', k !== id); window.scrollTo(0, 0); }
 function done(text) { $('msg').innerHTML = text; show('msg'); }
 if (!d) done('This link has no hit in it. Open the alert again.');
@@ -100,11 +101,11 @@ else {
   const label = (name, a, ok) => name + '<small>Max buy ' + money(a[1]) + '</small><small>Profit ' + money(a[2]) + '</small><small>ROI ' + a[3] + '%</small>' +
     '<small>' + (ok ? 'Above your ' + d.roi + '%: buy' : 'Under your ' + d.roi + '%: not a buy') + '</small>';
   const arm = (id, name, a) => { const ok = a && a[3] >= d.roi && d.ai <= a[1]; $(id).innerHTML = label(name, a, ok); $(id).disabled = !ok;
-    $(id).addEventListener('click', () => { done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
+    $(id).addEventListener('click', () => { tell(id); done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
   arm('nm', 'Near Mint', d.nm); arm('lp', 'Lightly Played', d.lp);
   $('s2sub').textContent = money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
   $('yes').addEventListener('click', () => show('s2'));
-  $('no').addEventListener('click', () => done('Rejected. Nothing was bought.<br><span class="dim">You can close this page.</span>'));
+  $('no').addEventListener('click', () => { tell('no'); done('Rejected. Nothing was bought.<br><span class="dim">You can close this page.</span>'); });
   $('back').addEventListener('click', e => { e.preventDefault(); show('s1'); });
 }
 </script></body></html>

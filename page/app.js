@@ -913,11 +913,23 @@ function alRender() {
   $('al-save').classList.toggle('dirty', dirty && !AL.pending);
   $('al-status').className = 'al-status ' + (AL.note ? AL.cls : dirty ? 'warn' : '');
   $('al-status').textContent = AL.note || (dirty ? 'Not saved yet: the collector is still using the numbers on the right.' : '');
+  $('al-hist').innerHTML = alHistory(a);
   const m = alMatches(mine), hits = m.filter(r => r.kind === 'hit').length;
   $('al-pre').innerHTML = 'With the numbers on the left, <b>' + m.length + '</b> listing' + (m.length === 1 ? '' : 's') + ' from the last 24 hours would have been sent' +
     (m.length ? ' (' + hits + ' hit' + (hits === 1 ? '' : 's') + ', ' + (m.length - hits) + ' lead' + (m.length - hits === 1 ? '' : 's') + ').' : '.') +
     (m.length ? '<table><thead><tr><th>Card</th><th>Listing</th><th class="num">Total</th><th class="num">Profit</th><th class="num">ROI</th><th>Kind</th><th>Now</th></tr></thead><tbody>' +
       m.slice(0, 40).map(r => '<tr><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
+}
+// what was sent, what you answered on the phone, and what became of the listing
+function alHistory(a) {
+  const h = (a && a.hist) || [];
+  if (!h.length) return 'No alerts sent yet. Each one will be listed here with your answer and what happened to the listing.';
+  const ans = {nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No'}, said = h.filter(r => r[7]), no = said.filter(r => r[7] === 'no').length;
+  const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+  const fate = r => r[8] === 'open' ? 'still listed' : r[8] === 'sold' ? 'sold' + (r[9] != null ? ' ' + (r[9] < 1 ? Math.round(r[9] * 60) + ' min' : r[9].toFixed(1) + ' h') + ' after the alert' : '') : r[8] === 'unknown' ? 'no longer tracked' : r[8];
+  return 'Last <b>' + h.length + '</b> alert' + (h.length === 1 ? '' : 's') + ' \u00b7 you answered <b>' + said.length + '</b>' + (said.length ? ': ' + (said.length - no) + ' yes, ' + no + ' no' : '') +
+    '<table><thead><tr><th>Sent</th><th>Card</th><th class="num">Total</th><th class="num">Profit</th><th>Kind</th><th>Your answer</th><th>Listing</th></tr></thead><tbody>' +
+    h.map(r => '<tr><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a><br><span class="dim">' + esc(r[2]) + '</span></td><td class="num">' + fmtMoney(r[4]) + '</td><td class="num">' + fmtMoney(r[5]) + '</td><td>' + esc(String(r[6]).replace('-drop', ', price drop')) + '</td><td>' + (r[7] ? ans[r[7]] || esc(r[7]) : '<span class="dim">not answered</span>') + '</td><td>' + fate(r) + '</td></tr>').join('') + '</tbody></table>';
 }
 async function alChannel() {
   const enc = new TextEncoder();
