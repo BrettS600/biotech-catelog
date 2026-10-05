@@ -246,6 +246,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   History card shows it beside his max bid. The Auctions switch on the Alerts tab turns it off; with it on, this reader
   also feeds the trial's watch list and the trial's own 10-minute read is skipped. Expect many alerts and few wins:
   about 4% of the trial's first 69 auctions closed under Max buy, and most bids land in the final seconds.
+- Tables (2026-10-05): every table row starts with a row-number cell that `makeTable` adds itself (`td.rn`, header
+  "Row"; not part of the row data, so `data-k` indices are unchanged). Each table scrolls inside its own `.wrap`,
+  which `fitWraps()` sizes to end at the bottom of the window - that is what keeps the sticky `th` in view (with the
+  page as the scroller they never stuck, because `.wrap` has overflow). More rows load as the box nears its end.
+  Raw Data rows gained index 40 = PriceCharting sales per month (12-month count / 12) and 41 = eBay sales recorded in
+  the 30-day window (`cs.k`); the order key stays the LAST element (`ordOf`). `cfg.inserted` is now a list of
+  column insertions, each applied once to a saved hidden-column choice.
+- LP correction tiers all showing one figure is by design, not a bug: a tier uses its own measurement only once it
+  has LP_MIN_SALES (30) LP sales with a same-card reference; until then every tier falls back to the pooled figure
+  (the chip now says "(pooled)").
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
