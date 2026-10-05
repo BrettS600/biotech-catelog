@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Link your eBay account</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0 auto; max-width: 620px; padding: 22px 16px 40px; background: #0d1117; color: #e6edf3; font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+h1 { font-size: 22px; margin: 0 0 6px; }
+p { margin: 8px 0; }
+.dim { color: #8b949e; font-size: 14px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 16px 18px; margin-top: 16px; }
+label { display: block; font-weight: 600; margin-top: 12px; }
+input, textarea { width: 100%; font: 15px ui-monospace, Menlo, monospace; padding: 9px 10px; margin-top: 5px; border: 1px solid #30363d; border-radius: 8px; background: #0d1117; color: #e6edf3; }
+textarea { height: 120px; resize: vertical; word-break: break-all; }
+button { margin-top: 14px; font: 600 16px inherit; padding: 11px 18px; border: 0; border-radius: 8px; background: #1f883d; color: #fff; cursor: pointer; }
+button:disabled { background: #30363d; color: #8b949e; cursor: default; }
+ol { padding-left: 20px; margin: 8px 0; }
+.ok { color: #3fb950; font-weight: 600; } .bad { color: #f85149; font-weight: 600; }
+[hidden] { display: none; }
+</style></head><body>
+<h1>Link your eBay account</h1>
+<p class="dim">This lets your card collector read your own purchases and sales for the Revenue tab. It only reads. You sign in on eBay's own page; your password never comes here.</p>
+
+<div class="card" id="start">
+  <b>Step 1. Ask eBay for approval</b>
+  <p class="dim">Copy both values from your eBay developer account (Application Keysets, the Production row). They go straight to eBay; this page keeps and sends nothing.</p>
+  <label for="app">App ID (Client ID)</label><input id="app" autocomplete="off" spellcheck="false" placeholder="YourName-yourapp-PRD-...">
+  <label for="ru">eBay Redirect URL name (RuName)</label><input id="ru" autocomplete="off" spellcheck="false" placeholder="Your_Name-YourName-yourap-...">
+  <button id="go" disabled>Open eBay's approval page</button>
+  <p class="bad" id="err" hidden></p>
+</div>
+
+<div class="card" id="done" hidden>
+  <p class="ok">eBay approved it.</p>
+  <b>Step 2. Hand the code to the collector</b>
+  <ol>
+    <li>Copy the code below.</li>
+    <li>In the droplet's console run <code>python3 /opt/pokemon-collector/repo/ebay_link.py</code></li>
+    <li>Type your RuName when it asks, then paste the code.</li>
+  </ol>
+  <textarea id="code" readonly></textarea>
+  <button id="copy">Copy the code</button>
+  <p class="dim">The code works once and only for 5 minutes. If it runs out, reload this page without the code and approve again.</p>
+</div>
+<script>
+const SCOPES = 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly https://api.ebay.com/oauth/api_scope/sell.finances';
+const $ = id => document.getElementById(id), q = new URLSearchParams(location.search);
+if (q.get('code')) {
+  $('start').hidden = true; $('done').hidden = false; $('code').value = q.get('code');
+  $('copy').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('code').value); } catch (e) { $('code').select(); document.execCommand('copy'); } $('copy').textContent = 'Copied'; });
+} else {
+  if (q.get('error') || q.get('error_description')) { $('err').hidden = false; $('err').textContent = 'eBay did not approve: ' + (q.get('error_description') || q.get('error')); }
+  const ready = () => { $('go').disabled = !($('app').value.trim() && $('ru').value.trim()); };
+  $('app').addEventListener('input', ready); $('ru').addEventListener('input', ready);
+  $('go').addEventListener('click', () => {
+    location.href = 'https://auth.ebay.com/oauth2/authorize?client_id=' + encodeURIComponent($('app').value.trim()) + '&redirect_uri=' + encodeURIComponent($('ru').value.trim()) + '&response_type=code&scope=' + encodeURIComponent(SCOPES);
+  });
+}
+</script></body></html>
