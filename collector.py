@@ -620,6 +620,35 @@ def aspect_trial(state, cat):
             f"lookups agree on {agree} of {checked}")
 
 
+_settings_seen = [None]
+
+
+def apply_settings():
+    """Brett's own gate numbers - margin, buying tax, confidence, window - live in settings.json in the repo (the
+    site's boxes only exist in his browser and never reach this machine). The file is read again whenever it changes
+    (a push arrives within 5 minutes), so the verdicts and the phone alerts follow it without a restart."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+    try:
+        stamp = os.path.getmtime(path)
+        if stamp == _settings_seen[0]:
+            return
+        _settings_seen[0] = stamp
+        cfg = json.load(open(path, encoding="utf-8"))
+        margin, tax = float(cfg["margin_pct"]), float(cfg["buy_tax_pct"])
+        conf, window = float(cfg["confidence_pct"]), float(cfg["window_h"])
+        if not (0 <= margin <= 100 and 0 <= tax <= 20 and 50 <= conf <= 99 and 6 <= window <= 240):
+            raise ValueError("a value is out of range")
+    except FileNotFoundError:
+        return
+    except Exception as e:
+        log(f"settings.json ignored ({e}); keeping margin {es.MARGIN:.0%}, tax {es.TAX:.2%}, "
+            f"confidence {es.CONFIDENCE:.0%} in {es.SELL_WINDOW_H:g} h")
+        return
+    es.MARGIN, es.TAX, es.CONFIDENCE, es.SELL_WINDOW_H = margin / 100, tax / 100, conf / 100, window
+    log(f"Settings: margin {margin:g}%, buying tax {tax:g}%, sells within {window:g} h with {conf:g}% confidence "
+        f"(hits and phone alerts use these)")
+
+
 def push(title, message, click=None, image=None, priority=5, tags=("moneybag",)):
     """One notification to the phone. Returns True when ntfy accepted it."""
     if not NTFY_TOPIC or DRY_RUN:
@@ -652,7 +681,10 @@ def hit_payload(rec, cs, cat):
             "pc": c.get("pc"), "pid": c.get("id"), "nm": side("NM"), "lp": side("LP"), "roi": round(es.MARGIN * 100, 1),
             "tier": rec.get("tier", "clean"), "sc": rec.get("sc", 0), "scr": rec.get("scr", []),
             "idv": rec.get("idv") or "", "idr": rec.get("idr") or [], "fb": rec.get("fb"), "pct": rec.get("pct"),
-            "ph": rec.get("n_img"), "A": cs.get("A"), "An": cs.get("A_n"), "tax": round(es.TAX * 100, 2)}
+            "ph": rec.get("n_img"), "A": cs.get("A"), "An": cs.get("A_n"), "tax": round(es.TAX * 100, 2),
+            # demand and supply from both sources: PriceCharting's 12-month sales count (all grades), and what this
+            # collector has seen on eBay - sales in its 30-day window, the days it has watched the card, copies listed
+            "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N")}
 
 
 def alert_hits(state, cat, cards, live):
@@ -834,6 +866,7 @@ def code_update():
 
 # ---------------- the loop ----------------
 def cycle(state, cat, sched, counters):
+    apply_settings()
     now = clock(state)
     v = state.setdefault("vps", {})
     t = time.time()

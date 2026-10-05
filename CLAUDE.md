@@ -204,6 +204,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   under his margin; scam points with reasons on "watch" listings. NM / LP opens the listing in the eBay app: the
   purchase itself is always Brett's tap (eBay's 2026 user agreement bans automated buying). Not built yet: alerts for
   LEADs, the 10-minutes-before-the-end auction alerts (waiting on the auction trial), decision logging.
+- `settings.json` (repo root) holds Brett's gate numbers - margin_pct, buy_tax_pct, confidence_pct, window_h.
+  `apply_settings()` in collector.py re-reads it whenever it changes (no restart), and the collector's verdicts and the
+  phone alerts follow it. The boxes on the site only change what the page shows in his browser; they never reach the
+  machine. When he asks for different numbers for his alerts, edit this file.
+- The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
+  / 12, all grades) on the matched-card side; on the eBay side the sales this collector has recorded in its 30-day
+  window with the days it has tracked the card, and the copies listed now.
 
 ## Capacity (measured 2026-09-30 on the Actions design; the machine design above is the answer to it)
 Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.

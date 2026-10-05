@@ -1606,7 +1606,8 @@ def r2(v):
     return None if v is None else round(v, 2)
 
 
-def gate(csell, margin=MARGIN):
+def gate(csell, margin=None):
+    margin = MARGIN if margin is None else margin          # read when called: settings.json can change it while running
     net = csell * (1 - FEE_EFF) - FEE_FIXED - SHIP_OUT - SUPPLIES
     return round(net, 2), round(net / (1 + margin), 2)
 
@@ -1719,9 +1720,11 @@ def sell_price(floor, a, a_fast):
     return round99(s)
 
 
-def is_liquid(lam, st, conf=CONFIDENCE, window_h=SELL_WINDOW_H):
+def is_liquid(lam, st, conf=None, window_h=None):
     """P(at least one buyer inside the window) >= conf, i.e. lambda >= -ln(1 - conf) / T; and the measured
     sell-through, once there is one, at least 50%."""
+    conf = CONFIDENCE if conf is None else conf
+    window_h = SELL_WINDOW_H if window_h is None else window_h
     if not lam:
         return False
     lam_min = -math.log(1 - conf) / (window_h / 24.0)

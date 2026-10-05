@@ -1,0 +1,7 @@
+{
+  "_about": "Brett's gate numbers. The collector reads this file (within 5 minutes of a change) and uses it for the verdicts and for which hits go to the phone. The boxes on the site only change what the page shows in your browser.",
+  "margin_pct": 10,
+  "buy_tax_pct": 6.25,
+  "confidence_pct": 70,
+  "window_h": 48
+}
