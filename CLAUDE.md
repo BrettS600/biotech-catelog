@@ -220,8 +220,14 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   applies the filters; `alert_status()` reports what is in force as `live["alert"]`, which the tab shows as "On the
   collector now" and uses to confirm a save. The tab's Preview re-judges the last 24 h of listings in the browser with
   the numbers typed in, saved or not. "Send test alert" asks the collector for one over the same channel. Hits push at
-  priority 5, leads at 3, anything during quiet hours (America/New_York) at 2. Not built yet: price-drop alerts for
-  listings older than a day, a history of alerts with Brett's Yes / No, the auction alerts.
+  priority 5, leads at 3, anything during quiet hours (America/New_York) at 2.
+- Price drops and history (2026-10-05): a re-read that finds a LOWER price queues the listing in
+  `state["vps"]["drops"]`; `alert_hits()` judges it with `es.verdict()` and alerts it as "Price drop: ..." (older
+  listings are not in the live rows, so this is their only way in). Every alert is appended to
+  `state["vps"]["alert_log"]` with a one-time token; the alert link carries the token and the request-channel name,
+  and hit.html posts Brett's final tap back ({"dec": {i, tk, d: nm | lp | no}}, unsigned - the token vouches for
+  it). `alert_status()` sends the last 40 as `live["alert"]["hist"]` with each listing's fate; the tab's History card
+  shows them. His No taps are the running accuracy check on matching. Not built yet: the auction alerts.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
   / 12, all grades) on the matched-card side; on the eBay side the sales this collector has recorded in its 30-day
   window with the days it has tracked the card, and the copies listed now.

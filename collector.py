@@ -412,6 +412,8 @@ def reread_window(state, key, n_expected):
             price = es.money((s.get("price") or {}).get("value"))
             if price is not None and rec.get("item") is not None and abs(price - rec["item"]) >= 0.01:
                 rec.setdefault("hist", []).append([es.ts(es.NOW), rec["item"], price])
+                if rec["item"] is not None and price < rec["item"]:
+                    state["vps"].setdefault("drops", []).append(iid)     # a price cut: may now be a hit (alert_hits)
                 rec["item"], rec["total"] = price, round(price + (rec.get("ship") or 0), 2)
                 repriced += 1
     state["vps"]["reread"][key] = time.time()
@@ -709,6 +711,12 @@ def read_requests(state):
                 continue
             v["req_since"] = ev["id"]
             env = json.loads(ev["message"])
+            if "dec" in env:                      # Brett's Yes / No on the phone's check screen
+                dec = env["dec"]
+                for e in v.get("alert_log", []):
+                    if e["i"] == dec.get("i") and e["tk"] == dec.get("tk") and dec.get("d") in ("nm", "lp", "no"):
+                        e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
+                continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                 continue
             msg = json.loads(env["m"])
@@ -781,42 +789,57 @@ def hit_payload(rec, cs, cat, kind="hit"):
 
 
 def alert_hits(state, cat, cards, live, cfg):
-    """Push every new hit (and lead, when switched on) in the live rows once, if it clears the Alerts-tab filters.
-    A listing the filters hold back is not marked as sent, so it can still alert after the settings change."""
+    """Push every new hit (and lead, when switched on) once, if it clears the Alerts-tab filters: the listings first
+    seen in the last 24 hours (the live rows), and older listings whose price a re-read just found lower. A listing
+    the filters hold back is not marked as sent, so it can still alert after the settings change. Each alert is
+    logged with a one-time token, which the check screen sends back with Brett's Yes / No."""
     if not NTFY_TOPIC:
         return 0
     v = state["vps"]
     sent = v.setdefault("alerted", {})                       # item id -> when
+    hist = v.setdefault("alert_log", [])
     hour = es.ts(es.NOW)[:13]
     box = v.setdefault("alert_box", {})
     if box.get("hour") != hour:
         box["hour"], box["n"] = hour, 0
-    quiet, n = quiet_now(cfg), 0
-    for x in live["live"]:
-        iid = x[0]
-        kind = "hit" if x[12] == "PASS" and cfg["hits"] else "lead" if x[12] == "LEAD" and cfg["leads"] else None
-        if not kind or x[17] != "open" or iid in sent or box["n"] >= ALERTS_PER_HOUR:
-            continue
-        rec, cs = state["open"].get(iid), cards.get(str(x[1]))
-        if not rec or not cs or (rec.get("tier") == "watch" and not cfg["watch"]) \
-                or not cfg["pmin"] <= rec["total"] <= cfg["pmax"]:
-            continue
+    quiet = quiet_now(cfg)
+    back = alert_channel()[0] if es.PASSWORD else None
+
+    def consider(iid, verdict, drop):
+        kind = "hit" if verdict == "PASS" and cfg["hits"] else "lead" if verdict == "LEAD" and cfg["leads"] else None
+        rec = state["open"].get(iid)
+        if not kind or not rec or iid in sent or box["n"] >= ALERTS_PER_HOUR:
+            return 0
+        cs = cards.get(str(rec["card"]))
+        if not cs or (rec.get("tier") == "watch" and not cfg["watch"]) or not cfg["pmin"] <= rec["total"] <= cfg["pmax"]:
+            return 0
         d = hit_payload(rec, cs, cat, kind)
         if d["nm"][2] is None or d["nm"][2] < cfg["min_profit"]:
-            continue
+            return 0
+        d["tk"], d["rq"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
                + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings"
                + (" - SCAM WATCH" if rec.get("tier") == "watch" else "") + (" - ID conflict?" if d["idv"] == "conflict" else ""))
-        title = f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
-        if push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3,
-                tags=("moneybag",) if kind == "hit" else ("mag",)):
-            sent[iid] = es.ts(es.NOW)
-            box["n"] += 1
-            n += 1
+        title = ("Price drop: " if drop else "") + f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
+        if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3,
+                    tags=("moneybag",) if kind == "hit" else ("mag",)):
+            return 0
+        sent[iid] = es.ts(es.NOW)
+        box["n"] += 1
+        hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": (rec.get("title") or "")[:70],
+                     "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2], "kd": kind + ("-drop" if drop else "")})
+        return 1
+
+    n = sum(consider(x[0], x[12], False) for x in live["live"] if x[17] == "open")
+    for iid in dict.fromkeys(v.pop("drops", [])):            # price cuts the re-reads found on older listings
+        rec = state["open"].get(iid)
+        if rec and iid not in sent:
+            n += consider(iid, es.verdict(rec, cards.get(str(rec["card"])))[0], True)
     cutoff = es.ts(es.NOW - timedelta(days=3))
     for iid in [k for k, t in sent.items() if t < cutoff]:
         del sent[iid]
+    del hist[:-300]
     return n
 
 
@@ -825,9 +848,18 @@ def alert_status(state, cfg):
     v = state["vps"]
     day_ago = es.ts(es.NOW - timedelta(hours=24))
     times = sorted(v.get("alerted", {}).values())
+    log_rows = v.get("alert_log", [])[-40:]
+    want = {e["i"] for e in log_rows}
+    closed = {r["id"]: r for r in state["closed"] if r["id"] in want}
+    hist = []
+    for e in reversed(log_rows):                             # newest first
+        r = closed.get(e["i"])
+        out = "open" if e["i"] in state["open"] else (r.get("out") or "closed") if r else "unknown"
+        hrs = round(es.hours_between(es.parse_ts(e["t"]), es.parse_ts(r["closed"])), 1) if r and r.get("closed") else None
+        hist.append([e["t"], e["c"], e["ti"], e["u"], e["tot"], e["p"], e["kd"], e.get("dec"), out, hrs])
     return {"cfg": cfg, "t": v.get("alert_t", 0), "on": bool(NTFY_TOPIC), "test_t": v.get("test_t", 0),
             "sent24": sum(1 for t in times if t >= day_ago), "last": times[-1] if times else None,
-            "quiet_now": quiet_now(cfg)}
+            "quiet_now": quiet_now(cfg), "hist": hist}
 
 
 def auction_read(state, cat, cards):
