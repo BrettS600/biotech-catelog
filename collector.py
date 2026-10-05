@@ -29,6 +29,7 @@ Run with --dry-run to exercise the loop on the fixtures with no network and no g
 import base64
 import gzip
 import hashlib
+import hmac
 import io
 import json
 import math
@@ -620,33 +621,124 @@ def aspect_trial(state, cat):
             f"lookups agree on {agree} of {checked}")
 
 
-_settings_seen = [None]
+ALERT_TZ = "America/New_York"    # quiet hours are in Brett's local time
+_file_cfg = {"stamp": None, "cfg": None}
+_cfg_said = [None]
+_chan = {}
 
 
-def apply_settings():
-    """Brett's own gate numbers - margin, buying tax, confidence, window - live in settings.json in the repo (the
-    site's boxes only exist in his browser and never reach this machine). The file is read again whenever it changes
-    (a push arrives within 5 minutes), so the verdicts and the phone alerts follow it without a restart."""
+def clean_cfg(c):
+    """Alert settings from wherever they came (the Alerts tab, settings.json), forced into safe ranges; None when
+    they cannot be read. One flat dict: margin / tax / conf (percent), window (hours), min_profit and the price
+    range (dollars), what to send, quiet hours."""
+    try:
+        return {"margin": min(50.0, max(0.0, float(c["margin"]))), "tax": min(15.0, max(0.0, float(c["tax"]))),
+                "conf": min(95.0, max(50.0, float(c["conf"]))), "window": min(168.0, max(24.0, float(c["window"]))),
+                "min_profit": min(1000.0, max(0.0, float(c.get("min_profit", 0)))),
+                "pmin": max(0.0, float(c.get("pmin", 25))), "pmax": max(1.0, float(c.get("pmax", 500))),
+                "hits": bool(c.get("hits", True)), "leads": bool(c.get("leads", False)), "watch": bool(c.get("watch", True)),
+                "quiet": bool(c.get("quiet", False)), "q_from": int(c.get("q_from", 23)) % 24, "q_to": int(c.get("q_to", 7)) % 24}
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def alert_cfg(state):
+    """The settings in force: what the site's Alerts tab last sent (kept in the state), else settings.json in the
+    repo, else the constants in ebay_sweep.py."""
+    cfg = (state.get("vps") or {}).get("alert_cfg")
+    if cfg:
+        return cfg
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
     try:
         stamp = os.path.getmtime(path)
-        if stamp == _settings_seen[0]:
-            return
-        _settings_seen[0] = stamp
-        cfg = json.load(open(path, encoding="utf-8"))
-        margin, tax = float(cfg["margin_pct"]), float(cfg["buy_tax_pct"])
-        conf, window = float(cfg["confidence_pct"]), float(cfg["window_h"])
-        if not (0 <= margin <= 100 and 0 <= tax <= 20 and 50 <= conf <= 99 and 6 <= window <= 240):
-            raise ValueError("a value is out of range")
-    except FileNotFoundError:
+        if stamp != _file_cfg["stamp"]:
+            raw = json.load(open(path, encoding="utf-8"))
+            _file_cfg["stamp"] = stamp
+            _file_cfg["cfg"] = clean_cfg({"margin": raw["margin_pct"], "tax": raw["buy_tax_pct"],
+                                          "conf": raw["confidence_pct"], "window": raw["window_h"]})
+    except Exception:
+        pass
+    return _file_cfg["cfg"] or clean_cfg({"margin": es.MARGIN * 100, "tax": es.TAX * 100, "conf": es.CONFIDENCE * 100,
+                                          "window": es.SELL_WINDOW_H})
+
+
+def apply_settings(state):
+    """Put the settings in force into the gate (ebay_sweep reads these when it judges a listing). The boxes on the
+    Raw Data tab only exist in Brett's browser; the Alerts tab is what reaches this machine."""
+    cfg = alert_cfg(state)
+    es.MARGIN, es.TAX, es.CONFIDENCE, es.SELL_WINDOW_H = cfg["margin"] / 100, cfg["tax"] / 100, cfg["conf"] / 100, cfg["window"]
+    said = json.dumps(cfg, sort_keys=True)
+    if said != _cfg_said[0]:
+        _cfg_said[0] = said
+        log(f"Settings: margin {cfg['margin']:g}%, buying tax {cfg['tax']:g}%, sells within {cfg['window']:g} h with "
+            f"{cfg['conf']:g}% confidence; alerts: hits {'on' if cfg['hits'] else 'off'}, leads {'on' if cfg['leads'] else 'off'}, "
+            f"profit from ${cfg['min_profit']:g}, price ${cfg['pmin']:g}-${cfg['pmax']:g}, scam-watch "
+            f"{'included' if cfg['watch'] else 'left out'}, quiet hours "
+            + (f"{cfg['q_from']}:00-{cfg['q_to']}:00" if cfg["quiet"] else "off"))
+    return cfg
+
+
+def alert_channel():
+    """The private channel the site's Alerts tab talks to this machine on (ntfy, the other way round). Its name and
+    the key that signs every message both come from the site password, so only the unlocked page and this machine
+    can use it; nothing new had to be set up."""
+    if not _chan:
+        hk = es.live_key(es.PASSWORD).hex()
+        _chan["topic"] = "pc-" + hashlib.sha256((hk + ":alerts-topic").encode()).hexdigest()[:40]
+        _chan["key"] = hashlib.sha256((hk + ":alerts-key").encode()).hexdigest().encode()
+    return _chan["topic"], _chan["key"]
+
+
+def read_requests(state):
+    """What the Alerts tab sent since the last look: new settings, or a request for a test alert. A message counts
+    only when its signature is right and it is newer than the last one acted on."""
+    if DRY_RUN or not es.PASSWORD:
         return
-    except Exception as e:
-        log(f"settings.json ignored ({e}); keeping margin {es.MARGIN:.0%}, tax {es.TAX:.2%}, "
-            f"confidence {es.CONFIDENCE:.0%} in {es.SELL_WINDOW_H:g} h")
+    v = state["vps"]
+    topic, key = alert_channel()
+    try:
+        import requests
+        r = requests.get(f"{NTFY_SERVER}/{topic}/json", params={"poll": "1", "since": v.get("req_since") or "12h"}, timeout=10)
+        lines = r.text.splitlines() if r.status_code == 200 else []
+    except Exception:
         return
-    es.MARGIN, es.TAX, es.CONFIDENCE, es.SELL_WINDOW_H = margin / 100, tax / 100, conf / 100, window
-    log(f"Settings: margin {margin:g}%, buying tax {tax:g}%, sells within {window:g} h with {conf:g}% confidence "
-        f"(hits and phone alerts use these)")
+    for line in lines:
+        try:
+            ev = json.loads(line)
+            if ev.get("event") != "message":
+                continue
+            v["req_since"] = ev["id"]
+            env = json.loads(ev["message"])
+            if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
+                continue
+            msg = json.loads(env["m"])
+            t = int(msg["t"])
+        except Exception:
+            continue
+        if t <= v.get("req_t", 0) or abs(time.time() * 1000 - t) > 24 * 3600 * 1000:
+            continue
+        v["req_t"] = t
+        if msg.get("type") == "settings":
+            cfg = clean_cfg(msg.get("cfg") or {})
+            if cfg:
+                v["alert_cfg"], v["alert_t"] = cfg, t
+                log("Alerts tab: new settings received")
+        elif msg.get("type") == "test":
+            if push("Test alert", "Sent from the Alerts tab. Your phone alerts are working.", priority=4, tags=("white_check_mark",)):
+                v["test_t"] = t
+            log("Alerts tab: test alert requested" + ("" if NTFY_TOPIC else " - but no channel is set on this machine"))
+
+
+def quiet_now(cfg):
+    if not cfg.get("quiet") or cfg["q_from"] == cfg["q_to"]:
+        return False
+    try:
+        from zoneinfo import ZoneInfo
+        h = datetime.now(ZoneInfo(ALERT_TZ)).hour
+    except Exception:
+        h = (now_utc().hour - 4) % 24
+    a, b = cfg["q_from"], cfg["q_to"]
+    return a <= h < b if a < b else h >= a or h < b
 
 
 def push(title, message, click=None, image=None, priority=5, tags=("moneybag",)):
@@ -666,13 +758,14 @@ def push(title, message, click=None, image=None, priority=5, tags=("moneybag",))
         return False
 
 
-def hit_payload(rec, cs, cat):
-    """Everything the check screen shows for one hit, as a compact dict (it travels inside the alert's link)."""
+def hit_payload(rec, cs, cat, kind="hit"):
+    """Everything the check screen shows for one hit or lead, as a compact dict (it travels inside the alert's link)."""
     c = cat.by_id.get(rec["card"]) or {}
     allin = round(rec["total"] + (rec.get("item") or 0) * es.TAX, 2)
+    decision = es.listing_decision if kind == "hit" else es.lead_decision
 
     def side(cond):                                          # the gate's numbers if the copy is NM / LP
-        s, net, maxbuy = es.listing_decision(dict(rec, tcond=cond), cs)
+        s, net, maxbuy = decision(dict(rec, tcond=cond), cs)
         return [s, round(maxbuy, 2), round(net - allin, 2), round((net - allin) / allin * 100, 1)]
     return {"i": rec["id"], "u": rec.get("url"), "t": rec.get("title"), "im": (rec.get("imgs") or [rec.get("img")])[:4],
             "tot": rec["total"], "it": rec.get("item"), "sh": rec.get("ship"), "ai": allin,
@@ -684,11 +777,12 @@ def hit_payload(rec, cs, cat):
             "ph": rec.get("n_img"), "A": cs.get("A"), "An": cs.get("A_n"), "tax": round(es.TAX * 100, 2),
             # demand and supply from both sources: PriceCharting's 12-month sales count (all grades), and what this
             # collector has seen on eBay - sales in its 30-day window, the days it has watched the card, copies listed
-            "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N")}
+            "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N"), "kd": kind}
 
 
-def alert_hits(state, cat, cards, live):
-    """Push every new PASS in the live rows once. Returns how many alerts went out."""
+def alert_hits(state, cat, cards, live, cfg):
+    """Push every new hit (and lead, when switched on) in the live rows once, if it clears the Alerts-tab filters.
+    A listing the filters hold back is not marked as sent, so it can still alert after the settings change."""
     if not NTFY_TOPIC:
         return 0
     v = state["vps"]
@@ -697,20 +791,26 @@ def alert_hits(state, cat, cards, live):
     box = v.setdefault("alert_box", {})
     if box.get("hour") != hour:
         box["hour"], box["n"] = hour, 0
-    n = 0
+    quiet, n = quiet_now(cfg), 0
     for x in live["live"]:
         iid = x[0]
-        if x[12] != "PASS" or x[17] != "open" or iid in sent or box["n"] >= ALERTS_PER_HOUR:
+        kind = "hit" if x[12] == "PASS" and cfg["hits"] else "lead" if x[12] == "LEAD" and cfg["leads"] else None
+        if not kind or x[17] != "open" or iid in sent or box["n"] >= ALERTS_PER_HOUR:
             continue
         rec, cs = state["open"].get(iid), cards.get(str(x[1]))
-        if not rec or not cs:
+        if not rec or not cs or (rec.get("tier") == "watch" and not cfg["watch"]) \
+                or not cfg["pmin"] <= rec["total"] <= cfg["pmax"]:
             continue
-        d = hit_payload(rec, cs, cat)
+        d = hit_payload(rec, cs, cat, kind)
+        if d["nm"][2] is None or d["nm"][2] < cfg["min_profit"]:
+            continue
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
-        msg = (f"${rec['total']:.2f} total, max buy ${d['nm'][1]:.2f}, profit ${d['nm'][2]:.2f} ({d['nm'][3]:.0f}%)\n"
-               f"{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings"
+        msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
+               + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings"
                + (" - SCAM WATCH" if rec.get("tier") == "watch" else "") + (" - ID conflict?" if d["idv"] == "conflict" else ""))
-        if push("HIT: " + d["c"] + " - " + str(d["s"] or "").replace("Pokemon ", ""), msg, click=link, image=rec.get("img")):
+        title = f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
+        if push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3,
+                tags=("moneybag",) if kind == "hit" else ("mag",)):
             sent[iid] = es.ts(es.NOW)
             box["n"] += 1
             n += 1
@@ -718,6 +818,16 @@ def alert_hits(state, cat, cards, live):
     for iid in [k for k, t in sent.items() if t < cutoff]:
         del sent[iid]
     return n
+
+
+def alert_status(state, cfg):
+    """What the Alerts tab shows as "on the collector now"."""
+    v = state["vps"]
+    day_ago = es.ts(es.NOW - timedelta(hours=24))
+    times = sorted(v.get("alerted", {}).values())
+    return {"cfg": cfg, "t": v.get("alert_t", 0), "on": bool(NTFY_TOPIC), "test_t": v.get("test_t", 0),
+            "sent24": sum(1 for t in times if t >= day_ago), "last": times[-1] if times else None,
+            "quiet_now": quiet_now(cfg)}
 
 
 def auction_read(state, cat, cards):
@@ -866,7 +976,8 @@ def code_update():
 
 # ---------------- the loop ----------------
 def cycle(state, cat, sched, counters):
-    apply_settings()
+    read_requests(state)
+    cfg = apply_settings(state)
     now = clock(state)
     v = state.setdefault("vps", {})
     t = time.time()
@@ -985,19 +1096,20 @@ def cycle(state, cat, sched, counters):
     live = es.build_live(state, cards, lp)
     if NTFY_TOPIC and not DRY_RUN:
         fresh = [x[0] for x in live["live"] if x[12] == "PASS" and x[17] == "open" and x[0] not in v.get("alerted", {})]
-        if fresh:
-            if any(not state["open"].get(i, {}).get("idv") for i in fresh) and v.get("tokens", 0) >= 1:
-                done = es.verify_hits(state, cat, cards, min(es.VERIFY_MAX_CALLS, int(v["tokens"])))
-                v["tokens"] -= done
-                counters["verified"] += done
-                live = es.build_live(state, cards, lp)       # the lookup may have turned a PASS into an ID conflict
-            counters["alerts"] += alert_hits(state, cat, cards, live)
+        if fresh and any(not state["open"].get(i, {}).get("idv") for i in fresh) and v.get("tokens", 0) >= 1:
+            done = es.verify_hits(state, cat, cards, min(es.VERIFY_MAX_CALLS, int(v["tokens"])))
+            v["tokens"] -= done
+            counters["verified"] += done
+            live = es.build_live(state, cards, lp)           # the lookup may have turned a PASS into an ID conflict
+        counters["alerts"] += alert_hits(state, cat, cards, live, cfg)
+    live["alert"] = alert_status(state, cfg)
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
     state_raw = save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
-    sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"])
+    sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
+           v.get("alert_t", 0), v.get("test_t", 0))         # a change on the Alerts tab is published at once
     changed = sig != v.get("pub_sig")
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t

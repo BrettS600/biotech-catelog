@@ -208,6 +208,20 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   `apply_settings()` in collector.py re-reads it whenever it changes (no restart), and the collector's verdicts and the
   phone alerts follow it. The boxes on the site only change what the page shows in his browser; they never reach the
   machine. When he asks for different numbers for his alerts, edit this file.
+- Alerts tab (2026-10-05, the fourth tab; `al*` functions at the end of app.js, `#p-al` in body.html): the numbers
+  that decide what reaches the phone - margin, buy tax, confidence, sell window, minimum profit in dollars, buy price
+  range, hits / leads / scam-watch switches, quiet hours - each with a `?` popup (HELP keys `al_*`). The boxes at the
+  top of the page stay what they were: filters for the tables in Brett's browser. "Save alert settings" cannot write to
+  the repo or the machine (the site is a static page), so it posts the settings to a private ntfy channel that
+  `read_requests()` in collector.py polls every cycle. The channel name and the HMAC key that signs each message are
+  both derived from the live key (`es.live_key(SITE_PASSWORD)`, the page's HKEY), so nothing had to be set up and a
+  forged or replayed message is ignored. Accepted settings live in `state["vps"]["alert_cfg"]` and override
+  settings.json (now only the starting values); `apply_settings()` puts them into the gate each cycle; `alert_hits()`
+  applies the filters; `alert_status()` reports what is in force as `live["alert"]`, which the tab shows as "On the
+  collector now" and uses to confirm a save. The tab's Preview re-judges the last 24 h of listings in the browser with
+  the numbers typed in, saved or not. "Send test alert" asks the collector for one over the same channel. Hits push at
+  priority 5, leads at 3, anything during quiet hours (America/New_York) at 2. Not built yet: price-drop alerts for
+  listings older than a day, a history of alerts with Brett's Yes / No, the auction alerts.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
   / 12, all grades) on the matched-card side; on the eBay side the sales this collector has recorded in its 30-day
   window with the days it has tracked the card, and the copies listed now.
