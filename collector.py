@@ -110,6 +110,12 @@ TRIAL_EVERY_S = 12 * 3600
 TRIAL_CLAIMS = [("Finish", "Reverse Holo", "reverse"), ("Features", "1st Edition", "1st"),
                 ("Card Size", "Oversized", "jumbo"), ("Language", "Japanese", "japanese")]
 
+# ---------------- trial: do auctions end under max buy? (log only; Brett approved it on 2026-10-04) ----------------
+AUCTION_TRIAL_DAYS = 4           # runs this many days from its first read, then stops by itself (0 = off)
+AUCTION_EVERY_S = 600            # read the 200 auctions ending soonest this often (one search call)
+AUCTION_LOOKUPS_PER_DAY = 100    # final-price lookups a day: one getItem per finished auction on a card we can price
+AUCTION_LOOKUPS_PER_CYCLE = 2
+
 DRY_RUN = "--dry-run" in sys.argv
 ONCE = "--once" in sys.argv
 
@@ -604,6 +610,96 @@ def aspect_trial(state, cat):
             f"lookups agree on {agree} of {checked}")
 
 
+def auction_read(state, cat, cards):
+    """The collector only buys from fixed-price listings; this trial measures whether auctions would be a better
+    source. One page of raw-single auctions ending soonest: those on a card that can be priced (an eBay anchor, or a
+    PriceCharting lead card) are remembered until they end. Nothing here touches the statistics or the site."""
+    q = dict(es.QUERIES["aspect"], sort="endingSoonest")
+    q["filter"] = f"conditionIds:{{{es.COND_UNGRADED}}},price:[..{es.SWEEP_PRICE[1]}],priceCurrency:USD," \
+                  f"buyingOptions:{{AUCTION}},itemLocationCountry:US"
+    j = es.api_get(state, "/buy/browse/v1/item_summary/search", q)
+    watch, new = state.setdefault("auctions", {}), 0
+    for x in j.get("itemSummaries") or []:
+        iid, end = x.get("itemId"), x.get("itemEndDate")
+        if not iid or not end:
+            continue
+        try:
+            bid = float((x.get("currentBidPrice") or x.get("price") or {}).get("value"))
+        except (TypeError, ValueError):
+            continue
+        if iid in watch:
+            watch[iid]["bid"], watch[iid]["bids"] = bid, x.get("bidCount")
+            continue
+        title = x.get("title") or ""
+        ci, how, _ = es.match_title(cat, title, x.get("epid") or "", state["denoms"])
+        if ci is None or es.title_condition(title) not in es.COMPARABLE_CONDS:
+            continue
+        cid = cat.cards[ci]["id"]
+        cs = cards.get(str(cid)) or {}
+        basis = "ebay" if cs.get("A_n", 0) >= es.ANCHOR_MIN and cs.get("liquid") else \
+                "pc" if (cs.get("pc") or 0) >= es.LEAD_MIN_PC and (cs.get("pcv") or 0) >= es.LEAD_MIN_PC_SALES else None
+        if not basis:
+            continue
+        opts = x.get("shippingOptions") or [{}]
+        try:
+            ship = float((opts[0].get("shippingCost") or {}).get("value"))
+        except (TypeError, ValueError):
+            ship = 5.0                                       # calculated shipping: assume a tracked envelope
+        watch[iid] = {"card": cid, "title": title[:90], "end": end[:19] + "Z", "bid": bid, "bids": x.get("bidCount"),
+                      "ship": ship, "basis": basis, "tcond": es.title_condition(title), "url": x.get("itemWebUrl")}
+        new += 1
+    return new
+
+
+def auction_finish(state, cards, n):
+    """Read the final price of up to n finished auctions (one getItem each) and record whether it closed at or under
+    what the gate would have paid for that card. Returns the lookups made."""
+    watch, done = state.setdefault("auctions", {}), state.setdefault("auction_done", [])
+    cutoff = es.ts(es.NOW - timedelta(minutes=3))
+    ended = sorted((a["end"], iid) for iid, a in watch.items() if a["end"] < cutoff)
+    used = 0
+    for _, iid in ended[:n]:
+        a = watch.pop(iid)
+        it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+        used += 1
+        if not it:
+            continue
+        try:
+            final = float((it.get("currentBidPrice") or it.get("price") or {}).get("value"))
+        except (TypeError, ValueError):
+            continue
+        bids = it.get("bidCount") if it.get("bidCount") is not None else a.get("bids")
+        cs = cards.get(str(a["card"])) or {}
+        rec = {"id": iid, "total": final + a["ship"], "item": final, "ship": a["ship"], "tcond": a["tcond"]}
+        maxbuy = (es.listing_decision(rec, cs) if a["basis"] == "ebay" else es.lead_decision(rec, cs))[2]
+        ref = cs.get("A") if a["basis"] == "ebay" else cs.get("pc")
+        allin = round(rec["total"] + final * es.TAX, 2)
+        under = bool(bids) and maxbuy is not None and allin <= maxbuy
+        done.append([a["end"], a["card"], final, a["ship"], bids or 0, maxbuy, a["basis"], int(under), ref])
+        if under:
+            log(f"Auction trial: closed UNDER max buy - {a['title']} | final ${final:.2f} + ${a['ship']:.2f} shipping, "
+                f"{bids} bids, max buy ${maxbuy:.2f}, reference ${ref} ({a['basis']}) | {a.get('url')}")
+    for iid in [k for k, a in watch.items() if a["end"] < es.ts(es.NOW - timedelta(hours=12))]:
+        del watch[iid]                                       # never looked up: let it go
+    del done[:-5000]
+    return used
+
+
+def auction_summary(state):
+    done = [d for d in state.get("auction_done", []) if d[4]]              # finished with at least one bid
+    if not done and not state.get("auctions"):
+        return None
+    under = [d for d in done if d[7]]
+    ratios = sorted((d[2] + d[3]) / d[8] for d in done if d[8])
+    med = f"{ratios[len(ratios) // 2]:.0%}" if ratios else "-"
+    by = Counter(d[6] for d in done)
+    hours = Counter(d[0][11:13] for d in under).most_common(3)
+    return (f"Auction trial: {len(state.get('auctions', {}))} being watched; {len(done)} finished with bids so far "
+            f"({by['ebay']} on judged cards, {by['pc']} on PriceCharting-lead cards), {len(under)} closed at or under max "
+            f"buy ({(100 * len(under) / len(done)) if done else 0:.0f}%); median final price is {med} of the reference"
+            + (f"; under-max-buy closings by UTC hour: {', '.join(f'{h}h x{n}' for h, n in hours)}" if hours else ""))
+
+
 # ---------------- publishing ----------------
 def git(*args, cwd=LIVE_DIR, check=True):
     env = dict(os.environ)
@@ -695,6 +791,20 @@ def cycle(state, cat, sched, counters):
         v["lags"] = v.get("lags", [])[-500:]
     if not v.get("window_ok") and due("selftest", 1800):
         selftest_window(state)
+    if AUCTION_TRIAL_DAYS and not DRY_RUN and remaining > 400 and counters.get("_cards"):
+        tr = v.setdefault("auction", {})
+        tr.setdefault("until", es.ts(now + timedelta(days=AUCTION_TRIAL_DAYS)))
+        if tr.get("day") != es.TODAY:
+            tr["day"], tr["n"] = es.TODAY, 0
+        if es.ts(now) < tr["until"]:
+            try:
+                if due("auctions", AUCTION_EVERY_S):
+                    counters["auctions_new"] += auction_read(state, cat, counters["_cards"])
+                k = min(AUCTION_LOOKUPS_PER_CYCLE, AUCTION_LOOKUPS_PER_DAY - tr["n"])
+                if k > 0:
+                    tr["n"] += auction_finish(state, counters["_cards"], k)
+            except Exception as e:
+                log(f"Auction trial: skipped this minute ({e})")
     if not DRY_RUN and v.get("trial_runs", 0) < TRIAL_RUNS and remaining > 400 and due("trial", TRIAL_EVERY_S):
         v["trial_runs"] = v.get("trial_runs", 0) + 1
         try:
@@ -821,6 +931,9 @@ def cycle(state, cat, sched, counters):
         why = Counter("no card #" if u[5].startswith("no card #") else u[5].split(":")[0]
                       for u in state["unmatched"] if u[0] >= hour_ago)
         log("Unmatched this hour: " + (", ".join(f"{k} {n}" for k, n in why.most_common()) or "none"))
+        line = auction_summary(state)
+        if line:
+            log(line + f"; trial ends {v.get('auction', {}).get('until', '?')[:10]}")
         for k in ("Scam screen", "LP correction", "Enrich", "ID check"):
             if k in _es_last:
                 log(_es_last[k])

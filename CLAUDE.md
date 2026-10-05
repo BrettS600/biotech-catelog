@@ -176,6 +176,24 @@ fast-selling card can pass the gate, and its rate is only right if nearly all it
 a listing flagged as gone leaves the book at once (`compute_stats`) and is dropped after VANISH_KEEP_D days if no
 lookup reached it. The hourly "Waiting:" log line shows the three queues - read it before changing this again.
 
+## Why there are almost no hits, and the three things added for it (2026-10-04)
+Brett saw one PASS in a day and asked whether to drop the eBay model for PriceCharting prices. Measured on that
+day's listings: 2,010 of ~9,000 could be judged (51 liquid anchored cards at his settings); 45 were 30%+ under the
+anchor, nearly all "over max buy" because cheaper copies were already listed (prices of the new 30th Celebration set
+were falling). A PriceCharting-only gate would have flagged ~140, mostly traps: stale prices on new sets (Mew ex SIR
+$147.66 on PriceCharting, unsold copies at $83-101), vintage cards cheap for their condition, reprints, zero-feedback
+sellers. The sales tracker had also been missing most sales since Oct 1 (see the spare-call order above). Decided:
+- NOT PriceCharting-only. PriceCharting as a fallback anchor for cards with < ANCHOR_MIN eBay sales, capped by the
+  cheapest believable live copy: verdict "LEAD" (`lead_decision()` / `leadDecide()`, LEAD_* constants; 49 that day).
+  Leads get the item-specifics lookup (rank 2 in `verify_hits()`), a "Leads only" chip, and never count as a hit.
+- Offer list (page only, `offerRows()` / `openOffers()`): open Best Offer listings from every card's book where an
+  offer at that listing's Max buy is <= 30% under the ask. Brett sends offers by hand; no API can.
+- Auction trial (`auction_read()` / `auction_finish()` in collector.py, log only, AUCTION_TRIAL_DAYS = 4, about 240
+  calls a day outside the token bucket): the collector reads fixed-price listings only; this counts how many auctions
+  on priceable cards close at or under max buy. Read the hourly "Auction trial:" line and the "closed UNDER max buy"
+  lines, then decide whether to build an ending-soon list. Bidding stays with Brett (or a sniping service).
+- A neural network was considered and rejected: no completed flips to learn from, and it cannot create mispricings.
+
 ## Capacity (measured 2026-09-30 on the Actions design; the machine design above is the answer to it)
 Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.
 Following every listing to its outcome (checks at day 3/10/30) is ~11x over budget and can never catch up; the

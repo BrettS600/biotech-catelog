@@ -165,6 +165,16 @@ MATCH_VERSION = 3            # bump when the title matcher changes: every stored
 # 3. Printed set totals ("36/123" -> 123) from the open Pokemon TCG dataset, the same source the page uses
 TCG_SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 
+# --- leads: PriceCharting as a stand-in anchor where eBay has too few sales (Brett, 2026-10-04) ---
+# A card with fewer than ANCHOR_MIN eBay sales cannot be judged by the gate at all, and most listings are on such
+# cards. For those, PriceCharting's ungraded price stands in for the anchor - ALWAYS capped by the cheapest believable
+# copy listed right now, because a stale PriceCharting price is a trap (30th Celebration Mew ex: $147 there, unsold
+# copies at $95 here). The verdict is "LEAD", never "PASS": a listing to look at, photos and condition first.
+LEAD_MIN_PC_SALES = 100      # PriceCharting sales/yr the card needs (the stand-in for "it sells")
+LEAD_MIN_PC = 40.0           # ... and a PriceCharting price of at least this
+LEAD_SELL_PC = 0.95          # sell no higher than this share of the PriceCharting price ...
+LEAD_SELL_NO_FLOOR = 0.93    # ... or this share when no other believable copy is listed
+
 # ---- Gate (keep in step with build_catalog.py) ----
 FEE_PCT = 0.1325             # eBay final value fee, trading cards
 BUYER_TAX = 0.065            # eBay charges the fee on the buyer's total incl. their sales tax
@@ -1305,8 +1315,15 @@ def wants_id_check(rec, cs):
     """0 / 1 / 2 when the listing deserves one lookup of its item specifics (a PASS at the collector's settings,
     the review band, a PASS at some smaller margin or with no buying tax - the page lets Brett change those and
     the liquidity rule), else None."""
-    if rec.get("idv") or rec.get("total") is None or not cs or cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
+    if rec.get("idv") or rec.get("total") is None or not cs:
         return None
+    if cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
+        # a PriceCharting lead: looked up when it would qualify with no buying tax (the page may be set that way)
+        if rec.get("pcm") or rec.get("tier") == "suspect" or (rec.get("n_img") is not None and rec["n_img"] < 2) \
+                or rec.get("tcond", "UNK") not in COMPARABLE_CONDS or seller_bar(rec) is not None:
+            return None
+        maxbuy = lead_decision(rec, cs)[2]
+        return 2 if maxbuy is not None and rec["total"] <= maxbuy else None
     v, _ = verdict(rec, dict(cs, liquid=True))
     if v in ("PASS", "review"):
         return 0 if v == "PASS" and cs.get("liquid") else 1
@@ -2012,6 +2029,7 @@ def compute_stats(state, cat, lp):
             "A": A, "A_n": A_n, "A_win": A_win, "A_fast": A_fast, "cred": cred, "L": L, "S": S, "liquid": liq,
             "basis": basis, "probT": probT, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy,
             "hot": hot, "confirm": confirm,
+            "pc": (by_id.get(cid) or {}).get("pc"), "pcv": (by_id.get(cid) or {}).get("vol"),
             "checks": [key for key, v in checks.items() if not v], "lpd": round(lpd * 100, 1),
             "book": [[r["id"], r["total"], r["item"], r["ship"], r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
                       round(hours_between(parse_ts(r["origin"] or r["first"]) or NOW, NOW), 1), r["url"], r["title"]]
@@ -2090,6 +2108,20 @@ def listing_decision(rec, cs):
     return s, net, maxbuy
 
 
+def lead_decision(rec, cs):
+    """(sell price, net, maxbuy) for a listing on a card eBay cannot judge yet, from PriceCharting's price capped by
+    the cheapest believable copy other than this one; (None, None, None) when the card does not qualify as a lead.
+    The page mirrors this in leadDecide()."""
+    pc = (cs or {}).get("pc")
+    if not pc or pc < LEAD_MIN_PC or (cs.get("pcv") or 0) < LEAD_MIN_PC_SALES:
+        return None, None, None
+    floor = next((eff for iid, eff in cs.get("cred", []) if iid != rec["id"]), None)
+    s = round99(min(floor - UNDERCUT, LEAD_SELL_PC * pc) if floor is not None else LEAD_SELL_NO_FLOOR * pc)
+    sell = s * (1 - cs.get("lpd", LP_DEFAULT_PCT) / 100) if rec.get("tcond") == "LP" else s
+    net, maxbuy = gate(sell)
+    return s, net, maxbuy
+
+
 def verdict(rec, cs):
     """Gate verdict for one listing given its card's stats (collector defaults: 70% / 48 h / 10% margin).
     The page mirrors this in verdictOf(); keep the two in step."""
@@ -2102,9 +2134,14 @@ def verdict(rec, cs):
         return "suspect", allin
     if rec.get("pcm"):                               # far from PriceCharting's price: treated as a wrong match
         return ("mismatch: too cheap" if rec["pcm"] == "low" else "mismatch: too high"), allin
-    if not cs or cs.get("A") is None:
-        return ("no sales yet" if cs else "no data yet"), allin
-    if cs.get("A_n", 0) < ANCHOR_MIN:
+    if not cs or cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
+        # eBay cannot judge this card yet. Is the listing a lead on PriceCharting's price?
+        if cs and rec.get("tcond", "UNK") in COMPARABLE_CONDS and seller_bar(rec) is None:
+            maxbuy = lead_decision(rec, cs)[2]
+            if maxbuy is not None and allin <= maxbuy:
+                return ("ID conflict" if rec.get("idv") == "conflict" else "LEAD"), allin
+        if not cs or cs.get("A") is None:
+            return ("no sales yet" if cs else "no data yet"), allin
         return f"too few sales ({cs.get('A_n', 0)})", allin
     if not cs.get("liquid"):
         return "not liquid", allin
@@ -2184,7 +2221,9 @@ def build_live(state, cards, lp):
                  "tax": TAX, "margin": MARGIN, "confidence": CONFIDENCE, "sellWindowH": SELL_WINDOW_H,
                  "undercut": UNDERCUT, "boHaircut": BO_HAIRCUT, "window": STAT_WINDOW_D, "minSales": ANCHOR_MIN,
                  "sellUnderA": SELL_UNDER_A, "sellNoFloor": SELL_NO_FLOOR, "reviewRatio": REVIEW_RATIO,
-                 "pcLow": PC_LOW, "pcHigh": PC_HIGH, "pcMinSales": PC_MIN_SALES, "pcNewSetD": PC_NEW_SET_D},
+                 "pcLow": PC_LOW, "pcHigh": PC_HIGH, "pcMinSales": PC_MIN_SALES, "pcNewSetD": PC_NEW_SET_D,
+                 "leadMinSales": LEAD_MIN_PC_SALES, "leadMinPc": LEAD_MIN_PC, "leadSellPc": LEAD_SELL_PC,
+                 "leadSellNoFloor": LEAD_SELL_NO_FLOOR},
         "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
         "deals": deal_calib(state), "sets": set_sizes(state),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
