@@ -58,11 +58,12 @@
   .reset { font:inherit; font-size:13px; padding:5px 13px; border:1px solid var(--line); border-radius:999px; background:none; color:var(--muted); cursor:pointer; }
   .reset:hover { color:var(--fg); border-color:var(--muted); }
   .count { color:var(--muted); font-size:13px; white-space:nowrap; }
-  .wrap { overflow-x:auto; border-top:1px solid var(--line); }
+  .wrap { overflow:auto; border-top:1px solid var(--line); }
   table { border-collapse:collapse; width:100%; }
   table.wide { min-width:1240px; }
   th, td { padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; text-align:left; }
-  th { position:sticky; top:0; background:var(--head); cursor:pointer; user-select:none; font-weight:600; }
+  th { position:sticky; top:0; z-index:1; background:var(--head); cursor:pointer; user-select:none; font-weight:600; }
+  th.rn, td.rn { text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; width:1%; white-space:nowrap; cursor:default; }
   th .s { color:var(--muted); font-size:11px; margin-left:4px; }
   th.on .s { color:var(--fg); }
   th:hover { text-decoration:underline; }

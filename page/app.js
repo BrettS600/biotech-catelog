@@ -34,6 +34,7 @@ const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // fill
 
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
+       inserted: [{v: 3, at: 0, n: 1}],
        hay: r => r[1] + ' ' + r[2],
        row: r => cells4(r) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
@@ -51,6 +52,7 @@ const TABLES = {
   //   Decisions: 20 A 21 L 22 sell 23 probT 24 edays 25 maxbuy 26 hot 27 liquid 28 confirm 29 checks |
   //   Trends: 30 spm 31 d7 32 d30 33 pos 34 vdp 35 vd 36 vol 37 ts | 38 net 39 A_n | 40 ord
   ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 20, 22, 25, 38, 30, 32, 37],
+       inserted: [{v: 3, at: 0, n: 1}],
        labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 30: 'Sales/month', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 500]},
        hay: r => r[1] + ' ' + r[2],
@@ -92,7 +94,7 @@ const TABLES = {
   er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: {v: 2, at: 10, n: 2},                    // two columns were added at position 10 (see makeTable)
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}],   // columns added over time, in order (see makeTable)
        extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
        rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
@@ -102,6 +104,7 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[7]) + '</td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
       '<td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
       '<td class="num">' + fmtMoney(r[35]) + '</td><td class="num">' + fmtPct(r[36]) + '</td>' +
+      '<td class="num">' + (r[40] == null ? dash : r[40]) + '</td><td class="num">' + (r[41] == null ? dash : r[41]) + '</td>' +
       '<td class="num">' + fmtMoney(r[11]) + '</td>' +
       '<td class="num">' + fmtPct(r[12]) + '</td>' +
       '<td class="num">' + fmtMoney(r[26]) + '</td>' +
@@ -207,11 +210,12 @@ function makeTable(id, cfg) {
     }
     el('rows').innerHTML = ''; t.shown = 0; t.renderMore();
     el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + rows.length.toLocaleString('en-US') + ' ' + cfg.noun;
+    fitWraps();
   };
   t.renderMore = () => {
     const frag = document.createDocumentFragment();
     const end = Math.min(t.shown + PAGE, t.view.length);
-    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); frag.appendChild(tr); }
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
     el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
@@ -220,10 +224,10 @@ function makeTable(id, cfg) {
   const headRow = document.querySelector('#p-' + id + ' thead tr:last-child');
   let hiddenCols = new Set();
   try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + id) || '[]')); } catch (e) {}
-  if (cfg.inserted) try {                                 // columns added since the choice was saved: keep it on the same columns
-    const mark = 'cols-' + id + '-v' + cfg.inserted.v;
+  for (const ins of [].concat(cfg.inserted || [])) try {   // columns added since the choice was saved: keep it on the same columns
+    const mark = 'cols-' + id + '-v' + ins.v;
     if (!localStorage.getItem(mark)) {
-      hiddenCols = new Set([...hiddenCols].map(ci => ci >= cfg.inserted.at ? ci + cfg.inserted.n : ci));
+      hiddenCols = new Set([...hiddenCols].map(ci => ci >= ins.at ? ci + ins.n : ci));
       localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); localStorage.setItem(mark, '1');
     }
   } catch (e) {}
@@ -283,11 +287,21 @@ function makeTable(id, cfg) {
   });
   sel.addEventListener('change', t.apply);
   el('more').addEventListener('click', t.renderMore);
+  const wrap = document.querySelector('#p-' + id + ' .wrap');
+  if (wrap) wrap.addEventListener('scroll', () => { if (!el('more').hidden && wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 600) t.renderMore(); });
   t.apply();
   return t;
 }
 const tables = {};
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
+
+// each table scrolls inside its own box that ends at the bottom of the window, so the column headers stay in view
+function fitWraps() {
+  document.querySelectorAll('.panel:not([hidden]) > .wrap').forEach(w => {
+    w.style.maxHeight = Math.max(320, window.innerHeight - (w.getBoundingClientRect().top + window.scrollY) - 8) + 'px';
+  });
+}
+window.addEventListener('resize', fitWraps);
 
 /* ---------------- Tabs ---------------- */
 const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', al: 'alerts'};      // default (no hash) = PriceCharting
@@ -296,6 +310,7 @@ function showTab(id) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
   history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
+  fitWraps();
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
 showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
@@ -389,7 +404,7 @@ function lpFrac(price) {
 }
 function paintLp() {
   const lp = lpInfo();
-  $('lpt').innerHTML = lp.tiers.map(t => '<span class="' + (t.src === 'tier' ? 'meas' : '') + '" title="' + (t.src === 'tier' ? 'measured in this tier from ' + t.n + ' LP sales' : t.src === 'global' ? 'this tier has ' + t.n + ' LP sales (needs ' + lp.minSales + '); using the ratio measured across all tiers' : 'no measurement yet (' + t.n + ' LP sales in this tier, needs ' + lp.minSales + '); using the 12% default') + '"><i>' + (t.lo === 0 ? '<$' + t.hi : t.hi >= 1e9 ? '$' + t.lo + '+' : '$' + t.lo + '–' + t.hi) + '</i>' + t.pct + '%</span>').join('');
+  $('lpt').innerHTML = lp.tiers.map(t => '<span class="' + (t.src === 'tier' ? 'meas' : '') + '" title="' + (t.src === 'tier' ? 'measured in this tier from ' + t.n + ' LP sales' : t.src === 'global' ? 'this tier has ' + t.n + ' LP sales (needs ' + lp.minSales + '); using the ratio measured across all tiers' : 'no measurement yet (' + t.n + ' LP sales in this tier, needs ' + lp.minSales + '); using the 12% default') + '"><i>' + (t.lo === 0 ? '<$' + t.hi : t.hi >= 1e9 ? '$' + t.lo + '+' : '$' + t.lo + '–' + t.hi) + '</i>' + t.pct + '%</span>').join('') + (lp.tiers.every(t => t.src !== 'tier') ? ' <span class="dim" title="No price tier has ' + lp.minSales + ' LP sales of its own yet, so all three show the one figure measured across every LP sale. They separate as sales accumulate">(pooled)</span>' : '');
 }
 const COMPARABLE = new Set(['NM', 'LP', 'UNK']);
 function verdictOf(x, cs, S) {
@@ -463,7 +478,8 @@ function rebuildLive() {
                   cs ? cs.A : null, cs && cs.A && x[7] != null ? Math.round((x[7] / cs.A - 1) * 1000) / 10 : null,
                   d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
                   tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
-                  pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [], LIVE.er.length]);
+                  pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
+                  base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null, LIVE.er.length]);
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
   alRender();
