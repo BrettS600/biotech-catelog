@@ -80,6 +80,7 @@ else {
   $('title').textContent = d.c + ' \u2014 ' + String(d.s || '').replace('Pokemon ', '');
   $('price').innerHTML = '<b>' + money(d.tot) + '</b> total <span class="dim">(' + money(d.it) + ' + ' + money(d.sh) + ' shipping' + (d.tax ? ', ' + money(d.ai) + ' with ' + d.tax + '% tax' : '') + ')</span>';
   $('pclink').href = 'https://www.pricecharting.com/game/' + d.pid;
+  if (d.pci) { const box = $('pclink').parentNode; box.className = ''; box.innerHTML = '<a href="' + $('pclink').href + '" target="_blank" rel="noopener"><img class="pic" alt="PriceCharting picture" src="' + esc(d.pci) + '"></a>'; }
   $('pcfacts').innerHTML = '<b>' + esc(d.n) + (d.st ? ' / ' + d.st : '') + '</b><br>' + esc(d.c) + '<br>' +
     '<span class="tag' + (d.v ? ' warn' : '') + '">' + esc(d.v ? d.v.toUpperCase() : 'regular printing') + '</span><br>Ungraded: <b>' + money(d.pc) + '</b>' +
     '<br>Sales per month: <b>' + (d.pv == null ? '?' : one(d.pv / 12)) + '</b>';
