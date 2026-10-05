@@ -236,6 +236,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   note in this chat that it "needed their permission" was a guess and was wrong.
 - Why the photo check matters: the one hit of Oct 4 (eBay 128114641633) had title AND item specifics for Charizard
   11/108 Evolutions while its photo showed a Charizard VMAX. No text check can catch that; only the picture does.
+- Auction alerts (2026-10-05, Brett chose the single 10-minute ping over a 10 + 2 pair: he reviews the card, then
+  watches the listing and bids by hand in the last seconds): `auction_alerts()` in collector.py runs every 5 minutes
+  with one search for auctions ending 9-15 minutes out (`itemEndDate:[a..b]`, falling back to `[..b]`), keeps those on
+  priceable cards whose bid + shipping + tax is still under Max buy and that clear the Alerts-tab filters (profit and
+  price range are applied to the max bid), reads item specifics and photos for up to 4 a run, and pushes "Auction ends
+  in N min · bid up to $X". The check screen shows the current bid, a countdown, and NM / LP with the max bid for each
+  (`d.au`, 5th element of `nm` / `lp`). `auction_finish()` always reads the final price of an alerted auction and the
+  History card shows it beside his max bid. The Auctions switch on the Alerts tab turns it off; with it on, this reader
+  also feeds the trial's watch list and the trial's own 10-minute read is skipped. Expect many alerts and few wins:
+  about 4% of the trial's first 69 auctions closed under Max buy, and most bids land in the final seconds.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count

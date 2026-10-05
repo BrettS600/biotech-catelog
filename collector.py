@@ -130,6 +130,13 @@ AUCTION_LOOKUPS_PER_HOUR = 5     # final-price lookups: one getItem per finished
                                  # so the first day's sample was all 8-10 PM Eastern
 AUCTION_LOOKUPS_PER_CYCLE = 2
 
+# ---------------- auction alerts: about 10 minutes before the end (Brett, 2026-10-05) ----------------
+# Brett reviews the card on the check screen, then watches the listing and bids by hand in the last seconds.
+AUCTION_ALERT_EVERY_S = 300      # one search this often, for the auctions that end 9 to 15 minutes from now
+AUCTION_ALERT_WINDOW = (9, 15)   # minutes before the end; read every 5 minutes, each auction is seen once or twice
+AUCTION_ALERT_CHECKS = 4         # item lookups per read: identity and photos of the auctions about to alert
+AUCTION_ALERTS_PER_HOUR = 12     # a ceiling on auction alerts
+
 DRY_RUN = "--dry-run" in sys.argv
 ONCE = "--once" in sys.argv
 
@@ -642,6 +649,7 @@ def clean_cfg(c):
                 "min_profit": min(1000.0, max(0.0, float(c.get("min_profit", 0)))),
                 "pmin": max(0.0, float(c.get("pmin", 25))), "pmax": max(1.0, float(c.get("pmax", 500))),
                 "hits": bool(c.get("hits", True)), "leads": bool(c.get("leads", False)), "watch": bool(c.get("watch", True)),
+                "auctions": bool(c.get("auctions", True)),
                 "quiet": bool(c.get("quiet", False)), "q_from": int(c.get("q_from", 23)) % 24, "q_to": int(c.get("q_to", 7)) % 24}
     except (KeyError, TypeError, ValueError):
         return None
@@ -678,7 +686,7 @@ def apply_settings(state):
         log(f"Settings: margin {cfg['margin']:g}%, buying tax {cfg['tax']:g}%, sells within {cfg['window']:g} h with "
             f"{cfg['conf']:g}% confidence; alerts: hits {'on' if cfg['hits'] else 'off'}, leads {'on' if cfg['leads'] else 'off'}, "
             f"profit from ${cfg['min_profit']:g}, price ${cfg['pmin']:g}-${cfg['pmax']:g}, scam-watch "
-            f"{'included' if cfg['watch'] else 'left out'}, quiet hours "
+            f"{'included' if cfg['watch'] else 'left out'}, auctions {'on' if cfg.get('auctions', True) else 'off'}, quiet hours "
             + (f"{cfg['q_from']}:00-{cfg['q_to']}:00" if cfg["quiet"] else "off"))
     return cfg
 
@@ -886,6 +894,8 @@ def alert_status(state, cfg):
     for e in reversed(log_rows):                             # newest first
         r = closed.get(e["i"])
         out = "open" if e["i"] in state["open"] else (r.get("out") or "closed") if r else "unknown"
+        if e["kd"].startswith("auction"):
+            out = f"closed at ${e['fin']:.2f}; your max bid was ${e.get('mb', 0):.2f}" if e.get("fin") is not None else "auction not finished yet"
         hrs = round(es.hours_between(es.parse_ts(e["t"]), es.parse_ts(r["closed"])), 1) if r and r.get("closed") else None
         hist.append([e["t"], e["c"], e["ti"], e["u"], e["tot"], e["p"], e["kd"], e.get("dec"), out, hrs])
     return {"cfg": cfg, "t": v.get("alert_t", 0), "on": bool(NTFY_TOPIC), "test_t": v.get("test_t", 0),
@@ -934,14 +944,123 @@ def auction_read(state, cat, cards):
     return new
 
 
+def auction_alerts(state, cat, cards, cfg):
+    """Push the auctions that end in about 10 minutes and whose current bid is still under what the gate would pay.
+    Bids pile in during the last seconds, so most of these will finish above the max: the alert's job is to give
+    Brett time to look at the card and the number he may bid up to, never more. One search per call, plus a lookup
+    (item specifics, photos) for the few about to be sent. Returns the alerts sent."""
+    v = state["vps"]
+    lo, hi = AUCTION_ALERT_WINDOW
+    q = dict(es.QUERIES["aspect"], sort="endingSoonest")
+    base = f"conditionIds:{{{es.COND_UNGRADED}}},price:[..{es.SWEEP_PRICE[1]}],priceCurrency:USD," \
+           f"buyingOptions:{{AUCTION}},itemLocationCountry:US"
+    try:
+        q["filter"] = base + f",itemEndDate:[{es.ts(es.NOW + timedelta(minutes=lo))}..{es.ts(es.NOW + timedelta(minutes=hi))}]"
+        j = es.api_get(state, "/buy/browse/v1/item_summary/search", q)
+    except Exception:                                        # a date range eBay will not take: ask for "ends before" only
+        q["filter"] = base + f",itemEndDate:[..{es.ts(es.NOW + timedelta(minutes=hi))}]"
+        j = es.api_get(state, "/buy/browse/v1/item_summary/search", q)
+    watch, sent, hist = state.setdefault("auctions", {}), v.setdefault("alerted", {}), v.setdefault("alert_log", [])
+    box = v.setdefault("au_box", {})
+    if box.get("hour") != es.ts(es.NOW)[:13]:
+        box["hour"], box["n"] = es.ts(es.NOW)[:13], 0
+    cands = []
+    for x in j.get("itemSummaries") or []:
+        iid, end = x.get("itemId"), x.get("itemEndDate")
+        if not iid or not end:
+            continue
+        end = end[:19] + "Z"
+        left = (es.parse_ts(end) - es.NOW).total_seconds() / 60
+        try:
+            bid = float((x.get("currentBidPrice") or x.get("price") or {}).get("value"))
+        except (TypeError, ValueError):
+            continue
+        title = x.get("title") or ""
+        a = watch.get(iid)
+        if a is None:
+            ci, _, _ = es.match_title(cat, title, x.get("epid") or "", state["denoms"])
+            if ci is None or es.title_condition(title) not in es.COMPARABLE_CONDS:
+                continue
+            cid = cat.cards[ci]["id"]
+            cs = cards.get(str(cid)) or {}
+            basis = "ebay" if cs.get("A_n", 0) >= es.ANCHOR_MIN and cs.get("liquid") else \
+                    "pc" if (cs.get("pc") or 0) >= es.LEAD_MIN_PC and (cs.get("pcv") or 0) >= es.LEAD_MIN_PC_SALES else None
+            if not basis:
+                continue
+            try:
+                ship = float(((x.get("shippingOptions") or [{}])[0].get("shippingCost") or {}).get("value"))
+            except (TypeError, ValueError):
+                ship = 5.0
+            a = watch[iid] = {"card": cid, "title": title[:90], "end": end, "bid": bid, "bids": x.get("bidCount"), "ship": ship,
+                              "basis": basis, "tcond": es.title_condition(title), "url": x.get("itemWebUrl")}
+        else:
+            a["bid"], a["bids"] = bid, x.get("bidCount")
+        kind = "hit" if a["basis"] == "ebay" else "lead"
+        if iid in sent or not lo - 1 <= left <= hi + 1 or not cfg["hits" if kind == "hit" else "leads"]:
+            continue
+        seller = x.get("seller") or {}
+        pct = seller.get("feedbackPercentage")
+        rec = {"id": iid, "card": a["card"], "title": title, "url": a["url"], "total": round(bid + a["ship"], 2), "item": bid,
+               "ship": a["ship"], "tcond": a["tcond"], "fb": seller.get("feedbackScore"),
+               "pct": float(pct) if pct not in (None, "") else None, "img": (x.get("image") or {}).get("imageUrl"),
+               "n_img": (1 if x.get("image") else 0) + len(x.get("additionalImages") or []), "tier": "clean", "sc": 0, "scr": []}
+        cs = cards.get(str(a["card"])) or {}
+        decision = es.listing_decision if kind == "hit" else es.lead_decision
+        _, net, maxbuy = decision(rec, cs)
+        if maxbuy is None or es.seller_bar(rec) is not None or rec["n_img"] < 2:
+            continue
+        allin = rec["total"] + bid * es.TAX
+        if allin > maxbuy or net - maxbuy < cfg["min_profit"] or maxbuy < cfg["pmin"] or rec["total"] > cfg["pmax"]:
+            continue
+        cands.append((maxbuy - allin, iid, rec, cs, kind, decision, end, left))
+    cands.sort(key=lambda t: -t[0])                          # the most room under the max first
+    quiet, back, n = quiet_now(cfg), alert_channel()[0] if es.PASSWORD else None, 0
+    for _, iid, rec, cs, kind, decision, end, left in cands[:AUCTION_ALERT_CHECKS]:
+        if box["n"] >= AUCTION_ALERTS_PER_HOUR:
+            break
+        it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+        if not it:
+            continue
+        status, notes, _ = es.check_identity(cat, cat.by_id.get(rec["card"]), it, rec["title"], rec["total"])
+        if status == "conflict":
+            sent[iid] = es.ts(es.NOW)                        # the specifics name another card: never alert this one
+            continue
+        rec["idv"], rec["idr"] = status, notes
+        es.item_facts(rec, it)
+        d = hit_payload(rec, cs, cat, kind)
+
+        def side(cond):                                      # [sell, max buy, profit at the max, ROI at the max, max bid]
+            s2, net2, mb2 = decision(dict(rec, tcond=cond), cs)
+            return [s2, round(mb2, 2), round(net2 - mb2, 2), round((net2 - mb2) / mb2 * 100, 1),
+                    math.floor((mb2 - rec["ship"]) / (1 + es.TAX) * 100) / 100]
+        d["nm"], d["lp"] = side("NM"), side("LP")
+        d["au"] = {"e": end, "b": rec["item"], "n": watch[iid].get("bids") or 0}
+        d["tk"], d["rq"], d["pci"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back, pc_image(state, d["pid"])
+        link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
+        msg = (f"Now ${rec['item']:.2f} + ${rec['ship']:.2f} shipping, {d['au']['n']} bids. Bid up to ${d['nm'][4]:.2f} for a near-mint copy"
+               + (" - LEAD, priced from PriceCharting" if kind == "lead" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
+        title = f"Auction ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
+        if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3, tags=("hammer",)):
+            continue
+        sent[iid] = es.ts(es.NOW)
+        box["n"] += 1
+        n += 1
+        watch[iid]["al"] = True
+        hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": rec["title"][:70], "u": rec["url"],
+                     "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4]})
+    return n
+
+
 def auction_finish(state, cards, n):
-    """Read the final price of up to n finished auctions (one getItem each) and record whether it closed at or under
-    what the gate would have paid for that card. Returns the lookups made."""
+    """Read the final price of finished auctions (one getItem each): every one Brett was alerted about, plus up to n
+    others for the trial, and record whether each closed at or under what the gate would have paid for that card.
+    Returns the lookups made."""
     watch, done = state.setdefault("auctions", {}), state.setdefault("auction_done", [])
     cutoff = es.ts(es.NOW - timedelta(minutes=3))
     ended = sorted((a["end"], iid) for iid, a in watch.items() if a["end"] < cutoff)
+    todo = [e for e in ended if watch[e[1]].get("al")] + ([e for e in ended if not watch[e[1]].get("al")][-n:] if n > 0 else [])
     used = 0
-    for _, iid in ended[-n:]:                                # the most recently finished: each hour samples itself
+    for _, iid in todo:                                      # the trial takes the most recently finished: each hour samples itself
         a = watch.pop(iid)
         it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
         used += 1
@@ -959,6 +1078,9 @@ def auction_finish(state, cards, n):
         allin = round(rec["total"] + final * es.TAX, 2)
         under = bool(bids) and maxbuy is not None and allin <= maxbuy
         done.append([a["end"], a["card"], final, a["ship"], bids or 0, maxbuy, a["basis"], int(under), ref])
+        for e in state["vps"].get("alert_log", []) if a.get("al") else []:
+            if e["i"] == iid:
+                e["fin"] = final                             # the history shows what the auction closed at
         if under:
             log(f"Auction trial: closed UNDER max buy - {a['title']} | final ${final:.2f} + ${a['ship']:.2f} shipping, "
                 f"{bids} bids, max buy ${maxbuy:.2f}, reference ${ref} ({a['basis']}) | {a.get('url')}")
@@ -1076,20 +1198,23 @@ def cycle(state, cat, sched, counters):
         v["lags"] = v.get("lags", [])[-500:]
     if not v.get("window_ok") and due("selftest", 1800):
         selftest_window(state)
-    if AUCTION_TRIAL_DAYS and not DRY_RUN and remaining > 400 and counters.get("_cards"):
+    if not DRY_RUN and remaining > 400 and counters.get("_cards"):
         tr = v.setdefault("auction", {})
         tr.setdefault("until", es.ts(now + timedelta(days=AUCTION_TRIAL_DAYS)))
         if tr.get("hour") != es.ts(now)[:13]:
             tr["hour"], tr["hn"] = es.ts(now)[:13], 0
-        if es.ts(now) < tr["until"]:
-            try:
-                if due("auctions", AUCTION_EVERY_S):
-                    counters["auctions_new"] += auction_read(state, cat, counters["_cards"])
-                k = min(AUCTION_LOOKUPS_PER_CYCLE, AUCTION_LOOKUPS_PER_HOUR - tr["hn"])
-                if k > 0:
-                    tr["hn"] += auction_finish(state, counters["_cards"], k)
-            except Exception as e:
-                log(f"Auction trial: skipped this minute ({e})")
+        trial_on = bool(AUCTION_TRIAL_DAYS) and es.ts(now) < tr["until"]
+        alerts_on = bool(NTFY_TOPIC) and cfg.get("auctions", True)
+        try:
+            if alerts_on and due("au_alert", AUCTION_ALERT_EVERY_S):
+                counters["au_alerts"] += auction_alerts(state, cat, counters["_cards"], cfg)
+            elif trial_on and not alerts_on and due("auctions", AUCTION_EVERY_S):
+                counters["auctions_new"] += auction_read(state, cat, counters["_cards"])
+            k = min(AUCTION_LOOKUPS_PER_CYCLE, AUCTION_LOOKUPS_PER_HOUR - tr["hn"]) if trial_on else 0
+            if k > 0 or any(a.get("al") for a in state.get("auctions", {}).values()):
+                tr["hn"] += auction_finish(state, counters["_cards"], k)
+        except Exception as e:
+            log(f"Auctions: skipped this minute ({e})")
     if not DRY_RUN and v.get("trial_runs", 0) < TRIAL_RUNS and remaining > 400 and due("trial", TRIAL_EVERY_S):
         v["trial_runs"] = v.get("trial_runs", 0) + 1
         try:
@@ -1227,7 +1352,7 @@ def cycle(state, cat, sched, counters):
                       for u in state["unmatched"] if u[0] >= hour_ago)
         log("Unmatched this hour: " + (", ".join(f"{k} {n}" for k, n in why.most_common()) or "none"))
         if NTFY_TOPIC:
-            log(f"Alerts: {counters['alerts']} hit alerts sent this hour to the phone")
+            log(f"Alerts: {counters['alerts']} hit alerts and {counters['au_alerts']} auction alerts sent this hour to the phone")
         line = auction_summary(state)
         if line:
             log(line + f"; trial ends {v.get('auction', {}).get('until', '?')[:10]}")
