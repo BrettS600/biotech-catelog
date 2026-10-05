@@ -6,7 +6,7 @@
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 12px 12px calc(16px + env(safe-area-inset-bottom)); background: #0d1117; color: #e6edf3; font: 16px/1.35 -apple-system, system-ui, sans-serif; }
+body { margin: 0 auto; max-width: 560px; padding: 12px 12px calc(16px + env(safe-area-inset-bottom)); background: #0d1117; color: #e6edf3; font: 16px/1.35 -apple-system, system-ui, sans-serif; }
 h1 { font-size: 17px; margin: 0 0 4px; }
 .dim { color: #8b949e; font-size: 13px; }
 .price { font-size: 15px; margin: 2px 0 10px; }
@@ -30,6 +30,8 @@ button { flex: 1; border: 0; border-radius: 12px; padding: 16px 8px; font: 600 1
 .yes { background: #238636; } .no { background: #da3633; } .lp { background: #9e6a03; }
 button:disabled { background: #30363d; color: #8b949e; }
 button small { display: block; font-weight: 400; font-size: 14px; margin-top: 4px; }
+.two button { padding: 18px 6px; }
+.two button small { font-size: 15px; margin-top: 10px; }
 .hide { display: none; }
 #msg { margin-top: 30px; text-align: center; font-size: 18px; }
 a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
@@ -51,7 +53,7 @@ a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
 <div id="s2" class="hide">
   <h1>What condition is it?</h1>
   <div class="dim" id="s2sub"></div>
-  <div class="btns" style="flex-direction: column">
+  <div class="btns two">
     <button class="yes" id="nm"></button>
     <button class="lp" id="lp"></button>
   </div>
@@ -62,6 +64,7 @@ a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = v => v == null ? '?' : (v < 0 ? '-' : '') + '$' + Math.abs(Number(v)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const one = v => v == null ? '?' : String(Math.round(v * 10) / 10);
 const SIG = {p50: [4, 'priced under half of what the card goes for'], p65: [2, 'priced well under what the card goes for'], p75: [1, 'priced under what the card goes for'],
   fbq: [1, 'seller rating count unknown'], fb0: [3, 'seller has fewer than 10 ratings'], fb1: [1, 'seller has fewer than 50 ratings'], pct: [2, 'seller feedback below the bar'],
   img: [1, 'only one photo'], qty: [2, '3 or more copies of a pricey card from a small seller'], dup: [3, 'same photo used by another seller'], ret: [1, 'no returns on a cheap listing'],
@@ -77,7 +80,8 @@ else {
   $('price').innerHTML = '<b>' + money(d.tot) + '</b> total <span class="dim">(' + money(d.it) + ' + ' + money(d.sh) + ' shipping' + (d.tax ? ', ' + money(d.ai) + ' with ' + d.tax + '% tax' : '') + ')</span>';
   $('pclink').href = 'https://www.pricecharting.com/game/' + d.pid;
   $('pcfacts').innerHTML = '<b>' + esc(d.n) + (d.st ? ' / ' + d.st : '') + '</b><br>' + esc(d.c) + '<br>' +
-    '<span class="tag' + (d.v ? ' warn' : '') + '">' + esc(d.v ? d.v.toUpperCase() : 'regular printing') + '</span><br>Ungraded: <b>' + money(d.pc) + '</b>';
+    '<span class="tag' + (d.v ? ' warn' : '') + '">' + esc(d.v ? d.v.toUpperCase() : 'regular printing') + '</span><br>Ungraded: <b>' + money(d.pc) + '</b>' +
+    '<br>Sales per month: <b>' + (d.pv == null ? '?' : one(d.pv / 12)) + '</b>';
   const pics = (d.im || []).filter(Boolean);
   const setPic = i => { $('pic').src = big(pics[i]); [...$('thumbs').children].forEach((t, k) => t.classList.toggle('on', k === i)); };
   $('thumbs').innerHTML = pics.length > 1 ? pics.map(u => '<img src="' + esc(u) + '" alt="">').join('') : '';
@@ -86,15 +90,18 @@ else {
   const m = /(\d+)\s*\/\s*(\d+)/.exec(d.t || '');
   const idTag = d.idv === 'ok' ? '<span class="tag ok">item specifics agree</span>' : d.idv === 'conflict' ? '<span class="tag bad">item specifics disagree: ' + esc((d.idr || []).join('; ')) + '</span>' : '<span class="tag">item specifics not filled in</span>';
   $('ebfacts').innerHTML = '<b>' + (m ? m[1] + ' / ' + m[2] : 'no number in title') + '</b><br>' + esc(d.t) + '<br>' + idTag +
-    '<br><span class="dim">Seller ' + (d.fb == null ? '?' : Number(d.fb).toLocaleString('en-US')) + ' ratings' + (d.pct != null ? ', ' + d.pct + '%' : '') + ' \u00b7 ' + (d.ph == null ? '?' : d.ph) + ' photos</span>';
+    '<br><span class="dim">Seller ' + (d.fb == null ? '?' : Number(d.fb).toLocaleString('en-US')) + ' ratings' + (d.pct != null ? ', ' + d.pct + '%' : '') + ' \u00b7 ' + (d.ph == null ? '?' : d.ph) + ' photos</span>' +
+    (d.k == null ? '' : '<br>Sold this month: <b>' + d.k + '</b> <span class="dim">(' + one(d.D) + ' days tracked)</span>') +
+    (d.N == null ? '' : '<br>Listed now: <b>' + d.N + '</b>');
   if (d.tier === 'watch') {
     $('scam').classList.remove('hide');
     $('scam').innerHTML = '<b>Scam watch: ' + d.sc + ' points</b><ul>' + (d.scr || []).map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul>';
   }
-  const label = (name, a) => name + '<small>Max buy ' + money(a[1]) + ' \u00b7 profit ' + money(a[2]) + ' \u00b7 ROI ' + a[3] + '%</small>';
-  const arm = (id, name, a) => { const ok = a && a[3] >= d.roi && d.ai <= a[1]; $(id).innerHTML = label(name, a) + (ok ? '' : '<small>Under your ' + d.roi + '% - not a buy</small>'); $(id).disabled = !ok;
+  const label = (name, a, ok) => name + '<small>Max buy ' + money(a[1]) + '</small><small>Profit ' + money(a[2]) + '</small><small>ROI ' + a[3] + '%</small>' +
+    '<small>' + (ok ? 'Above your ' + d.roi + '%: buy' : 'Under your ' + d.roi + '%: not a buy') + '</small>';
+  const arm = (id, name, a) => { const ok = a && a[3] >= d.roi && d.ai <= a[1]; $(id).innerHTML = label(name, a, ok); $(id).disabled = !ok;
     $(id).addEventListener('click', () => { done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
-  arm('nm', 'Near Mint \u2014 buy', d.nm); arm('lp', 'Lightly Played \u2014 buy', d.lp);
+  arm('nm', 'Near Mint', d.nm); arm('lp', 'Lightly Played', d.lp);
   $('s2sub').textContent = money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
   $('yes').addEventListener('click', () => show('s2'));
   $('no').addEventListener('click', () => done('Rejected. Nothing was bought.<br><span class="dim">You can close this page.</span>'));
