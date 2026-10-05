@@ -290,9 +290,9 @@ const tables = {};
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 
 /* ---------------- Tabs ---------------- */
-const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw'};      // default (no hash) = PriceCharting
+const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', al: 'alerts'};      // default (no hash) = PriceCharting
 function showTab(id) {
-  if (!TABLES[id]) id = 'pc';
+  if (!TABLES[id] && id !== 'al') id = 'pc';
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
   history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
@@ -466,6 +466,7 @@ function rebuildLive() {
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [], LIVE.er.length]);
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
+  alRender();
   LIVE.offers = offerRows(S);
   $('offers-btn').textContent = 'Offer list (' + LIVE.offers.length + ')';
   paintLp();
@@ -846,3 +847,107 @@ document.querySelectorAll('input[name=rng]').forEach(r => r.addEventListener('ch
 window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) drawChart(); });
 paintLp();
 loadLive();
+
+/* ---------------- Alerts tab ----------------
+   The numbers here decide what the collector sends to the phone. Save posts them to a private channel the collector
+   reads every minute (its name and the key that signs each message both come from the site key, so only this
+   unlocked page and the collector can use it); the collector reports what it is using in the live file (live.alert). */
+const AL_DEFAULT = {margin: 10, tax: 6.25, conf: 70, window: 48, min_profit: 0, pmin: 25, pmax: 500, hits: true, leads: false, watch: true, quiet: false, q_from: 23, q_to: 7};
+const AL_NUM = {margin: 'al-margin', tax: 'al-tax', conf: 'al-conf', window: 'al-win', min_profit: 'al-minprofit', pmin: 'al-pmin', pmax: 'al-pmax', q_from: 'al-q1', q_to: 'al-q2'};
+const AL_BOX = {hits: 'al-hits', leads: 'al-leads', watch: 'al-watch', quiet: 'al-quiet'};
+const AL = {filled: false, pending: 0, test: 0, note: '', cls: ''};
+function alRead() {
+  const c = {};
+  for (const k in AL_NUM) { const v = parseFloat($(AL_NUM[k]).value); c[k] = isNaN(v) ? AL_DEFAULT[k] : v; }
+  for (const k in AL_BOX) c[k] = $(AL_BOX[k]).checked;
+  return c;
+}
+function alFill(c) {
+  c = Object.assign({}, AL_DEFAULT, c || {});
+  for (const k in AL_NUM) $(AL_NUM[k]).value = c[k];
+  for (const k in AL_BOX) $(AL_BOX[k]).checked = !!c[k];
+}
+const alSame = (a, b) => Object.keys(AL_DEFAULT).every(k => String(a[k]) === String(b[k]));
+// the gate with the Alerts-tab numbers in place of the boxes at the top of the page
+function alS(c) {
+  return Object.assign({}, settings(), {conf: Math.min(0.95, Math.max(0.5, c.conf / 100)), window: Math.min(168, Math.max(24, c.window)),
+                                         margin: Math.min(0.5, Math.max(0, c.margin / 100)), tax: Math.min(0.15, Math.max(0, c.tax / 100))});
+}
+// the last 24 hours of listings that these numbers would have sent to the phone
+function alMatches(c) {
+  const live = LIVE.data, out = [];
+  if (!live) return out;
+  const S = alS(c), dec = {};
+  for (const x of live.live || []) {
+    const cid = String(x[1]);
+    if (!(cid in dec)) dec[cid] = live.cards[cid] ? Object.assign({}, live.cards[cid], decide(live.cards[cid], S)) : null;
+    const [v, allin, d] = verdictOf(x, dec[cid], S);
+    const kind = v === 'PASS' && c.hits ? 'hit' : v === 'LEAD' && c.leads ? 'lead' : null;
+    if (!kind || ((x[23] || 'clean') === 'watch' && !c.watch) || x[7] < c.pmin || x[7] > c.pmax) continue;
+    const dd = d || listingDecide(x, dec[cid], S);
+    if (!dd || dd.net == null) continue;
+    const profit = Math.round((dd.net - allin) * 100) / 100;
+    if (profit < c.min_profit) continue;
+    out.push({x, kind, profit, roi: profit / allin * 100, base: idRow.get(x[1]) || []});
+  }
+  return out.sort((a, b) => b.profit - a.profit);
+}
+function alDescribe(c) {
+  return 'margin <b>' + c.margin + '%</b> · buy tax <b>' + c.tax + '%</b> · sells within <b>' + c.window + ' h</b> at <b>' + c.conf + '%</b> confidence<br>' +
+    'profit at least <b>$' + c.min_profit + '</b> · buy price <b>$' + c.pmin + '</b> to <b>$' + c.pmax + '</b><br>' +
+    'hits <b>' + (c.hits ? 'on' : 'off') + '</b> · leads <b>' + (c.leads ? 'on' : 'off') + '</b> · scam-watch listings <b>' + (c.watch ? 'included' : 'left out') + '</b> · quiet hours <b>' + (c.quiet ? c.q_from + ':00 to ' + c.q_to + ':00' : 'off') + '</b>';
+}
+function alRender() {
+  const live = LIVE.data, a = live && live.alert;
+  if (!live) return;
+  if (!AL.filled) { alFill(a && a.cfg); AL.filled = true; }
+  const mine = alRead(), saved = a && a.cfg ? Object.assign({}, AL_DEFAULT, a.cfg) : null;
+  const clock = t => new Date(t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  if (!a) $('al-now').innerHTML = 'The collector has not reported its alert settings yet. It does so a few minutes after it updates.';
+  else $('al-now').innerHTML = 'Phone alerts are <b>' + (a.on ? 'on' : 'off: no phone channel is set on the collector') + '</b>' + (a.quiet_now ? ' (quiet hours right now)' : '') + '.<br>' +
+    alDescribe(saved) + '<br>' + (a.t ? 'Last change from this tab: <b>' + new Date(a.t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) + '</b>' : 'Never changed from this tab: these are the starting values') +
+    '<br>Alerts sent in the last 24 hours: <b>' + (a.sent24 || 0) + '</b>' + (a.last ? ' · last one ' + ageText(a.last) : '');
+  if (AL.pending && a && a.t >= AL.pending) { AL.pending = 0; AL.note = 'Saved. The collector confirmed at ' + clock(Date.now()) + '.'; AL.cls = 'ok'; }
+  if (AL.test && a && a.test_t >= AL.test) { AL.test = 0; AL.note = 'Test alert sent to your phone at ' + clock(Date.now()) + '.'; AL.cls = 'ok'; }
+  const dirty = saved ? !alSame(mine, saved) : false;
+  $('al-save').classList.toggle('dirty', dirty && !AL.pending);
+  $('al-status').className = 'al-status ' + (AL.note ? AL.cls : dirty ? 'warn' : '');
+  $('al-status').textContent = AL.note || (dirty ? 'Not saved yet: the collector is still using the numbers on the right.' : '');
+  const m = alMatches(mine), hits = m.filter(r => r.kind === 'hit').length;
+  $('al-pre').innerHTML = 'With the numbers on the left, <b>' + m.length + '</b> listing' + (m.length === 1 ? '' : 's') + ' from the last 24 hours would have been sent' +
+    (m.length ? ' (' + hits + ' hit' + (hits === 1 ? '' : 's') + ', ' + (m.length - hits) + ' lead' + (m.length - hits === 1 ? '' : 's') + ').' : '.') +
+    (m.length ? '<table><thead><tr><th>Card</th><th>Listing</th><th class="num">Total</th><th class="num">Profit</th><th class="num">ROI</th><th>Kind</th><th>Now</th></tr></thead><tbody>' +
+      m.slice(0, 40).map(r => '<tr><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
+}
+async function alChannel() {
+  const enc = new TextEncoder();
+  const hex = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
+  return {topic: 'pc-' + (await hex(HKEY + ':alerts-topic')).slice(0, 40),
+          key: await crypto.subtle.importKey('raw', enc.encode(await hex(HKEY + ':alerts-key')), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign'])};
+}
+async function alSend(msg) {
+  const ch = await alChannel(), body = JSON.stringify(msg);
+  const sig = [...new Uint8Array(await crypto.subtle.sign('HMAC', ch.key, new TextEncoder().encode(body)))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const r = await fetch('https://ntfy.sh/' + ch.topic, {method: 'POST', body: JSON.stringify({m: body, s: sig})});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+}
+async function alAct(kind) {
+  if (!HKEY) { AL.note = 'This page has no key for the collector yet.'; AL.cls = 'warn'; return alRender(); }
+  const t = Date.now();
+  try {
+    await alSend(kind === 'test' ? {type: 'test', t} : {type: 'settings', t, cfg: alRead()});
+    if (kind === 'test') AL.test = t; else AL.pending = t;
+    AL.note = kind === 'test' ? 'Test requested. It should reach your phone in about a minute.' : 'Sent. Waiting for the collector to confirm, about a minute or two.';
+    AL.cls = '';
+  } catch (e) { AL.note = 'Could not reach the collector\'s channel (' + e.message + '). Nothing was changed.'; AL.cls = 'warn'; }
+  alRender();
+}
+$('al-save').addEventListener('click', () => alAct('settings'));
+$('al-test').addEventListener('click', () => alAct('test'));
+Object.values(AL_NUM).concat(Object.values(AL_BOX)).forEach(id => $(id).addEventListener('input', () => { AL.note = ''; alRender(); }));
+// Raw Data: one click puts the alert numbers into the boxes at the top, so the table shows what would alert
+$('use-al').addEventListener('click', () => {
+  const c = Object.assign({}, AL_DEFAULT, (LIVE.data && LIVE.data.alert && LIVE.data.alert.cfg) || {});
+  $('conf').value = c.conf; $('win').value = c.window; $('margin').value = c.margin; $('buytax').value = c.tax;
+  $('margin').dispatchEvent(new Event('input'));
+});

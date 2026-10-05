@@ -139,3 +139,29 @@
   .hbody h4 { margin:12px 0 2px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
 /* Raw Data: listings that arrived since the last automatic refresh */
 tr.fresh td { background: rgba(34, 197, 94, .10); }
+
+/* Alerts tab */
+.al { display:grid; grid-template-columns:minmax(320px, 440px) 1fr; gap:18px; padding:4px 18px 28px; align-items:start; }
+@media (max-width: 900px) { .al { grid-template-columns:1fr; } }
+.al-card { border:1px solid var(--line); border-radius:12px; background:var(--head); padding:16px 18px; min-width:0; }
+.al-card h3 { margin:0 0 8px; font-size:14px; display:flex; align-items:center; }
+.al-card h3:not(:first-child) { margin-top:16px; padding-top:14px; border-top:1px solid var(--line); }
+.al-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 0; }
+.al-row .lab { display:flex; align-items:center; }
+.al-card input[type=number] { font:inherit; width:76px; padding:5px 7px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); text-align:right; }
+.al-check input[type=number] { width:52px; }
+.al-row .unit { color:var(--muted); display:inline-block; width:14px; text-align:center; }
+.al-check { display:flex; align-items:center; gap:7px; padding:5px 0; cursor:pointer; }
+.al-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+.al-save { font:inherit; font-weight:700; padding:9px 18px; border-radius:8px; border:1px solid #1f883d; background:#1f883d; color:#fff; cursor:pointer; }
+.al-save:hover { background:#1a7f37; }
+.al-save.dirty { box-shadow:0 0 0 3px rgba(31,136,61,.35); }
+.al-test { font:inherit; font-weight:600; padding:9px 14px; border-radius:8px; border:1px solid var(--link); background:none; color:var(--link); cursor:pointer; }
+.al-test:hover { background:var(--hover); }
+.al-status { font-size:13px; color:var(--muted); margin-top:10px; min-height:18px; }
+.al-status.ok { color:var(--up); } .al-status.warn { color:var(--down); }
+.al-now { font-size:13px; line-height:1.75; }
+.al-now table { width:100%; min-width:0; border-collapse:collapse; margin-top:6px; }
+.al-now td, .al-now th { padding:5px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+.al-now th { color:var(--muted); font-weight:600; }
+.al-now td.num, .al-now th.num { text-align:right; white-space:nowrap; }

@@ -2,6 +2,7 @@
   <button class="tab on" data-t="pc">PriceCharting Catalog</button>
   <button class="tab" data-t="ec">eBay Catalog</button>
   <button class="tab" data-t="er">eBay Raw Data</button>
+  <button class="tab" data-t="al">Alerts</button>
   <div class="tools">
     <label title="A card is liquid when at least one buyer is this likely to arrive inside the window">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
     <label title="Your planned sell window; with Confidence it sets the sales rate a card needs">Window <input type="number" id="win" min="24" max="168" step="24" value="48">h</label>
@@ -120,7 +121,7 @@
 <!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
 <section class="panel" id="p-er" hidden>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
-<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. "LEAD" marks a listing on a card eBay has too few sales to judge, priced from PriceCharting instead: a listing to look at, not a hit. <button class="linkbtn" id="offers-btn">Offer list</button> · <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
+<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. "LEAD" marks a listing on a card eBay has too few sales to judge, priced from PriceCharting instead: a listing to look at, not a hit. Phone alerts follow the Alerts tab, not the boxes above. <button class="linkbtn" id="use-al">Use my alert settings here</button> · <button class="linkbtn" id="offers-btn">Offer list</button> · <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
 <div class="controls">
   <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
@@ -223,3 +224,33 @@
   </div>
 </div>
 
+<!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
+<section class="panel" id="p-al" hidden>
+<div class="meta" id="meta-al">Alerts · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes at the top only change what the tables on this page show.</div>
+<div class="al">
+  <div class="al-card">
+    <h3>What counts as a hit</h3>
+    <div class="al-row"><span class="lab">Margin<button class="help" data-h="al_margin">?</button></span><span><input type="number" id="al-margin" min="0" max="50" step="1"><span class="unit">%</span></span></div>
+    <div class="al-row"><span class="lab">Buy tax<button class="help" data-h="al_tax">?</button></span><span><input type="number" id="al-tax" min="0" max="15" step="0.25"><span class="unit">%</span></span></div>
+    <div class="al-row"><span class="lab">Confidence<button class="help" data-h="al_conf">?</button></span><span><input type="number" id="al-conf" min="50" max="95" step="5"><span class="unit">%</span></span></div>
+    <div class="al-row"><span class="lab">Sell window<button class="help" data-h="al_win">?</button></span><span><input type="number" id="al-win" min="24" max="168" step="24"><span class="unit">h</span></span></div>
+    <h3>Only alert when</h3>
+    <div class="al-row"><span class="lab">Profit is at least<button class="help" data-h="al_minprofit">?</button></span><span><span class="unit">$</span><input type="number" id="al-minprofit" min="0" max="1000" step="1"></span></div>
+    <div class="al-row"><span class="lab">Buy price is between<button class="help" data-h="al_price">?</button></span><span><span class="unit">$</span><input type="number" id="al-pmin" min="0" step="5"> <span class="dim">and</span> <span class="unit">$</span><input type="number" id="al-pmax" min="1" step="5"></span></div>
+    <h3>What to send</h3>
+    <label class="al-check"><input type="checkbox" id="al-hits"> Hits<button class="help" data-h="al_hits">?</button></label>
+    <label class="al-check"><input type="checkbox" id="al-leads"> Leads, as quiet alerts<button class="help" data-h="al_leads">?</button></label>
+    <label class="al-check"><input type="checkbox" id="al-watch"> Include scam-watch listings<button class="help" data-h="al_watch">?</button></label>
+    <h3>Quiet hours<button class="help" data-h="al_quiet">?</button></h3>
+    <label class="al-check"><input type="checkbox" id="al-quiet"> Silent from <input type="number" id="al-q1" min="0" max="23" step="1"> :00 to <input type="number" id="al-q2" min="0" max="23" step="1"> :00</label>
+    <div class="al-actions"><button class="al-save" id="al-save">Save alert settings</button><button class="al-test" id="al-test">Send test alert</button></div>
+    <div class="al-status" id="al-status"></div>
+  </div>
+  <div class="al-card">
+    <h3>On the collector now<button class="help" data-h="al_live">?</button></h3>
+    <div class="al-now" id="al-now">Waiting for live data…</div>
+    <h3>Preview<button class="help" data-h="al_preview">?</button></h3>
+    <div class="al-now" id="al-pre"></div>
+  </div>
+</div>
+</section>
