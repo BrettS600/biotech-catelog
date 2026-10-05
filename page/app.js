@@ -210,7 +210,6 @@ function makeTable(id, cfg) {
     }
     el('rows').innerHTML = ''; t.shown = 0; t.renderMore();
     el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + rows.length.toLocaleString('en-US') + ' ' + cfg.noun;
-    fitWraps();
   };
   t.renderMore = () => {
     const frag = document.createDocumentFragment();
@@ -287,21 +286,19 @@ function makeTable(id, cfg) {
   });
   sel.addEventListener('change', t.apply);
   el('more').addEventListener('click', t.renderMore);
-  const wrap = document.querySelector('#p-' + id + ' .wrap');
-  if (wrap) wrap.addEventListener('scroll', () => { if (!el('more').hidden && wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 600) t.renderMore(); });
   t.apply();
   return t;
 }
 const tables = {};
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 
-// each table scrolls inside its own box that ends at the bottom of the window, so the column headers stay in view
-function fitWraps() {
-  document.querySelectorAll('.panel:not([hidden]) > .wrap').forEach(w => {
-    w.style.maxHeight = Math.max(320, window.innerHeight - (w.getBoundingClientRect().top + window.scrollY) - 8) + 'px';
-  });
-}
-window.addEventListener('resize', fitWraps);
+// Only the row of column names stays in view (Brett: the tabs, boxes and filters staying put was too much). The page
+// itself is the scroller - the tables sit in no box of their own - and the header row sticks to the top of the
+// window. More rows load as the bottom of the page comes near.
+window.addEventListener('scroll', () => {
+  const p = document.querySelector('.panel:not([hidden])'), id = p && p.id.slice(2), t = tables[id];
+  if (t && !$('more-' + id).hidden && window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 900) t.renderMore();
+}, {passive: true});
 
 /* ---------------- Tabs ---------------- */
 const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', al: 'alerts'};      // default (no hash) = PriceCharting
@@ -310,7 +307,6 @@ function showTab(id) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
   history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
-  fitWraps();
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
 showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
