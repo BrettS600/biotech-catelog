@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Hit check</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 12px 12px calc(16px + env(safe-area-inset-bottom)); background: #0d1117; color: #e6edf3; font: 16px/1.35 -apple-system, system-ui, sans-serif; }
+h1 { font-size: 17px; margin: 0 0 4px; }
+.dim { color: #8b949e; font-size: 13px; }
+.price { font-size: 15px; margin: 2px 0 10px; }
+.pair { display: flex; gap: 8px; align-items: stretch; }
+.side { flex: 1 1 0; min-width: 0; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 8px; }
+.side h2 { font-size: 12px; margin: 0 0 6px; color: #8b949e; text-transform: uppercase; letter-spacing: .04em; }
+.pic { width: 100%; aspect-ratio: 5 / 7; object-fit: contain; background: #010409; border-radius: 6px; display: block; }
+.pcbox { width: 100%; aspect-ratio: 5 / 7; background: #010409; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px; }
+.pcbox a { color: #fff; background: #1f6feb; padding: 12px 10px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+.thumbs { display: flex; gap: 4px; margin-top: 4px; }
+.thumbs img { width: 25%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; border: 2px solid transparent; }
+.thumbs img.on { border-color: #1f6feb; }
+.facts { margin-top: 6px; font-size: 14px; }
+.facts b { font-size: 16px; }
+.tag { display: inline-block; background: #30363d; border-radius: 5px; padding: 1px 6px; margin: 2px 3px 0 0; font-size: 12px; }
+.tag.warn { background: #9e6a03; } .tag.bad { background: #da3633; } .tag.ok { background: #238636; }
+.scam { margin-top: 10px; background: #2d1f00; border: 1px solid #9e6a03; border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+.scam ul { margin: 4px 0 0; padding-left: 18px; }
+.btns { display: flex; gap: 10px; margin-top: 14px; }
+button { flex: 1; border: 0; border-radius: 12px; padding: 16px 8px; font: 600 18px/1.25 inherit; color: #fff; }
+.yes { background: #238636; } .no { background: #da3633; } .lp { background: #9e6a03; }
+button:disabled { background: #30363d; color: #8b949e; }
+button small { display: block; font-weight: 400; font-size: 14px; margin-top: 4px; }
+.hide { display: none; }
+#msg { margin-top: 30px; text-align: center; font-size: 18px; }
+a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
+</style></head><body>
+<div id="s1">
+  <h1 id="title"></h1>
+  <div class="price" id="price"></div>
+  <div class="pair">
+    <div class="side"><h2>Matched card (PriceCharting)</h2>
+      <div class="pcbox"><a id="pclink" target="_blank" rel="noopener">See the picture on PriceCharting</a></div>
+      <div class="facts" id="pcfacts"></div></div>
+    <div class="side"><h2>eBay listing</h2>
+      <img class="pic" id="pic" alt="eBay photo"><div class="thumbs" id="thumbs"></div>
+      <div class="facts" id="ebfacts"></div></div>
+  </div>
+  <div class="scam hide" id="scam"></div>
+  <div class="btns"><button class="no" id="no">No<small>not the same card</small></button><button class="yes" id="yes">Yes<small>same card</small></button></div>
+</div>
+<div id="s2" class="hide">
+  <h1>What condition is it?</h1>
+  <div class="dim" id="s2sub"></div>
+  <div class="btns" style="flex-direction: column">
+    <button class="yes" id="nm"></button>
+    <button class="lp" id="lp"></button>
+  </div>
+  <a class="back" href="#" id="back">&larr; back to the pictures</a>
+</div>
+<div id="msg" class="hide"></div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const money = v => v == null ? '?' : (v < 0 ? '-' : '') + '$' + Math.abs(Number(v)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const SIG = {p50: [4, 'priced under half of what the card goes for'], p65: [2, 'priced well under what the card goes for'], p75: [1, 'priced under what the card goes for'],
+  fbq: [1, 'seller rating count unknown'], fb0: [3, 'seller has fewer than 10 ratings'], fb1: [1, 'seller has fewer than 50 ratings'], pct: [2, 'seller feedback below the bar'],
+  img: [1, 'only one photo'], qty: [2, '3 or more copies of a pricey card from a small seller'], dup: [3, 'same photo used by another seller'], ret: [1, 'no returns on a cheap listing'],
+  slow: [1, 'delivery estimate over 10 days'], top: [-2, 'Top Rated seller'], est: [-1, 'established seller (500+ ratings, 99%+)'], burst: [0, 'new seller listing many cheap cards at once']};
+let d = null;
+try { const b = location.hash.slice(1).replace(/-/g, '+').replace(/_/g, '/'); d = JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); } catch (e) {}
+function show(id) { for (const k of ['s1', 's2', 'msg']) $(k).classList.toggle('hide', k !== id); window.scrollTo(0, 0); }
+function done(text) { $('msg').innerHTML = text; show('msg'); }
+if (!d) done('This link has no hit in it. Open the alert again.');
+else {
+  const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
+  $('title').textContent = d.c + ' \u2014 ' + String(d.s || '').replace('Pokemon ', '');
+  $('price').innerHTML = '<b>' + money(d.tot) + '</b> total <span class="dim">(' + money(d.it) + ' + ' + money(d.sh) + ' shipping' + (d.tax ? ', ' + money(d.ai) + ' with ' + d.tax + '% tax' : '') + ')</span>';
+  $('pclink').href = 'https://www.pricecharting.com/game/' + d.pid;
+  $('pcfacts').innerHTML = '<b>' + esc(d.n) + (d.st ? ' / ' + d.st : '') + '</b><br>' + esc(d.c) + '<br>' +
+    '<span class="tag' + (d.v ? ' warn' : '') + '">' + esc(d.v ? d.v.toUpperCase() : 'regular printing') + '</span><br>Ungraded: <b>' + money(d.pc) + '</b>';
+  const pics = (d.im || []).filter(Boolean);
+  const setPic = i => { $('pic').src = big(pics[i]); [...$('thumbs').children].forEach((t, k) => t.classList.toggle('on', k === i)); };
+  $('thumbs').innerHTML = pics.length > 1 ? pics.map(u => '<img src="' + esc(u) + '" alt="">').join('') : '';
+  [...$('thumbs').children].forEach((t, i) => t.addEventListener('click', () => setPic(i)));
+  if (pics.length) setPic(0);
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(d.t || '');
+  const idTag = d.idv === 'ok' ? '<span class="tag ok">item specifics agree</span>' : d.idv === 'conflict' ? '<span class="tag bad">item specifics disagree: ' + esc((d.idr || []).join('; ')) + '</span>' : '<span class="tag">item specifics not filled in</span>';
+  $('ebfacts').innerHTML = '<b>' + (m ? m[1] + ' / ' + m[2] : 'no number in title') + '</b><br>' + esc(d.t) + '<br>' + idTag +
+    '<br><span class="dim">Seller ' + (d.fb == null ? '?' : Number(d.fb).toLocaleString('en-US')) + ' ratings' + (d.pct != null ? ', ' + d.pct + '%' : '') + ' \u00b7 ' + (d.ph == null ? '?' : d.ph) + ' photos</span>';
+  if (d.tier === 'watch') {
+    $('scam').classList.remove('hide');
+    $('scam').innerHTML = '<b>Scam watch: ' + d.sc + ' points</b><ul>' + (d.scr || []).map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul>';
+  }
+  const label = (name, a) => name + '<small>Max buy ' + money(a[1]) + ' \u00b7 profit ' + money(a[2]) + ' \u00b7 ROI ' + a[3] + '%</small>';
+  const arm = (id, name, a) => { const ok = a && a[3] >= d.roi && d.ai <= a[1]; $(id).innerHTML = label(name, a) + (ok ? '' : '<small>Under your ' + d.roi + '% - not a buy</small>'); $(id).disabled = !ok;
+    $(id).addEventListener('click', () => { done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
+  arm('nm', 'Near Mint \u2014 buy', d.nm); arm('lp', 'Lightly Played \u2014 buy', d.lp);
+  $('s2sub').textContent = money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
+  $('yes').addEventListener('click', () => show('s2'));
+  $('no').addEventListener('click', () => done('Rejected. Nothing was bought.<br><span class="dim">You can close this page.</span>'));
+  $('back').addEventListener('click', e => { e.preventDefault(); show('s1'); });
+}
+</script></body></html>
