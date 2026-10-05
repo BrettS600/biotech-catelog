@@ -26,6 +26,7 @@ State lives in data/ebay_state.json.gz.enc on the machine (same format as the Ac
 so the release copy can seed it). Secrets come from /etc/pokemon-collector.env via systemd.
 Run with --dry-run to exercise the loop on the fixtures with no network and no git.
 """
+import base64
 import gzip
 import hashlib
 import io
@@ -109,6 +110,15 @@ TRIAL_RUNS = 0                   # how many times aspect_trial() runs (0 = off; 
 TRIAL_EVERY_S = 12 * 3600
 TRIAL_CLAIMS = [("Finish", "Reverse Holo", "reverse"), ("Features", "1st Edition", "1st"),
                 ("Card Size", "Oversized", "jumbo"), ("Language", "Japanese", "japanese")]
+
+# ---------------- phone alerts ----------------
+# A hit (verdict PASS) is pushed to Brett's phone through ntfy the minute it is found. The private channel name
+# lives only in /etc/pokemon-collector.env (NTFY_TOPIC=...); without it nothing is sent. Tapping the alert opens
+# hit.html on the site, with everything about the hit packed into the link itself (nothing is stored anywhere).
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
+NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
+CHECK_PAGE = "https://bretts600.github.io/biotech-catelog/hit.html"
+ALERTS_PER_HOUR = 20             # a ceiling, so a bug can never flood the phone
 
 # ---------------- trial: do auctions end under max buy? (log only; Brett approved it on 2026-10-04) ----------------
 AUCTION_TRIAL_DAYS = 4           # runs this many days from its first read, then stops by itself (0 = off)
@@ -610,6 +620,74 @@ def aspect_trial(state, cat):
             f"lookups agree on {agree} of {checked}")
 
 
+def push(title, message, click=None, image=None, priority=5, tags=("moneybag",)):
+    """One notification to the phone. Returns True when ntfy accepted it."""
+    if not NTFY_TOPIC or DRY_RUN:
+        return False
+    body = {"topic": NTFY_TOPIC, "title": title, "message": message, "priority": priority, "tags": list(tags)}
+    if click:
+        body["click"] = click
+    if image:
+        body["attach"] = image
+    try:
+        import requests
+        return requests.post(NTFY_SERVER, json=body, timeout=10).status_code < 300
+    except Exception as e:
+        log(f"Alert not sent ({e})")
+        return False
+
+
+def hit_payload(rec, cs, cat):
+    """Everything the check screen shows for one hit, as a compact dict (it travels inside the alert's link)."""
+    c = cat.by_id.get(rec["card"]) or {}
+    allin = round(rec["total"] + (rec.get("item") or 0) * es.TAX, 2)
+
+    def side(cond):                                          # the gate's numbers if the copy is NM / LP
+        s, net, maxbuy = es.listing_decision(dict(rec, tcond=cond), cs)
+        return [s, round(maxbuy, 2), round(net - allin, 2), round((net - allin) / allin * 100, 1)]
+    return {"i": rec["id"], "u": rec.get("url"), "t": rec.get("title"), "im": (rec.get("imgs") or [rec.get("img")])[:4],
+            "tot": rec["total"], "it": rec.get("item"), "sh": rec.get("ship"), "ai": allin,
+            "c": c.get("name", "") + (f" [{c['variant'].title()}]" if c.get("variant") else "") + f" #{c.get('num', '')}",
+            "s": c.get("set"), "n": c.get("num"), "st": cat.totals.get(c.get("set")), "v": c.get("variant") or "",
+            "pc": c.get("pc"), "pid": c.get("id"), "nm": side("NM"), "lp": side("LP"), "roi": round(es.MARGIN * 100, 1),
+            "tier": rec.get("tier", "clean"), "sc": rec.get("sc", 0), "scr": rec.get("scr", []),
+            "idv": rec.get("idv") or "", "idr": rec.get("idr") or [], "fb": rec.get("fb"), "pct": rec.get("pct"),
+            "ph": rec.get("n_img"), "A": cs.get("A"), "An": cs.get("A_n"), "tax": round(es.TAX * 100, 2)}
+
+
+def alert_hits(state, cat, cards, live):
+    """Push every new PASS in the live rows once. Returns how many alerts went out."""
+    if not NTFY_TOPIC:
+        return 0
+    v = state["vps"]
+    sent = v.setdefault("alerted", {})                       # item id -> when
+    hour = es.ts(es.NOW)[:13]
+    box = v.setdefault("alert_box", {})
+    if box.get("hour") != hour:
+        box["hour"], box["n"] = hour, 0
+    n = 0
+    for x in live["live"]:
+        iid = x[0]
+        if x[12] != "PASS" or x[17] != "open" or iid in sent or box["n"] >= ALERTS_PER_HOUR:
+            continue
+        rec, cs = state["open"].get(iid), cards.get(str(x[1]))
+        if not rec or not cs:
+            continue
+        d = hit_payload(rec, cs, cat)
+        link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
+        msg = (f"${rec['total']:.2f} total, max buy ${d['nm'][1]:.2f}, profit ${d['nm'][2]:.2f} ({d['nm'][3]:.0f}%)\n"
+               f"{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings"
+               + (" - SCAM WATCH" if rec.get("tier") == "watch" else "") + (" - ID conflict?" if d["idv"] == "conflict" else ""))
+        if push("HIT: " + d["c"] + " - " + str(d["s"] or "").replace("Pokemon ", ""), msg, click=link, image=rec.get("img")):
+            sent[iid] = es.ts(es.NOW)
+            box["n"] += 1
+            n += 1
+    cutoff = es.ts(es.NOW - timedelta(days=3))
+    for iid in [k for k, t in sent.items() if t < cutoff]:
+        del sent[iid]
+    return n
+
+
 def auction_read(state, cat, cards):
     """The collector only buys from fixed-price listings; this trial measures whether auctions would be a better
     source. One page of raw-single auctions ending soonest: those on a card that can be priced (an eBay anchor, or a
@@ -872,6 +950,15 @@ def cycle(state, cat, sched, counters):
     cards = es.compute_stats(state, cat, lp)
     counters["_cards"] = cards
     live = es.build_live(state, cards, lp)
+    if NTFY_TOPIC and not DRY_RUN:
+        fresh = [x[0] for x in live["live"] if x[12] == "PASS" and x[17] == "open" and x[0] not in v.get("alerted", {})]
+        if fresh:
+            if any(not state["open"].get(i, {}).get("idv") for i in fresh) and v.get("tokens", 0) >= 1:
+                done = es.verify_hits(state, cat, cards, min(es.VERIFY_MAX_CALLS, int(v["tokens"])))
+                v["tokens"] -= done
+                counters["verified"] += done
+                live = es.build_live(state, cards, lp)       # the lookup may have turned a PASS into an ID conflict
+            counters["alerts"] += alert_hits(state, cat, cards, live)
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
@@ -931,6 +1018,8 @@ def cycle(state, cat, sched, counters):
         why = Counter("no card #" if u[5].startswith("no card #") else u[5].split(":")[0]
                       for u in state["unmatched"] if u[0] >= hour_ago)
         log("Unmatched this hour: " + (", ".join(f"{k} {n}" for k, n in why.most_common()) or "none"))
+        if NTFY_TOPIC:
+            log(f"Alerts: {counters['alerts']} hit alerts sent this hour to the phone")
         line = auction_summary(state)
         if line:
             log(line + f"; trial ends {v.get('auction', {}).get('until', '?')[:10]}")
@@ -987,6 +1076,15 @@ def main():
         log(f"Inherited flags: {kept} kept for confirmation, {cleared} cleared as too old")
     state["vps"]["catalog"] = cat_name
     log(f"Catalog {cat_name}; state: {len(state['open'])} open, {len(state['closed'])} closed")
+    if NTFY_TOPIC:
+        tag = hashlib.sha1(NTFY_TOPIC.encode()).hexdigest()[:10]
+        if state["vps"].get("ntfy_hello") != tag and push(
+                "Alerts are on", "Your card collector will send hits to this phone. Tap one to check the card before buying.",
+                priority=3, tags=("white_check_mark",)):
+            state["vps"]["ntfy_hello"] = tag
+            log("Phone alerts: channel set, test alert sent")
+    else:
+        log("Phone alerts: off (no NTFY_TOPIC in /etc/pokemon-collector.env)")
     if state.get("match_v") != es.MATCH_VERSION:              # the matcher changed: correct what the old one filed
         t0 = time.time()
         moved, dropped, cond = es.rematch(state, cat)

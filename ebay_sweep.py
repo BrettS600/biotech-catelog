@@ -1223,6 +1223,9 @@ def item_facts(r, it):
         r["ret"] = bool(rt["returnsAccepted"])
     if it.get("additionalImages") is not None:
         r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
+    pics = [(p or {}).get("imageUrl") for p in [it.get("image")] + list(it.get("additionalImages") or [])]
+    if any(pics):
+        r["imgs"] = [u for u in pics if u][:4]             # front, back and two more, for the phone's check screen
 
 
 def specifics(it):

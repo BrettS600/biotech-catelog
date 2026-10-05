@@ -193,6 +193,17 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   on priceable cards close at or under max buy. Read the hourly "Auction trial:" line and the "closed UNDER max buy"
   lines, then decide whether to build an ending-soon list. Bidding stays with Brett (or a sniping service).
 - A neural network was considered and rejected: no completed flips to learn from, and it cannot create mispricings.
+- Phone alerts (2026-10-05): `alert_hits()` in collector.py pushes each new PASS once through ntfy (`push()`), in the
+  same minute it is found (its item specifics are read first). The channel name is NTFY_TOPIC in
+  /etc/pokemon-collector.env - Brett types it on the machine, never in chat; without it nothing is sent, and a one-time
+  "Alerts are on" message confirms the wiring. The alert's link opens `page/hit.html` (published unencrypted next to
+  the site by the workflow; it holds no data - the hit travels base64 in the link's # part, built by `hit_payload()`).
+  The screen follows Brett's spec: the matched PriceCharting card (name with brackets, number / set total, printing,
+  ungraded price, a button to PriceCharting's own page for its picture - their feed has no images and scraping them
+  is not allowed) beside the eBay photos; Yes / No; then NM or LP with each one's Max buy, profit and ROI, LP locked
+  under his margin; scam points with reasons on "watch" listings. NM / LP opens the listing in the eBay app: the
+  purchase itself is always Brett's tap (eBay's 2026 user agreement bans automated buying). Not built yet: alerts for
+  LEADs, the 10-minutes-before-the-end auction alerts (waiting on the auction trial), decision logging.
 
 ## Capacity (measured 2026-09-30 on the Actions design; the machine design above is the answer to it)
 Real volume: ~9,500 matched listings/day, ~11,400 open after 2.5 days, 7,327 lookups due vs ~2,700/day possible.
