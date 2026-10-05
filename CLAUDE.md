@@ -247,9 +247,12 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   also feeds the trial's watch list and the trial's own 10-minute read is skipped. Expect many alerts and few wins:
   about 4% of the trial's first 69 auctions closed under Max buy, and most bids land in the final seconds.
 - Tables (2026-10-05): every table row starts with a row-number cell that `makeTable` adds itself (`td.rn`, header
-  "Row"; not part of the row data, so `data-k` indices are unchanged). Each table scrolls inside its own `.wrap`,
-  which `fitWraps()` sizes to end at the bottom of the window - that is what keeps the sticky `th` in view (with the
-  page as the scroller they never stuck, because `.wrap` has overflow). More rows load as the box nears its end.
+  "Row"; not part of the row data, so `data-k` indices are unchanged). Only the row of column names stays in view
+  while scrolling: `.wrap` has NO overflow (with `overflow-x:auto` it became the sticky container and the header never
+  stuck), the page itself scrolls both ways, and `th { position:sticky; top:0 }` pins the names to the top of the
+  window; the group band on eBay Catalog is not sticky. A first version put each table in its own window-sized
+  scrolling box - Brett rejected it the same day because the tabs, settings and filters then stayed on screen too.
+  More rows load as the bottom of the page nears.
   Raw Data rows gained index 40 = PriceCharting sales per month (12-month count / 12) and 41 = eBay sales recorded in
   the 30-day window (`cs.k`); the order key stays the LAST element (`ordOf`). `cfg.inserted` is now a list of
   column insertions, each applied once to a saved hidden-column choice.
