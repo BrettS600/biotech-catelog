@@ -269,10 +269,20 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   every half hour once EBAY_REFRESH_TOKEN is in /etc/pokemon-collector.env, and keeps them in `state["acct"]`
   (eBay only reaches back 90 days). Linking is his one-time act: he adds an eBay Redirect URL (RuName) in his
   developer account pointing at `link.html` on the site, approves on eBay, and runs `ebay_link.py` on the droplet with
-  the code. The log gets counts only - it is public. NOT built yet (step 2, after the first real pull shows what
-  eBay returns): pairing each purchase with its sale (by matched card, oldest first; exact when the listing's custom
-  label holds the purchase's item number), the tab itself, and the Raw Data total. Field shapes in account.py were
-  written from memory of eBay's documentation and have not met a real response.
+  the code. The log gets counts only - it is public. Linked 2026-10-05 20:09 UTC (approval lasts ~547 days; his
+  RuName is Brett_Schroyer-BrettSch-Cardca-yzzfsuzwm, accept / decline URLs left on eBay's defaults). The first pull
+  succeeded and returned 0 purchases and 0 sales, so NOTHING in account.py has met a real order yet: the field names
+  in `sale_rows()` / `buy_rows()` were written from memory of eBay's documentation - check them against the first
+  real record.
+- Revenue tab, step 2 (same day): `account.ledger()` builds one row per card bought, paired with its sale (exact when
+  the sale's Custom label / SKU is the purchase's item number, else same matched card, oldest purchase first), plus
+  sales with no purchase; `account.enrich()` finds when each listing went up (own records, else
+  get_item_by_legacy_id). Net = sale total - actual eBay fee - SHIP_OUT - SUPPLIES (estimates; real label costs are
+  not read yet) - paid. Rows ride in `live["acct"]["rows"]` (22 fields, see the docstring); the tab is table `rv` in
+  app.js with `after: rvSummary`. `periodBar()` is the shared picker (year, then months a-b, or days a-b of one
+  month); Revenue filters on the SALE date (purchase date for unsold cards). Raw Data's "if you had bought every
+  hit" line sums `live["alert"]["all"]` (every logged alert: [when, promised profit, kind, answer]) over the same
+  kind of period; hits only, with and without the ones he answered No to.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count

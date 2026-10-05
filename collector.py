@@ -1219,6 +1219,7 @@ def cycle(state, cat, sched, counters):
     if account.linked() and not DRY_RUN and due("account", account.PULL_EVERY_S):
         try:                                                 # Brett's own purchases and sales (read-only; account.py)
             line = account.pull(state)
+            account.enrich(state, es)
         except Exception as e:
             line = f"Account: could not be read ({str(e)[:160]})"
         if line != v.get("acct_said"):                       # say it once, not every half hour
@@ -1303,6 +1304,12 @@ def cycle(state, cat, sched, counters):
     acct = state.get("acct") or {}
     live["acct"] = {"linked": account.linked(), "pulled": acct.get("pulled"), "ok": acct.get("ok"),
                     "buys": len(acct.get("buys") or {}), "sales": len(acct.get("sales") or {})}
+    try:
+        live["acct"].update(account.ledger(state, cat, es))  # the Revenue tab's rows
+    except Exception as e:
+        live["acct"]["rows"], live["acct"]["note"] = [], f"ledger failed: {str(e)[:120]}"
+    # every alert ever logged, compact, for "what every hit would have netted": [when, promised profit, kind, answer]
+    live["alert"]["all"] = [[e["t"], e.get("p"), e.get("kd"), e.get("dec")] for e in v.get("alert_log", [])]
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
