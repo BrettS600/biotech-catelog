@@ -78,7 +78,10 @@ if (!d) done('This link has no hit in it. Open the alert again.');
 else {
   const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
   $('title').textContent = d.c + ' \u2014 ' + String(d.s || '').replace('Pokemon ', '');
-  $('price').innerHTML = '<b>' + money(d.tot) + '</b> total <span class="dim">(' + money(d.it) + ' + ' + money(d.sh) + ' shipping' + (d.tax ? ', ' + money(d.ai) + ' with ' + d.tax + '% tax' : '') + ')</span>';
+  const au = d.au;
+  $('price').innerHTML = au ? '<b>' + money(au.b) + '</b> current bid <span class="dim">(+ ' + money(d.sh) + ' shipping \u00b7 ' + au.n + ' bid' + (au.n === 1 ? '' : 's') + ')</span><br><b id="left"></b>'
+    : '<b>' + money(d.tot) + '</b> total <span class="dim">(' + money(d.it) + ' + ' + money(d.sh) + ' shipping' + (d.tax ? ', ' + money(d.ai) + ' with ' + d.tax + '% tax' : '') + ')</span>';
+  if (au) { const tick = () => { const t = Math.round((new Date(au.e) - Date.now()) / 1000); $('left').textContent = t > 0 ? 'Auction ends in ' + Math.floor(t / 60) + ' min ' + (t % 60) + ' s' : 'Auction ended'; }; tick(); setInterval(tick, 1000); }
   $('pclink').href = 'https://www.pricecharting.com/game/' + d.pid;
   if (d.pci) { const box = $('pclink').parentNode; box.className = ''; box.innerHTML = '<a href="' + $('pclink').href + '" target="_blank" rel="noopener"><img class="pic" alt="PriceCharting picture" src="' + esc(d.pci) + '"></a>'; }
   $('pcfacts').innerHTML = '<b>' + esc(d.n) + (d.st ? ' / ' + d.st : '') + '</b><br>' + esc(d.c) + '<br>' +
@@ -99,12 +102,14 @@ else {
     $('scam').classList.remove('hide');
     $('scam').innerHTML = '<b>Scam watch: ' + d.sc + ' points</b><ul>' + (d.scr || []).map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul>';
   }
-  const label = (name, a, ok) => name + '<small>Max buy ' + money(a[1]) + '</small><small>Profit ' + money(a[2]) + '</small><small>ROI ' + a[3] + '%</small>' +
+  const label = (name, a, ok) => au ? name + '<small>Max bid ' + money(a[4]) + '</small><small>Profit at least ' + money(a[2]) + '</small><small>ROI at least ' + a[3] + '%</small>' +
+      '<small>' + (ok ? 'Bid still under your max' : 'Bid already over your max') + '</small>'
+    : name + '<small>Max buy ' + money(a[1]) + '</small><small>Profit ' + money(a[2]) + '</small><small>ROI ' + a[3] + '%</small>' +
     '<small>' + (ok ? 'Above your ' + d.roi + '%: buy' : 'Under your ' + d.roi + '%: not a buy') + '</small>';
-  const arm = (id, name, a) => { const ok = a && a[3] >= d.roi && d.ai <= a[1]; $(id).innerHTML = label(name, a, ok); $(id).disabled = !ok;
+  const arm = (id, name, a) => { const ok = a && (au || a[3] >= d.roi) && d.ai <= a[1]; $(id).innerHTML = label(name, a, ok); $(id).disabled = !ok;
     $(id).addEventListener('click', () => { tell(id); done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
   arm('nm', 'Near Mint', d.nm); arm('lp', 'Lightly Played', d.lp);
-  $('s2sub').textContent = money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
+  $('s2sub').textContent = au ? 'Sells for about ' + money(d.nm[0]) + ' (NM). Bid your max in the last seconds: eBay never takes you over it.' : money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
   $('yes').addEventListener('click', () => show('s2'));
   $('no').addEventListener('click', () => { tell('no'); done('Rejected. Nothing was bought.<br><span class="dim">You can close this page.</span>'); });
   $('back').addEventListener('click', e => { e.preventDefault(); show('s1'); });
