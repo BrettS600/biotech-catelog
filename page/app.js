@@ -93,7 +93,7 @@ const TABLES = {
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
        inserted: {v: 2, at: 10, n: 2},                    // two columns were added at position 10 (see makeTable)
-       extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low'),
+       extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
        rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => cells4(r) +
@@ -105,7 +105,7 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[11]) + '</td>' +
       '<td class="num">' + fmtPct(r[12]) + '</td>' +
       '<td class="num">' + fmtMoney(r[26]) + '</td>' +
-      '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + fmtMoney(r[13]) + (r[28] ? ' <span class="dim">LP</span>' : '') + '</td>' +
+      '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + fmtMoney(r[13]) + (r[28] ? ' <span class="dim">' + (/^Lead/.test(r[28]) ? 'PC' : 'LP') + '</span>' : '') + '</td>' +
       '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[25]) + '</td>' +
       '<td>' + verdictCell(r) + '</td>' +
@@ -138,6 +138,7 @@ function verdictCell(r) {
                                 : 'item specifics not read yet (the collector reads them within a couple of minutes of a hit): confirm the card from the photos',
                badge('PASS', 'pass') + ' <span class="dim">ID?</span>');
   }
+  if (v === 'LEAD') return tip((r[28] || 'Lead: priced from PriceCharting, not from eBay sales') + '. ' + (r[38] === 'ok' ? 'Item specifics agree with the matched card.' : 'Item specifics not confirmed.') + ' A lead is not a hit: check the photos and the condition first', badge('LEAD' + (r[38] === 'ok' ? ' ✓' : ''), 'hot'));
   if (v === 'ID conflict') return tip('passes on price, but the item specifics describe another card: ' + why, badge('ID conflict', 'warn'));
   if (v === 'mismatch: too cheap') return tip('under ' + pcPct('pcLow', 0.4) + '% of the PriceCharting price: treated as a wrong match (another printing or language, a lot, a fake - far more often than a bargain). Never a hit, left out of the statistics; check it by hand', badge('mismatch ↓', 'watch'));
   if (v === 'mismatch: too high') return tip('over ' + pcPct('pcHigh', 3) + '% of the PriceCharting price: treated as a wrong match and left out of the statistics', badge('mismatch ↑'));
@@ -260,6 +261,8 @@ function makeTable(id, cfg) {
   if (sus) sus.addEventListener('input', () => { $('suschip').classList.toggle('on', sus.checked); t.apply(); });
   const mm = document.querySelector('#ranges-' + id + ' #mm-' + id);
   if (mm) mm.addEventListener('input', () => { $('mmchip').classList.toggle('on', mm.checked); t.apply(); });
+  const ld = document.querySelector('#ranges-' + id + ' #lead-' + id);
+  if (ld) ld.addEventListener('input', () => { $('leadchip').classList.toggle('on', ld.checked); t.apply(); });
   if (conds.length) {
     try { const sv = JSON.parse(localStorage.getItem('cond-' + id) || 'null'); if (sv) conds.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
     conds.forEach(c => c.addEventListener('input', () => {
@@ -275,6 +278,7 @@ function makeTable(id, cfg) {
     conds.forEach(c => { c.checked = true; }); if (conds.length) { $('condchip').classList.remove('on'); try { localStorage.removeItem('cond-' + id); } catch (e) {} }
     if (sus) { sus.checked = false; $('suschip').classList.remove('on'); }
     if (mm) { mm.checked = false; $('mmchip').classList.remove('on'); }
+    if (ld) { ld.checked = false; $('leadchip').classList.remove('on'); }
     t.apply();
   });
   sel.addEventListener('change', t.apply);
@@ -361,6 +365,19 @@ function listingDecide(x, cs, S) {
   return {sell: s, net: r2(net), maxbuy: r2(maxbuy),
           note: d ? 'LP: sells about ' + fmtMoneyPlain(r2(sellv)) + ' (' + (d * 100).toFixed(1) + '% under the NM sell price of ' + fmtMoneyPlain(s) + ')' : null};
 }
+// a lead: eBay has too few sales to judge the card, so PriceCharting's price stands in for the anchor - always capped
+// by the cheapest believable copy listed now (mirrors lead_decision() in the collector). null = not a lead card.
+function leadDecide(x, cs, S) {
+  const G = GATE_LIVE(), base = idRow.get(x[1]) || [];
+  const pc = x[27] != null ? x[27] : base[6], vol = base[5] || 0;
+  if (!cs || !pc || pc < (G.leadMinPc || 40) || vol < (G.leadMinSales || 100)) return null;
+  const f = (cs.cred || []).find(e => e[0] !== x[0]);
+  const s = round99(f ? Math.min(f[1] - S.undercut, (G.leadSellPc || 0.95) * pc) : (G.leadSellNoFloor || 0.93) * pc);
+  const d = x[13] === 'LP' ? lpFrac(pc) : 0, sellv = s * (1 - d);
+  const net = sellv * (1 - S.fee) - S.fixed - S.shipOut - S.supplies, maxbuy = net / (1 + S.margin);
+  return {sell: s, net: r2(net), maxbuy: r2(maxbuy), lead: true,
+          note: 'Lead: eBay has too few sales to judge this card, so the sell price comes from PriceCharting (' + fmtMoneyPlain(pc) + ', ' + fmtInt(vol) + ' sales/yr)' + (f ? ', capped by the cheapest other copy at ' + fmtMoneyPlain(f[1]) : ' - no other believable copy is listed, so nothing checks that price')};
+}
 // LP correction: the discount (fraction) for a card at this NM price, from the collector's measured tiers
 const LP_FALLBACK = {default: 12, tiers: [{lo: 0, hi: 100, pct: 12, n: 0, src: 'default'}, {lo: 100, hi: 150, pct: 12, n: 0, src: 'default'}, {lo: 150, hi: 1e9, pct: 12, n: 0, src: 'default'}]};
 function lpInfo() { return (LIVE.data && LIVE.data.lp) || LP_FALLBACK; }
@@ -383,8 +400,15 @@ function verdictOf(x, cs, S) {
   if (x[22] != null && x[22] < 2) return ['fewer than 2 photos', allin, null];
   if (x[23] === 'suspect') return ['suspect', allin, null];
   if (x[28]) return [x[28] === 'low' ? 'mismatch: too cheap' : 'mismatch: too high', allin, null];   // far from PriceCharting: a wrong match
-  if (!cs || cs.A == null) return [cs ? 'no sales yet' : 'no data yet', allin, null];
-  if ((cs.A_n || 0) < S.minSales) return ['too few sales (' + (cs.A_n || 0) + ')', allin, null];
+  if (!cs || cs.A == null || (cs.A_n || 0) < S.minSales) {
+    // eBay cannot judge this card yet: is the listing a lead on PriceCharting's price?
+    if (cs && COMPARABLE.has(x[13]) && sellerBar(x[15], x[16]) == null) {
+      const ld = leadDecide(x, cs, S);
+      if (ld && allin <= ld.maxbuy) return [x[29] === 'conflict' ? 'ID conflict' : 'LEAD', allin, ld];
+    }
+    if (!cs || cs.A == null) return [cs ? 'no sales yet' : 'no data yet', allin, null];
+    return ['too few sales (' + (cs.A_n || 0) + ')', allin, null];
+  }
   if (!cs.liquid) return ['not liquid', allin, null];
   if (!COMPARABLE.has(x[13])) return ['condition ' + x[13], allin, null];
   const bar = sellerBar(x[15], x[16]);
@@ -420,7 +444,7 @@ function rebuildLive() {
                   t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
                   d.net, c.A_n || 0, LIVE.ec.length]);
   }
-  let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0;
+  let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0, leads = 0;
   live.live.forEach(x => {
     const base = idRow.get(x[1]); if (!base) return;
     const cs = LIVE.dec[String(x[1])];
@@ -431,7 +455,7 @@ function rebuildLive() {
     const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
     const status = x[17], tHours = status === 'open' ? x[3] : (x[21] != null ? x[21] : x[3]);
     const tier = x[23] || 'clean', nimg = x[22] == null ? 99 : x[22];
-    if (nimg < 2) hiddenImg++; else if (tier === 'suspect') hiddenSus++; else if (x[28] === 'low') tooCheap++;
+    if (nimg < 2) hiddenImg++; else if (tier === 'suspect') hiddenSus++; else if (x[28] === 'low') tooCheap++; else if (v === 'LEAD') leads++;
     // PriceCharting's ungraded price: the one the collector judged the listing against, else today's from the catalog tab
     const pc = x[27] != null ? x[27] : base[6];
     const vspc = pc && x[7] != null ? Math.round((x[7] / pc - 1) * 1000) / 10 : null;
@@ -441,7 +465,9 @@ function rebuildLive() {
                   tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [], LIVE.er.length]);
   });
-  $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap;
+  $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
+  LIVE.offers = offerRows(S);
+  $('offers-btn').textContent = 'Offer list (' + LIVE.offers.length + ')';
   paintLp();
   const cal = live.calib || {}, c48 = cal.h48 || {}, c24 = cal.h24 || {};
   const calTxt = c48.delta != null ? 'price calibration ' + (c48.delta > 0 ? '+' : '') + c48.delta + '% from ' + c48.n + ' outcomes' + (S.d48 ? ' (applied)' : ' (off)')
@@ -449,7 +475,7 @@ function rebuildLive() {
   $('callab').title = calTxt;
   $('meta-ec').textContent = 'eBay Catalog · data as of ' + live.t.replace('T', ' ').replace('Z', ' UTC') + ' (' + ageText(live.t) + ') · ' +
     live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h needs λ ≥ ' + lamMin(S).toFixed(2) + '/day · margin ' + Math.round(S.margin * 100) + '% · buy tax ' + (S.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
-  $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · ' + tooCheap + ' too cheap vs PriceCharting · as of ' + ageText(live.t);
+  $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · ' + tooCheap + ' too cheap vs PriceCharting · ' + leads + ' leads · as of ' + ageText(live.t);
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   tables.ec.apply(); tables.er.apply();
 }
@@ -554,6 +580,42 @@ function openScam() {
   $('bov').classList.add('open');
 }
 $('scam-btn').addEventListener('click', openScam);
+// Offer list: open copies that accept Best Offer where an accepted offer at this listing's Max buy is within reach.
+// Built from each card's cheapest copies (book), so it covers listings of any age, not only the last 24 hours.
+const OFFER_MAX_OFF = 0.30;                             // do not list offers more than 30% under the asking price
+function offerRows(S) {
+  const out = [];
+  for (const [cid, c] of Object.entries(LIVE.dec || {})) {
+    const base = idRow.get(+cid); if (!base) continue;
+    const judged = c.A != null && (c.A_n || 0) >= S.minSales && c.liquid;
+    for (const b of (c.book || [])) {                   // [id, total, item, ship, cond, best offer, fb, pct, hours listed, url, title]
+      if (!b[5] || !COMPARABLE.has(b[4]) || b[2] == null || sellerBar(b[6], b[7]) != null) continue;
+      const x = []; x[0] = b[0]; x[1] = +cid; x[5] = b[2]; x[7] = b[1]; x[13] = b[4];
+      const d = judged ? listingDecide(x, c, S) : (c.A == null || (c.A_n || 0) < S.minSales) ? leadDecide(x, c, S) : null;
+      if (!d || d.maxbuy == null) continue;
+      if (judged && b[1] < S.review * c.A) continue;    // far under the anchor: a review case, not an offer
+      const ship = b[3] || 0, offer = Math.floor((d.maxbuy - ship) / (1 + S.tax));     // the item price to offer, whole dollars
+      const off = 1 - offer / b[2];
+      if (offer <= 0 || off <= 0 || off > OFFER_MAX_OFF) continue;
+      const allin = offer * (1 + S.tax) + ship;
+      out.push({base, b, offer, off, judged, sell: d.sell, profit: Math.round((d.net - allin) * 100) / 100, ref: judged ? c.A : base[6]});
+    }
+  }
+  return out.sort((p, q) => p.off - q.off);
+}
+function openOffers() {
+  const rows = (LIVE.offers || []).slice(0, 300), S = settings();
+  const age = h => h == null ? '\u2014' : h < 48 ? h.toFixed(0) + ' h' : (h / 24).toFixed(0) + ' d';
+  $('btitle').textContent = 'Offer list';
+  $('bsub').textContent = (LIVE.offers || []).length + ' open listings that take offers, where an accepted offer at Max buy is at most ' + Math.round(OFFER_MAX_OFF * 100) + '% under the asking price \u00b7 smallest ask first';
+  let h = '<p class="dim">Offer = the item price that lands you exactly at this listing\'s Max buy (your ' + Math.round(S.margin * 100) + '% margin after fees' + (S.tax ? ' and ' + (S.tax * 100).toFixed(2) + '% tax' : '') + '). You send the offers yourself on eBay, and an accepted offer is binding: open the listing and check the photos first. Sellers usually take a few percent off; the further down the list, the longer the shot. Listings that have sat for days are the likeliest to bend. "PC lead" rows are priced from PriceCharting because eBay has too few sales for that card - treat them with more care.</p>';
+  if (!rows.length) h += '<p>None right now.</p>';
+  else h += '<table><thead><tr><th>Card</th><th>Listing</th><th class="num">Ask $</th><th class="num">Offer $</th><th class="num">Off</th><th class="num">Ship $</th><th class="num">Listed</th><th class="num">Seller</th><th>Basis</th><th class="num">Sell $</th><th class="num">Profit $</th></tr></thead><tbody>' +
+    rows.map(o => '<tr><td>' + esc(o.base[1]) + '<br><span class="dim">' + esc(o.base[2]) + '</span></td><td class="ttl"><a href="' + esc(o.b[9] || '#') + '" target="_blank" rel="noopener">' + esc(o.b[10] || '') + '</a></td><td class="num">' + fmtMoney(o.b[2]) + '</td><td class="num"><b>' + fmtMoney(o.offer) + '</b></td><td class="num">' + (o.off * 100).toFixed(0) + '%</td><td class="num">' + fmtMoney(o.b[3] || 0) + '</td><td class="num">' + age(o.b[8]) + '</td><td class="num">' + fmtInt(o.b[6]) + (o.b[7] != null ? ' \u00b7 ' + o.b[7].toFixed(1) + '%' : '') + '</td><td>' + (o.judged ? 'eBay sales <span class="dim">(anchor ' + fmtMoneyPlain(o.ref) + ')</span>' : badge('PC lead', 'hot') + ' <span class="dim">(' + fmtMoneyPlain(o.ref) + ')</span>') + '</td><td class="num">' + fmtMoney(o.sell) + '</td><td class="num">' + fmtMoney(o.profit) + '</td></tr>').join('') + '</tbody></table>';
+  $('bbody').innerHTML = h;
+  $('bov').classList.add('open');
+}
+$('offers-btn').addEventListener('click', openOffers);
 $('rows-ec').addEventListener('click', e => {
   const b = e.target.closest('.bbtn'); if (b) return openBook(+b.dataset.id);
   const t = e.target.closest('.ebtn'); if (t) openTrendEbay(+t.dataset.id);
