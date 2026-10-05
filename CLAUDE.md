@@ -259,6 +259,20 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
 - LP correction tiers all showing one figure is by design, not a bug: a tier uses its own measurement only once it
   has LP_MIN_SALES (30) LP sales with a same-card reference; until then every tier falls back to the pooled figure
   (the chip now says "(pooled)").
+- Revenue tab, step 1 of 2 (2026-10-05): Brett wants a tab of his OWN flips - purchase total (shipping and tax in),
+  hours the listing had been up when he bought, sale total, hours it took to sell, net - plus card / set / number,
+  purchase and sale dates, HOURS held (he asked for hours, not days), ROI, fees and shipping paid, source (hit, lead,
+  offer, auction), predicted vs actual net, status, cash tied up; with a period picker (year, then a month range 1-12
+  or a day range) showing total net, and the same picker on Raw Data for "what every hit would have netted" (sum the
+  alert log; a ceiling). He chose automatic over a hand-kept sheet, so the data comes from his eBay account:
+  `account.py` reads his sales (Sell Fulfillment `getOrders`) and purchases (Trading `GetOrders`, OrderRole Buyer)
+  every half hour once EBAY_REFRESH_TOKEN is in /etc/pokemon-collector.env, and keeps them in `state["acct"]`
+  (eBay only reaches back 90 days). Linking is his one-time act: he adds an eBay Redirect URL (RuName) in his
+  developer account pointing at `link.html` on the site, approves on eBay, and runs `ebay_link.py` on the droplet with
+  the code. The log gets counts only - it is public. NOT built yet (step 2, after the first real pull shows what
+  eBay returns): pairing each purchase with its sale (by matched card, oldest first; exact when the listing's custom
+  label holds the purchase's item number), the tab itself, and the Raw Data total. Field shapes in account.py were
+  written from memory of eBay's documentation and have not met a real response.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count

@@ -47,6 +47,7 @@ import pandas as pd
 import requests
 
 import ebay_sweep as es
+import account
 
 # ---------------- layout ----------------
 BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")
@@ -1156,7 +1157,7 @@ def code_update():
     log(f"Code updated {before[:7]} -> {after[:7]}: {', '.join(changed)[:200]}")
     if "requirements.txt" in changed:
         subprocess.run([os.path.join(BASE, "venv", "bin", "pip"), "install", "-q", "-r", os.path.join(REPO, "requirements.txt")], check=False)
-    return any(f in ("collector.py", "ebay_sweep.py", "requirements.txt") for f in changed)
+    return any(f == "requirements.txt" or (f.endswith(".py") and "/" not in f) for f in changed)
 
 
 # ---------------- the loop ----------------
@@ -1215,6 +1216,14 @@ def cycle(state, cat, sched, counters):
                 tr["hn"] += auction_finish(state, counters["_cards"], k)
         except Exception as e:
             log(f"Auctions: skipped this minute ({e})")
+    if account.linked() and not DRY_RUN and due("account", account.PULL_EVERY_S):
+        try:                                                 # Brett's own purchases and sales (read-only; account.py)
+            line = account.pull(state)
+        except Exception as e:
+            line = f"Account: could not be read ({str(e)[:160]})"
+        if line != v.get("acct_said"):                       # say it once, not every half hour
+            v["acct_said"] = line
+            log(line)
     if not DRY_RUN and v.get("trial_runs", 0) < TRIAL_RUNS and remaining > 400 and due("trial", TRIAL_EVERY_S):
         v["trial_runs"] = v.get("trial_runs", 0) + 1
         try:
@@ -1291,6 +1300,9 @@ def cycle(state, cat, sched, counters):
             live = es.build_live(state, cards, lp)           # the lookup may have turned a PASS into an ID conflict
         counters["alerts"] += alert_hits(state, cat, cards, live, cfg)
     live["alert"] = alert_status(state, cfg)
+    acct = state.get("acct") or {}
+    live["acct"] = {"linked": account.linked(), "pulled": acct.get("pulled"), "ok": acct.get("ok"),
+                    "buys": len(acct.get("buys") or {}), "sales": len(acct.get("sales") or {})}
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
@@ -1418,6 +1430,8 @@ def main():
             log("Phone alerts: channel set, test alert sent")
     else:
         log("Phone alerts: off (no NTFY_TOPIC in /etc/pokemon-collector.env)")
+    log("eBay account: linked - purchases and sales are read every half hour" if account.linked() else
+        "eBay account: not linked (the Revenue tab needs ebay_link.py run once)")
     if NTFY_TOPIC and not DRY_RUN:                           # can this machine read PriceCharting's card pages at all?
         log("PriceCharting pictures for the check screen: " + ("reachable" if pc_image(state, 960299) else
             "NOT reachable from this machine - the check screen will show the button instead"))
