@@ -75,6 +75,8 @@ jobs:
           npx --yes staticrypt index.html -d ../public --config false --short \
             --remember 90 --template-title "Pokemon Card Catalog" \
             --template-color-primary "#1f6feb" --template-color-secondary "#0d1117"
+          # the phone's hit-check screen: a plain page with no data in it (each alert's link carries the hit)
+          cp ../page/hit.html ../public/hit.html
           ls -la ../public
 
       - uses: actions/configure-pages@v5
