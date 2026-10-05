@@ -91,6 +91,19 @@ const TABLES = {
   // 27 time (h: to outcome, or open so far) 28 note (LP discount applied) 29 tier 30 risk rank 31 score 32 photos 33 signals
   // 34 first seen (ISO) 35 PriceCharting ungraded $ 36 vs PC % 37 mismatch flag ('low' / 'high')
   // 38 item-specifics check ('ok' / 'conflict' / 'none') 39 what that check found 40 ord
+  rv: {rows: () => LIVE.rv || [], noun: 'cards', ranges: [], labels: {}, defaults: {},
+       extra: r => PERIOD.rv ? PERIOD.rv.test(r[7] || r[4]) : true,
+       hay: r => r[1] + ' ' + r[2] + ' ' + (r[18] || '') + ' ' + (r[20] || ''),
+       after: () => rvSummary(),
+       row: r => '<td>' + (r[19] ? '<a href="https://www.ebay.com/itm/' + esc(r[19]) + '" target="_blank" rel="noopener" title="' + esc(r[18] || '') + '">' + esc(r[1]) + '</a>' : esc(r[1])) + '</td>' +
+      '<td>' + esc(String(r[2] || '').replace('Pokemon ', '')) + '</td><td class="num">' + esc(r[3] || '') + '</td>' +
+      '<td>' + badge(r[17], r[17] === 'sold' ? 'pass' : r[17] === 'holding' ? 'hot' : '') + '</td>' +
+      '<td>' + rvWhen(r[4]) + '</td><td class="num">' + fmtMoney(r[5]) + '</td><td class="num">' + (r[6] == null ? dash : r[6]) + '</td>' +
+      '<td>' + (r[21] ? '<a href="https://www.ebay.com/itm/' + esc(r[21]) + '" target="_blank" rel="noopener" title="' + esc(r[20] || '') + '">' + rvWhen(r[7]) + '</a>' : rvWhen(r[7])) + '</td>' +
+      '<td class="num">' + fmtMoney(r[8]) + '</td><td class="num">' + (r[9] == null ? dash : r[9]) + '</td><td class="num">' + (r[10] == null ? dash : r[10]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtMoney(r[12]) + '</td>' +
+      '<td class="num">' + (r[13] == null ? dash : '<b class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] < 0 ? '−' : '') + fmtMoney(Math.abs(r[13])) + '</b>') + '</td>' +
+      '<td class="num">' + fmtPct(r[14]) + '</td><td>' + esc(r[15] || '') + '</td><td class="num">' + fmtMoney(r[16]) + '</td>'},
   er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
@@ -156,6 +169,54 @@ function condOk(c) {
   return on.includes(c);
 }
 
+/* ---------------- Period picker (Revenue, and "every hit" on Raw Data) ----------------
+   Brett's design: a year, then either a range of months (1-12) or, for one month, a range of days. */
+const PERIOD = {};
+function periodBar(key, onChange) {
+  const host = $('per-' + key), now = new Date(), opt = (a, b, sel) => { let h = ''; for (let i = a; i <= b; i++) h += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return h; };
+  host.innerHTML = '<label>Year <select class="py">' + opt(2026, Math.max(2026, now.getFullYear()), now.getFullYear()) + '</select></label>' +
+    '<label><input type="radio" name="pu-' + key + '" value="m" checked> by month</label><label><input type="radio" name="pu-' + key + '" value="d"> by day</label>' +
+    '<label class="pmon" hidden>in month <select class="pm">' + opt(1, 12, now.getMonth() + 1) + '</select></label>' +
+    '<label>from <input type="number" class="pa" min="1" max="12" value="1"></label><label>to <input type="number" class="pb" min="1" max="12" value="12"></label>' +
+    '<button class="help" data-h="period">?</button>';
+  const q = c => host.querySelector(c), unit = () => host.querySelector('input[type=radio]:checked').value;
+  host.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', () => {
+    const d = unit() === 'd'; q('.pmon').hidden = !d; q('.pa').max = q('.pb').max = d ? 31 : 12; q('.pa').value = 1; q('.pb').value = d ? 31 : 12; onChange();
+  }));
+  ['.py', '.pm', '.pa', '.pb'].forEach(c => q(c).addEventListener('input', onChange));
+  return PERIOD[key] = {
+    test(iso) {
+      if (!iso) return false;
+      const t = new Date(iso), a = +q('.pa').value || 1, b = +q('.pb').value || (unit() === 'd' ? 31 : 12);
+      if (t.getFullYear() !== +q('.py').value) return false;
+      if (unit() === 'm') return t.getMonth() + 1 >= a && t.getMonth() + 1 <= b;
+      return t.getMonth() + 1 === +q('.pm').value && t.getDate() >= a && t.getDate() <= b;
+    },
+    label() { const a = q('.pa').value, b = q('.pb').value; return unit() === 'm' ? (a === b ? 'month ' + a : 'months ' + a + ' to ' + b) + ' of ' + q('.py').value : 'days ' + a + ' to ' + b + ' of month ' + q('.pm').value + ', ' + q('.py').value; }
+  };
+}
+const rvWhen = iso => iso ? new Date(iso).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) : dash;
+// the totals over the Revenue rows in view (the period and any search / set filter)
+function rvSummary() {
+  const t = tables.rv, a = (LIVE.data && LIVE.data.acct) || null;
+  if (!t || !$('sum-rv')) return;
+  const sold = t.view.filter(r => r[13] != null), net = sold.reduce((x, r) => x + r[13], 0), paid = sold.reduce((x, r) => x + (r[5] || 0), 0);
+  $('sum-rv').innerHTML = !a ? 'Waiting for the collector.' : !a.linked ? 'Your eBay account is not linked yet, so there is nothing to show.'
+    : 'Net profit for ' + PERIOD.rv.label() + ': <b class="big ' + (net > 0 ? 'up' : net < 0 ? 'down' : '') + '">' + (net < 0 ? '−' : '') + fmtMoneyPlain(Math.abs(net)) + '</b> from <b>' + sold.length + '</b> card' + (sold.length === 1 ? '' : 's') + ' bought and sold' +
+      (sold.length ? ' · ' + fmtMoneyPlain(paid) + ' spent on them · ' + (paid ? (net / paid * 100).toFixed(1) : '0') + '% return' : '') +
+      ' · cash tied up in unsold cards now: <b>' + fmtMoneyPlain(a.tied || 0) + '</b>';
+}
+// Raw Data: what the hits of a period promised, had every one been bought
+function hitSummary() {
+  const all = (LIVE.data && LIVE.data.alert && LIVE.data.alert.all) || [];
+  if (!$('sum-er') || !PERIOD.er) return;
+  const hits = all.filter(e => /^hit/.test(e[2] || '') && e[1] != null && PERIOD.er.test(e[0])), kept = hits.filter(e => e[3] !== 'no');
+  const sum = a => a.reduce((x, e) => x + e[1], 0);
+  $('sum-er').innerHTML = 'If you had bought every hit in ' + PERIOD.er.label() + ': <b class="big up">' + fmtMoneyPlain(sum(hits)) + '</b> from <b>' + hits.length + '</b> hit' + (hits.length === 1 ? '' : 's') +
+    (hits.length !== kept.length ? ' · leaving out the ' + (hits.length - kept.length) + ' you answered No to: <b>' + fmtMoneyPlain(sum(kept)) + '</b>' : '') +
+    ' <span class="dim">· a ceiling: it assumes every hit was the right card, near mint, and sold at the expected price. Counted since October 5, when alerts began.</span>';
+}
+
 function makeTable(id, cfg) {
   const el = k => $(k + '-' + id);
   const t = {id, sortKey: null, sortDir: 1, view: [], shown: 0};
@@ -210,6 +271,7 @@ function makeTable(id, cfg) {
     }
     el('rows').innerHTML = ''; t.shown = 0; t.renderMore();
     el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + rows.length.toLocaleString('en-US') + ' ' + cfg.noun;
+    if (cfg.after) cfg.after(t);
   };
   t.renderMore = () => {
     const frag = document.createDocumentFragment();
@@ -291,6 +353,9 @@ function makeTable(id, cfg) {
 }
 const tables = {};
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
+periodBar('rv', () => tables.rv.apply());
+periodBar('er', hitSummary);
+tables.rv.apply();
 
 // Only the row of column names stays in view (Brett: the tabs, boxes and filters staying put was too much). The page
 // itself is the scroller - the tables sit in no box of their own - and the header row sticks to the top of the
@@ -301,7 +366,7 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 
 /* ---------------- Tabs ---------------- */
-const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', al: 'alerts'};      // default (no hash) = PriceCharting
+const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', al: 'alerts', rv: 'revenue'};      // default (no hash) = PriceCharting
 function showTab(id) {
   if (!TABLES[id] && id !== 'al') id = 'pc';
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
@@ -479,6 +544,11 @@ function rebuildLive() {
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
   alRender();
+  LIVE.rv = ((live.acct && live.acct.rows) || []).map((r, i) => r.concat([i]));
+  tables.rv.apply();
+  hitSummary();
+  const ac = live.acct || {};
+  $('meta-rv').textContent = 'Revenue · your own purchases and sales, read from your eBay account' + (ac.linked ? ' · ' + (ac.buys || 0) + ' purchases and ' + (ac.sales || 0) + ' sales on record' + (ac.pulled ? ' · last read ' + ageText(ac.pulled) : '') + (ac.ok === false ? ' · the last read had a problem' : '') : ' · not linked yet');
   LIVE.offers = offerRows(S);
   $('offers-btn').textContent = 'Offer list (' + LIVE.offers.length + ')';
   paintLp();
