@@ -309,10 +309,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (feeds mu and the sell-through pool), `state["scam_stale"][day]` (the scam table's stale column; `scam_calib` adds
   it), `state["imgs"]` (photo -> seller, so a borrowed photo is still caught). CONSEQUENCE HANDLED IN THE GATE:
   `is_liquid` also required a 7-day sell-through >= 50%, which the data can no longer answer; sell-through is now the
-  share sold within 48 h (pool: comparable listings first seen 3-33 days ago), and the bar is `ST_MIN` 0.20 - 50% in
-  7 days restated at a steady selling rate is 18% in 2 (HOT_MIN_SELLTHRU 0.80 -> 0.35 likewise). The page mirrors it
-  (`isLiquid`, st >= 20). 0.20 is a translation, not a measurement: the hourly "Liquidity:" log line shows how the
-  fast-by-sales cards fare against it - revisit once there is a month of 48-hour data. Known costs he accepted:
+  share sold within 48 h (pool: comparable listings first seen 3-33 days ago), and the bar is `ST_MIN` 0.25. It
+  was first set to 0.20 (50% in 7 days at a steady selling rate = 18% in 2), then checked against the real listings
+  at the switch (`st_translation`, logged as "Sell-through check"): of 79 fast cards with 7-day-old listings only 19
+  passed the old bar, and on those same listings their 48-hour share ran 25% (lowest), 36% (lower quarter), 50%
+  (middle) - sales come early, so 20% was too loose (it made 51 cards liquid against 39 under the old rule). 0.25
+  keeps all 19 and admits nothing weaker than the weakest of them. HOT_MIN_SELLTHRU 0.80 -> 0.35 by the steady-rate
+  formula, unchecked. The page mirrors the bar (`isLiquid`, st >= 25). The hourly "Liquidity:" log line counts the
+  fast cards at 20 / 25 / 30 / 35% - the real test is the price calibration, once a month of 48-hour data exists.
+  FIRST SETTLE (14:48 UTC): 13,252 outlived (4,869 full records), 769 lost sight of, 5,316 cheapest copies and 250
+  suspects kept. The waiting queue still showed 11,573 "vanished inside 2 days", but most of those are the mass
+  flags of Oct 4-5 (no `seen_open` yet then, so they cannot be told apart) and drop on Oct 7-8: the young / old
+  split of the ~3,270 daily flags is therefore still NOT measured - read the hourly "flagged" count once those are
+  gone before trusting any budget estimate. Known costs he accepted:
   sales of copies older than 2 days go unrecorded (lambda, Sold 30d and the anchor lean to fast sales), price drops
   after day 2 are unseen, "Active / Listed now" = fresh copies + the retained cheapest. NOT built (he was offered
   them, did not ask): checking only cards with enough PriceCharting volume; waiting for a second miss before a lookup.

@@ -1527,7 +1527,8 @@ def cycle(state, cat, sched, counters):
         sts = sorted(c["st"] for c in fast if c.get("st") is not None)
         log(f"Liquidity: {len(fast)} cards sell often enough for the window; their 48-hour sell-through is measured on "
             f"{len(sts)} (median {sts[len(sts) // 2] if sts else '-'}%), {sum(1 for x in sts if x >= es.ST_MIN * 100)} of those "
-            f"at or over the {es.ST_MIN:.0%} bar")
+            f"at or over the {es.ST_MIN:.0%} bar (at 20% / 25% / 30% / 35%: "
+            + " / ".join(str(sum(1 for x in sts if x >= b)) for b in (20, 25, 30, 35)) + ")")
         log(st_translation(state, cards, lam_min))
         flags = Counter(r.get("pcm") or "-" for r in state["open"].values())
         ids = Counter(r["idv"] for r in state["open"].values() if r.get("idv"))

@@ -93,8 +93,11 @@ KEEP_CLOSED_D = 60           # closed listings kept in state
 FOLLOW_D = 2.0
 KEEP_STALE_D = 31            # "outlived 2 days" records are kept this long (the reach of the sell-through pool)
 ST_POOL_MIN_AGE_D = 3        # a listing's 48-hour outcome is known once it is this old
-ST_MIN = 0.20                # liquidity: share of a card's listings that sold within 48 h, once measured. The rule used
-                             # to be 50% within 7 days; at a steady selling rate that is 1 - 0.5^(2/7) = 18% within 2
+ST_MIN = 0.25                # liquidity: share of a card's listings that sold within 48 h, once measured. The rule used
+                             # to be 50% within 7 days. A steady selling rate would make that 18% within 2 days, but
+                             # sales come early: on the day of the switch, the 19 fast cards that passed the old bar
+                             # had 25% (the lowest) to 50% (the middle one) of those same listings sold within 48 h.
+                             # 25% keeps every one of them and lets in nothing weaker than the weakest of them
 DAILY_KEEP_D = 120           # per-card daily rollup (sales, 7-day median price, cheapest ask) kept this long
 DAILY_REFRESH_D = 3          # the last N days are recomputed every run (late-confirmed sales land on their day)
 MED_WINDOW_D = 7             # the price series = median sold total over a trailing 7-day window ...
