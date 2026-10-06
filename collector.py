@@ -143,6 +143,7 @@ AUCTION_ALERT_EVERY_S = 300      # one search this often, for the auctions that 
 AUCTION_ALERT_WINDOW = (9, 15)   # minutes before the end; read every 5 minutes, each auction is seen once or twice
 AUCTION_ALERT_CHECKS = 4         # item lookups per read: identity and photos of the auctions about to alert
 AUCTION_ALERTS_PER_HOUR = 12     # a ceiling on auction alerts
+AU_HIST_KEEP_D = 60              # the Raw Data tab's "Auctions sent to my phone" view reaches back this far
 
 DRY_RUN = "--dry-run" in sys.argv
 ONCE = "--once" in sys.argv
@@ -792,8 +793,8 @@ def read_requests(state):
             env = json.loads(ev["message"])
             if "dec" in env:                      # Brett's Yes / No on the phone's check screen
                 dec = env["dec"]
-                for e in v.get("alert_log", []):
-                    if e["i"] == dec.get("i") and e["tk"] == dec.get("tk") and dec.get("d") in ("nm", "lp", "no"):
+                for e in v.get("alert_log", []) + v.get("au_hist", []):
+                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "no"):
                         e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
                 continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
@@ -1144,8 +1145,11 @@ def auction_alerts(state, cat, cards, cfg):
         es.item_facts(rec, it)
         d = hit_payload(rec, cs, cat, kind)
 
+        nets = {}                                            # what selling it brings in after fees: frozen with the alert
+
         def side(cond):                                      # [sell, max buy, profit at the max, ROI at the max, max bid]
             s2, net2, mb2 = decision(dict(rec, tcond=cond), cs)
+            nets[cond] = round(net2, 2)
             return [s2, round(mb2, 2), round(net2 - mb2, 2), round((net2 - mb2) / mb2 * 100, 1),
                     math.floor((mb2 - rec["ship"]) / (1 + es.TAX) * 100) / 100]
         d["nm"], d["lp"] = side("NM"), side("LP")
@@ -1166,7 +1170,57 @@ def auction_alerts(state, cat, cards, cfg):
         watch[iid]["al"] = True
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": rec["title"][:70], "u": rec["url"],
                      "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4]})
+        # the Raw Data tab's auction view: the bid when the phone was pinged, and everything needed to re-judge the
+        # row later under whatever the Alerts tab then says. The sell side (net) is frozen here; margin and tax are not
+        v.setdefault("au_hist", []).append({
+            "i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "card": rec["card"], "ti": rec["title"][:90], "u": rec["url"],
+            "bid": rec["item"], "ship": rec["ship"], "nb": watch[iid].get("bids") or 0, "end": end, "tc": rec["tcond"],
+            "fb": rec.get("fb"), "pct": rec.get("pct"), "kd": kind, "s": d["nm"][0], "net": [nets.get("NM"), nets.get("LP")],
+            "tier": rec["tier"], "sc": rec["sc"], "scr": rec["scr"], "ph": rec.get("n_img")})
     return n
+
+
+def au_backfill(state, cat):
+    """Once: give the auction alerts sent before 2026-10-06 a row in the auction view. Their own log kept little
+    (the total at the alert, the profit at the max, the final price), so shipping, bids and the card come from the
+    finished-auction list where the same card closed at the same price. Rows built this way are marked old."""
+    v = state["vps"]
+    hist = v.setdefault("au_hist", [])
+    have = {e["i"] for e in hist}
+    m = alert_cfg(state).get("margin", 10) / 100.0 or 0.10
+    for e in v.get("alert_log", []):
+        if not str(e.get("kd", "")).startswith("auction") or e["i"] in have:
+            continue
+        try:
+            ci = es.match_title(cat, e.get("ti") or "", "", state.get("denoms", {}))[0]
+        except Exception:
+            ci = None
+        cid = cat.cards[ci]["id"] if ci is not None else None
+        t0 = es.parse_ts(e["t"])
+        hit = next((dn for dn in state.get("auction_done", []) if e.get("fin") is not None and dn[1] == cid
+                    and abs(dn[2] - e["fin"]) < 0.005 and t0 and es.parse_ts(dn[0]) and 0 <= (es.parse_ts(dn[0]) - t0).total_seconds() <= 3600), None)
+        ship = hit[3] if hit else None
+        net = round(e["p"] * (1 + 1 / m), 2) if e.get("p") is not None else None     # p = net - max buy = margin x max buy
+        row = {"i": e["i"], "t": e["t"], "tk": e.get("tk"), "card": cid, "ti": e.get("ti"), "u": e.get("u"),
+               "bid": round(e["tot"] - ship, 2) if ship is not None else None, "ship": ship, "nb": None, "end": hit[0] if hit else None,
+               "tc": es.title_condition(e.get("ti") or ""), "fb": None, "pct": None, "kd": "hit" if e["kd"] == "auction" else "lead",
+               "s": None, "net": [net, net], "tier": "clean", "sc": 0, "scr": [], "ph": None, "old": 1, "tot0": e.get("tot"), "dec": e.get("dec")}
+        if e.get("fin") is not None:
+            row["fin"], row["fb2"] = e["fin"], (hit[4] if hit else None)
+            row["fst"] = "nobids" if hit and not hit[4] else "sold"
+        hist.append(row)
+    hist.sort(key=lambda r: r["t"])
+
+
+def au_rows(state):
+    """The auction view's rows for the live file, oldest dropped after AU_HIST_KEEP_D days."""
+    v = state["vps"]
+    cut = es.ts(es.NOW - timedelta(days=AU_HIST_KEEP_D))
+    v["au_hist"] = [r for r in v.get("au_hist", []) if r["t"] >= cut]
+    return [[r["i"], r["t"], r.get("card"), r.get("ti"), r.get("u"), r.get("bid"), r.get("ship"), r.get("nb"), r.get("end"),
+             r.get("tc"), r.get("fb"), r.get("pct"), r.get("kd"), r.get("s"), (r.get("net") or [None, None])[0],
+             (r.get("net") or [None, None])[1], r.get("tier"), r.get("sc"), r.get("scr") or [], r.get("ph"), r.get("fin"),
+             r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0")] for r in v["au_hist"]]
 
 
 def auction_finish(state, cards, n):
@@ -1182,13 +1236,18 @@ def auction_finish(state, cards, n):
         a = watch.pop(iid)
         it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
         used += 1
+        mine = next((r for r in state["vps"].get("au_hist", []) if r["i"] == iid), None) if a.get("al") else None
         if not it:
+            if mine is not None:
+                mine["fst"] = "gone"                         # eBay no longer has the listing: no result to show
             continue
         try:
             final = float((it.get("currentBidPrice") or it.get("price") or {}).get("value"))
         except (TypeError, ValueError):
             continue
         bids = it.get("bidCount") if it.get("bidCount") is not None else a.get("bids")
+        if mine is not None:
+            mine["fin"], mine["fb2"], mine["fst"] = final, bids or 0, "sold" if bids else "nobids"
         cs = cards.get(str(a["card"])) or {}
         rec = {"id": iid, "total": final + a["ship"], "item": final, "ship": a["ship"], "tcond": a["tcond"]}
         maxbuy = (es.listing_decision(rec, cs) if a["basis"] == "ebay" else es.lead_decision(rec, cs))[2]
@@ -1443,6 +1502,10 @@ def cycle(state, cat, sched, counters):
         live["acct"]["rows"], live["acct"]["note"] = [], f"ledger failed: {str(e)[:120]}"
     # every alert ever logged, compact, for "what every hit would have netted": [when, promised profit, kind, answer]
     live["alert"]["all"] = [[e["t"], e.get("p"), e.get("kd"), e.get("dec")] for e in v.get("alert_log", [])]
+    if not v.get("au_backfilled"):
+        au_backfill(state, cat)
+        v["au_backfilled"] = 1
+    live["alert"]["au"] = au_rows(state)                     # every auction sent to the phone, for the Raw Data tab
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1

@@ -332,6 +332,22 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   sales of copies older than 2 days go unrecorded (lambda, Sold 30d and the anchor lean to fast sales), price drops
   after day 2 are unseen, "Active / Listed now" = fresh copies + the retained cheapest. NOT built (he was offered
   them, did not ask): checking only cards with enough PriceCharting volume; waiting for a second miss before a lookup.
+- RAW DATA AUCTION VIEW (2026-10-06, designed with Brett over several messages): the chip "Auctions sent to my
+  phone" (`au-er`) swaps the Raw Data table to `LIVE.au` - every ordinary listing disappears - and shows four
+  columns that exist only there (class `auc`; Item $ is class `fxc` and hides): Bid at alert $ (42), Sold for $ (43),
+  Profit at final $ (44), ROI at final % (45); the order key moved to index 46. Rows are built by `auRows()` in the
+  listing-row layout so sorts and filters work, and drawn by `auRow()`. HIS DECISIONS: reuse Max buy and Verdict, no
+  new result column; the EXISTING Profit / ROI are the worst case if he wins (he pays his whole Max buy, so ROI =
+  his margin on every row), the "at final" pair is the best case (the close with no bid from him); Max buy, both
+  profits and the Verdict follow the SAVED Alerts-tab margin and buy tax - not the top boxes, which are disabled
+  while the view is on - so changing the margin re-judges every past auction; only what selling brings in (`net`,
+  NM and LP) is frozen at the alert. "Listed within" becomes "Alerted within" (hours since the ping). Collector:
+  `v["au_hist"]` (60 days, `AU_HIST_KEEP_D`) gets a full record per auction alert, `auction_finish` writes fin / fb2
+  / fst (sold | nobids | gone), `read_requests` copies his answer, `au_rows()` publishes them as
+  `live["alert"]["au"]`; `au_backfill()` ran once for the 9 alerts sent before this existed (marked old: bid and
+  shipping recovered from `auction_done`, net from the logged profit at 10% margin). Verdict: PASS = closed at or
+  under Max buy, over max buy, no bids, not finished, no result. Caveat shown on the page: a final price is the
+  price WITHOUT his bid; had he bid he would have lost or paid more.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
