@@ -154,8 +154,10 @@ function auRows(live) {
     const lp = dec === 'lp' || (dec !== 'nm' && tc === 'LP'), net = lp ? netLP : netNM;
     const maxbuy = net == null ? null : r2(net / (1 + margin)), sh = ship == null ? 0 : ship;
     const sold = fst === 'sold' && fin != null, ftot = sold ? r2(fin + sh) : null, fall = sold ? r2(fin + sh + fin * tax) : null;
+    const pc0 = base[6] == null ? null : base[6], G = live.gate || {};
+    const cheap = sold && pc0 && (base[5] || 0) >= (G.pcMinSales || 20) && ftot < (G.pcLow || 0.4) * pc0;   // bidders let it go for a fraction: not the real card
     const res0 = fst === 'nobids' ? 'no bids' : fst === 'gone' ? 'no result' : !sold ? (end && now < Date.parse(end) + 9e5 ? 'not finished' : 'no result')
-      : maxbuy == null ? 'no result' : fall <= maxbuy ? 'PASS' : 'over max buy';
+      : maxbuy == null ? 'no result' : cheap ? 'closed too cheap' : fall <= maxbuy ? 'PASS' : 'over max buy';
     const um = umOf(iid, umFlag), res = um ? 'mismatch: marked by you' : res0;
     const pc = base[6] == null ? null : base[6];
     const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', r1((now - Date.parse(t)) / 36e5), ti || '', sold ? fin : null, ship, ftot, fall,
@@ -176,6 +178,7 @@ function auRow(r) {
   const tip = {'PASS': 'It closed at or under your Max buy: a bid of your max might have won it, unless the winner\'s hidden maximum was above yours.',
                'over max buy': 'It closed above your Max buy: your max would not have won it.', 'no bids': 'The auction ended without a bid.',
                'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.',
+               'closed too cheap': 'It closed under ' + pcPct('pcLow', 0.4) + '% of the card\'s PriceCharting price. Other bidders do not let the real card go for that: treated as a wrong match (another card, a damaged copy, a fake), not a hit.',
                'mismatch: marked by you': 'You marked this auction as not the card it was matched to. It is left out of the hit total. Untick Mismatch to undo.'}[x.res] || '';
   return umCell(r) + (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') +
     '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
