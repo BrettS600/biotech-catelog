@@ -5,14 +5,7 @@
   <button class="tab" data-t="al">Notification Settings</button>
   <button class="tab" data-t="rv">Transaction Report</button>
   <div class="tools">
-    <label title="A card is liquid when at least one buyer is this likely to arrive inside the window">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
-    <label title="Your planned sell window; with Confidence it sets the sales rate a card needs">Window <input type="number" id="win" min="24" max="168" step="24" value="48">h</label>
-    <label title="Raw Data: show only listings whose ROI clears your Margin (verdict PASS)"><input type="checkbox" id="hits"> Only show hits</label>
-    <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="10">%</label>
-    <label title="Sales tax you pay when buying (MA 6.25%). Set it to 0 the day eBay approves your resale certificate">Buy tax <input type="number" id="buytax" min="0" max="15" step="0.25" value="6.25">%</label>
-    <span class="lpc" id="lpc" title="LP correction, by the card's NM price tier">LP correction <span class="lpt" id="lpt">—</span><button class="help" data-h="lp">?</button></span>
-    <label id="callab" title="Shift the sell price by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
-    <button class="readme" id="readme-btn">README</button>
+    <button class="readme" id="readme-btn" title="How this tab works">README</button>
   </div>
 </nav>
 
@@ -55,7 +48,7 @@
 <!-- ============ Tab 2: eBay Catalog (one row per card, eBay-only numbers) ============ -->
 <section class="panel" id="p-ec" hidden>
 <div class="meta" id="meta-ec">eBay Catalog · loading live data…</div>
-<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, followed until they sell. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$500. Numbers refresh every couple of minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
+<div class="live-note">One row per card, computed only from eBay: raw (ungraded) singles listed in the last 30 days, matched to the catalog by title, each followed for its first 2 days. All prices are buyer totals (item + shipping) — the number you list at with free shipping. Default filter: cards whose eBay price is $50–$500. The Decisions band uses the Confidence, Window, Margin and Buy tax set on the <b>eBay Raw Data</b> tab. Numbers refresh every couple of minutes; click <b>?</b> on any header for the formula, and <b>README</b> at the top for the full walkthrough. <span class="legend"><span class="l-obs">Observed</span><span class="l-rate">Rates</span><span class="l-dec">Decisions</span><span class="l-tr">Trends</span></span></div>
 <div class="controls">
   <input type="search" id="q-ec" placeholder="Search card or set…">
   <select id="set-ec"><option value="">All sets (release order)</option></select>
@@ -123,6 +116,18 @@
 
 <!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
 <section class="panel" id="p-er" hidden>
+<!-- The settings that judge the listings below. They used to sit beside the tabs on every page; they only matter
+     here (and to the eBay Catalog's Decisions band, which reads the same numbers), so they live under the tabs of this
+     tab alone (Brett, 2026-10-07). -->
+<div class="gatebar" id="gatebar">
+  <label title="A card is liquid when at least one buyer is this likely to arrive inside the window">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
+  <label title="Your planned sell window; with Confidence it sets the sales rate a card needs">Window <input type="number" id="win" min="24" max="168" step="24" value="48">h</label>
+  <label title="Raw Data: show only listings whose ROI clears your Margin (verdict PASS)"><input type="checkbox" id="hits"> Only show hits</label>
+  <label title="Profit required on all-in cost; drives Max buy">Margin <input type="number" id="margin" min="0" max="50" step="1" value="10">%</label>
+  <label title="Sales tax you pay when buying (MA 6.25%). Set it to 0 the day eBay approves your resale certificate">Buy tax <input type="number" id="buytax" min="0" max="15" step="0.25" value="6.25">%</label>
+  <span class="lpc" id="lpc" title="LP correction, by the card's NM price tier">LP correction <span class="lpt" id="lpt">—</span><button class="help" data-h="lp">?</button></span>
+  <label id="callab" title="Shift the sell price by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
+</div>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
 <div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. "LEAD" marks a listing on a card eBay has too few sales to judge, priced from PriceCharting instead: a listing to look at, not a hit. Phone alerts follow the Notification Settings tab, not the boxes above. <button class="linkbtn" id="use-al">Use my alert settings here</button> · <button class="linkbtn" id="offers-btn">Offer list</button> · <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
 <div class="controls">
@@ -189,7 +194,9 @@
 <div class="ov" id="rov">
   <div class="modal wide rd">
     <button class="close" id="rclose" title="Close">✕</button>
-    <h2>README — how the eBay tabs decide a price</h2>
+    <button class="pencil" id="redit" title="Edit this README">✎</button>
+    <h2 id="rtitle">README</h2>
+    <div class="editbar" id="rbar" hidden></div>
     <div id="rbody"></div>
   </div>
 </div>
@@ -233,14 +240,16 @@
 <div class="ov" id="hov">
   <div class="modal narrow">
     <button class="close" id="hclose" title="Close">✕</button>
+    <button class="pencil" id="hedit" title="Edit this description">✎</button>
     <h2 id="htitle"></h2>
+    <div class="editbar" id="hbar" hidden></div>
     <div class="hbody" id="hbody"></div>
   </div>
 </div>
 
 <!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
 <section class="panel" id="p-al" hidden>
-<div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes at the top only change what the tables on this page show.</div>
+<div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes on the eBay Raw Data tab only change what the tables show.</div>
 <div class="al">
   <div class="al-card">
     <h3>What counts as a hit</h3>

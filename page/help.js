@@ -1,10 +1,34 @@
-const README = `
-<h3>1. What the three tabs are</h3>
-<p><b>PriceCharting Catalog</b> is the card list with PriceCharting's prices and the trend columns built from this site's own daily snapshots. <b>eBay Catalog</b> is the same card list with numbers computed <i>only</i> from eBay: every raw (ungraded) single listed in the last 30 days, matched to a card by its title, followed until it sells or ends. <b>eBay Raw Data</b> is the listings themselves — every matched raw single first seen in the last 24 hours, with the buy verdict. The eBay side is fed by a collector running around the clock on a small rented machine: it reads eBay's newest listings every minute, re-checks older ones for sales, and publishes every couple of minutes; the two eBay tabs pick the new data up on their own, and Raw Data tints rows that arrived since your last look.</p>
-<p><b>All eBay prices are buyer totals: item + shipping.</b> That is what the buyer paid and what you compare against, and because you list with free shipping, the Sell price is literally the number you type into the listing.</p>
+const README = {
+pc: `
+<h3>1. What this tab is</h3>
+<p>The card list with <b>PriceCharting's</b> prices: one row per printing (a card, its reverse holo and its 1st edition are separate rows with separate prices), ordered by each set's release date. The site rebuilds it every morning from PriceCharting's price file. Nothing on this tab comes from eBay.</p>
+<p><b>Ungraded $</b> is PriceCharting's price for a raw copy - a trailing average of recent raw sales, all conditions blended, so a near-mint copy usually sells for more. It only moves when new sales land, so a slow card's price can sit unchanged for weeks. <b>Sales/yr</b> counts every grade together, raw and graded; on vintage cards most of it can be graded sales.</p>
 
-<h3>2. Reading the eBay Catalog: three bands</h3>
-<p><span class="legend"><span class="l-obs">Observed</span></span> columns are independent inputs measured on eBay — counts, the book of competing copies, sold prices. <span class="legend"><span class="l-rate">Rates</span></span> are computed from Observed only (λ, Price, Days supply, In/out). <span class="legend"><span class="l-dec">Decisions</span></span> depend on the two anchors (sections 3 and 4) and your <b>Confidence</b>, <b>Window</b> and <b>Margin</b> settings at the top — change those and only the amber band moves. Every header's <b>?</b> shows the formula, an example, what the column is built from and what it feeds.</p>
+<h3>2. The trend columns</h3>
+<p>These are built from this site's own daily snapshots of the PriceCharting price, one point per card per morning, so they fill in as history accumulates: a column stays blank until it has the days it needs. The line under the tabs says how many days of history exist.</p>
+<ul>
+<li><b>&Delta;7d %</b> and <b>&Delta;30d %</b> - the change against the price 7 and 30 days ago. On a slow card a 7-day move is usually one sale landing.</li>
+<li><b>Range 90d %</b> - where today's price sits between its 90-day low (0%) and high (100%). Needs 60 days.</li>
+<li><b>Volume drift 30d</b> - Sales/yr today minus Sales/yr 30 days ago. Because Sales/yr is a trailing year, this compares the last 30 days with the same month a year earlier.</li>
+<li><b>Volatility %</b> - the typical size of a move when the price moves, over 90 days. Needs at least 3 moves.</li>
+<li><b>Slope 30d %/mo</b> - the robust 30-day trend (the median of every pairwise slope), so one spike day barely moves it. Needs 10 points.</li>
+</ul>
+<p>Every header's <b>?</b> gives the formula and a worked example. The <b>Trend</b> button on a row opens that card's chart.</p>
+
+<h3>3. Using it</h3>
+<p>Type in the search box for a card or a set, pick a set from the dropdown, and narrow with the min-max chips above the table (for instance Sales/yr at least 100 and Ungraded $ from 40 to 500). Click a header to sort; the eye on a header hides that column. Sort &Delta;30d descending for cards that have risen, ascending for cards that have fallen - the number cannot tell a mispricing from news such as a reprint.</p>
+
+<h3>4. How the eBay tabs use these prices</h3>
+<p>The eBay tabs work out their own prices from eBay sales and use PriceCharting in only two places. A listing priced under 40% or over 300% of the card's Ungraded price is treated as a wrong match and can never be a hit. And for a card with fewer than 5 recorded eBay sales, the Ungraded price stands in for eBay's so the listing can be shown as a <b>lead</b>. Both are explained in the eBay Raw Data README.</p>
+`,
+ec: `
+<h3>1. What this tab is</h3>
+<p>The same card list as the PriceCharting tab, with numbers computed <i>only</i> from eBay: every raw (ungraded) single matched to a card by its title and followed for its first 2 days (section 4 says why 2). The eBay side is fed by a collector running around the clock on a small rented machine: it reads eBay's newest listings every minute, re-checks older ones for sales, and publishes every couple of minutes; the two eBay tabs pick the new data up on their own, and Raw Data tints rows that arrived since your last look.</p>
+<p><b>All eBay prices are buyer totals: item + shipping.</b> That is what the buyer paid and what you compare against, and because you list with free shipping, the Sell price is literally the number you type into the listing.</p>
+<p>The amber Decisions band (Sell, Max buy, liquid) depends on four settings - Confidence, Window, Margin and Buy tax. Those boxes now sit on the <b>eBay Raw Data</b> tab, under the tabs; what you set there applies here too.</p>
+
+<h3>2. Reading the table: three bands</h3>
+<p><span class="legend"><span class="l-obs">Observed</span></span> columns are independent inputs measured on eBay — counts, the book of competing copies, sold prices. <span class="legend"><span class="l-rate">Rates</span></span> are computed from Observed only (λ, Price, Days supply, In/out). <span class="legend"><span class="l-dec">Decisions</span></span> depend on the two anchors (sections 3 and 4) and your <b>Confidence</b>, <b>Window</b> and <b>Margin</b> settings on the eBay Raw Data tab — change those and only the amber band moves. Every header's <b>?</b> shows the formula, an example, what the column is built from and what it feeds.</p>
 
 <p>A fourth band, <span class="legend"><span class="l-tr">Trends</span></span>, applies the PriceCharting tab's trend formulas to eBay's own realized prices: the price line is the median of raw sale totals over a trailing 7-day window (blank with fewer than 3 sales in the window), and the Trend button charts it with sales per day and the cheapest ask. These fill in on the same schedule as the PriceCharting versions — 7, 30 and 60 days after the collector started — and are noisier on thin cards, where the median moves because different copies sold rather than because the market did.</p>
 
@@ -26,10 +50,37 @@ const README = `
 <p>Buyers for a card arrive at a rate λ (sales per day, stated conservatively as the 25th percentile of the Gamma posterior, so a card with 12 sales in 18 days reads 0.56 rather than 0.67). If they arrive at a steady average rate, the chance that at least one shows up inside T days is 1 − e<sup>−λT</sup>. Demanding that chance be at least your Confidence turns into a rate the card has to clear:</p>
 <div class="formula">λ needed = −ln(1 − Confidence) ÷ T days
 48 h at 70% → 0.60/day     48 h at 80% → 0.80/day     48 h at 90% → 1.15/day     72 h at 70% → 0.40/day</div>
-<p>A card that clears it (and, once measured, has a 48-hour sell-through of at least 25%) is <b>liquid</b>; otherwise its Max buy is greyed "illiquid" and nothing on it can pass. This is the single biggest lever on how many cards are eligible: 48 hours at 80% needs roughly 24 sales a month; 72 hours at 70% needs 12. The Window and Confidence boxes let you see that trade-off instead of inheriting it — one extra day of holding against an 8–14 day cash cycle (section 9) is cheap. The rest of the old Poisson machinery — pricing off the second-cheapest copy because two buyers are expected — is gone: it assumed buyers take strictly the cheapest copy, which eBay's photos, feedback and promoted placement make untrue.</p>
+<p>A card that clears it (and, once measured, has a 48-hour sell-through of at least 25%) is <b>liquid</b>; otherwise its Max buy is greyed "illiquid" and nothing on it can pass. This is the single biggest lever on how many cards are eligible: 48 hours at 80% needs roughly 24 sales a month; 72 hours at 70% needs 12. The Window and Confidence boxes let you see that trade-off instead of inheriting it — one extra day of holding against an 8–14 day cash cycle (see the eBay Raw Data README) is cheap. The rest of the old Poisson machinery — pricing off the second-cheapest copy because two buyers are expected — is gone: it assumed buyers take strictly the cheapest copy, which eBay's photos, feedback and promoted placement make untrue.</p>
 <p><b>The 2-day rule (since October 6).</b> You only flip cards that sell inside your window, and the 5,000 eBay calls a day could not follow every listing to day 10: about 3,270 listings disappeared a day and only about 1,370 could be looked up, so half the outcomes were never read. A listing is now followed for its <b>first 2 days only</b>. If it disappears in that time, one lookup says whether it sold. If it is still for sale after 2 days it is <b>stale</b>: it did not sell inside the window, and what becomes of it later is not asked. Two exceptions keep the picture honest. A card's cheapest copies stay in the book whatever their age, and are still checked on cards that have a price, because on a busy card the copy that sells is often an older one that has become the cheapest. And suspects get one last lookup at day 6, because eBay often pulls a scam listing days after it went up. What this changes in the numbers: sales of copies that sat more than 2 days are no longer counted (apart from those cheapest copies), so Sold 30d and λ run lower and the prices lean towards what sells quickly; Sell-through is now the share sold within 48 hours, with the liquidity bar moved from 50% within 7 days to 25% within 48 hours (on the day of the switch, the fast cards that passed the old bar had between 25% and 50% of those same listings sold within 48 hours; 25% keeps every one of them); Active counts copies listed in the last 2 days plus each card's few cheapest older ones; a price drop on a listing older than 2 days is no longer seen.</p>
 
-<h3>5. The buy gate</h3>
+<h3>5. Calibration — of the price, not the rate</h3>
+<p>λ is left exactly as the data says. What gets checked is the price claim. When a listing first appears, the collector records the Sell price the model would have set for its card at that moment, and how far above or below it the listing was priced. Two days later the tracker knows whether it sold. Pooling every listing that entered the buyable top of its book gives a table: realized 48-hour sell-through by offset from Sell. If listings at the model's price sell far less than 70% of the time and it takes being 7% cheaper to get there, Sell shifts by 7% — the <b>Calibration</b> box shows the measured offset and how many outcomes it rests on, and applies it once there are at least 150 outcomes with 25 in each bucket around the crossing. The Scam screen button on the Raw Data tab also shows <b>how fast cheap listings go</b>: closed listings grouped by their price relative to A when first seen, with how many sold within 1, 6, 24 and 48 hours. That table answers the question the whole system turns on — whether listings at 60–70% of the anchor are gone within an hour (the scanner must be faster) or sit for days (they were cheap for a reason).</p>
+
+<h3>6. When demand exceeds supply — the fix to apply later</h3>
+<p><b>The signature:</b> Sell-thru ≥ 35% within 48 hours, Days supply under 3, Hrs to sale short, few Active copies. Copies vanish within hours of appearing.</p>
+<p><b>The problem:</b> on such a card the count of sales is capped by the count of copies listed. Five copies in a month means at most five sales, so λ from counts comes out low — the model says 60% when reality is closer to 95%, prices too cautiously, and you pass on deals or list too cheap on exactly the cards where you could hold out. The error is in the safe direction, which is why it is tolerated for now.</p>
+<p><b>The fix:</b> use time-to-sale, which supply cannot cap. If copies typically sell 20 hours after listing, buyers are arriving at least every 20 hours whether or not a copy exists. For an exponential wait the median is ln 2 ÷ λ, so</p>
+<div class="formula">λ_wait = ln 2 ÷ (median hours to sale ÷ 24)     e.g. 20 h → 0.693 ÷ 0.833 = 0.83 sales/day</div>
+<p>even if only five copies were ever listed. Because not every sold copy sat at rank 1, this still understates demand a little, which keeps it conservative.</p>
+<p><b>What to do:</b> after two or three weeks, look at the Hot cards (candidate or confirmed) and compare their λ column with ln 2 ÷ (Hrs to sale ÷ 24). If the waiting-time number is consistently and clearly higher on the confirmed ones, switch the collector to use λ_wait whenever the signature above is present (Sell-thru ≥ 35% within 48 hours and Days supply &lt; 3, with at least 5 sales) — it is a few lines in compute_stats() in ebay_sweep.py. Do not switch before the data shows the gap; changing a model before you can check it is how you end up trusting the wrong number.</p>
+
+<h3>7. Hot cards</h3>
+<p>Five checks from history: k ≥ 5, 48-hour Sell-thru ≥ 35%, median Hrs to sale ≤ 48, sales realized at ≥ 95% of the median ask, and the last five sales not more than 3% below the five before. Passing all five makes a <b>candidate</b>. The next three copies listed after the flag are then watched: all three selling within 48 hours makes it <b>confirmed</b> (a test on data the checks never saw); one sitting longer resets the count. Confirmed cards are the ones where you can pay close to full Max buy, because the exit is nearly certain — and where deals will be scarcest.</p>
+
+<h3>8. Condition and the LP correction</h3>
+<p>Demand and supply are condition-blind: a buyer who takes a Lightly Played copy is a real buyer, and an LP copy in the book is a real competitor. Price is not. So the Catalog counts NM, LP and unstated listings alike, but lifts every LP price to NM-equivalent (an LP sale at $83 is treated as $94.32 at a 12% correction) before computing the anchor, the floor and the Sell price — the Catalog's prices are NM prices. On Raw Data the correction runs the other way: a listing that says LP has its sell price cut by it, so its Max buy, Profit, ROI and verdict are for a played copy (hover Max buy to see the NM figure). Not-stated listings are treated as NM. MP and HP are a different market and stay out entirely.</p>
+<p>The correction is read-only and shown with the settings on the eBay Raw Data tab, for three price tiers (under $100, $100–150, $150+), because condition costs more on an expensive card. It starts at 12% and is replaced by the measured LP-to-NM ratio — pooled across every card, since no single card has enough LP sales — once a tier has 30 LP sales behind it; a tier without enough sales uses the ratio measured across all tiers, and until that exists, the default. Hover a tier to see where it stands.</p>
+
+<h3>9. What the model does not see</h3>
+<p>Promoted listings outrank you at equal price. Auctions ending in the window soak up buyers. Best Offer sales are recorded at the ask, so sold prices can run ~10% high. Titles the parser cannot resolve to one card are skipped, not guessed — the Unmatched button on the Raw Data tab lists them. And the Browse API only reports sales for listings that were seen while live, so history starts the day the collector was switched on and grows forward.</p>
+`,
+er: `
+<h3>1. What this tab is</h3>
+<p>The listings themselves: every raw (ungraded) single matched to a card and first seen in the last 24 hours, newest first, each with the buy verdict for that listing. The eBay side is fed by a collector running around the clock on a small rented machine: it reads eBay's newest listings every minute, re-checks older ones for sales, and publishes every couple of minutes; the two eBay tabs pick the new data up on their own, and Raw Data tints rows that arrived since your last look.</p>
+<p><b>All eBay prices are buyer totals: item + shipping.</b> That is what the buyer paid and what you compare against, and because you list with free shipping, the Sell price is literally the number you type into the listing.</p>
+<p>The bar under the tabs holds the settings that judge these listings (section 3). They only exist on this tab now, and they also drive the Sell, Max buy and liquid columns of the eBay Catalog.</p>
+
+<h3>2. The buy gate</h3>
 <p>What you keep from a sale at price S, listed with free shipping:</p>
 <div class="formula">net = S × (1 − 0.1325 × 1.065) − $0.40 − $4.50 − $0.30 = 0.8589 × S − $5.20
    eBay's 13.25% is charged on the buyer's total including their sales tax; $0.40 per order; $4.50 tracked label; $0.30 sleeve, top loader and mailer
@@ -38,43 +89,18 @@ Max buy = net ÷ (1 + Margin)</div>
 <p><b>The resale certificate.</b> A Massachusetts vendor registration plus a resale certificate (Form ST-4) filed with eBay's tax-exemption program stops eBay charging sales tax on your purchases for resale. The day that approval lands, set the Buy tax box to 0: the all-in cost of every listing drops 6.25%, breakeven moves from about 24% to under 19% of the sale price, and the $61.63 Max buy above lets you pay $61.63 delivered instead of $58. Do not set it to 0 before the approval is real — the page would call listings hits that still cost you 6.25% more, and a 10% margin would quietly become 3.75%. The box is remembered in this browser and changes nothing in the collector, whose hourly log keeps counting at 6.25% until it is told otherwise.</p>
 <p>Three details. Each listing is judged against the book <i>without itself</i>: you buy it, it leaves the market, and your relist competes with what remains — before this fix a cheap listing became its own card's cheapest copy and had to be 30% cheaper than itself. A Lightly Played listing is judged at the LP-discounted sell price. And a listing under <b>45% of A</b> gets a "review" badge instead of a verdict: at that price it is more often misidentified, damaged or fake than a bargain, so you spend thirty seconds on the photos and the seller before anything else.</p>
 
-<h3>6. What to do with the numbers</h3>
+<h3>3. The Confidence, Window, Margin and Buy tax boxes</h3>
+<p><b>Only show hits</b> filters the Raw Data tab to PASS rows. <b>Confidence</b> and <b>Window</b> together set the sales rate a card needs to count as liquid (the eBay Catalog README works it through); they move nothing else. <b>Margin</b> is the profit required on all-in cost; it moves Max buy and the PASS threshold and nothing else. <b>Net $</b> on the Catalog is what you clear at the Sell price; <b>Profit $</b> and <b>ROI %</b> on the Raw Data tab apply that to each listing's all-in cost, so sorting Raw Data by ROI shows the best buys first. The boxes are remembered in this browser and change nothing in the collector.</p>
+<p><b>LP correction</b> beside them is read-only: how much less a Lightly Played copy sells for, by price tier. A listing that says LP is judged at the lower price. <b>Calibration</b> applies the measured shift to the sell price once enough outcomes exist. None of these boxes reach your phone: alerts follow the Notification Settings tab.</p>
+
+<h3>4. What to do with the numbers</h3>
 <ul>
 <li><b>Buy</b> when the verdict says PASS — then read the title, the photos and the seller, and open the card's <b>Book</b> to see the copies you would compete with (greyed rows are the ones the floor ignored, and why).</li>
 <li><b>List</b> at Sell, free shipping, Best Offer on with auto-accept about 3% under it. Unsold at 36–48 hours, cut to 0.90 × A or accept offers there. After another window it was mispriced or the card slowed — take the small loss and note why.</li>
-<li>Treat "review" rows as a short daily to-do, not as hits. The same goes for the <b>Too cheap only</b> list (section 14): mostly wrong matches, occasionally a real steal.</li>
+<li>Treat "review" rows as a short daily to-do, not as hits. The same goes for the <b>Too cheap only</b> list (section 5): mostly wrong matches, occasionally a real steal.</li>
 </ul>
 
-<h3>7. The Confidence, Window and Margin boxes</h3>
-<p><b>Only show hits</b> filters the Raw Data tab to PASS rows. <b>Confidence</b> and <b>Window</b> together set the sales rate a card needs to count as liquid (section 4); they move nothing else. <b>Margin</b> is the profit required on all-in cost; it moves Max buy and the PASS threshold and nothing else. <b>Net $</b> on the Catalog is what you clear at the Sell price; <b>Profit $</b> and <b>ROI %</b> on the Raw Data tab apply that to each listing's all-in cost, so sorting Raw Data by ROI shows the best buys first. The boxes are remembered in this browser and change nothing in the collector.</p>
-
-<h3>8. Calibration — of the price, not the rate</h3>
-<p>λ is left exactly as the data says. What gets checked is the price claim. When a listing first appears, the collector records the Sell price the model would have set for its card at that moment, and how far above or below it the listing was priced. Two days later the tracker knows whether it sold. Pooling every listing that entered the buyable top of its book gives a table: realized 48-hour sell-through by offset from Sell. If listings at the model's price sell far less than 70% of the time and it takes being 7% cheaper to get there, Sell shifts by 7% — the <b>Calibration</b> box shows the measured offset and how many outcomes it rests on, and applies it once there are at least 150 outcomes with 25 in each bucket around the crossing. The Scam screen button also shows <b>how fast cheap listings go</b>: closed listings grouped by their price relative to A when first seen, with how many sold within 1, 6, 24 and 48 hours. That table answers the question the whole system turns on — whether listings at 60–70% of the anchor are gone within an hour (the scanner must be faster) or sit for days (they were cheap for a reason).</p>
-
-<h3>9. Where hits come from — and the real cash cycle</h3>
-<p>Two facts shape expectations. First, the fee wedge: a hit is a 31%-off listing on a card that sells daily, and other scanners watch the same new-listing feed, so genuine ones are rare and go in minutes. Second, "sell within 48 hours" is not a 48-hour cash cycle: inbound shipping (3–5 days), the sale, outbound delivery (2–5 days) and eBay's payout hold (1–3 days) make it <b>8–14 days</b>, so a dollar turns two or three times a month, not fifteen. Realistic early output, if the guesses hold: a few buys a day across all channels at $7–12 each on $100 cards.</p>
-<p>The steadier sources of 30%-off buys are the ones a new-listing scanner never sees: Best Offers on listings that have sat ten days or more, auctions ending at odd hours, and price drops on old listings (a relist or a cut never appears as "new"). The planned next step is a daily offer list — the site computes the price to offer on aged listings of liquid cards and you click through on eBay, since eBay's API will not send offers — built once the deal-speed table says what new listings deliver on their own. Two housekeeping items are worth real money: verify your actual label cost (two dollars moves breakeven two points), and look into a Massachusetts resale certificate filed with eBay, which removes the 6.25% buying tax and moves breakeven from 24% to under 19% of the sale price — confirm the obligations with the state before relying on it.</p>
-
-<h3>10. When demand exceeds supply — the fix to apply later</h3>
-<p><b>The signature:</b> Sell-thru ≥ 35% within 48 hours, Days supply under 3, Hrs to sale short, few Active copies. Copies vanish within hours of appearing.</p>
-<p><b>The problem:</b> on such a card the count of sales is capped by the count of copies listed. Five copies in a month means at most five sales, so λ from counts comes out low — the model says 60% when reality is closer to 95%, prices too cautiously, and you pass on deals or list too cheap on exactly the cards where you could hold out. The error is in the safe direction, which is why it is tolerated for now.</p>
-<p><b>The fix:</b> use time-to-sale, which supply cannot cap. If copies typically sell 20 hours after listing, buyers are arriving at least every 20 hours whether or not a copy exists. For an exponential wait the median is ln 2 ÷ λ, so</p>
-<div class="formula">λ_wait = ln 2 ÷ (median hours to sale ÷ 24)     e.g. 20 h → 0.693 ÷ 0.833 = 0.83 sales/day</div>
-<p>even if only five copies were ever listed. Because not every sold copy sat at rank 1, this still understates demand a little, which keeps it conservative.</p>
-<p><b>What to do:</b> after two or three weeks, look at the Hot cards (candidate or confirmed) and compare their λ column with ln 2 ÷ (Hrs to sale ÷ 24). If the waiting-time number is consistently and clearly higher on the confirmed ones, switch the collector to use λ_wait whenever the signature above is present (Sell-thru ≥ 80% and Days supply &lt; 3, with at least 5 sales) — it is a few lines in compute_stats() in ebay_sweep.py. Do not switch before the data shows the gap; changing a model before you can check it is how you end up trusting the wrong number.</p>
-
-<h3>11. Hot cards</h3>
-<p>Five checks from history: k ≥ 5, Sell-thru ≥ 80%, median Hrs to sale ≤ 48, sales realized at ≥ 95% of the median ask, and the last five sales not more than 3% below the five before. Passing all five makes a <b>candidate</b>. The next three copies listed after the flag are then watched: all three selling within 48 hours makes it <b>confirmed</b> (a test on data the checks never saw); one sitting longer resets the count. Confirmed cards are the ones where you can pay close to full Max buy, because the exit is nearly certain — and where deals will be scarcest.</p>
-
-<h3>12. Condition and the LP correction</h3>
-<p>Demand and supply are condition-blind: a buyer who takes a Lightly Played copy is a real buyer, and an LP copy in the book is a real competitor. Price is not. So the Catalog counts NM, LP and unstated listings alike, but lifts every LP price to NM-equivalent (an LP sale at $83 is treated as $94.32 at a 12% correction) before computing the anchor, the floor and the Sell price — the Catalog's prices are NM prices. On Raw Data the correction runs the other way: a listing that says LP has its sell price cut by it, so its Max buy, Profit, ROI and verdict are for a played copy (hover Max buy to see the NM figure). Not-stated listings are treated as NM. MP and HP are a different market and stay out entirely.</p>
-<p>The correction is read-only and shown next to Margin for three price tiers (under $100, $100–150, $150+), because condition costs more on an expensive card. It starts at 12% and is replaced by the measured LP-to-NM ratio — pooled across every card, since no single card has enough LP sales — once a tier has 30 LP sales behind it; a tier without enough sales uses the ratio measured across all tiers, and until that exists, the default. Hover a tier to see where it stands.</p>
-
-<h3>13. The scam screen</h3>
-<p>Scam listings hurt twice: they show up as the best "deals", and while they are live they sit in the card's book as the cheapest copy and would drag the floor and Max buy down for everyone. eBay removes them eventually, but only after the damage. So every listing gets a score from cheap signals — how far under the card's price it is, a seller with fewer than 10 ratings, one photo, a stack of copies of a card that does not come in stacks, a long delivery window, with credit for Top Rated Plus and long-established sellers. No single one of those decides: an honest new seller at a fair price scores 3 and stays. A photo already used by another seller is the exception - it makes a listing suspect by itself. Score 5 or more is <b>suspect</b>: kept out of every statistic and hidden on Raw Data behind the Show suspects box (the Notification Settings tab has a switch to be alerted about them all the same, labelled). 3–4 is <b>watch</b>: in the statistics, badged, but never allowed to set the floor. Raw Data also leaves out any listing with fewer than 2 photos, because condition cannot be judged without the back — the Catalog still counts those listings, since buyers buy from them.</p>
-<p>The score is calibrated from outcomes, like the price: every closed listing keeps the score it had, and the Scam screen button tabulates how each tier and each signal turned out — sold, ended, or "gone" (pulled before its end date, which is what eBay does to scams). A signal that fires mostly on listings that later vanish is earning its points; one that fires on listings that sold normally is catching honest sellers and gets cut. Thresholds are adjusted by hand from that table, not fitted automatically. First adjustment, October 6 (5,774 closed listings: clean 0.5% gone, watch 3.2%, suspect 11.5%): the points for a seller with 10–49 ratings, for a feedback percentage below the bar and for no returns were dropped - listings carrying them were pulled no more often than clean ones - and a borrowed photo (8 of 16 pulled, none sold) became suspect on its own.</p>
-
-<h3>14. Is it the right card? — the identity checks</h3>
+<h3>5. Is it the right card? — the identity checks</h3>
 <p>Every number above assumes a listing really is the card it was filed under. A wrong match hurts twice: it can look like a bargain (a reverse holo, a jumbo, a Japanese copy or a reprint filed under the expensive card), and it drags that card's prices. Four things guard against it.</p>
 <ul>
 <li><b>The title match</b> goes by card number first, then the set — by its words in the title or its printed total ("/165", from the open Pokémon TCG set list) — then the card's name, which has to agree, then the printing. When two sets hold the same number and name, the printed total decides: a Charizard titled "4/130 Base" is Base Set 2 (130 cards), not Base Set (102). A title that names a printing the catalog does not list for that card (reverse, 1st edition, jumbo, Master Ball…) is left unmatched rather than filed under the plain card. The catalog product a seller picked on eBay is used only when the title agrees with it.</li>
@@ -84,16 +110,90 @@ Max buy = net ÷ (1 + Margin)</div>
 </ul>
 <p>The four numbers of the price rule are constants at the top of the collector (PC_LOW, PC_HIGH, PC_MIN_SALES, PC_NEW_SET_D). How often the matcher is right has not been measured yet: sort Raw Data by <b>vs PC %</b> ascending, open the first 150 listings, and count how many are really the card in the first columns — that count is the first real accuracy number, and the misses show which rule to tighten.</p>
 
-<h3>15. Leads and the offer list</h3>
+<h3>6. The scam screen</h3>
+<p>Scam listings hurt twice: they show up as the best "deals", and while they are live they sit in the card's book as the cheapest copy and would drag the floor and Max buy down for everyone. eBay removes them eventually, but only after the damage. So every listing gets a score from cheap signals — how far under the card's price it is, a seller with fewer than 10 ratings, one photo, a stack of copies of a card that does not come in stacks, a long delivery window, with credit for Top Rated Plus and long-established sellers. No single one of those decides: an honest new seller at a fair price scores 3 and stays. A photo already used by another seller is the exception - it makes a listing suspect by itself. Score 5 or more is <b>suspect</b>: kept out of every statistic and hidden on Raw Data behind the Show suspects box (the Notification Settings tab has a switch to be alerted about them all the same, labelled). 3–4 is <b>watch</b>: in the statistics, badged, but never allowed to set the floor. Raw Data also leaves out any listing with fewer than 2 photos, because condition cannot be judged without the back — the Catalog still counts those listings, since buyers buy from them.</p>
+<p>The score is calibrated from outcomes, like the price: every closed listing keeps the score it had, and the Scam screen button tabulates how each tier and each signal turned out — sold, ended, or "gone" (pulled before its end date, which is what eBay does to scams). A signal that fires mostly on listings that later vanish is earning its points; one that fires on listings that sold normally is catching honest sellers and gets cut. Thresholds are adjusted by hand from that table, not fitted automatically. First adjustment, October 6 (5,774 closed listings: clean 0.5% gone, watch 3.2%, suspect 11.5%): the points for a seller with 10–49 ratings, for a feedback percentage below the bar and for no returns were dropped - listings carrying them were pulled no more often than clean ones - and a borrowed photo (8 of 16 pulled, none sold) became suspect on its own.</p>
+
+<h3>7. Leads and the offer list</h3>
 <p>The gate only speaks for cards with 5 or more recorded eBay sales, and most listings are on cards that do not have them yet. Two tools widen the net; neither produces a "PASS".</p>
 <ul>
 <li><b>LEAD</b> (Raw Data verdict, "Leads only" filter). For a card eBay cannot judge yet, PriceCharting's ungraded price stands in for the anchor: Sell = the lower of 95% of that price and 50¢ under the cheapest other believable copy listed (93% of it when there is no other copy), then the same fees, margin and tax. The card must show at least 100 PriceCharting sales a year and a price of $40 or more. The cap by live copies is what matters: PriceCharting lags a falling price (30th Celebration Mew ex: $147 there while copies sat unsold at $95). A lead is a listing worth opening - vintage leads especially are often cheap because of condition.</li>
 <li><b>Offer list</b> (button above the Raw Data table). Every open listing that takes Best Offer where an accepted offer at that listing's Max buy is at most 30% under the asking price, smallest ask first. It is built from each card's cheapest copies, so it reaches listings of any age - and the ones that have sat are the likeliest to accept. You send the offers on eBay yourself; an accepted offer is binding, so look at the photos first.</li>
 </ul>
 
-<h3>16. What the model does not see</h3>
-<p>Promoted listings outrank you at equal price. Auctions ending in the window soak up buyers. Best Offer sales are recorded at the ask, so sold prices can run ~10% high. Titles the parser cannot resolve to one card are skipped, not guessed — the Unmatched button on the Raw Data tab lists them. And the Browse API only reports sales for listings that were seen while live, so history starts the day the collector was switched on and grows forward.</p>
-`;
+<h3>8. Auctions sent to my phone</h3>
+<p>The chip <b>Auctions sent to my phone</b> swaps the table over: every ordinary listing disappears and you see only the auctions the collector pinged you about, kept for 60 days. "Listed within" becomes "Alerted within".</p>
+<ul>
+<li><b>Bid at alert</b> is the bid when your phone buzzed; <b>Sold for</b> is what the auction closed at.</li>
+<li><b>Max buy, Profit and ROI</b> are the worst case if you win: you pay your whole Max buy, so ROI is your margin.</li>
+<li><b>Profit at final</b> and <b>ROI at final</b> are the best case: the price it closed at with no bid from you. Your own bid would have pushed that price up, or lost to a higher hidden maximum.</li>
+<li><b>Verdict</b> says how it closed against your Max buy: PASS, over max buy, no bids, not finished, or no result.</li>
+</ul>
+<p>In this view the numbers follow the margin and buy tax saved on the Notification Settings tab, not the boxes above, which are greyed out.</p>
+
+<h3>9. Where hits come from — and the real cash cycle</h3>
+<p>Two facts shape expectations. First, the fee wedge: a hit is a 31%-off listing on a card that sells daily, and other scanners watch the same new-listing feed, so genuine ones are rare and go in minutes. Second, "sell within 48 hours" is not a 48-hour cash cycle: inbound shipping (3–5 days), the sale, outbound delivery (2–5 days) and eBay's payout hold (1–3 days) make it <b>8–14 days</b>, so a dollar turns two or three times a month, not fifteen. Realistic early output, if the guesses hold: a few buys a day across all channels at $7–12 each on $100 cards.</p>
+<p>The steadier sources of 30%-off buys are the ones a new-listing scanner never sees: Best Offers on listings that have sat ten days or more, auctions ending at odd hours, and price drops on old listings (a relist or a cut never appears as "new"). The planned next step is a daily offer list — the site computes the price to offer on aged listings of liquid cards and you click through on eBay, since eBay's API will not send offers — built once the deal-speed table says what new listings deliver on their own. Two housekeeping items are worth real money: verify your actual label cost (two dollars moves breakeven two points), and look into a Massachusetts resale certificate filed with eBay, which removes the 6.25% buying tax and moves breakeven from 24% to under 19% of the sale price — confirm the obligations with the state before relying on it.</p>
+`,
+al: `
+<h3>1. What this tab does</h3>
+<p>These settings decide which listings are sent to your phone. They live on the collector, the machine that watches eBay around the clock, so they keep working with this page closed. They are separate from the boxes on the eBay Raw Data tab, which only change what the tables show.</p>
+
+<h3>2. What counts as a hit</h3>
+<p><b>Margin</b> is the return you require on everything you pay; it sets Max buy for every listing. <b>Buy tax</b> is the sales tax added when you buy (6.25% in Massachusetts; set it to 0 only once eBay has your resale certificate). <b>Confidence</b> and <b>Sell window</b> together decide how fast a card has to be selling before it can alert: 70% in 48 hours needs about 0.6 sales a day. A listing that clears all of it on a card with 5 or more recorded eBay sales is a <b>hit</b>.</p>
+
+<h3>3. Only alert when</h3>
+<p><b>Profit is at least</b> is a floor in dollars on top of the percentage, so a $3 profit does not buzz your phone. <b>Buy price between</b> caps what one alert can ask you to spend. The collector itself reads listings from $25 to $500.</p>
+
+<h3>4. What to send</h3>
+<ul>
+<li><b>Hits</b> - loud alerts for listings that pass.</li>
+<li><b>Leads</b> - listings on cards eBay has too few sales to judge, priced from PriceCharting instead. Many more of them, quieter, and each needs a careful look.</li>
+<li><b>Scam-watch listings</b> - some warning signs (score 3 or 4). The alert lists each one with its points.</li>
+<li><b>Suspect listings</b> - score 5 or more. Off unless you switch it on; then they arrive titled SUSPECT with every reason. A listing whose photo is also used by another seller never alerts.</li>
+<li><b>Auctions</b> - an auction ending in 9 to 15 minutes whose bid is still under your Max buy, with the most you may bid.</li>
+</ul>
+<p>A listing whose price drops into range during its first 2 days alerts as a <b>price drop</b>.</p>
+
+<h3>5. Quiet hours</h3>
+<p>Between the two hours an alert still lands in the ntfy app, but without sound. Nothing is held back.</p>
+
+<h3>6. Saving</h3>
+<p><b>Save alert settings</b> sends the numbers to the collector over a private, signed channel; only this site, unlocked with your password, can do it. The box on the right, <b>On the collector now</b>, shows what the machine reports is in force. A save usually shows up there within a minute or two. <b>Send test alert</b> checks the path to your phone.</p>
+
+<h3>7. Preview, History and Wrong matches</h3>
+<p><b>Preview</b> runs the last 24 hours of listings through the numbers on the left, saved or not, so you can see what a change would have sent. <b>History</b> lists the last 40 alerts with what you answered on the phone and what became of each listing. <b>Wrong matches</b> keeps, for a year, every clean listing you answered "No, not the same card" to - the cases to tighten the title matcher against.</p>
+
+<h3>8. The alert on your phone</h3>
+<p>Tapping an alert opens a check screen with two questions. <b>First: is it the same card?</b> PriceCharting's picture on the left, the eBay photos on the right (tap the eBay photo to open the listing), and under them the set and card number, the price, and the sales on each side. The total price is the card plus shipping plus buy tax, at the tax saved here when the alert went out. <b>Second: what condition is it?</b> Near Mint and Lightly Played each show the Max buy, the profit and the ROI; choosing one opens the listing on eBay. "Next question" only looks ahead and records nothing. An alert already on your phone keeps the numbers it was sent with.</p>
+`,
+rv: `
+<h3>1. What this tab is</h3>
+<p>Your own flips: what you bought on eBay, what you sold, and what each one made. The collector reads your eBay account every half hour, with the approval you gave on October 5. It only reads; it never buys, bids, lists or changes anything. eBay hands back the last 90 days, so the record builds up from the day the account was linked. The approval lasts about 18 months; after that the link step has to be run again.</p>
+
+<h3>2. How a purchase is paired with its sale</h3>
+<p>eBay does not connect a card you bought to the listing you later sold it under. The pairing is exact when your sale listing's <b>Custom label (SKU)</b> holds the item number of the listing you bought. Otherwise the two are matched by card - the same title matcher the rest of the site uses - oldest purchase first. A purchase with no sale yet shows as <b>holding</b>. A sale with no purchase on record (a card from your own collection, say) is listed without a net, because there is no cost to take off.</p>
+
+<h3>3. The numbers</h3>
+<ul>
+<li><b>Paid</b> - card price plus shipping plus sales tax.</li>
+<li><b>Listed before buy</b> - how long the listing had been up when you bought it, in hours.</li>
+<li><b>Sale total</b> - what your buyer paid you, before eBay's fee. <b>Hours to sell</b> - how long your own listing was up.</li>
+<li><b>Hours held</b> - from paying to being paid: how long the money was tied up.</li>
+<li><b>eBay fees</b> - the fee eBay actually charged, not an estimate.</li>
+<li><b>Ship + supplies</b> - still an estimate ($4.50 label + $0.30 supplies); your real label cost is not read yet.</li>
+<li><b>Net</b> = Sale total - eBay fees - ship and supplies - Paid. <b>ROI</b> = Net / Paid.</li>
+<li><b>Source</b> - which alert led to the purchase (hit, lead, price drop, auction), or "other". <b>Predicted net</b> is what that alert promised; the gap to Net shows how far the tool's estimate was off.</li>
+</ul>
+
+<h3>4. The period and the totals</h3>
+<p>Pick a year, then a range of months, or one month and a range of days. A card counts in the period it was <b>sold</b> in. The line above the table adds up the net for the cards in view, what was spent on them and the return, and shows the <b>cash tied up</b> in cards bought and not yet sold.</p>
+
+<h3>5. What it does not handle yet</h3>
+<p>Refunds and returns are not taken off. Real shipping label costs are not read. Purchases made more than 90 days before the account was linked are not on record.</p>
+`
+};
+const README_TITLE = {pc: 'PriceCharting Catalog', ec: 'eBay Catalog', er: 'eBay Raw Data', al: 'Notification Settings', rv: 'Transaction Report'};
 
 /* ---------------- Column help ---------------- */
 const pct = v => (v * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
@@ -144,8 +244,8 @@ const HELP = {
   er_title: {t: 'eBay title', f: 'the seller\'s title, linked to the listing', m: 'What the parser matched to the catalog card in the first columns. Always read it before buying: variant words (reverse, 1st edition, shadowless), condition claims and anything odd. If the match looks wrong, that is a parser pattern to fix — the Unmatched button shows the ones it refused.', e: '"Charizard ex 199/165 Obsidian Flames SIR NM" → Charizard ex #199, Pokemon Obsidian Flames.'},
   er_item: {t: 'Item $ / Ship $', f: 'the listed price and the seller\'s shipping charge to your ZIP', m: 'Calculated shipping is estimated for the ZIP the collector was given. "free" means the seller folded shipping into the item.', e: '$118 + $4 shipping.'},
   er_total: {t: 'Total $', f: 'item + shipping', m: 'The buyer total, which is how everything else on the eBay tabs is measured (sold prices, the book, the Sell price).', e: '118 + 4 = $122.'},
-  er_allin: {t: 'All-in $', f: 'item + shipping + item × Buy tax (the box at the top: 6.25% Massachusetts sales tax; 0 once eBay has approved your resale certificate)', m: 'What actually leaves your account. This is the number compared to Max buy. Set the Buy tax box to 0 only after the exemption is real: until then a listing the page calls PASS costs 6.25% more than it shows.', e: '118 + 4 + 7.38 = $129.38 at 6.25%; $122.00 at 0%.'},
-  al_margin: {t: 'Margin (alerts)', f: 'Profit ÷ all-in cost must be at least this', m: 'The return you require on what you pay, after eBay\'s fee, shipping, supplies and buy tax. It sets Max buy for every listing, so a higher margin means fewer but fatter hits. This one decides your phone alerts; the Margin box at the top of the page only changes the tables.', e: '10% on a card that nets you $66 after costs: Max buy is $60, and a $60 all-in purchase leaves $6.'},
+  er_allin: {t: 'All-in $', f: 'item + shipping + item × Buy tax (the box above the table: 6.25% Massachusetts sales tax; 0 once eBay has approved your resale certificate)', m: 'What actually leaves your account. This is the number compared to Max buy. Set the Buy tax box to 0 only after the exemption is real: until then a listing the page calls PASS costs 6.25% more than it shows.', e: '118 + 4 + 7.38 = $129.38 at 6.25%; $122.00 at 0%.'},
+  al_margin: {t: 'Margin (alerts)', f: 'Profit ÷ all-in cost must be at least this', m: 'The return you require on what you pay, after eBay\'s fee, shipping, supplies and buy tax. It sets Max buy for every listing, so a higher margin means fewer but fatter hits. This one decides your phone alerts; the Margin box on the eBay Raw Data tab only changes the tables.', e: '10% on a card that nets you $66 after costs: Max buy is $60, and a $60 all-in purchase leaves $6.'},
   al_tax: {t: 'Buy tax (alerts)', f: 'Sales tax added to the item price when you buy', m: 'Massachusetts adds 6.25% to what you pay on eBay. It counts against your profit. Set it to 0 only once eBay has your resale certificate on file; otherwise every profit shown will be too high by the tax.', e: '$70 card: 6.25% adds $4.38, so the all-in cost is $74.38.'},
   al_conf: {t: 'Confidence (alerts)', f: 'How sure the model must be that a buyer turns up inside your sell window', m: 'A card only counts as liquid, and so can only produce a hit, when a buyer is at least this likely to arrive within the sell window. Higher = only the fastest-selling cards, so fewer alerts. Lower = more cards, but some will sit longer.', e: '70% in 48 h needs about 0.6 sales a day; 80% needs about 0.8.'},
   al_win: {t: 'Sell window (alerts)', f: 'How long you are willing to wait for the resale', m: 'The time you give a card to sell after you list it. With Confidence it sets how fast a card has to be selling before it can alert. A longer window lets slower cards through.', e: '48 h is the default; 72 h admits cards that sell roughly every other day.'},
@@ -153,7 +253,7 @@ const HELP = {
   al_price: {t: 'Buy price range', f: 'The listing\'s total (item + shipping) must fall between the two numbers', m: 'Caps how much a single alert can ask you to spend, and skips listings too cheap to matter. The collector itself reads listings from $25 to $500, so a range wider than that changes nothing.', e: '$40 to $200: a $260 hit is not sent.'},
   al_hits: {t: 'Hits', f: 'Verdict PASS', m: 'Listings on cards with enough recorded eBay sales (5 or more) that clear your margin with everything counted. These arrive as loud alerts. Turning this off silences them.', e: 'A $70 listing of a card that sells for about $112 and moves daily.'},
   al_leads: {t: 'Leads', f: 'Verdict LEAD', m: 'Listings on cards eBay has too few sales to judge, priced from PriceCharting instead and capped by the cheapest other copy on sale. There are many more of them than hits and most need a careful look, so they arrive without sound and are marked "lead". Off by default.', e: 'About 45 a day against about 1 hit.'},
-  al_watch: {t: 'Scam-watch listings', f: 'Scam score 2 to 4', m: 'A "watch" listing has some warning signs (a new seller, a very low price, a single photo) but not enough to be thrown out. Included: you still get the alert, and the check screen lists each warning with its points. Left out: you never hear about them.', e: 'A $60 listing of a $110 card from a seller with 12 ratings.'},
+  al_watch: {t: 'Scam-watch listings', f: 'Scam score 3 or 4', m: 'A "watch" listing has some warning signs (a new seller, a very low price, a single photo) but not enough to be thrown out. Included: you still get the alert, and the check screen lists each warning with its points. Left out: you never hear about them.', e: 'A $60 listing of a $110 card from a seller with 12 ratings.'},
   al_quiet: {t: 'Quiet hours', f: 'Alerts arrive silently between the two hours, in your local time (24-hour clock)', m: 'Nothing is held back: during quiet hours an alert still lands in the ntfy app, but without sound or vibration, so it does not wake you. Outside those hours hits are loud again. The window can run past midnight.', e: '23 to 7: silent from 11 PM until 7 AM.'},
   al_live: {t: 'On the collector now', f: 'What the always-on machine reports in its live file', m: 'The settings actually in force, as the collector itself reports them, with the time of the last change it accepted from this tab and how many alerts it has sent. If this box and the numbers on the left disagree, the left side has not been saved yet. A save usually shows up here within a minute or two.', e: '"Last change from this tab: Oct 5, 1:42 AM".'},
   al_preview: {t: 'Preview', f: 'The last 24 hours of listings, judged with the numbers on the left', m: 'A dry run before you save: every listing first seen in the last 24 hours is put through the gate with the numbers on the left, whether or not they are saved. It shows what your phone would have received, so you can tune without waiting a day. "Now" says whether that listing is still open.', e: 'Margin 10 → 1 listing; margin 5 → 4 listings.'},
@@ -191,7 +291,7 @@ const HELP = {
   lp: {t: 'LP correction (%)', f: 'per price tier: 1 − median over LP sales of (LP sale total ÷ median NM/unstated sale total of the same card within ±7 days)', m: 'How much less a Lightly Played copy sells for than a Near Mint one. It is used twice: inside the eBay Catalog every LP price is lifted to NM-equivalent (an LP sale at $83 counts as $94.32 at 12%), so Price, the floor and the Sell price are NM prices; and on Raw Data a listing that says LP has its sell price cut by it, so its Max buy, Profit, ROI and verdict are for a played copy. Not-stated listings are treated as NM. The number is read-only: it starts at 12% and is replaced by the measured ratio for a tier once that tier has 30 LP sales behind it (green outline); until then a tier uses the ratio measured across all tiers, and until that has 30 sales, the default. Hover a tier for where it stands. Pooled across all cards because one card never has enough LP sales to measure on its own; split by price tier because condition costs more on an expensive card.', e: 'A card sells NM at $95 and its LP copies at $83 → ratio 0.874 → 12.6% discount. If the <$100 tier has 41 such sales with a median of 0.90, that tier shows 10.0%.'},
   er_risk: {t: 'Risk — the scam screen', f: 'points: <50% of the card\'s price +4 · 50–65% +2 · 65–75% +1 (bands 5 points higher on $100+ cards) · seller feedback under 10 +3 · unknown +1 · one photo +1 · 3+ copies of a $75+ card +2 · photo also used by another seller = suspect by itself · delivery window over 10 days +1 · Top Rated Plus −2 · 500+ feedback at 99%+ −1. Score ≥ 5 = suspect, 3–4 = watch.', m: 'A cheap screen for the listings that are most likely not what they claim: a thin account, a deep discount, a borrowed photo, a stack of a card that does not come in stacks. No single signal decides — an honest new seller at a fair price scores 3 (watch) and stays. Suspect listings are kept out of every Catalog statistic (the book, sold prices, λ) so a fake copy cannot drag a card\'s price down, and they are hidden here behind the Show suspects box. Watch listings stay in the statistics but are never allowed to set the floor. A same-day burst of $75+ listings from a seller with no history pushes a watch listing to suspect. Hover the badge for the score and its reasons; the Scam screen button shows how past tiers and signals actually turned out.', e: '45% of the card\'s price (+4), 3 feedback (+3), one photo (+1), quantity 5 (+2) → 10, suspect. 80% of price, 5 feedback (+3) → 3, watch.'},
   er_photos: {t: 'Photos', f: 'number of photos on the listing', m: 'You need the front and the back to judge condition, so listings with fewer than 2 photos are left out of this tab (the count in the header line shows how many). Two photos is a minimum, not a promise — it is often the front plus a close-up, so still look. One photo is also a point on the scam score. The Catalog still counts these listings, because buyers buy from them and they are real competitors.', e: '4 = a front, a back and two close-ups. 1 = left out.'},
-  er_verdict: {t: 'Verdict', f: 'PASS if all-in ≤ Max buy for this listing; otherwise the first reason it fails', m: 'Checks in order: "fewer than 2 photos" and "suspect" (hidden by default); "mismatch ↓ / ↑" (priced under 40% or over 300% of the PriceCharting price — treated as a wrong match, see vs PC %); "no sales yet" (no anchor); "too few sales (n)" (under 5 behind the anchor); "not liquid" (the card does not clear your Confidence inside your Window); "condition MP/HP"; the count-aware seller bar ("seller < 98%" for 100+ ratings, "< 95%" for 20–99); "review" (under 45% of A — check photos and seller first); then the price test against this listing\'s own Max buy, computed with the listing left out of the floor. "LEAD" is not a pass: the card has too few eBay sales to judge, and the listing clears the same test when PriceCharting\'s price is used instead, capped by the cheapest other copy (README section 15). A listing that passes on price has its item specifics read by the collector: "PASS ✓" = card number, name and set agree with the matched card; "PASS ID?" = not read yet or left blank by the seller; "ID conflict" = they describe another card (hover for what disagreed).', e: 'All-in $61.62 vs Max buy $61.63 → PASS. All-in $74.38 → "over max buy". Passing on price but listed as Language: Japanese → "ID conflict".'},
+  er_verdict: {t: 'Verdict', f: 'PASS if all-in ≤ Max buy for this listing; otherwise the first reason it fails', m: 'Checks in order: "fewer than 2 photos" and "suspect" (hidden by default); "mismatch ↓ / ↑" (priced under 40% or over 300% of the PriceCharting price — treated as a wrong match, see vs PC %); "no sales yet" (no anchor); "too few sales (n)" (under 5 behind the anchor); "not liquid" (the card does not clear your Confidence inside your Window); "condition MP/HP"; the count-aware seller bar ("seller < 98%" for 100+ ratings, "< 95%" for 20–99); "review" (under 45% of A — check photos and seller first); then the price test against this listing\'s own Max buy, computed with the listing left out of the floor. "LEAD" is not a pass: the card has too few eBay sales to judge, and the listing clears the same test when PriceCharting\'s price is used instead, capped by the cheapest other copy (README section 7). A listing that passes on price has its item specifics read by the collector: "PASS ✓" = card number, name and set agree with the matched card; "PASS ID?" = not read yet or left blank by the seller; "ID conflict" = they describe another card (hover for what disagreed).', e: 'All-in $61.62 vs Max buy $61.63 → PASS. All-in $74.38 → "over max buy". Passing on price but listed as Language: Japanese → "ID conflict".'},
   er_cond: {t: 'Cond', f: 'condition words found in the title: NM, LP, MP, HP (n/s = not stated)', m: 'Only NM, LP and not-stated copies count as comparable. An LP listing gets the LP correction applied to its Max buy; not stated is treated as NM. MP/HP copies are shown but fail the gate, and they are excluded from the book and the sales history. The Condition chip in the filters shows or hides each of NM, LP and n/s (MP/HP rows appear only when all three are ticked).', e: '"Near Mint" or "NM" → NM; "lightly played" → LP.'},
   er_bo: {t: 'Offer', f: 'BO = the listing accepts Best Offers', m: 'You can usually get ~10% under the ask; the book ranks these copies at 90% for that reason. When one of these sells, the recorded price is the ask, so it may overstate the true sale.', e: ''},
   er_seller: {t: 'Seller fb / %', f: 'the seller\'s feedback count and positive percentage', m: 'The gate wants ≥ 98% (blank is tolerated). For raw cards, also prefer ≥ 50 feedback — a brand-new seller with a too-cheap card is the classic scam profile.', e: '512 feedback at 99.5%.'},
@@ -227,18 +327,112 @@ const LINKS = {
   er_risk: ['price vs the card, seller feedback, photos, quantity, photo reuse, returns, delivery window', 'Verdict; suspect listings are excluded from the book, sold prices and λ'],
   er_photos: ['the listing', 'this tab (fewer than 2 = left out), the scam score'],
 };
+/* ---------------- The pencil: descriptions and READMEs he can rewrite ----------------
+   An edit is sent to the collector over the same signed channel as the alert settings (only this page, unlocked with
+   the site password, can sign one). The collector keeps it and hands it back in the live file, so it shows on every
+   device and survives the daily rebuild. Keys: 'h:<column key>' -> {f, m, e};  'r:<tab>' -> the README's HTML.
+   A text longer than one message holds is sent in numbered pieces. Until the collector confirms, the edit is shown
+   from PEND; "Restore the original" sends a deletion. */
+let OVR = {}, OVR_T = 0;                      // what the collector holds, and the time of its last accepted edit
+const PEND = {};                               // key -> {v (null = restore the original), t}
+const ovr = key => key in PEND ? PEND[key].v : OVR[key];
+const curTab = () => { const p = document.querySelector('.panel:not([hidden])'); return p ? p.id.slice(2) : 'pc'; };
+function applyHelp(hp) {                       // called on every live refresh
+  OVR = (hp && hp.v) || {}; OVR_T = (hp && hp.t) || 0;
+  for (const k of Object.keys(PEND)) if (OVR_T >= PEND[k].t) delete PEND[k];
+}
+// README text is HTML he typed into the page: keep the plain structure, drop anything that could run or restyle
+function cleanHtml(html) {
+  const t = document.createElement('template'); t.innerHTML = html;
+  const OK = new Set(['H3', 'H4', 'P', 'B', 'I', 'EM', 'STRONG', 'U', 'BR', 'UL', 'OL', 'LI', 'DIV', 'SPAN', 'SUP', 'SUB', 'CODE', 'A', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD']);
+  const walk = node => [...node.childNodes].forEach(c => {
+    if (c.nodeType === 3) return;
+    if (c.nodeType !== 1 || /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|FORM|INPUT|BUTTON|TEXTAREA|SELECT|SVG|IMG|VIDEO|AUDIO)$/.test(c.tagName)) return c.remove();
+    walk(c);
+    if (!OK.has(c.tagName)) return c.replaceWith(...c.childNodes);
+    [...c.attributes].forEach(a => { const n = a.name.toLowerCase(); if (!(n === 'class' || (n === 'href' && c.tagName === 'A' && /^https?:\/\//i.test(a.value)))) c.removeAttribute(a.name); });
+    if (c.tagName === 'A') { c.setAttribute('target', '_blank'); c.setAttribute('rel', 'noopener'); }
+  });
+  walk(t.content);
+  return t.innerHTML;
+}
+async function sendEdit(key, value, say) {
+  if (typeof HKEY === 'undefined' || !HKEY) return say('This page has no key for the collector, so the edit cannot be saved.', 'warn');
+  const b64 = value == null ? '' : btoa(unescape(encodeURIComponent(JSON.stringify(value))));
+  const SIZE = 2400, n = Math.max(1, Math.ceil(b64.length / SIZE)), id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t0 = Date.now();
+  say('Saving…', '');
+  try {
+    for (let i = 0; i < n; i++) {
+      await alSend({type: 'help', t: t0 + i, id, key, i, n, del: value == null ? 1 : 0, d: b64.slice(i * SIZE, (i + 1) * SIZE)});
+      if (i < n - 1) await new Promise(r => setTimeout(r, 150));
+    }
+    PEND[key] = {v: value, t: t0 + n - 1};
+    say(value == null ? 'Restored. The collector will confirm in a minute or two.' : 'Saved. The collector will confirm in a minute or two; it then shows on every device.', 'ok');
+    return true;
+  } catch (e) { say('Could not reach the collector\'s channel (' + e.message + '). Nothing was saved.', 'warn'); return false; }
+}
+function editBar(bar, hasOvr, onSave, onCancel, onRestore, hint) {
+  bar.hidden = false;
+  bar.innerHTML = '<button class="go" data-a="save">Save</button><button data-a="cancel">Cancel</button>' + (hasOvr ? '<button data-a="restore">Restore the original</button>' : '') + '<span class="say">' + (hint || '') + '</span>';
+  const say = (t, cls) => { const s = bar.querySelector('.say'); s.textContent = t; s.className = 'say ' + (cls || ''); };
+  bar.querySelector('[data-a=save]').addEventListener('click', () => onSave(say));
+  bar.querySelector('[data-a=cancel]').addEventListener('click', onCancel);
+  if (hasOvr) bar.querySelector('[data-a=restore]').addEventListener('click', () => onRestore(say));
+  return say;
+}
+
+/* ---- the "?" popup ---- */
+let HCUR = null;
+const helpOf = key => { const h = HELP[key]; if (!h) return null; const o = ovr('h:' + key); return o ? Object.assign({}, h, o) : h; };
 function openHelp(key) {
-  const h = HELP[key]; if (!h) return;
-  $('htitle').textContent = h.t;
+  const h = helpOf(key); if (!h) return;
+  HCUR = key;
+  $('hbar').hidden = true; $('hedit').hidden = false;
+  $('htitle').innerHTML = esc(h.t) + (ovr('h:' + key) ? '<span class="edited">edited by you</span>' : '');
   const L = LINKS[key];
   $('hbody').innerHTML = '<h4>Formula</h4><div class="formula">' + esc(h.f) + '</div><h4>What it means</h4><p>' + esc(h.m) + '</p>' + (h.e ? '<h4>Example</h4><p>' + esc(h.e) + '</p>' : '') +
     (L ? '<h4>Built from</h4><p>' + esc(L[0]) + '</p><h4>Feeds into</h4><p>' + esc(L[1]) + '</p>' : '');
   $('hov').classList.add('open');
 }
-$('readme-btn').addEventListener('click', () => { $('rbody').innerHTML = README; $('rov').classList.add('open'); });
+$('hedit').addEventListener('click', () => {
+  const key = HCUR, h = helpOf(key); if (!h) return;
+  $('hedit').hidden = true;
+  $('hbody').innerHTML = '<h4>Formula</h4><textarea id="he-f" rows="3"></textarea><h4>What it means</h4><textarea id="he-m" rows="10"></textarea><h4>Example</h4><textarea id="he-e" rows="3"></textarea>';
+  $('he-f').value = h.f || ''; $('he-m').value = h.m || ''; $('he-e').value = h.e || '';
+  editBar($('hbar'), !!ovr('h:' + key),
+    async say => { if (await sendEdit('h:' + key, {f: $('he-f').value.trim(), m: $('he-m').value.trim(), e: $('he-e').value.trim()}, say)) setTimeout(() => { if (HCUR === key) openHelp(key); }, 1200); },
+    () => openHelp(key),
+    async say => { if (await sendEdit('h:' + key, null, say)) setTimeout(() => { if (HCUR === key) openHelp(key); }, 1200); },
+    'Plain text. Saved for every device.');
+  $('he-m').focus();
+});
+
+/* ---- the README, one per tab ---- */
+let RCUR = null;
+function openReadme(tab) {
+  if (!README[tab]) tab = 'pc';
+  RCUR = tab;
+  const mine = ovr('r:' + tab);
+  $('rbar').hidden = true; $('redit').hidden = false;
+  $('rtitle').innerHTML = 'README · ' + esc(README_TITLE[tab]) + (mine ? '<span class="edited">edited by you</span>' : '');
+  $('rbody').contentEditable = 'false';
+  $('rbody').innerHTML = mine ? cleanHtml(mine) : README[tab];
+  $('rov').classList.add('open');
+}
+$('redit').addEventListener('click', () => {
+  const tab = RCUR; if (!tab) return;
+  $('redit').hidden = true;
+  $('rbody').contentEditable = 'true';
+  editBar($('rbar'), !!ovr('r:' + tab),
+    async say => { const html = cleanHtml($('rbody').innerHTML); if (await sendEdit('r:' + tab, html, say)) setTimeout(() => { if (RCUR === tab) openReadme(tab); }, 1200); },
+    () => openReadme(tab),
+    async say => { if (await sendEdit('r:' + tab, null, say)) setTimeout(() => { if (RCUR === tab) openReadme(tab); }, 1200); },
+    'Type straight into the text below. Saved for every device.');
+  $('rbody').focus();
+});
+$('readme-btn').addEventListener('click', () => openReadme(curTab()));
 $('rclose').addEventListener('click', () => $('rov').classList.remove('open'));
-$('rov').addEventListener('click', e => { if (e.target === $('rov')) $('rov').classList.remove('open'); });
+$('rov').addEventListener('click', e => { if (e.target === $('rov') && $('rbody').contentEditable !== 'true') $('rov').classList.remove('open'); });
 document.querySelectorAll('.help').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openHelp(b.dataset.h); }));
 $('hclose').addEventListener('click', () => $('hov').classList.remove('open'));
-$('hov').addEventListener('click', e => { if (e.target === $('hov')) $('hov').classList.remove('open'); });
-
+$('hov').addEventListener('click', e => { if (e.target === $('hov') && $('hbar').hidden) $('hov').classList.remove('open'); });

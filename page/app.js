@@ -206,7 +206,7 @@ function auMode() {
   $('au-note').hidden = !on;
   if (!on) return;
   const c = Object.assign({}, AL_DEFAULT, (LIVE.data && LIVE.data.alert && LIVE.data.alert.cfg) || {});
-  $('au-note').innerHTML = '<b>Auctions sent to your phone</b>, newest first, kept for 60 days. Max buy, Profit and ROI use your saved alert settings (margin <b>' + c.margin + '%</b>, buy tax <b>' + c.tax + '%</b>), not the boxes at the top: they are the <b>worst case</b> if you win, paying your whole Max buy. The two "at final" columns are the <b>best case</b>: the price it closed at with no bid from you. Your own bid would have pushed that price up, or lost to a higher hidden maximum. What the card sells for is the figure the alert used.';
+  $('au-note').innerHTML = '<b>Auctions sent to your phone</b>, newest first, kept for 60 days. Max buy, Profit and ROI use your saved alert settings (margin <b>' + c.margin + '%</b>, buy tax <b>' + c.tax + '%</b>), not the boxes above: they are the <b>worst case</b> if you win, paying your whole Max buy. The two "at final" columns are the <b>best case</b>: the price it closed at with no bid from you. Your own bid would have pushed that price up, or lost to a higher hidden maximum. What the card sells for is the figure the alert used.';
 }
 
 // scam screen: tier badge with the score and the signals behind it on hover
@@ -622,6 +622,7 @@ function rebuildLive() {
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
   alRender();
+  applyHelp(live.help);                                 // descriptions and READMEs he rewrote with the pencil
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
   if (AU_ON()) { auMode(); tables.er.apply(); }
   LIVE.rv = ((live.acct && live.acct.rows) || []).map((r, i) => r.concat([i]));
