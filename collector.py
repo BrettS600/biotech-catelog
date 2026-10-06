@@ -650,7 +650,7 @@ def clean_cfg(c):
                 "min_profit": min(1000.0, max(0.0, float(c.get("min_profit", 0)))),
                 "pmin": max(0.0, float(c.get("pmin", 25))), "pmax": max(1.0, float(c.get("pmax", 500))),
                 "hits": bool(c.get("hits", True)), "leads": bool(c.get("leads", False)), "watch": bool(c.get("watch", True)),
-                "auctions": bool(c.get("auctions", True)),
+                "auctions": bool(c.get("auctions", True)), "suspects": bool(c.get("suspects", False)),
                 "quiet": bool(c.get("quiet", False)), "q_from": int(c.get("q_from", 23)) % 24, "q_to": int(c.get("q_to", 7)) % 24}
     except (KeyError, TypeError, ValueError):
         return None
@@ -687,7 +687,8 @@ def apply_settings(state):
         log(f"Settings: margin {cfg['margin']:g}%, buying tax {cfg['tax']:g}%, sells within {cfg['window']:g} h with "
             f"{cfg['conf']:g}% confidence; alerts: hits {'on' if cfg['hits'] else 'off'}, leads {'on' if cfg['leads'] else 'off'}, "
             f"profit from ${cfg['min_profit']:g}, price ${cfg['pmin']:g}-${cfg['pmax']:g}, scam-watch "
-            f"{'included' if cfg['watch'] else 'left out'}, auctions {'on' if cfg.get('auctions', True) else 'off'}, quiet hours "
+            f"{'included' if cfg['watch'] else 'left out'}, suspects {'alerted' if cfg.get('suspects') else 'blocked'}, "
+            f"auctions {'on' if cfg.get('auctions', True) else 'off'}, quiet hours "
             + (f"{cfg['q_from']}:00-{cfg['q_to']}:00" if cfg["quiet"] else "off"))
     return cfg
 
@@ -827,6 +828,19 @@ def hit_payload(rec, cs, cat, kind="hit"):
             "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N"), "kd": kind}
 
 
+def scam_words(rec):
+    """ "+3 seller feedback under 10, +2 priced 50-65% of the card's price = 5 points" """
+    parts = [f"{es.SCAM_POINTS.get(k, 0):+d} {es.SCAM_LABELS.get(k, k)}" for k in rec.get("scr") or []]
+    return ", ".join(parts) + f" = {rec.get('sc', 0)} points"
+
+
+def tier_risk(state, tier):
+    """[pulled before its end date, closed] for listings of this scam tier so far - the check screen shows it."""
+    t = (es.scam_calib(state).get("tiers") or {}).get(tier) or {}
+    n = sum(t.values())
+    return [t.get("gone", 0), n] if n else None
+
+
 def alert_hits(state, cat, cards, live, cfg):
     """Push every new hit (and lead, when switched on) once, if it clears the Alerts-tab filters: the listings first
     seen in the last 24 hours (the live rows), and older listings whose price a re-read just found lower. A listing
@@ -845,30 +859,51 @@ def alert_hits(state, cat, cards, live, cfg):
     back = alert_channel()[0] if es.PASSWORD else None
 
     def consider(iid, verdict, drop):
-        kind = "hit" if verdict == "PASS" and cfg["hits"] else "lead" if verdict == "LEAD" and cfg["leads"] else None
         rec = state["open"].get(iid)
+        suspect = verdict == "suspect"
+        if suspect:                               # hidden from the gate; alerted only when Brett switched suspects on,
+            if not rec or not cfg.get("suspects") or "dup" in (rec.get("scr") or []):   # and never with a borrowed photo
+                return 0
+            verdict = es.verdict(dict(rec, tier="clean"), cards.get(str(rec["card"])))[0]   # what the price test says
+        kind = "hit" if verdict == "PASS" and cfg["hits"] else "lead" if verdict == "LEAD" and cfg["leads"] else None
         if not kind or not rec or iid in sent or box["n"] >= ALERTS_PER_HOUR:
             return 0
         cs = cards.get(str(rec["card"]))
         if not cs or (rec.get("tier") == "watch" and not cfg["watch"]) or not cfg["pmin"] <= rec["total"] <= cfg["pmax"]:
             return 0
+        if suspect and not rec.get("idv"):        # suspects are not in the identity queue: read the specifics now
+            try:
+                it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+            except Exception:
+                it = None
+            if it:
+                rec["idv"], rec["idr"], _ = es.check_identity(cat, cat.by_id.get(rec["card"]), it, rec.get("title") or "", rec["total"])
+                es.item_facts(rec, it)
+            if rec.get("idv") == "conflict":
+                sent[iid] = es.ts(es.NOW)
+                return 0
         d = hit_payload(rec, cs, cat, kind)
         if d["nm"][2] is None or d["nm"][2] < cfg["min_profit"]:
             return 0
         d["tk"], d["rq"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back
         d["pci"] = pc_image(state, d["pid"])
+        flagged = rec.get("tier") in ("watch", "suspect")
+        if flagged:
+            d["risk"] = tier_risk(state, rec["tier"])
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
-               + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings"
-               + (" - SCAM WATCH" if rec.get("tier") == "watch" else "") + (" - ID conflict?" if d["idv"] == "conflict" else ""))
-        title = ("Price drop: " if drop else "") + f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
-        if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3,
-                    tags=("moneybag",) if kind == "hit" else ("mag",)):
+               + (f"\n{'SUSPECT' if suspect else 'Scam watch'}: {scam_words(rec)}" if flagged else "")
+               + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings" + (" - ID conflict?" if d["idv"] == "conflict" else ""))
+        title = ("SUSPECT: " if suspect else "") + ("Price drop: " if drop else "") + f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
+        if not push(title, msg, click=link, image=rec.get("img"),
+                    priority=2 if quiet else 4 if suspect else 5 if kind == "hit" else 3,
+                    tags=("warning",) if suspect else ("moneybag",) if kind == "hit" else ("mag",)):
             return 0
         sent[iid] = es.ts(es.NOW)
         box["n"] += 1
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": (rec.get("title") or "")[:70],
-                     "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2], "kd": kind + ("-drop" if drop else "")})
+                     "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2],
+                     "kd": kind + ("-suspect" if suspect else "") + ("-drop" if drop else "")})
         return 1
 
     n = sum(consider(x[0], x[12], False) for x in live["live"] if x[17] == "open")
@@ -1005,6 +1040,19 @@ def auction_alerts(state, cat, cards, cfg):
                "ship": a["ship"], "tcond": a["tcond"], "fb": seller.get("feedbackScore"),
                "pct": float(pct) if pct not in (None, "") else None, "img": (x.get("image") or {}).get("imageUrl"),
                "n_img": (1 if x.get("image") else 0) + len(x.get("additionalImages") or []), "tier": "clean", "sc": 0, "scr": []}
+        fb = rec["fb"]                              # the scam score's seller signals; a bid says nothing about price
+        if fb is None:
+            rec["sc"] += 1; rec["scr"].append("fbq")
+        elif fb < 10:
+            rec["sc"] += 3; rec["scr"].append("fb0")
+        if x.get("topRatedBuyingExperience"):
+            rec["sc"] -= 2; rec["scr"].append("top")
+        if fb is not None and fb >= 500 and rec["pct"] is not None and rec["pct"] >= 99:
+            rec["sc"] -= 1; rec["scr"].append("est")
+        if rec["sc"] >= es.SCAM_WATCH:
+            rec["tier"] = "watch"
+            if not cfg["watch"]:
+                continue
         cs = cards.get(str(a["card"])) or {}
         decision = es.listing_decision if kind == "hit" else es.lead_decision
         _, net, maxbuy = decision(rec, cs)
@@ -1037,9 +1085,12 @@ def auction_alerts(state, cat, cards, cfg):
         d["nm"], d["lp"] = side("NM"), side("LP")
         d["au"] = {"e": end, "b": rec["item"], "n": watch[iid].get("bids") or 0}
         d["tk"], d["rq"], d["pci"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back, pc_image(state, d["pid"])
+        if rec["tier"] == "watch":
+            d["risk"] = tier_risk(state, "watch")
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Now ${rec['item']:.2f} + ${rec['ship']:.2f} shipping, {d['au']['n']} bids. Bid up to ${d['nm'][4]:.2f} for a near-mint copy"
-               + (" - LEAD, priced from PriceCharting" if kind == "lead" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
+               + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
+               + (f"\nScam watch: {scam_words(rec)}" if rec["tier"] == "watch" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
         title = f"Auction ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
         if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3, tags=("hammer",)):
             continue

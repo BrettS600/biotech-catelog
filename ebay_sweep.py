@@ -1452,6 +1452,14 @@ def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
 
 
 # ---------------- scam screen ----------------
+# Points per signal. Re-weighted 2026-10-06 from the outcome table (5,774 closed listings; "gone" = pulled before its
+# end date, usually by eBay: clean 0.5%, watch 3.2%, suspect 11.5%). Kept: seller under 10 ratings (4.4% gone), the
+# price steps (7.7 / 4.1 / 1.5%), one photo and slow delivery (2.3% each). Dropped, because they sat at or under the
+# clean rate: seller with 10-49 ratings (0.5%), feedback % below the bar (0 of 112; the gate's seller bar still
+# applies on its own), no returns (0 of 46). A photo also used by another seller (8 of 16 gone, none sold) now makes
+# a listing suspect by itself. Old records keep the codes they were stamped with, so the labels stay.
+SCAM_POINTS = {"p50": 4, "p65": 2, "p75": 1, "fb0": 3, "fbq": 1, "img": 1, "qty": 2, "dup": 3, "slow": 1,
+               "top": -2, "est": -1, "burst": 0, "fb1": 1, "pct": 2, "ret": 1}
 SCAM_LABELS = {
     "p50": "priced under 50% of the card's price", "p65": "priced 50-65% of the card's price",
     "p75": "priced 65-75% of the card's price", "fb0": "seller feedback under 10", "fb1": "seller feedback 10-49",
@@ -1519,10 +1527,6 @@ def score_listings(state):
             pts += 1; why.append("fbq")
         elif fb < 10:
             pts += 3; why.append("fb0")
-        elif fb < 50:
-            pts += 1; why.append("fb1")
-        if seller_bar(r) is not None:
-            pts += 2; why.append("pct")
         if r.get("n_img") is not None and r["n_img"] <= 1:
             pts += 1; why.append("img")
         if r.get("qty") is not None and r["qty"] >= 3 and (ref or total or 0) >= SCAM_QTY_MIN_PRICE \
@@ -1531,8 +1535,6 @@ def score_listings(state):
         k = img_key(r.get("img"))
         if k and r.get("seller") and len(img_sellers[k] - {r["seller"]}) > 0:
             pts += 3; why.append("dup")
-        if r.get("ret") is False and ratio is not None and ratio < 0.65:
-            pts += 1; why.append("ret")
         dmax = parse_ts(r.get("dmax") or "")
         origin = parse_ts(r.get("origin") or "") or parse_ts(r["first"])
         if dmax and origin and (dmax - origin).days > 10:
@@ -1541,7 +1543,7 @@ def score_listings(state):
             pts -= 2; why.append("top")
         if fb is not None and fb >= 500 and pct is not None and pct >= 99:
             pts -= 1; why.append("est")
-        tier = "suspect" if pts >= SCAM_SUSPECT else "watch" if pts >= SCAM_WATCH else "clean"
+        tier = "suspect" if (pts >= SCAM_SUSPECT or "dup" in why) else "watch" if pts >= SCAM_WATCH else "clean"
         sl = r.get("seller")
         if tier == "watch" and sl and burst_n[sl] >= SCAM_BURST_N and sl not in prior:
             tier = "suspect"; why.append("burst")

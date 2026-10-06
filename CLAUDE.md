@@ -283,6 +283,17 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   month); Revenue filters on the SALE date (purchase date for unsold cards). Raw Data's "if you had bought every
   hit" line sums `live["alert"]["all"]` (every logged alert: [when, promised profit, kind, answer]) over the same
   kind of period; hits only, with and without the ones he answered No to.
+- Scam screen, first re-weighting (2026-10-06, from the popup's outcome table: 5,774 closed listings, "gone" 0.5%
+  clean / 3.2% watch / 11.5% suspect): fb1 (seller 10-49 ratings), pct and ret no longer score (their listings were
+  pulled no more than clean ones; the gate's seller bar is separate and unchanged); `dup` (photo also used by another
+  seller: 8 of 16 gone, none sold) makes a listing suspect by itself. SCAM_POINTS holds the points for alert text.
+  Brett chose to be ABLE to hear about suspects: Alerts-tab switch "Suspect listings" (cfg `suspects`, default off).
+  With it on, `alert_hits()` re-judges a suspect with its tier set aside and, if it is a hit / lead, alerts it titled
+  "SUSPECT: ..." with every reason and its points (`scam_words()`), reads its item specifics on the spot (suspects
+  are not in the identity queue), and passes `risk` = [gone, closed] for the tier so the check screen can say how
+  often such listings were pulled. A `dup` listing never alerts. Suspects stay out of all statistics. He turned down
+  a separate, higher minimum profit for suspects. Auction alerts now carry the score's seller signals (fb0 / fbq /
+  top / est) and respect the watch switch. The Alerts tab's checkboxes are drawn as on/off switches.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
