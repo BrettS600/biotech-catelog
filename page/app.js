@@ -141,7 +141,7 @@ const TABLES = {
      Max buy, Profit, ROI      = the worst case if he wins: he pays his whole Max buy, so ROI is his margin
      Profit / ROI at final     = the best case: the price it closed at with no bid from him in the auction
      Verdict                   = how it closed against his Max buy
-   Margin and buy tax come from the SAVED Alerts-tab settings, never from the boxes at the top (Brett: the view is
+   Margin and buy tax come from the SAVED Notification Settings settings, never from the boxes at the top (Brett: the view is
    about what was sent). What selling the card brings in is the figure frozen when the alert went out. */
 function AU_ON() { const e = document.getElementById('au-er'); return !!(e && e.checked); }
 function auRows(live) {
@@ -628,7 +628,7 @@ function rebuildLive() {
   tables.rv.apply();
   hitSummary();
   const ac = live.acct || {};
-  $('meta-rv').textContent = 'Revenue · your own purchases and sales, read from your eBay account' + (ac.linked ? ' · ' + (ac.buys || 0) + ' purchases and ' + (ac.sales || 0) + ' sales on record' + (ac.pulled ? ' · last read ' + ageText(ac.pulled) : '') + (ac.ok === false ? ' · the last read had a problem' : '') : ' · not linked yet');
+  $('meta-rv').textContent = 'Transaction Report · your own purchases and sales, read from your eBay account' + (ac.linked ? ' · ' + (ac.buys || 0) + ' purchases and ' + (ac.sales || 0) + ' sales on record' + (ac.pulled ? ' · last read ' + ageText(ac.pulled) : '') + (ac.ok === false ? ' · the last read had a problem' : '') : ' · not linked yet');
   LIVE.offers = offerRows(S);
   $('offers-btn').textContent = 'Offer list (' + LIVE.offers.length + ')';
   paintLp();
@@ -1010,7 +1010,7 @@ window.addEventListener('resize', () => { if ($('ov').classList.contains('open')
 paintLp();
 loadLive();
 
-/* ---------------- Alerts tab ----------------
+/* ---------------- Notification Settings tab ----------------
    The numbers here decide what the collector sends to the phone. Save posts them to a private channel the collector
    reads every minute (its name and the key that signs each message both come from the site key, so only this
    unlocked page and the collector can use it); the collector reports what it is using in the live file (live.alert). */
@@ -1030,7 +1030,7 @@ function alFill(c) {
   for (const k in AL_BOX) $(AL_BOX[k]).checked = !!c[k];
 }
 const alSame = (a, b) => Object.keys(AL_DEFAULT).every(k => String(a[k]) === String(b[k]));
-// the gate with the Alerts-tab numbers in place of the boxes at the top of the page
+// the gate with the Notification Settings numbers in place of the boxes at the top of the page
 function alS(c) {
   return Object.assign({}, settings(), {conf: Math.min(0.95, Math.max(0.5, c.conf / 100)), window: Math.min(168, Math.max(24, c.window)),
                                          margin: Math.min(0.5, Math.max(0, c.margin / 100)), tax: Math.min(0.15, Math.max(0, c.tax / 100))});
@@ -1079,6 +1079,7 @@ function alRender() {
   $('al-status').className = 'al-status ' + (AL.note ? AL.cls : dirty ? 'warn' : '');
   $('al-status').textContent = AL.note || (dirty ? 'Not saved yet: the collector is still using the numbers on the right.' : '');
   $('al-hist').innerHTML = alHistory(a);
+  $('al-wrong').innerHTML = alWrong(a);
   const m = alMatches(mine), hits = m.filter(r => r.kind === 'hit').length;
   $('al-pre').innerHTML = 'With the numbers on the left, <b>' + m.length + '</b> listing' + (m.length === 1 ? '' : 's') + ' from the last 24 hours would have been sent' +
     (m.length ? ' (' + hits + ' hit' + (hits === 1 ? '' : 's') + ', ' + (m.length - hits) + ' lead' + (m.length - hits === 1 ? '' : 's') + ').' : '.') +
@@ -1086,10 +1087,22 @@ function alRender() {
       m.slice(0, 40).map(r => '<tr><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + (r.sus ? ' ' + badge('suspect', 'warn') : '') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
 }
 // what was sent, what you answered on the phone, and what became of the listing
+// clean listings he answered "No, not the same card" to: the matcher's test cases (kept a year by the collector)
+function alWrong(a) {
+  const w = (a && a.wrong) || [];
+  if (!w.length) return 'None yet. A "No" on the phone, for a listing the scam screen had not flagged, lands here.';
+  const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+  return '<b>' + w.length + '</b> listing' + (w.length === 1 ? '' : 's') + ' you said did not show the matched card.' +
+    '<table><thead><tr><th>When</th><th>eBay listing</th><th>Was matched to</th><th>Kind</th></tr></thead><tbody>' +
+    w.slice(0, 200).map(r => '<tr><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[2] || r[1]) + '</a></td><td>' +
+      (r[6] ? '<a href="https://www.pricecharting.com/game/' + esc(r[6]) + '" target="_blank" rel="noopener">' + esc(r[4] || '') + '</a>' : esc(r[4] || '')) +
+      (r[5] ? '<br><span class="dim">' + esc(String(r[5]).replace('Pokemon ', '')) + '</span>' : '') + '</td><td>' + esc(String(r[7] || '').replace('-drop', ', price drop').replace('-lead', ', lead')) + '</td></tr>').join('') + '</tbody></table>';
+}
+
 function alHistory(a) {
   const h = (a && a.hist) || [];
   if (!h.length) return 'No alerts sent yet. Each one will be listed here with your answer and what happened to the listing.';
-  const ans = {nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No'}, said = h.filter(r => r[7]), no = said.filter(r => r[7] === 'no').length;
+  const ans = {nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No', yes: 'Same card, no condition picked'}, said = h.filter(r => r[7]), no = said.filter(r => r[7] === 'no').length;
   const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
   const fate = r => r[8] === 'open' ? 'still listed' : r[8] === 'sold' ? 'sold' + (r[9] != null ? ' ' + (r[9] < 1 ? Math.round(r[9] * 60) + ' min' : r[9].toFixed(1) + ' h') + ' after the alert' : '') : r[8] === 'unknown' ? 'no longer tracked' : esc(r[8]);
   return 'Last <b>' + h.length + '</b> alert' + (h.length === 1 ? '' : 's') + ' \u00b7 you answered <b>' + said.length + '</b>' + (said.length ? ': ' + (said.length - no) + ' yes, ' + no + ' no' : '') +

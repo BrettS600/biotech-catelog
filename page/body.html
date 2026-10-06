@@ -2,8 +2,8 @@
   <button class="tab on" data-t="pc">PriceCharting Catalog</button>
   <button class="tab" data-t="ec">eBay Catalog</button>
   <button class="tab" data-t="er">eBay Raw Data</button>
-  <button class="tab" data-t="al">Alerts</button>
-  <button class="tab" data-t="rv">Revenue</button>
+  <button class="tab" data-t="al">Notification Settings</button>
+  <button class="tab" data-t="rv">Transaction Report</button>
   <div class="tools">
     <label title="A card is liquid when at least one buyer is this likely to arrive inside the window">Confidence <input type="number" id="conf" min="50" max="95" step="5" value="70">%</label>
     <label title="Your planned sell window; with Confidence it sets the sales rate a card needs">Window <input type="number" id="win" min="24" max="168" step="24" value="48">h</label>
@@ -124,7 +124,7 @@
 <!-- ============ Tab 3: eBay Raw Data (one row per listing seen in the last 24 hours) ============ -->
 <section class="panel" id="p-er" hidden>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
-<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. "LEAD" marks a listing on a card eBay has too few sales to judge, priced from PriceCharting instead: a listing to look at, not a hit. Phone alerts follow the Alerts tab, not the boxes above. <button class="linkbtn" id="use-al">Use my alert settings here</button> · <button class="linkbtn" id="offers-btn">Offer list</button> · <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
+<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. "LEAD" marks a listing on a card eBay has too few sales to judge, priced from PriceCharting instead: a listing to look at, not a hit. Phone alerts follow the Notification Settings tab, not the boxes above. <button class="linkbtn" id="use-al">Use my alert settings here</button> · <button class="linkbtn" id="offers-btn">Offer list</button> · <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button></div>
 <div class="controls">
   <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
@@ -240,7 +240,7 @@
 
 <!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
 <section class="panel" id="p-al" hidden>
-<div class="meta" id="meta-al">Alerts · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes at the top only change what the tables on this page show.</div>
+<div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes at the top only change what the tables on this page show.</div>
 <div class="al">
   <div class="al-card">
     <h3>What counts as a hit</h3>
@@ -269,13 +269,15 @@
     <div class="al-now" id="al-pre"></div>
     <h3>History<button class="help" data-h="al_hist">?</button></h3>
     <div class="al-now" id="al-hist"></div>
+    <h3>Wrong matches<button class="help" data-h="al_wrong">?</button></h3>
+    <div class="al-now" id="al-wrong"></div>
   </div>
 </div>
 </section>
 
 <!-- ============ Tab 5: Revenue - Brett's own purchases and sales, read from his eBay account ============ -->
 <section class="panel" id="p-rv" hidden>
-<div class="meta" id="meta-rv">Revenue · your own purchases and sales, read from your eBay account.</div>
+<div class="meta" id="meta-rv">Transaction Report · your own purchases and sales, read from your eBay account.</div>
 <div class="period" id="per-rv"></div>
 <div class="rvsum" id="sum-rv"></div>
 <div class="controls">
