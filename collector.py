@@ -80,10 +80,13 @@ SWEEP_OVERLAP_MIN = 5            # a page covers ~15 min of listings; sweeping e
 # ---------------- outcome detection ----------------
 REREAD_BAND = (40, 500)          # listing price band that gets re-read (cheap copies of pricey cards are
                                  # caught by the book check instead)
-REREAD_MAX_AGE_D = 10
-REREAD_CADENCE = [(1.0, 3 * 3600), (3.0, 6 * 3600), (float(REREAD_MAX_AGE_D), 24 * 3600)]   # (age <= days, every s)
-# a one-hour window holds ~450 in-band listings (3 pages); day-1 windows every three hours, days 1-3 every six,
-# then daily to day 10: about 1,700 calls a day, leaving ~1,400 for the confirmations the re-reads produce
+REREAD_MAX_AGE_D = 2.5           # the 2-day rule (es.FOLLOW_D): a listing is followed for its first 2 days. The half
+                                 # day on top guarantees one more read after the 48-hour mark, which is what proves
+                                 # a listing outlived the window (or catches a sale at hour 47)
+REREAD_CADENCE = [(1.0, 3 * 3600), (float(REREAD_MAX_AGE_D), 6 * 3600)]   # (age <= days, every s)
+# a one-hour window holds ~450 in-band listings (3 pages); day-1 windows every three hours, then every six to day
+# 2.5. Until 2026-10-06 they ran daily to day 10: 760 calls a day, and 3,270 vanished listings a day to look up
+# with room for 1,370
 WINDOW_SETTLE_S = 1800           # a window is re-read only once it has been closed this long (indexing lag ~4 min,
                                  # with a long tail): re-reading the current hour flags listings not indexed yet
 VANISH_KEEP_D = 3                # a listing flagged as gone and still unconfirmed after this many days is dropped
@@ -98,9 +101,12 @@ FALSE_ALARM_LIMIT = 2            # missing from its window twice while still ope
 BOOK_BAND = (40, 500)            # card price band whose cheapest copies get re-verified
 BOOK_RECHECK_S = 48 * 3600
 BOOK_MAX_PER_CYCLE = 1
-KW_CHECK_AGES_D = [1, 3]         # listings found only by the keyword query cannot be re-read: getItem instead
+KW_CHECK_AGES_D = [1, 2]         # listings found only by the keyword query cannot be re-read: getItem instead
 KW_MAX_PER_CYCLE = 2
-STALE_D = 14                     # an open listing this old is closed as unsold (nothing re-reads it past day 10)
+STALE_D = 2.6                    # an open listing this old has had its last re-read: it is settled (close_stale)
+RETAIN_MAX_D = 14                # ... except a card's cheapest copies, which stay in the book up to this age
+SUSPECT_LAST_D = 6               # ... and suspects, which get one lookup at this age (eBay pulls scams late)
+SUSPECT_MAX_PER_CYCLE = 1
 
 # ---------------- budget ----------------
 DAILY_LIMIT = 5000
@@ -478,13 +484,26 @@ def confirm(state, iid, rec, why):
     return "open"
 
 
+def alive_until(rec):
+    """The last moment this listing was seen for sale: found, re-read, or looked up and still open."""
+    ts_ = [es.parse_ts(rec.get(k) or "") for k in ("first", "seen_open", "checked")]
+    return max(t for t in ts_ if t is not None)
+
+
+def survived(rec):
+    """Seen for sale 48 hours or more after it went up: it did not sell inside the window, whatever happened next."""
+    st = rec_start(rec)
+    return st is not None and (alive_until(rec) - st).total_seconds() >= es.FOLLOW_D * 86400
+
+
 def confirm_queue(state, cat):
     """Vanished listings in the order they are worth a lookup. There are far more of them than lookups (hundreds an
     hour against about two a minute), so the order is the policy: listings in the price band first; then the cards
     that sell the most, by PriceCharting's sales count, because only a fast-selling card can ever pass the gate
     and its sales rate is only right if nearly all of its sales are seen; newest flag first within a card.
     (PriceCharting's count is used to decide where to look, never as a number in the model.)"""
-    flagged = sorted(((r["vanished"], iid) for iid, r in state["open"].items() if r.get("vanished")), reverse=True)
+    flagged = sorted(((r["vanished"], iid) for iid, r in state["open"].items()
+                      if r.get("vanished") and not survived(r)), reverse=True)   # outlived the window: no lookup
 
     def worth(x):
         r = state["open"][x[1]]
@@ -513,6 +532,9 @@ def book_queue(state, cards):
             rec = state["open"].get(entry[0])
             if not rec or rereadable(rec):
                 continue
+            if rec.get("vanished"):                          # missing from its last re-read: probably just sold
+                out.append((0, entry[0]))
+                continue
             last = es.parse_ts(rec.get("checked") or rec.get("seen_open") or "")
             if last is None or (es.NOW - last).total_seconds() >= BOOK_RECHECK_S:
                 out.append((last.timestamp() if last else 0, entry[0]))
@@ -533,13 +555,85 @@ def kw_queue(state):
     return [iid for _, iid in out]
 
 
-def close_stale(state):
-    n = 0
+def suspect_queue(state):
+    """Suspects past the 2 days get one last lookup at SUSPECT_LAST_D: eBay often pulls a scam listing days after it
+    went up, and the scam table is only honest if those takedowns are still seen. Oldest first."""
+    out = []
+    for iid, rec in state["open"].items():
+        st = rec_start(rec)
+        if rec.get("tier") == "suspect" and not rec.get("vanished") and not rec.get("fin") and st is not None \
+                and in_band(rec, REREAD_BAND) and (es.NOW - st).total_seconds() / 86400 >= SUSPECT_LAST_D:
+            out.append((st, iid))
+    out.sort()
+    return [iid for _, iid in out]
+
+
+def close_stale(state, cards):
+    """Settle every listing that is past its re-reads (the 2-day rule, see es.FOLLOW_D). No lookups are spent here.
+      - flagged as vanished inside its first 2 days: left for the confirmation queue (that is where the sales are)
+      - one of its card's cheapest copies (the floor-setters and the three cheapest): stays in the book up to
+        RETAIN_MAX_D - on a busy card the copy that sells is often an older one that has become the cheapest, and the
+        book checks keep watching these for cards that have a price
+      - a suspect: waits for its one lookup at SUSPECT_LAST_D (suspect_queue)
+      - seen for sale at 48 h or later: it outlived the window -> es.close_outlived ("stale")
+      - anything else was never seen again after its last re-read: outcome unknown, removed and counted in nothing
+    -> Counter of what happened."""
+    keep = set()
+    for c in cards.values():
+        keep.update(e[0] for e in c.get("cred") or [])
+        keep.update(e[0] for e in (c.get("book") or [])[:3])
+    res = Counter()
     for iid, rec in list(state["open"].items()):
-        if es.hours_between(es.parse_ts(rec["first"]), es.NOW) / 24 > STALE_D:
-            es.close_listing(state, iid, rec, "stale", es.NOW)
-            n += 1
-    return n
+        st = rec_start(rec)
+        age_d = (es.NOW - st).total_seconds() / 86400 if st else 0.0
+        if age_d <= STALE_D:
+            continue
+        lived = survived(rec)
+        if rec.get("vanished") and not lived:
+            continue
+        if iid in keep and age_d <= RETAIN_MAX_D:
+            anchored = ((cards.get(str(rec["card"])) or {}).get("A_n") or 0) >= es.ANCHOR_MIN
+            if rec.get("vanished") and not anchored:         # known gone, and no book check will ever read it
+                res[es.close_outlived(state, iid, rec)] += 1
+            else:
+                res["kept"] += 1                             # a flag stays on: book_queue reads flagged copies first
+        elif rec.get("tier") == "suspect" and not rec.get("fin") and in_band(rec, REREAD_BAND) and age_d <= SUSPECT_LAST_D + 2:
+            rec["vanished"] = None
+            res["suspects"] += 1
+        elif lived:
+            res[es.close_outlived(state, iid, rec)] += 1
+        else:
+            del state["open"][iid]
+            res["unknown"] += 1
+    return res
+
+
+def st_translation(state, cards, lam_min):
+    """A check on ST_MIN while the old data still exists: for the cards that sell often enough, the old sell-through
+    (sold within 7 days, listings first seen 7-37 days ago) beside the 48-hour share OF THE SAME LISTINGS. The 20% bar
+    was derived by assuming a steady selling rate; this says what the real listings show. -> a line for the log."""
+    by_card = defaultdict(list)
+    for r in list(state["open"].values()) + state["closed"]:
+        if es.comparable(r) and 7 <= es.hours_between(es.parse_ts(r["first"]), es.NOW) / 24 <= es.STAT_WINDOW_D + 7:
+            by_card[str(r["card"])].append(r)
+    lo = (es.NOW - timedelta(days=es.STAT_WINDOW_D + 7)).date().isoformat()
+    hi = (es.NOW - timedelta(days=7)).date().isoformat()
+    pairs = []
+    for cid, c in cards.items():
+        if not c.get("lam") or c["lam"] < lam_min:
+            continue
+        pool = by_card.get(str(cid), [])
+        n = len(pool) + sum(k for d, k in ((state.get("unsold") or {}).get(str(cid)) or {}).items() if lo <= d <= hi)
+        if n < 3:
+            continue
+        s7 = sum(1 for r in pool if r.get("out") == "sold" and r["hrs"] <= 168) / n
+        s2 = sum(1 for r in pool if r.get("out") == "sold" and r["hrs"] <= 48) / n
+        pairs.append((s7, s2))
+    old_ok = sorted(s2 for s7, s2 in pairs if s7 >= 0.5)
+    q = lambda f: f"{old_ok[min(len(old_ok) - 1, int(len(old_ok) * f))] * 100:.0f}%" if old_ok else "-"
+    return (f"Sell-through check: {len(pairs)} fast cards have listings 7+ days old; {len(old_ok)} of them pass the old bar "
+            f"(50% sold within 7 days), and on those same listings the share sold within 48 h is lowest {q(0)}, "
+            f"lower quarter {q(0.25)}, middle {q(0.5)}")
 
 
 def drop_cheap(state):
@@ -1324,6 +1418,15 @@ def cycle(state, cat, sched, counters):
                 break
             out = confirm(state, iid, state["open"][iid], "kw")
             counters["kw_" + out] += 1
+        for iid in suspect_queue(state)[:SUSPECT_MAX_PER_CYCLE]:
+            if not spend(state, COST_CONFIRM):
+                break
+            rec = state["open"][iid]
+            out = confirm(state, iid, rec, "suspect")        # sold / ended / gone close it here
+            counters["sus_" + out] += 1
+            if out == "open":
+                rec["fin"] = es.ts(es.NOW)
+                es.close_outlived(state, iid, rec)           # still up at its last look: it outlived the window
         if due("enrich", ENRICH_EVERY_S):
             n = min(3, int(v.get("tokens", 0)))
             if n > 0:
@@ -1331,8 +1434,15 @@ def cycle(state, cat, sched, counters):
                 es.enrich(state, n)
                 v["tokens"] -= state["calls"].get(es.TODAY, 0) - before
     # 4. housekeeping, statistics, live file
+    if cards and due("settle", 3600):                        # needs the cards' books, so not before the first statistics
+        res = close_stale(state, cards)
+        counters["stale"] += res["record"] + res["count"]
+        counters["stale_unknown"] += res["unknown"]
+        v["held"] = [res["kept"], res["suspects"]]
+        if res["record"] + res["count"] + res["unknown"]:
+            log(f"Settled: {res['record'] + res['count']} listings outlived 2 days (stale; {res['record']} keep a full record), "
+                f"{res['unknown']} lost sight of; kept in the book: {res['kept']} cheapest copies, {res['suspects']} suspects")
     if due("prune", 3600):
-        counters["stale"] += close_stale(state)
         counters["dropped"] += drop_cheap(state)
         counters["unconfirmed"] += drop_unconfirmed(state)
         es.prune(state)
@@ -1394,19 +1504,31 @@ def cycle(state, cat, sched, counters):
             f"{counters['confirm_sold']} sold, {counters['confirm_ended']} ended, {counters['confirm_gone']} gone, "
             f"{counters['confirm_open']} still open | book checks: {counters['book_sold']} sold, {counters['book_ended'] + counters['book_gone']} ended/gone, "
             f"{counters['book_open']} open | kw checks {counters['kw_sold']} sold / {counters['kw_open']} open | "
-            f"{counters['stale']} closed stale, {counters['dropped']} cheap dropped | {counters['published']} publishes | {lag_txt}")
+            f"{counters['stale']} outlived 2 days (stale), {counters['stale_unknown']} lost sight of, "
+            f"{counters['dropped']} cheap dropped | suspects' last look: {counters['sus_sold']} sold, "
+            f"{counters['sus_ended']} ended, {counters['sus_gone']} gone, {counters['sus_open']} still up | "
+            f"{counters['published']} publishes | {lag_txt}")
         log(f"Now: {len(state['open'])} open, {len(state['closed'])} closed, {live['n_cards']} cards with data, "
             f"{live['n_live']} listings in 24 h, {live['n_pass']} pass the gate; budget {v['remaining']} left, "
             f"{v['per_min']} optional calls/min, {int(v.get('tokens', 0))} tokens; {live['calls_today']} calls today")
-        log(f"Waiting: {sum(1 for r in state['open'].values() if r.get('vanished'))} vanished listings to confirm, "
-            f"{len(due_windows(state, now))} windows due for a re-read, {len(book_queue(state, cards))} book copies due; "
-            f"{counters['unconfirmed']} dropped unconfirmed after {VANISH_KEEP_D} days")
+        held = v.get("held") or [0, 0]
+        log(f"Waiting: {len(confirm_queue(state, cat))} listings that vanished inside their first 2 days to confirm, "
+            f"{len(due_windows(state, now))} windows due for a re-read, {len(book_queue(state, cards))} book copies due, "
+            f"{len(suspect_queue(state))} suspects due a last look; {counters['unconfirmed']} dropped unconfirmed after "
+            f"{VANISH_KEEP_D} days; kept past 2 days: {held[0]} cheapest copies, {held[1]} suspects")
         verdicts = Counter(x[12] for x in live["live"])             # where the last 24 h of listings stop at the gate
         log("Verdicts: " + ", ".join(f"{k} {n}" for k, n in verdicts.most_common()))
         anchored = sum(1 for c in cards.values() if c.get("A_n", 0) >= es.ANCHOR_MIN)
         liquid = sum(1 for c in cards.values() if c.get("liquid"))
         log(f"Cards: {anchored} with 5+ sales behind the anchor, {liquid} liquid at the collector's defaults, "
             f"{sum(1 for c in cards.values() if c.get('liquid') and c.get('A_n', 0) >= es.ANCHOR_MIN)} both")
+        lam_min = -math.log(1 - es.CONFIDENCE) / (es.SELL_WINDOW_H / 24.0)
+        fast = [c for c in cards.values() if c.get("lam") and c["lam"] >= lam_min]
+        sts = sorted(c["st"] for c in fast if c.get("st") is not None)
+        log(f"Liquidity: {len(fast)} cards sell often enough for the window; their 48-hour sell-through is measured on "
+            f"{len(sts)} (median {sts[len(sts) // 2] if sts else '-'}%), {sum(1 for x in sts if x >= es.ST_MIN * 100)} of those "
+            f"at or over the {es.ST_MIN:.0%} bar")
+        log(st_translation(state, cards, lam_min))
         flags = Counter(r.get("pcm") or "-" for r in state["open"].values())
         ids = Counter(r["idv"] for r in state["open"].values() if r.get("idv"))
         log(f"Identity: {flags['low']} open listings under {es.PC_LOW:.0%} of the PriceCharting price, {flags['high']} over "

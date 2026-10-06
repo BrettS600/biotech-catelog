@@ -84,6 +84,17 @@ CHECK_AGES_D = [3, 10, 30]   # scheduled getItem checks, days since first seen
 KW_FIRST_CHECK_D = 1         # listings found only by the keyword query get an extra day-1 check
 TRACK_GIVE_UP_D = 30         # after the last check the listing counts as unsold ("stale")
 KEEP_CLOSED_D = 60           # closed listings kept in state
+# ---- the 2-day rule (Brett, 2026-10-06) ----
+# He only flips cards that sell inside his 48-hour window, and 5,000 calls a day could not follow every listing to
+# day 10: about 3,270 disappeared a day against some 1,370 lookups, so half the outcomes were never read. A listing
+# is now FOLLOWED FOR ITS FIRST 2 DAYS ONLY. One that is still for sale after that is "stale" - it did not sell in the
+# window, and what becomes of it later is not asked. Two exceptions (collector.close_stale): a card's cheapest
+# copies stay in the book whatever their age, and suspects get one last look so the scam table still sees takedowns.
+FOLLOW_D = 2.0
+KEEP_STALE_D = 31            # "outlived 2 days" records are kept this long (the reach of the sell-through pool)
+ST_POOL_MIN_AGE_D = 3        # a listing's 48-hour outcome is known once it is this old
+ST_MIN = 0.20                # liquidity: share of a card's listings that sold within 48 h, once measured. The rule used
+                             # to be 50% within 7 days; at a steady selling rate that is 1 - 0.5^(2/7) = 18% within 2
 DAILY_KEEP_D = 120           # per-card daily rollup (sales, 7-day median price, cheapest ask) kept this long
 DAILY_REFRESH_D = 3          # the last N days are recomputed every run (late-confirmed sales land on their day)
 MED_WINDOW_D = 7             # the price series = median sold total over a trailing 7-day window ...
@@ -134,7 +145,7 @@ LP_MIN_SALES = 30
 LP_REF_WINDOW_D = 7          # an LP sale is compared with NM/unstated sales of the same card within +/- this
 LP_REF_MIN = 2               # ... needing at least this many reference sales
 HOT_MIN_SALES = 5
-HOT_MIN_SELLTHRU = 0.80
+HOT_MIN_SELLTHRU = 0.35      # within 48 h (was 80% within 7 days: 1 - 0.2^(2/7) = 37%)
 HOT_MAX_HRS = 48
 HOT_CONFIRM_N = 3
 
@@ -964,6 +975,35 @@ def close_listing(state, iid, rec, outcome, when, total=None):
     del state["open"][iid]
 
 
+def stamped(rec):
+    """The model made a claim about this listing when it appeared (a price ratio or a sell price to check later)."""
+    return rec.get("ratio0") is not None or rec.get("p48_0") is not None
+
+
+def close_outlived(state, iid, rec):
+    """A listing still for sale FOLLOW_D days after it went up: it did not sell inside the window. With a model stamp
+    it gets a full closed record (out = "stale"), which the price calibration reads. Without one only counts are
+    kept - a full record for each of ~4,000 a day would not fit in the machine's memory: per card and first-seen day
+    (the sell-through pool and listings-per-day), per scam tier and signal (the scam table), and its photo (the
+    borrowed-photo check must still know the picture after the listing is forgotten). -> "record" or "count"."""
+    if stamped(rec):
+        close_listing(state, iid, rec, "stale", NOW)
+        return "record"
+    if comparable(rec):
+        days = state.setdefault("unsold", {}).setdefault(str(rec["card"]), {})
+        days[rec["first"][:10]] = days.get(rec["first"][:10], 0) + 1
+    if "tier" in rec:
+        sd = state.setdefault("scam_stale", {}).setdefault(TODAY, {"t": {}, "s": {}})
+        sd["t"][rec["tier"]] = sd["t"].get(rec["tier"], 0) + 1
+        for code in rec.get("scr", []):
+            sd["s"][code] = sd["s"].get(code, 0) + 1
+    k = img_key(rec.get("img"))
+    if k and rec.get("seller"):
+        state.setdefault("imgs", {})[k] = [rec["seller"], TODAY]
+    del state["open"][iid]
+    return "count"
+
+
 def presence_sweep(state):
     """Re-read the newest listings; return (ids present, oldest origin reached)."""
     horizon = NOW - timedelta(hours=PRESENCE_HOURS)
@@ -1488,6 +1528,8 @@ def score_listings(state):
         k = img_key(r.get("img"))
         if k and r.get("seller"):
             img_sellers[k].add(r["seller"])
+    for k, (sl, _) in (state.get("imgs") or {}).items():     # photos of listings that outlived 2 days (close_outlived)
+        img_sellers[k].add(sl)
     # seller bursts: listings >= $75 first seen in the last 24 h, and whether the seller has older history
     burst_n, prior = Counter(), set()
     for r in recs_all:
@@ -1565,6 +1607,11 @@ def scam_calib(state):
         t[out] += 1
         for code in r.get("scr", []):
             signals.setdefault(code, Counter())[out] += 1
+    for sd in (state.get("scam_stale") or {}).values():      # listings that outlived 2 days and kept no record
+        for tier, n in sd.get("t", {}).items():
+            tiers.setdefault(tier, Counter())["stale"] += n
+        for code, n in sd.get("s", {}).items():
+            signals.setdefault(code, Counter())["stale"] += n
     return {"tiers": {k: dict(v) for k, v in tiers.items()}, "signals": {k: dict(v) for k, v in signals.items()},
             "labels": SCAM_LABELS, "watch": SCAM_WATCH, "suspect": SCAM_SUSPECT}
 
@@ -1724,13 +1771,13 @@ def sell_price(floor, a, a_fast):
 
 def is_liquid(lam, st, conf=None, window_h=None):
     """P(at least one buyer inside the window) >= conf, i.e. lambda >= -ln(1 - conf) / T; and the measured
-    sell-through, once there is one, at least 50%."""
+    48-hour sell-through, once there is one, at least ST_MIN."""
     conf = CONFIDENCE if conf is None else conf
     window_h = SELL_WINDOW_H if window_h is None else window_h
     if not lam:
         return False
     lam_min = -math.log(1 - conf) / (window_h / 24.0)
-    return lam >= lam_min and (st is None or st >= 0.5)
+    return lam >= lam_min and (st is None or st >= ST_MIN)
 
 
 def lp_correction(state):
@@ -1954,7 +2001,9 @@ def compute_stats(state, cat, lp):
         book.sort(key=lambda r: r["_eff"])
         N = len(book)
         p = [r["_eff"] for r in book[:3]] + [None] * 3
-        new30 = sum(1 for r in opens[cid] + closed[cid] if comparable(r) and parse_ts(r["first"]) >= win_start)
+        unsold = (state.get("unsold") or {}).get(str(cid)) or {}     # outlived 2 days, no record kept: {first-seen day: n}
+        new30 = sum(1 for r in opens[cid] + closed[cid] if comparable(r) and parse_ts(r["first"]) >= win_start) \
+            + sum(n for d, n in unsold.items() if d >= win_start.date().isoformat())
         mu = round(new30 / D, 3)
         dos = round(N / lam, 1) if lam else None
         io_ = round(mu / lam, 2) if lam else None
@@ -1963,11 +2012,15 @@ def compute_stats(state, cat, lp):
         last10 = [nm_eq(r) for r in sold_sorted[-10:] if r["total"] is not None]
         smed, s80 = pct(last10, 0.5), pct(last10, 0.8)
         hrs = pct([r["hrs"] for r in sold_sorted[-10:]], 0.5)
-        # sell-through: of comparable listings first seen 7-37 days ago, share sold within 7 days
+        # sell-through: of comparable listings first seen 3-33 days ago, the share that sold within 48 h of going up
+        # (listings are only followed for 2 days now, so 48 h is the only horizon the data can answer)
         st_pool = [r for r in opens[cid] + closed[cid] if comparable(r)
-                   and 7 <= hours_between(parse_ts(r["first"]), NOW) / 24 <= STAT_WINDOW_D + 7]
-        st_sold = [r for r in st_pool if r.get("out") == "sold" and r["hrs"] <= 7 * 24]
-        st = round(len(st_sold) / len(st_pool), 3) if len(st_pool) >= 3 else None
+                   and ST_POOL_MIN_AGE_D <= hours_between(parse_ts(r["first"]), NOW) / 24 <= STAT_WINDOW_D + ST_POOL_MIN_AGE_D]
+        st_lo = (NOW - timedelta(days=STAT_WINDOW_D + ST_POOL_MIN_AGE_D)).date().isoformat()
+        st_hi = (NOW - timedelta(days=ST_POOL_MIN_AGE_D)).date().isoformat()
+        st_n = len(st_pool) + sum(n for d, n in unsold.items() if st_lo <= d <= st_hi)
+        st_sold = [r for r in st_pool if r.get("out") == "sold" and r["hrs"] <= FOLLOW_D * 24]
+        st = round(len(st_sold) / st_n, 3) if st_n >= 3 else None
         # --- pricing: the two anchors ---
         A, A_n, A_win, A_fast = anchor(sold_sorted, nm_eq)
         cred = credible(book, A, lam)
@@ -2241,7 +2294,15 @@ def build_live(state, cards, lp):
 # ---------------- housekeeping ----------------
 def prune(state):
     keep_from = NOW - timedelta(days=KEEP_CLOSED_D)
-    state["closed"] = [r for r in state["closed"] if parse_ts(r["closed"]) >= keep_from]
+    stale_from = NOW - timedelta(days=KEEP_STALE_D)
+    state["closed"] = [r for r in state["closed"] if parse_ts(r["closed"]) >= keep_from
+                       and (r.get("out") != "stale" or parse_ts(r["closed"]) >= stale_from)]
+    day_from = (NOW - timedelta(days=STAT_WINDOW_D + ST_POOL_MIN_AGE_D + 1)).date().isoformat()
+    state["unsold"] = {c: d2 for c, d2 in ((c, {d: n for d, n in days.items() if d >= day_from})
+                                           for c, days in (state.get("unsold") or {}).items()) if d2}
+    state["scam_stale"] = {d: v for d, v in (state.get("scam_stale") or {}).items() if d >= keep_from.date().isoformat()}
+    img_from = (NOW - timedelta(days=30)).date().isoformat()
+    state["imgs"] = {k: v for k, v in (state.get("imgs") or {}).items() if v[1] >= img_from}
     seen_from = NOW - timedelta(hours=48)
     state["seen"] = {k: v for k, v in state["seen"].items() if parse_ts(v) >= seen_from}
     um_from = NOW - timedelta(hours=48)

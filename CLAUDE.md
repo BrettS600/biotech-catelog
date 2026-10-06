@@ -294,6 +294,28 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   often such listings were pulled. A `dup` listing never alerts. Suspects stay out of all statistics. He turned down
   a separate, higher minimum profit for suspects. Auction alerts now carry the score's seller signals (fb0 / fbq /
   top / est) and respect the watch switch. The Alerts tab's checkboxes are drawn as on/off switches.
+- THE 2-DAY RULE (2026-10-06; Brett: "I really only care about the cards that sell within 2 days"). Measured that
+  day: 4,900 calls used of 5,000 (discovery + keyword page 1,730, re-reads 760, confirmations 1,370, auctions 420,
+  identity / printing / enrichment 590), 3,270 listings flagged vanished a day, 13,300 waiting. Now a listing is
+  followed for its first 2 days only (`es.FOLLOW_D`): re-reads every 3 h on day 1 and every 6 h to day 2.5
+  (`REREAD_MAX_AGE_D`; the extra half day is what proves a listing was still up at 48 h), and `close_stale()` settles
+  everything older than `STALE_D` = 2.6 days with no lookups: flagged inside its first 2 days -> stays in the
+  confirmation queue; `survived()` (seen for sale at 48 h or later) -> `es.close_outlived()` = "stale"; never seen
+  again after its last re-read -> removed, counted in nothing. Two exceptions he agreed to: a card's cheapest copies
+  (its `cred` list and the first 3 of its `book`) stay open up to `RETAIN_MAX_D` 14 days and the existing book checks
+  watch them on anchored cards; suspects get one lookup at `SUSPECT_LAST_D` 6 days (`suspect_queue`). A "stale"
+  record is kept in full only when the listing carries a model stamp (ratio0 / p48_0) and only 31 days - 4,000 full
+  records a day would not fit in the 1 GB droplet. The rest leave counts: `state["unsold"][card][first-seen day]`
+  (feeds mu and the sell-through pool), `state["scam_stale"][day]` (the scam table's stale column; `scam_calib` adds
+  it), `state["imgs"]` (photo -> seller, so a borrowed photo is still caught). CONSEQUENCE HANDLED IN THE GATE:
+  `is_liquid` also required a 7-day sell-through >= 50%, which the data can no longer answer; sell-through is now the
+  share sold within 48 h (pool: comparable listings first seen 3-33 days ago), and the bar is `ST_MIN` 0.20 - 50% in
+  7 days restated at a steady selling rate is 18% in 2 (HOT_MIN_SELLTHRU 0.80 -> 0.35 likewise). The page mirrors it
+  (`isLiquid`, st >= 20). 0.20 is a translation, not a measurement: the hourly "Liquidity:" log line shows how the
+  fast-by-sales cards fare against it - revisit once there is a month of 48-hour data. Known costs he accepted:
+  sales of copies older than 2 days go unrecorded (lambda, Sold 30d and the anchor lean to fast sales), price drops
+  after day 2 are unseen, "Active / Listed now" = fresh copies + the retained cheapest. NOT built (he was offered
+  them, did not ask): checking only cards with enough PriceCharting volume; waiting for a second miss before a lookup.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
