@@ -1145,7 +1145,7 @@ function alRender() {
 function alWrong(a) {
   const w = (a && a.wrong) || [];
   const lr = (a && a.learned) || {words: [], titles: 0, sellers: 0};
-  const learned = '<br><span class="dim">Learned so far: ' + lr.titles + ' title' + (lr.titles === 1 ? '' : 's') + ' never filed under that card again, ' + lr.sellers + ' seller-and-card pair' + (lr.sellers === 1 ? '' : 's') + ' held back, warning words: ' + (lr.words.length ? lr.words.map(x => '<b>' + esc(x[0]) + '</b> (' + x[1] + ')').join(', ') : 'none yet (a word needs to be in 3 of your mismatches and rare everywhere else)') + '.</span>';
+  const learned = '<br><span class="dim">Learned so far: ' + lr.titles + ' seller\'s title' + (lr.titles === 1 ? '' : 's') + ' never filed under that card again, ' + lr.sellers + ' seller-and-card pair' + (lr.sellers === 1 ? '' : 's') + ' held back, warning words: ' + (lr.words.length ? lr.words.map(x => '<b>' + esc(x[0]) + '</b> (' + x[1] + ')').join(', ') : 'none yet (a word needs to be in 3 of your mismatches and rare everywhere else)') + '.</span>';
   if (!w.length) return 'None yet. A "No" on the phone for a listing the scam screen had not flagged, or a Mismatch tick on the Raw Data tab, lands here.';
   const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
   return '<b>' + w.length + '</b> listing' + (w.length === 1 ? '' : 's') + ' you said did not show the matched card.' + learned +
