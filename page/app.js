@@ -418,7 +418,7 @@ function sellPrice(floor, A, Afast, S) {
 }
 // liquidity: at least one buyer inside the window at this confidence, i.e. lambda >= -ln(1 - conf) / T days
 const lamMin = S => -Math.log(1 - S.conf) / (S.window / 24);
-const isLiquid = (lam, st, S) => !!lam && lam >= lamMin(S) && (st == null || st >= 50);
+const isLiquid = (lam, st, S) => !!lam && lam >= lamMin(S) && (st == null || st >= 25);   // st = % sold within 48 h (es.ST_MIN)
 function decide(c, S) {
   const lam = c.lam, A = c.A, cred = c.cred || [];
   const L = cred.length ? cred[0][1] : null;
