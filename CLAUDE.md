@@ -395,9 +395,12 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   The page shows a tick at once from `MARKS` until `live["alert"]["mark_t"]` passes it. A phone "No" on a clean
   listing does the same through `note_wrong(v, e, state)`.
 - THE MATCHER LEARNS FROM THOSE MARKS (ebay_sweep.py, "learning" block), three rules, narrow to broad:
-  (1) the marked listing itself; (2) `bad_titles()` - the same title is never filed under that card again (checked
-  in `sweep()`, it goes to the unmatched list as "learned: ..."), and the same seller's other listings of that card
-  get `rec["lrn"]`; (3) warning words - a word in >= LEARN_MIN (3) of his mismatches, not among the matched card's own
+  (1) the marked listing itself; (2) `bad_titles()` - the SAME SELLER's same title is never filed under that card
+  again (checked in `sweep()`, it goes to the unmatched list as "learned: ..."), and the same seller's other
+  listings of that card get `rec["lrn"]`. The title rule was any-seller for a few hours and Brett had it narrowed
+  (2026-10-06): eBay's listing tool writes many titles from the item specifics, so a genuine copy from another
+  seller can carry the very words of a mislabelled one. A mark with no seller on record (auctions) teaches no title.
+  A phone "No" now stores the listing's whole title, not the alert log's first 70 characters; (3) warning words - a word in >= LEARN_MIN (3) of his mismatches, not among the matched card's own
   name / set words, in no title he confirmed as right, in <= 2% of all titles on file and >= 10x as common among his
   mismatches as overall. `apply_learning()` stamps `rec["lrn"]` each cycle on the last day's open listings and
   `verdict()` returns "learned" (never a hit; statistics untouched). `live["alert"]["learned"]` shows the counts on

@@ -913,10 +913,8 @@ def read_requests(state):
                             continue                 # "same card" never replaces an answer already given
                         e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
                         if dec["d"] == "no" and "tot" in e:
-                            rec = find_rec(state, e["i"])
-                            if rec is not None and rec.get("seller"):
-                                e["sl"] = rec["seller"]
-                            note_wrong(v, e, state)
+                            rec = find_rec(state, e["i"])       # the listing itself: its seller and its whole title
+                            note_wrong(v, dict(e, sl=(rec or {}).get("seller"), ti=(rec or {}).get("title") or e.get("ti")), state)
                 continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                 continue

@@ -911,7 +911,7 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
     if not quiet:
         log(f"Sweep: listings since {ts(cutoff)}")
     seen_now, new, matched, unmatched = set(), 0, 0, 0
-    learned_bad = bad_titles(state)                          # titles Brett marked as wrong matches, by card
+    learned_bad = bad_titles(state)                          # (seller, title) pairs Brett marked as wrong matches, by card
     if queries is None:
         queries = ["aspect"] if DRY_RUN else list(QUERIES)
     for qname in queries:
@@ -940,9 +940,9 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
                         state.setdefault("pending", {})[iid] = rec
                     continue
                 c = cat.cards[ci]
-                if c["id"] in learned_bad.get(title_key(rec["title"]), ()):     # he marked this very title a mismatch
+                if c["id"] in learned_bad.get((rec.get("seller"), title_key(rec["title"])), ()):   # this seller, this very title
                     unmatched += 1
-                    state["unmatched"].append([ts(NOW), iid, rec["title"], rec["total"], rec["url"], "learned: you marked this title a wrong match for " + c["name"]])
+                    state["unmatched"].append([ts(NOW), iid, rec["title"], rec["total"], rec["url"], "learned: you marked this seller's same title a wrong match for " + c["name"]])
                     continue
                 matched += 1
                 parsed = parse_number(rec["title"])
@@ -1194,8 +1194,8 @@ def wrong_card(rec):
 # He marks a listing "mismatch" on the Raw Data tab, or answers "No, not the same card" on the phone. Each mark is kept
 # in state["vps"]["wrong"] and teaches three things, from the narrowest and surest to the broadest:
 #   1. the listing itself leaves the statistics and can never be a hit (rec["um"], see wrong_card / verdict);
-#   2. the same title is never filed under that card again (sellers relist word for word), and the same seller's
-#      other listings of that card are held back as "learned" instead of passing;
+#   2. the same seller's same title is never filed under that card again (sellers relist word for word), and the
+#      same seller's other listings of that card are held back as "learned" instead of passing;
 #   3. a WORD that keeps turning up in his mismatches and hardly anywhere else becomes a warning word: a listing whose
 #      title carries it is held back the same way. The bar is deliberately high, because a handful of marks is thin
 #      evidence: LEARN_MIN of his mismatches must contain the word (the matched card's own name and set words do not
@@ -1219,16 +1219,20 @@ def title_words(title):
 
 
 def bad_titles(state):
-    """{title key: {card ids}} for the titles he marked as mismatches."""
+    """{(seller, title key): {card ids}} for the listings he marked as mismatches. The SAME SELLER's same title only
+    (Brett, 2026-10-06): many titles are written by eBay's own listing tool from the item specifics, so another
+    seller's genuine copy can carry the identical words - "Charizard 4/102 Base Set Holo Rare Pokemon TCG English
+    120 HP Stage 2 Arita" was a 30th Celebration reprint from one seller and is the real card from the next. A mark
+    with no seller on record (an auction, an old phone answer) teaches no title at all."""
     out = {}
     for w in (state.get("vps") or {}).get("wrong", []):
-        if w.get("ti") and w.get("card") is not None:
-            out.setdefault(title_key(w["ti"]), set()).add(w["card"])
+        if w.get("ti") and w.get("sl") and w.get("card") is not None:
+            out.setdefault((w["sl"], title_key(w["ti"])), set()).add(w["card"])
     return out
 
 
 def learn_tables(state, cat):
-    """-> {"titles": {key: {cards}}, "sellers": {(seller, card)}, "words": {word: mismatches containing it}}"""
+    """-> {"titles": {(seller, key): {cards}}, "sellers": {(seller, card)}, "words": {word: mismatches containing it}}"""
     v = state.get("vps") or {}
     wrong = v.get("wrong", [])
     out = {"titles": bad_titles(state), "sellers": {(w["sl"], w["card"]) for w in wrong if w.get("sl") and w.get("card") is not None}, "words": {}}
