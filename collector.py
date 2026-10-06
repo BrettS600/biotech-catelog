@@ -817,17 +817,59 @@ def help_edit(v, msg, t):
     log(f"Site text: {key} rewritten on the site ({n} piece{'s' if n != 1 else ''})")
 
 
-def note_wrong(v, e):
-    """Brett said No, not the same card, to an alert on a listing the scam screen had not flagged: a wrong match by
-    the title matcher (or a listing whose title lies about its photo). Kept apart from the 300-alert log, as test
-    cases to refine the matcher against. A No on a watch / suspect listing is not kept: there it may mean "scam"."""
-    if e.get("tr", "clean") in ("watch", "suspect"):
-        return
+def note_wrong(v, e, state=None, forced=False):
+    """Brett said No, not the same card, to an alert on a listing the scam screen had not flagged - or ticked
+    "Mismatch" on the Raw Data tab (forced: that says mismatch whatever the scam tier). A wrong match by the title
+    matcher, or a listing whose title lies about its photo. Kept apart from the 300-alert log: these are what the
+    matcher learns from (es.learn_tables). A phone No on a watch / suspect listing is not kept: there it may mean
+    "scam". -> True when it counts as a mismatch."""
+    if not forced and e.get("tr", "clean") in ("watch", "suspect"):
+        return False
     wrong = v.setdefault("wrong", [])
-    if any(w["i"] == e["i"] for w in wrong):
-        return
-    wrong.append({"t": e.get("dt") or es.ts(es.NOW), "i": e["i"], "ti": e.get("ti"), "u": e.get("u"), "c": e.get("c"),
-                  "cs": e.get("cs"), "card": e.get("card"), "kd": e.get("kd"), "tot": e.get("tot")})
+    if not any(w["i"] == e["i"] for w in wrong):
+        wrong.append({"t": e.get("dt") or es.ts(es.NOW), "i": e["i"], "ti": e.get("ti"), "u": e.get("u"), "c": e.get("c"),
+                      "cs": e.get("cs"), "card": e.get("card"), "kd": e.get("kd"), "tot": e.get("tot"), "sl": e.get("sl")})
+    if state is not None:
+        set_um(state, e["i"], True)
+    return True
+
+
+def find_rec(state, iid):
+    return state["open"].get(iid) or next((r for r in state["closed"] if r["id"] == iid), None)
+
+
+def set_um(state, iid, on):
+    """Put the "marked a mismatch by Brett" flag on everything that knows this listing: the listing (which takes it
+    out of the statistics and stops it being a hit), its alert, and its auction record."""
+    v = state["vps"]
+    rec = find_rec(state, iid)
+    if rec is not None:
+        if on:
+            rec["um"] = 1
+        else:
+            rec.pop("um", None)
+    for e in v.get("alert_log", []) + v.get("au_hist", []):
+        if e["i"] == iid:
+            if on:
+                e["um"] = 1
+            else:
+                e.pop("um", None)
+    return rec
+
+
+def mark_listing(state, iid, on, t):
+    """The Mismatch tick on the site (Raw Data rows, the auction view, the list behind the hit total)."""
+    v = state["vps"]
+    rec = set_um(state, iid, on)
+    if on:
+        e = next((x for x in v.get("alert_log", []) if x["i"] == iid), None) or next((x for x in v.get("au_hist", []) if x["i"] == iid), None) or {}
+        note_wrong(v, {"i": iid, "dt": es.ts(es.NOW), "ti": (rec or {}).get("title") or e.get("ti"), "u": (rec or {}).get("url") or e.get("u"),
+                       "c": e.get("c"), "cs": e.get("cs"), "card": (rec or {}).get("card", e.get("card")), "kd": e.get("kd") or "marked on the site",
+                       "tot": (rec or {}).get("total", e.get("tot")), "sl": (rec or {}).get("seller")}, forced=True)
+    else:
+        v["wrong"] = [w for w in v.get("wrong", []) if w["i"] != iid]
+    v["mark_t"] = t
+    log(f"Mismatch mark {'set' if on else 'removed'} on the site ({len(v.get('wrong', []))} wrong matches on file)")
 
 
 def wrong_rows(v):
@@ -871,7 +913,10 @@ def read_requests(state):
                             continue                 # "same card" never replaces an answer already given
                         e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
                         if dec["d"] == "no" and "tot" in e:
-                            note_wrong(v, e)
+                            rec = find_rec(state, e["i"])
+                            if rec is not None and rec.get("seller"):
+                                e["sl"] = rec["seller"]
+                            note_wrong(v, e, state)
                 continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                 continue
@@ -893,6 +938,8 @@ def read_requests(state):
             log("Alerts tab: test alert requested" + ("" if NTFY_TOPIC else " - but no channel is set on this machine"))
         elif msg.get("type") == "help":
             help_edit(v, msg, t)
+        elif msg.get("type") == "mark" and msg.get("i"):
+            mark_listing(state, str(msg["i"])[:60], bool(msg.get("v")), t)
 
 
 def quiet_now(cfg):
@@ -1300,7 +1347,7 @@ def au_rows(state):
     return [[r["i"], r["t"], r.get("card"), r.get("ti"), r.get("u"), r.get("bid"), r.get("ship"), r.get("nb"), r.get("end"),
              r.get("tc"), r.get("fb"), r.get("pct"), r.get("kd"), r.get("s"), (r.get("net") or [None, None])[0],
              (r.get("net") or [None, None])[1], r.get("tier"), r.get("sc"), r.get("scr") or [], r.get("ph"), r.get("fin"),
-             r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0")] for r in v["au_hist"]]
+             r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0"), 1 if r.get("um") else 0] for r in v["au_hist"]]
 
 
 def auction_finish(state, cards, n):
@@ -1559,6 +1606,8 @@ def cycle(state, cat, sched, counters):
         es.prune(state)
     es.stamp_pc(state, cat)                                  # listings priced far from PriceCharting = wrong matches
     es.score_listings(state)
+    learned = es.learn_tables(state, cat)                    # what Brett's mismatch marks teach (titles, sellers, words)
+    es.apply_learning(state, learned)
     lp = es.lp_correction(state)
     es.update_daily(state, lp)
     cards = es.compute_stats(state, cat, lp)
@@ -1581,7 +1630,11 @@ def cycle(state, cat, sched, counters):
     except Exception as e:
         live["acct"]["rows"], live["acct"]["note"] = [], f"ledger failed: {str(e)[:120]}"
     # every alert ever logged, compact, for "what every hit would have netted": [when, promised profit, kind, answer]
-    live["alert"]["all"] = [[e["t"], e.get("p"), e.get("kd"), e.get("dec")] for e in v.get("alert_log", [])]
+    live["alert"]["all"] = [[e["t"], e.get("p"), e.get("kd"), e.get("dec"), e["i"], e.get("c"), e.get("u"), e.get("tot"),
+                             1 if e.get("um") else 0, e.get("ti")] for e in v.get("alert_log", [])]
+    live["alert"]["mark_t"] = v.get("mark_t", 0)             # the page shows a tick at once; this confirms it arrived
+    live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
+                                "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
     if not v.get("au_backfilled"):
         au_backfill(state, cat)
         v["au_backfilled"] = 1
@@ -1594,7 +1647,7 @@ def cycle(state, cat, sched, counters):
     state_raw = save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0))         # a change on the Alerts tab is published at once
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0))         # a change on the Alerts tab is published at once
     changed = sig != v.get("pub_sig")
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t

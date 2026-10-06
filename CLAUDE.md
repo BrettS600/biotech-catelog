@@ -380,6 +380,30 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   an edit shows on every device and survives rebuilds. Until the collector confirms (help.t >= the edit's time) the
   page shows it from `PEND`. "Restore the original" sends `del`. The public log names the key, never the text. The
   built-in wording in help.js stays the fallback - when help.js changes, an entry he has edited keeps HIS text.
+- HIT TOTAL vs THE TABLE (2026-10-06 evening). Brett saw "$289.48 from 7 hits" over a table of 4. Both were right:
+  the total counts every hit ALERTED in the period (`live["alert"]["all"]`), the table shows the last 24 hours judged
+  as they stand NOW. Of that day's 7: 4 still passed, 2 had turned "not liquid" since their alert (Blastoise #2,
+  Team Rocket's Mewtwo ex #231 at +$116 - most of the total, and probably a wrong match), 1 was first seen more than
+  24 h earlier. The line now reads "$T = N hits from Buy It Now ($A) + X hits from auctions ($B, at the final
+  price) · M left out as mismatches · Show them", and `openHits()` lists each with where it stands in the table now.
+  Auction hits = alerted auctions whose close was at or under Max buy, valued at Profit at final.
+- MISMATCH MARKS (same evening, his request). Raw Data has a "Mismatch" column after Row (`umCell`); ticking sends a
+  signed `{type: "mark", i, v}`; `mark_listing()` sets `rec["um"]` and the same flag on the alert-log and au_hist
+  entries, and files the listing in `v["wrong"]` (forced, whatever the scam tier). `um` makes `wrong_card()` true -
+  out of the book, sold prices, lambda, trends - and `verdict()` returns "mismatch: marked by you" first of all.
+  The row stays, tinted (`tr.umm`), and shows even under "Only show hits". Live row fields 31 (um) and 32 (lrn).
+  The page shows a tick at once from `MARKS` until `live["alert"]["mark_t"]` passes it. A phone "No" on a clean
+  listing does the same through `note_wrong(v, e, state)`.
+- THE MATCHER LEARNS FROM THOSE MARKS (ebay_sweep.py, "learning" block), three rules, narrow to broad:
+  (1) the marked listing itself; (2) `bad_titles()` - the same title is never filed under that card again (checked
+  in `sweep()`, it goes to the unmatched list as "learned: ..."), and the same seller's other listings of that card
+  get `rec["lrn"]`; (3) warning words - a word in >= LEARN_MIN (3) of his mismatches, not among the matched card's own
+  name / set words, in no title he confirmed as right, in <= 2% of all titles on file and >= 10x as common among his
+  mismatches as overall. `apply_learning()` stamps `rec["lrn"]` each cycle on the last day's open listings and
+  `verdict()` returns "learned" (never a hit; statistics untouched). `live["alert"]["learned"]` shows the counts on
+  the Wrong matches card. HONEST LIMITS told to him: a mismatch whose title was right and whose photo was wrong
+  (the Charizard 11/108 one) teaches rules 1-2 only; rule 3 needs three marks sharing a rare word, so it is slow by
+  design; there is no button yet to drop a learned word other than unticking the marks behind it.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count

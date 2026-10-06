@@ -911,6 +911,7 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
     if not quiet:
         log(f"Sweep: listings since {ts(cutoff)}")
     seen_now, new, matched, unmatched = set(), 0, 0, 0
+    learned_bad = bad_titles(state)                          # titles Brett marked as wrong matches, by card
     if queries is None:
         queries = ["aspect"] if DRY_RUN else list(QUERIES)
     for qname in queries:
@@ -938,8 +939,12 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
                                     "tcond": title_condition(rec["title"])})
                         state.setdefault("pending", {})[iid] = rec
                     continue
-                matched += 1
                 c = cat.cards[ci]
+                if c["id"] in learned_bad.get(title_key(rec["title"]), ()):     # he marked this very title a mismatch
+                    unmatched += 1
+                    state["unmatched"].append([ts(NOW), iid, rec["title"], rec["total"], rec["url"], "learned: you marked this title a wrong match for " + c["name"]])
+                    continue
+                matched += 1
                 parsed = parse_number(rec["title"])
                 if parsed and parsed[3] is not None and not parsed[0] and how.startswith("number+set") and score >= 0.85:
                     d = state["denoms"].setdefault(c["set"], {})          # the set's printed size, learned from titles
@@ -1181,8 +1186,97 @@ def seller_bar(rec):
 
 
 def wrong_card(rec):
-    """An identity check says this listing is probably not the card it was matched to."""
-    return bool(rec.get("pcm")) or rec.get("idv") == "conflict"
+    """An identity check says this listing is probably not the card it was matched to - or Brett did (rec["um"])."""
+    return bool(rec.get("pcm")) or rec.get("idv") == "conflict" or bool(rec.get("um"))
+
+
+# ---------------- learning from the listings Brett marks as mismatches (2026-10-06) ----------------
+# He marks a listing "mismatch" on the Raw Data tab, or answers "No, not the same card" on the phone. Each mark is kept
+# in state["vps"]["wrong"] and teaches three things, from the narrowest and surest to the broadest:
+#   1. the listing itself leaves the statistics and can never be a hit (rec["um"], see wrong_card / verdict);
+#   2. the same title is never filed under that card again (sellers relist word for word), and the same seller's
+#      other listings of that card are held back as "learned" instead of passing;
+#   3. a WORD that keeps turning up in his mismatches and hardly anywhere else becomes a warning word: a listing whose
+#      title carries it is held back the same way. The bar is deliberately high, because a handful of marks is thin
+#      evidence: LEARN_MIN of his mismatches must contain the word (the matched card's own name and set words do not
+#      count), no listing he confirmed as the right card may contain it, at most LEARN_BG_MAX of all tracked titles
+#      may contain it, and it must be LEARN_LIFT times as common among his mismatches as among all titles.
+# Rule 3 holds listings back from being hits; it does not touch the statistics. A mismatch whose title was right and
+# whose PHOTO was wrong teaches nothing here - the words in it are all the right card's - and that is correct.
+LEARN_MIN = 3
+LEARN_BG_MAX = 0.02
+LEARN_LIFT = 10
+_WORD = re.compile(r"[a-z][a-z0-9'-]{2,}")
+_bg = {"hour": None, "n": 0, "df": {}}
+
+
+def title_key(title):
+    return " ".join(re.findall(r"[a-z0-9]+", (title or "").lower()))
+
+
+def title_words(title):
+    return set(_WORD.findall((title or "").lower()))
+
+
+def bad_titles(state):
+    """{title key: {card ids}} for the titles he marked as mismatches."""
+    out = {}
+    for w in (state.get("vps") or {}).get("wrong", []):
+        if w.get("ti") and w.get("card") is not None:
+            out.setdefault(title_key(w["ti"]), set()).add(w["card"])
+    return out
+
+
+def learn_tables(state, cat):
+    """-> {"titles": {key: {cards}}, "sellers": {(seller, card)}, "words": {word: mismatches containing it}}"""
+    v = state.get("vps") or {}
+    wrong = v.get("wrong", [])
+    out = {"titles": bad_titles(state), "sellers": {(w["sl"], w["card"]) for w in wrong if w.get("sl") and w.get("card") is not None}, "words": {}}
+    if len(wrong) < LEARN_MIN:
+        return out
+    hour = ts(NOW)[:13]
+    if _bg["hour"] != hour:                                  # how common each word is across every title on file
+        df, n = Counter(), 0
+        for r in list(state["open"].values()) + state["closed"]:
+            n += 1
+            df.update(title_words(r.get("title")))
+        _bg.update(hour=hour, n=n, df=df)
+    bad = Counter()
+    for w in wrong:
+        c = cat.by_id.get(w.get("card")) if w.get("card") is not None else None
+        own = title_words(" ".join([c["name"], c["set"], c.get("variant") or ""])) if c else set()
+        bad.update(title_words(w.get("ti")) - own)
+    good = set()
+    for e in v.get("alert_log", []):
+        if e.get("dec") in ("nm", "lp", "yes") and not e.get("um"):
+            good |= title_words(e.get("ti"))
+    n = max(1, _bg["n"])
+    for word, k in bad.items():
+        share = _bg["df"].get(word, 0) / n
+        if k >= LEARN_MIN and word not in good and share <= LEARN_BG_MAX and k / len(wrong) >= LEARN_LIFT * share:
+            out["words"][word] = k
+    return out
+
+
+def apply_learning(state, tables):
+    """Stamp the last day's open listings with rec["lrn"] = why it is held back (rules 2 and 3), or clear it."""
+    cut = ts(NOW - timedelta(hours=24))                      # the Raw Data window: the only listings a verdict is shown for
+    for rec in state["open"].values():
+        if rec["first"] < cut or rec.get("um"):
+            rec.pop("lrn", None)
+            continue
+        why = None
+        if rec.get("seller") and (rec["seller"], rec.get("card")) in tables["sellers"]:
+            why = "this seller's earlier listing of this card was a wrong match"
+        elif tables["words"]:
+            hit = title_words(rec.get("title")) & tables["words"].keys()
+            if hit:
+                word = max(hit, key=lambda x: tables["words"][x])
+                why = f'"{word}" was in {tables["words"][word]} of your wrong matches'
+        if why:
+            rec["lrn"] = why
+        else:
+            rec.pop("lrn", None)
 
 
 def comparable(rec):
@@ -2197,10 +2291,14 @@ def verdict(rec, cs):
     if rec["total"] is None:
         return "no price", None
     allin = round(rec["total"] + (rec["item"] or 0) * TAX, 2)
+    if rec.get("um"):                                # Brett marked it: not the card it was matched to
+        return "mismatch: marked by you", allin
     if rec.get("n_img") is not None and rec["n_img"] < 2:
         return "fewer than 2 photos", allin
     if rec.get("tier") == "suspect":
         return "suspect", allin
+    if rec.get("lrn"):                               # held back by what his earlier marks taught (apply_learning)
+        return "learned", allin
     if rec.get("pcm"):                               # far from PriceCharting's price: treated as a wrong match
         return ("mismatch: too cheap" if rec["pcm"] == "low" else "mismatch: too high"), allin
     if not cs or cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
@@ -2278,7 +2376,8 @@ def build_live(state, cards, lp):
                      r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", []),   # 22-25: photos, tier, score, signals
                      s_own,                                                                      # 26: this listing's own sell price
                      r.get("pc"), r.get("pcm") or "",             # 27-28: PriceCharting ungraded price, mismatch flag (low/high)
-                     r.get("idv") or "", r.get("idr") or []])     # 29-30: item-specifics check (ok/conflict/none), what it found
+                     r.get("idv") or "", r.get("idr") or [],      # 29-30: item-specifics check (ok/conflict/none), what it found
+                     1 if r.get("um") else 0, r.get("lrn") or ""])  # 31: marked a mismatch by Brett; 32: held back by learning, and why
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
