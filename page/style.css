@@ -74,6 +74,7 @@
   .dim { color:var(--muted); }
   .up { color:var(--up); } .down { color:var(--down); }
   .more { display:block; margin:14px auto 30px; padding:9px 18px; font:inherit; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
+  .more[hidden] { display:none; }   /* display:block above would otherwise show "Show more (0 left)" */
   footer { padding:0 18px 24px; color:var(--muted); font-size:12px; }
   .tbtn { font:inherit; font-size:12px; padding:2px 9px; border:1px solid var(--line); border-radius:12px; background:var(--head); color:var(--link); cursor:pointer; }
   .tbtn:hover { border-color:var(--link); }
