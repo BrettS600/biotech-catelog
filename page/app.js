@@ -107,11 +107,11 @@ const TABLES = {
   er: {rows: () => AU_ON() ? (LIVE.au || []) : LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}],   // columns added over time, in order (see makeTable)
-       extra: r => r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
-       rowClass: r => r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}],   // columns added over time, in order (see makeTable)
+       extra: r => r.um ? true : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
+       rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
-       row: r => r.au ? auRow(r) : cells4(r) +
+       row: r => r.au ? auRow(r) : umCell(r) + cells4(r) +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
       '<td class="num auc"></td><td class="num auc"></td>' +
@@ -149,13 +149,14 @@ function auRows(live) {
   const margin = Math.min(0.5, Math.max(0, c.margin / 100)), tax = Math.min(0.15, Math.max(0, c.tax / 100)), now = Date.now();
   const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
   return A.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((a, i) => {
-    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0] = a;
+    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag] = a;
     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {};
     const lp = dec === 'lp' || (dec !== 'nm' && tc === 'LP'), net = lp ? netLP : netNM;
     const maxbuy = net == null ? null : r2(net / (1 + margin)), sh = ship == null ? 0 : ship;
     const sold = fst === 'sold' && fin != null, ftot = sold ? r2(fin + sh) : null, fall = sold ? r2(fin + sh + fin * tax) : null;
-    const res = fst === 'nobids' ? 'no bids' : fst === 'gone' ? 'no result' : !sold ? (end && now < Date.parse(end) + 9e5 ? 'not finished' : 'no result')
+    const res0 = fst === 'nobids' ? 'no bids' : fst === 'gone' ? 'no result' : !sold ? (end && now < Date.parse(end) + 9e5 ? 'not finished' : 'no result')
       : maxbuy == null ? 'no result' : fall <= maxbuy ? 'PASS' : 'over max buy';
+    const um = umOf(iid, umFlag), res = um ? 'mismatch: marked by you' : res0;
     const pc = base[6] == null ? null : base[6];
     const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', r1((now - Date.parse(t)) / 36e5), ti || '', sold ? fin : null, ship, ftot, fall,
       cs.A != null ? cs.A : null, sold && cs.A ? r1((ftot / cs.A - 1) * 100) : null, maxbuy, res, tc || 'UNK', false, fb, pct,
@@ -165,7 +166,7 @@ function auRows(live) {
       tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], t,
       pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[5] == null ? null : r1(base[5] / 12), cs.k != null ? cs.k : null,
       bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
-    row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res};
+    row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um;
     return row;
   });
 }
@@ -174,8 +175,9 @@ function auRow(r) {
   const said = x.dec ? ' Your answer on the phone: ' + ({nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No'}[x.dec] || x.dec) + '.' : '';
   const tip = {'PASS': 'It closed at or under your Max buy: a bid of your max might have won it, unless the winner\'s hidden maximum was above yours.',
                'over max buy': 'It closed above your Max buy: your max would not have won it.', 'no bids': 'The auction ended without a bid.',
-               'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.'}[x.res] || '';
-  return (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') +
+               'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.',
+               'mismatch: marked by you': 'You marked this auction as not the card it was matched to. It is left out of the hit total. Untick Mismatch to undo.'}[x.res] || '';
+  return umCell(r) + (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') +
     '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
     '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
     '<td class="num auc"' + (x.old ? ' title="An alert from before October 6: worked back from the total the alert recorded"' : '') + '>' + (r[42] != null ? fmtMoney(r[42]) + (x.nb != null ? ' <span class="dim">' + x.nb + ' bid' + (x.nb === 1 ? '' : 's') + '</span>' : '') : x.tot0 != null ? fmtMoney(x.tot0) + ' <span class="dim">with shipping</span>' : dash) + '</td>' +
@@ -189,7 +191,7 @@ function auRow(r) {
     '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + money(r[13]) + (r[28] ? ' <span class="dim">' + (/^Lead/.test(r[28]) ? 'PC' : 'LP') + '</span>' : '') + '</td>' +
     '<td class="num" title="Worst case if you win: you pay your whole Max buy">' + signed(r[24]) + '</td><td class="num" title="Worst case if you win: your margin">' + fmtPct(r[25]) + '</td>' +
     '<td class="num auc" title="Best case: at the price it closed at">' + signed(r[44]) + '</td><td class="num auc" title="Best case: at the price it closed at">' + fmtPct(r[45]) + '</td>' +
-    '<td><span title="' + esc(tip + said) + '">' + (x.res === 'PASS' ? badge('PASS', 'pass') : '<span class="dim">' + esc(x.res) + '</span>') + (x.dec === 'no' ? ' <span class="dim">· you said No</span>' : '') + '</span></td>' +
+    '<td><span title="' + esc(tip + said) + '">' + (x.res === 'PASS' ? badge('PASS', 'pass') : r.um ? badge('mismatch \u2717', 'warn') : '<span class="dim">' + esc(x.res) + '</span>') + (x.dec === 'no' ? ' <span class="dim">· you said No</span>' : '') + '</span></td>' +
     '<td>' + riskCell(r) + '</td>' +
     '<td class="num">' + (r[32] === 99 ? dash : r[32]) + '</td>' +
     '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td><td>' + dash + '</td>' +
@@ -232,6 +234,8 @@ function verdictCell(r) {
   }
   if (v === 'LEAD') return tip((r[28] || 'Lead: priced from PriceCharting, not from eBay sales') + '. ' + (r[38] === 'ok' ? 'Item specifics agree with the matched card.' : 'Item specifics not confirmed.') + ' A lead is not a hit: check the photos and the condition first', badge('LEAD' + (r[38] === 'ok' ? ' ✓' : ''), 'hot'));
   if (v === 'ID conflict') return tip('passes on price, but the item specifics describe another card: ' + why, badge('ID conflict', 'warn'));
+  if (v === 'mismatch: marked by you') return tip('You marked this listing as not the card it was matched to. It is out of the statistics and out of the hit total, and the matcher learns from it. Untick Mismatch to undo.', badge('mismatch \u2717', 'warn'));
+  if (v === 'learned') return tip('Held back by what your earlier mismatch marks taught: ' + (r.lrn || '') + '. It cannot be a hit. If it is the right card after all, the mark that taught this was the wrong one to make.', badge('learned', 'watch'));
   if (v === 'mismatch: too cheap') return tip('under ' + pcPct('pcLow', 0.4) + '% of the PriceCharting price: treated as a wrong match (another printing or language, a lot, a fake - far more often than a bargain). Never a hit, left out of the statistics; check it by hand', badge('mismatch ↓', 'watch'));
   if (v === 'mismatch: too high') return tip('over ' + pcPct('pcHigh', 3) + '% of the PriceCharting price: treated as a wrong match and left out of the statistics', badge('mismatch ↑'));
   if (v === 'review') return tip('under 45% of the anchor: more often misidentified, damaged or fake than a bargain - check the photos and the seller', badge('review', 'watch'));
@@ -283,14 +287,37 @@ function rvSummary() {
       ' · cash tied up in unsold cards now: <b>' + fmtMoneyPlain(a.tied || 0) + '</b>';
 }
 // Raw Data: what the hits of a period promised, had every one been bought
+function hitLedger() {
+  // every hit in the period, newest first: the fixed-price alerts, and the auctions that closed at or under the max
+  const A = (LIVE.data && LIVE.data.alert) || {}, P = PERIOD.er, out = [];
+  (A.all || []).forEach(e => { if (/^hit/.test(e[2] || '') && e[1] != null && P.test(e[0])) out.push({t: e[0], src: 'bin', kind: /drop/.test(e[2]) ? 'Buy It Now, price drop' : /suspect/.test(e[2]) ? 'Buy It Now, suspect' : 'Buy It Now', p: e[1], i: e[4], c: e[5] || '', u: e[6], tot: e[7], ti: e[9] || '', dec: e[3], um: umOf(e[4], e[8])}); });
+  (LIVE.au || []).forEach(r => { if (r.au.res0 === 'PASS' && r[44] != null && P.test(r[34])) out.push({t: r[34], src: 'au', kind: 'auction, at the final price', p: r[44], i: r[22], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.au.dec, um: r.um}); });
+  return out.sort((x, y) => (x.t < y.t ? 1 : -1));
+}
 function hitSummary() {
-  const all = (LIVE.data && LIVE.data.alert && LIVE.data.alert.all) || [];
   if (!$('sum-er') || !PERIOD.er) return;
-  const hits = all.filter(e => /^hit/.test(e[2] || '') && e[1] != null && PERIOD.er.test(e[0])), kept = hits.filter(e => e[3] !== 'no');
-  const sum = a => a.reduce((x, e) => x + e[1], 0);
-  $('sum-er').innerHTML = 'If you had bought every hit in ' + PERIOD.er.label() + ': <b class="big up">' + fmtMoneyPlain(sum(hits)) + '</b> from <b>' + hits.length + '</b> hit' + (hits.length === 1 ? '' : 's') +
-    (hits.length !== kept.length ? ' · leaving out the ' + (hits.length - kept.length) + ' you answered No to: <b>' + fmtMoneyPlain(sum(kept)) + '</b>' : '') +
-    ' <span class="dim">· a ceiling: it assumes every hit was the right card, near mint, and sold at the expected price. Counted since October 5, when alerts began.</span>';
+  const L = hitLedger(), ok = L.filter(h => !h.um && h.dec !== 'no'), bin = ok.filter(h => h.src === 'bin'), au = ok.filter(h => h.src === 'au');
+  const sum = x => x.reduce((s, h) => s + h.p, 0), n = (k, w) => '<b>' + k + '</b> ' + w + (k === 1 ? '' : 's');
+  $('sum-er').innerHTML = 'If you had bought every hit in ' + PERIOD.er.label() + ': <b class="big up">' + fmtMoneyPlain(sum(ok)) + '</b> = ' +
+    n(bin.length, 'hit') + ' from Buy It Now (<b>' + fmtMoneyPlain(sum(bin)) + '</b>) + ' + n(au.length, 'hit') + ' from auctions (<b>' + fmtMoneyPlain(sum(au)) + '</b>, at the final price)' +
+    (L.length !== ok.length ? ' · <b>' + (L.length - ok.length) + '</b> left out as mismatches' : '') +
+    ' · <button class="linkbtn" id="hits-btn">Show them</button>' +
+    ' <span class="dim">· a ceiling: it assumes each was near mint and sold at the expected price, and an auction would have closed higher with your bid in it. Counted since October 5, when alerts began.</span>';
+  $('hits-btn').addEventListener('click', openHits);
+  if ($('bov').classList.contains('open') && $('btitle').textContent.indexOf('Hits in') === 0) openHits();
+}
+function openHits() {
+  const L = hitLedger(), now = new Map((LIVE.er || []).map(r => [r[22], r]));
+  const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+  const ans = {nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No', yes: 'Same card'};
+  $('btitle').textContent = 'Hits in ' + PERIOD.er.label();
+  $('bsub').textContent = 'Every hit the collector alerted you to in the period, newest first. The table behind this list only holds the last 24 hours and judges each listing as it stands now, so a hit from earlier can be missing there or no longer pass.';
+  $('bbody').innerHTML = !L.length ? '<p>None in this period.</p>' :
+    '<table><thead><tr><th>Mismatch</th><th>Alerted</th><th>Card</th><th>Kind</th><th class="num">Total</th><th class="num">Profit</th><th>Your answer</th><th>In the table now</th></tr></thead><tbody>' +
+    L.map(h => { const r = now.get(h.i), out = h.um || h.dec === 'no';
+      return '<tr class="' + (out ? 'umm' : '') + '"><td class="mmk"><input type="checkbox" class="um" data-i="' + esc(h.i || '') + '"' + (h.um ? ' checked' : '') + '></td><td>' + when(h.t) + '</td><td><a href="' + esc(h.u || '#') + '" target="_blank" rel="noopener" title="' + esc(h.ti) + '">' + esc(h.c || h.ti) + '</a></td><td>' + esc(h.kind) + '</td><td class="num">' + fmtMoney(h.tot) + '</td><td class="num">' + (out ? '<s>' + fmtMoney(h.p) + '</s>' : fmtMoney(h.p)) + '</td><td>' + (h.dec ? ans[h.dec] || esc(h.dec) : '<span class="dim">none</span>') + '</td><td>' +
+        (h.src === 'au' ? '<span class="dim">auction view</span>' : r ? esc(r[14]) + (r[19] && r[19] !== 'open' ? ' <span class="dim">(' + esc(r[19]) + ')</span>' : '') : '<span class="dim">older than 24 h</span>') + '</td></tr>'; }).join('') + '</tbody></table>';
+  $('bov').classList.add('open');
 }
 
 function makeTable(id, cfg) {
@@ -545,13 +572,32 @@ function paintLp() {
   $('lpt').innerHTML = lp.tiers.map(t => '<span class="' + (t.src === 'tier' ? 'meas' : '') + '" title="' + (t.src === 'tier' ? 'measured in this tier from ' + t.n + ' LP sales' : t.src === 'global' ? 'this tier has ' + t.n + ' LP sales (needs ' + lp.minSales + '); using the ratio measured across all tiers' : 'no measurement yet (' + t.n + ' LP sales in this tier, needs ' + lp.minSales + '); using the 12% default') + '"><i>' + (t.lo === 0 ? '<$' + t.hi : t.hi >= 1e9 ? '$' + t.lo + '+' : '$' + t.lo + '–' + t.hi) + '</i>' + t.pct + '%</span>').join('') + (lp.tiers.every(t => t.src !== 'tier') ? ' <span class="dim" title="No price tier has ' + lp.minSales + ' LP sales of its own yet, so all three show the one figure measured across every LP sale. They separate as sales accumulate">(pooled)</span>' : '');
 }
 const COMPARABLE = new Set(['NM', 'LP', 'UNK']);
+/* ---------------- "Mismatch": Brett's own verdict on a listing ----------------
+   A tick on a Raw Data row (or in the list behind the hit total) says the listing is not the card it was matched to.
+   The row stays, tinted; the listing leaves the statistics and the hit total; the collector's matcher learns from it
+   (ebay_sweep.py: learn_tables). The tick shows at once from MARKS and is confirmed by live.alert.mark_t. */
+const MARKS = {};                                  // item id -> {v: 1 | 0, t}
+const umOf = (iid, flag) => iid in MARKS ? !!MARKS[iid].v : !!flag;
+const umCell = r => '<td class="mmk"><input type="checkbox" class="um" data-i="' + esc(r[22] || '') + '"' + (r.um ? ' checked' : '') + ' title="Tick if this listing is not the card it was matched to"></td>';
+async function sendMark(iid, on) {
+  if (!iid) return;
+  const t = Date.now();
+  MARKS[iid] = {v: on ? 1 : 0, t};
+  if (LIVE.data) rebuildLive();
+  try { await alSend({type: 'mark', t, i: iid, v: on ? 1 : 0}); }
+  catch (e) { delete MARKS[iid]; if (LIVE.data) rebuildLive(); $('sum-er').insertAdjacentHTML('beforeend', ' <span class="down">The mark could not be sent (' + esc(e.message) + ').</span>'); }
+}
+document.addEventListener('change', e => { const b = e.target && e.target.closest ? e.target.closest('input.um') : null; if (b) sendMark(b.dataset.i, b.checked); });
+
 function verdictOf(x, cs, S) {
   // x = raw live row from the collector; cs = decided card stats. Same order as verdict() in the collector.
   const total = x[7], item = x[5];
   if (total == null) return ['no price', null, null];
   const allin = Math.round((total + (item || 0) * S.tax) * 100) / 100;
+  if (umOf(x[0], x[31])) return ['mismatch: marked by you', allin, null];
   if (x[22] != null && x[22] < 2) return ['fewer than 2 photos', allin, null];
   if (x[23] === 'suspect') return ['suspect', allin, null];
+  if (x[32]) return ['learned', allin, null];              // held back by what his earlier marks taught
   if (x[28]) return [x[28] === 'low' ? 'mismatch: too cheap' : 'mismatch: too high', allin, null];   // far from PriceCharting: a wrong match
   if (!cs || cs.A == null || (cs.A_n || 0) < S.minSales) {
     // eBay cannot judge this card yet: is the listing a lead on PriceCharting's price?
@@ -612,17 +658,21 @@ function rebuildLive() {
     // PriceCharting's ungraded price: the one the collector judged the listing against, else today's from the catalog tab
     const pc = x[27] != null ? x[27] : base[6];
     const vspc = pc && x[7] != null ? Math.round((x[7] / pc - 1) * 1000) / 10 : null;
-    LIVE.er.push([base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
+    const erow = [base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
                   cs ? cs.A : null, cs && cs.A && x[7] != null ? Math.round((x[7] / cs.A - 1) * 1000) / 10 : null,
                   d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
                   tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
                   base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
-                  null, null, null, null, LIVE.er.length]);                    // 42-45 belong to the auction view (auRows)
+                  null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
+    erow.um = umOf(x[0], x[31]); erow.lrn = x[32] || '';
+    LIVE.er.push(erow);
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
   alRender();
   applyHelp(live.help);                                 // descriptions and READMEs he rewrote with the pencil
+  const markT = (live.alert && live.alert.mark_t) || 0;  // the collector has taken every mark up to this time
+  for (const k of Object.keys(MARKS)) if (markT >= MARKS[k].t) delete MARKS[k];
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
   if (AU_ON()) { auMode(); tables.er.apply(); }
   LIVE.rv = ((live.acct && live.acct.rows) || []).map((r, i) => r.concat([i]));
@@ -1091,13 +1141,15 @@ function alRender() {
 // clean listings he answered "No, not the same card" to: the matcher's test cases (kept a year by the collector)
 function alWrong(a) {
   const w = (a && a.wrong) || [];
-  if (!w.length) return 'None yet. A "No" on the phone, for a listing the scam screen had not flagged, lands here.';
+  const lr = (a && a.learned) || {words: [], titles: 0, sellers: 0};
+  const learned = '<br><span class="dim">Learned so far: ' + lr.titles + ' title' + (lr.titles === 1 ? '' : 's') + ' never filed under that card again, ' + lr.sellers + ' seller-and-card pair' + (lr.sellers === 1 ? '' : 's') + ' held back, warning words: ' + (lr.words.length ? lr.words.map(x => '<b>' + esc(x[0]) + '</b> (' + x[1] + ')').join(', ') : 'none yet (a word needs to be in 3 of your mismatches and rare everywhere else)') + '.</span>';
+  if (!w.length) return 'None yet. A "No" on the phone for a listing the scam screen had not flagged, or a Mismatch tick on the Raw Data tab, lands here.';
   const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
-  return '<b>' + w.length + '</b> listing' + (w.length === 1 ? '' : 's') + ' you said did not show the matched card.' +
+  return '<b>' + w.length + '</b> listing' + (w.length === 1 ? '' : 's') + ' you said did not show the matched card.' + learned +
     '<table><thead><tr><th>When</th><th>eBay listing</th><th>Was matched to</th><th>Kind</th></tr></thead><tbody>' +
     w.slice(0, 200).map(r => '<tr><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[2] || r[1]) + '</a></td><td>' +
-      (r[6] ? '<a href="https://www.pricecharting.com/game/' + esc(r[6]) + '" target="_blank" rel="noopener">' + esc(r[4] || '') + '</a>' : esc(r[4] || '')) +
-      (r[5] ? '<br><span class="dim">' + esc(String(r[5]).replace('Pokemon ', '')) + '</span>' : '') + '</td><td>' + esc(String(r[7] || '').replace('-drop', ', price drop').replace('-lead', ', lead')) + '</td></tr>').join('') + '</tbody></table>';
+      (r[6] ? '<a href="https://www.pricecharting.com/game/' + esc(r[6]) + '" target="_blank" rel="noopener">' + esc(r[4] || (idRow.get(r[6]) || [])[1] || 'card ' + r[6]) + '</a>' : esc(r[4] || '')) +
+      ((r[5] || (idRow.get(r[6]) || [])[2]) ? '<br><span class="dim">' + esc(String(r[5] || (idRow.get(r[6]) || [])[2]).replace('Pokemon ', '')) + '</span>' : '') + '</td><td>' + esc(String(r[7] || '').replace('-drop', ', price drop').replace('-lead', ', lead')) + '</td></tr>').join('') + '</tbody></table>';
 }
 
 function alHistory(a) {
