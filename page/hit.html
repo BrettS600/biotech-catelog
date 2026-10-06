@@ -25,6 +25,7 @@ h1 { font-size: 17px; margin: 0 0 4px; }
 .tag.warn { background: #9e6a03; } .tag.bad { background: #da3633; } .tag.ok { background: #238636; }
 .scam { margin-top: 10px; background: #2d1f00; border: 1px solid #9e6a03; border-radius: 10px; padding: 8px 10px; font-size: 14px; }
 .scam ul { margin: 4px 0 0; padding-left: 18px; }
+.scam.sus { background: #3d0f0f; border-color: #da3633; }
 .btns { display: flex; gap: 10px; margin-top: 14px; }
 button { flex: 1; border: 0; border-radius: 12px; padding: 16px 8px; font: 600 18px/1.25 inherit; color: #fff; }
 .yes { background: #238636; } .no { background: #da3633; } .lp { background: #9e6a03; }
@@ -98,9 +99,11 @@ else {
     '<br><span class="dim">Seller ' + (d.fb == null ? '?' : Number(d.fb).toLocaleString('en-US')) + ' ratings' + (d.pct != null ? ', ' + d.pct + '%' : '') + ' \u00b7 ' + (d.ph == null ? '?' : d.ph) + ' photos</span>' +
     (d.k == null ? '' : '<br>Sold this month: <b>' + d.k + '</b> <span class="dim">(' + one(d.D) + ' days tracked)</span>') +
     (d.N == null ? '' : '<br>Listed now: <b>' + d.N + '</b>');
-  if (d.tier === 'watch') {
-    $('scam').classList.remove('hide');
-    $('scam').innerHTML = '<b>Scam watch: ' + d.sc + ' points</b><ul>' + (d.scr || []).map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul>';
+  if (d.tier === 'watch' || d.tier === 'suspect') {
+    const sus = d.tier === 'suspect', k9 = d.risk && d.risk[1] ? d.risk[0] / d.risk[1] : null;
+    $('scam').classList.remove('hide'); $('scam').classList.toggle('sus', sus);
+    $('scam').innerHTML = '<b>' + (sus ? 'SUSPECT: ' : 'Scam watch: ') + d.sc + ' points</b>' +
+      (k9 == null ? '' : '<br>So far eBay has pulled ' + d.risk[0] + ' of ' + d.risk[1] + ' listings like this before they ended' + (k9 > 0 ? ' (about 1 in ' + Math.max(1, Math.round(1 / k9)) + ')' : '') + '.') + '<ul>' + (d.scr || []).map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul>';
   }
   const label = (name, a, ok) => au ? name + '<small>Max bid ' + money(a[4]) + '</small><small>Profit at least ' + money(a[2]) + '</small><small>ROI at least ' + a[3] + '%</small>' +
       '<small>' + (ok ? 'Bid still under your max' : 'Bid already over your max') + '</small>'
