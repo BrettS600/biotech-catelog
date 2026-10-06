@@ -363,6 +363,23 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
 - TAB NAMES (same day): "Alerts" is shown as "Notification Settings" and "Revenue" as "Transaction Report". Only
   the labels and the visible wording changed: ids (`p-al`, `p-rv`), hashes (#alerts, #revenue), `TABLES.rv`, cfg
   keys and this file's older notes still say alerts / revenue.
+- LAYOUT (2026-10-07, Brett's screenshot): the Confidence / Window / Only show hits / Margin / Buy tax boxes, the LP
+  correction chips and Calibration left the tab row. They are `#gatebar`, the first thing inside the Raw Data panel,
+  so they show under the tabs on that tab only; same ids, so `settings()` and everything else is untouched. They
+  STILL drive the eBay Catalog's Decisions band (its note now says so) - he asked for them to be hidden there. The
+  tab row keeps the tabs and README.
+- README PER TAB (same day): `README` in help.js is now {pc, ec, er, al, rv}; the button opens the one for the
+  tab in view (`curTab()`). The old single README's 16 sections were split between eBay Catalog and eBay Raw Data
+  with cross-references rewritten; the PriceCharting, Notification Settings and Transaction Report ones were written
+  new from the column help. Sections are numbered from 1 in each.
+- THE PENCIL (same day): every "?" popup and every README has a pencil. A "?" edit is three plain-text boxes
+  (formula, meaning, example); a README is edited in place (contenteditable, cleaned by `cleanHtml()`: structure
+  tags and classes only). `sendEdit()` signs the text like the alert settings and posts it to the same private ntfy
+  channel as base64 pieces of 2,400 characters (ntfy holds 4 KB a message); `help_edit()` in collector.py reassembles
+  them into `v["help"]` ('h:<column key>' -> {f, m, e}, 'r:<tab>' -> html) and publishes `live["help"]` = {t, v}, so
+  an edit shows on every device and survives rebuilds. Until the collector confirms (help.t >= the edit's time) the
+  page shows it from `PEND`. "Restore the original" sends `del`. The public log names the key, never the text. The
+  built-in wording in help.js stays the fallback - when help.js changes, an entry he has edited keeps HIS text.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count

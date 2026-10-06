@@ -772,6 +772,49 @@ def alert_channel():
 
 
 WRONG_KEEP_D = 365               # "not the same card" answers on clean listings are kept this long
+HELP_KEY = re.compile(r"^(h:[A-Za-z0-9_]{1,40}|r:(pc|ec|er|al|rv))$")
+
+
+def help_edit(v, msg, t):
+    """A description or a README Brett rewrote on the site (the pencil on a "?" popup or a README). It arrives signed,
+    like the alert settings, and is handed back in the live file so the page shows his wording on every device and
+    after every rebuild. A text can be longer than one ntfy message holds (4 KB), so it comes in numbered pieces and
+    counts only once every piece is in. `del` puts the original wording back. Keys: h:<column> -> {f, m, e} (formula,
+    meaning, example); r:<tab> -> the README's HTML. Nothing here is executed or trusted beyond being shown to him."""
+    key = str(msg.get("key") or "")
+    if not HELP_KEY.match(key):
+        return
+    store, parts = v.setdefault("help", {}), v.setdefault("help_parts", {})
+    for k in [k for k, p in parts.items() if t - p["t"] > 3600 * 1000]:
+        del parts[k]                                         # an edit that never finished arriving
+    if msg.get("del"):
+        store.pop(key, None)
+        v["help_t"] = t
+        log(f"Site text: {key} put back to the original")
+        return
+    try:
+        n, i, pid = int(msg.get("n") or 1), int(msg.get("i") or 0), str(msg.get("id") or "")[:24]
+    except (TypeError, ValueError):
+        return
+    if not pid or not 1 <= n <= 80 or not 0 <= i < n:
+        return
+    p = parts.setdefault(pid, {"key": key, "n": n, "d": {}, "t": t})
+    p["d"][str(i)] = str(msg.get("d") or "")[:4000]
+    if p["key"] != key or len(p["d"]) < p["n"]:
+        return
+    del parts[pid]
+    try:
+        val = json.loads(base64.b64decode("".join(p["d"][str(k)] for k in range(p["n"]))).decode("utf-8"))
+    except Exception:
+        return
+    if key.startswith("h:") and isinstance(val, dict):
+        store[key] = {k: str(val.get(k) or "")[:8000] for k in ("f", "m", "e")}
+    elif key.startswith("r:") and isinstance(val, str):
+        store[key] = val[:150000]
+    else:
+        return
+    v["help_t"] = t
+    log(f"Site text: {key} rewritten on the site ({n} piece{'s' if n != 1 else ''})")
 
 
 def note_wrong(v, e):
@@ -848,6 +891,8 @@ def read_requests(state):
             if push("Test alert", "Sent from the Notification Settings tab. Your phone alerts are working.", priority=4, tags=("white_check_mark",)):
                 v["test_t"] = t
             log("Alerts tab: test alert requested" + ("" if NTFY_TOPIC else " - but no channel is set on this machine"))
+        elif msg.get("type") == "help":
+            help_edit(v, msg, t)
 
 
 def quiet_now(cfg):
@@ -1542,13 +1587,14 @@ def cycle(state, cat, sched, counters):
         v["au_backfilled"] = 1
     live["alert"]["au"] = au_rows(state)                     # every auction sent to the phone, for the Raw Data tab
     live["alert"]["wrong"] = wrong_rows(v)                   # clean listings Brett said were not the matched card
+    live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
     state_raw = save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0))         # a change on the Alerts tab is published at once
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0))         # a change on the Alerts tab is published at once
     changed = sig != v.get("pub_sig")
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
