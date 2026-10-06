@@ -348,6 +348,21 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   shipping recovered from `auction_done`, net from the logged profit at 10% margin). Verdict: PASS = closed at or
   under Max buy, over max buy, no bids, not finished, no result. Caveat shown on the page: a final price is the
   price WITHOUT his bid; had he bid he would have lost or paid more.
+- PHONE CHECK SCREEN, second layout (2026-10-06, Brett's list): the first question shows one fact per row with a line
+  between rows, PriceCharting on the left and eBay across from it - Set / card number | Ungraded price vs Total
+  price (card + shipping + tax, the tax being the Alerts-tab buy tax when the alert was SENT; a link already on the
+  phone keeps its numbers) | Sales per month vs Sold this month | Seller. Gone at his request: the card name and the
+  listing title in the columns, "Listed now", "regular printing", "item specifics agree". Kept on my advice, which
+  he accepted: the printing tag when the matched card IS a special printing, a red line when the item specifics
+  DISAGREE, the seller row. Tapping the eBay photo or its heading opens the listing. Under Yes / No there is "Next
+  question", which shows the condition screen and records nothing; Yes now records `yes` ("same card", never
+  replacing an nm / lp / no already given). A No on a listing the scam screen had not flagged is copied by
+  `note_wrong()` into `v["wrong"]` (kept 365 days, `live["alert"]["wrong"]`) and listed as "Wrong matches" on the
+  tab - the matcher's test cases; alert-log entries now carry `tr` (tier), `card`, `cs` for that. The ROI and tax
+  on the screen were already taken from the settings in force when the alert is sent.
+- TAB NAMES (same day): "Alerts" is shown as "Notification Settings" and "Revenue" as "Transaction Report". Only
+  the labels and the visible wording changed: ids (`p-al`, `p-rv`), hashes (#alerts, #revenue), `TABLES.rv`, cfg
+  keys and this file's older notes still say alerts / revenue.
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count

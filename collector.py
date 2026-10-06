@@ -771,6 +771,35 @@ def alert_channel():
     return _chan["topic"], _chan["key"]
 
 
+WRONG_KEEP_D = 365               # "not the same card" answers on clean listings are kept this long
+
+
+def note_wrong(v, e):
+    """Brett said No, not the same card, to an alert on a listing the scam screen had not flagged: a wrong match by
+    the title matcher (or a listing whose title lies about its photo). Kept apart from the 300-alert log, as test
+    cases to refine the matcher against. A No on a watch / suspect listing is not kept: there it may mean "scam"."""
+    if e.get("tr", "clean") in ("watch", "suspect"):
+        return
+    wrong = v.setdefault("wrong", [])
+    if any(w["i"] == e["i"] for w in wrong):
+        return
+    wrong.append({"t": e.get("dt") or es.ts(es.NOW), "i": e["i"], "ti": e.get("ti"), "u": e.get("u"), "c": e.get("c"),
+                  "cs": e.get("cs"), "card": e.get("card"), "kd": e.get("kd"), "tot": e.get("tot")})
+
+
+def wrong_rows(v):
+    """The wrong-match list for the site, newest first: [when, item, title, link, matched card, its set, card id, kind, total]."""
+    cut = es.ts(es.NOW - timedelta(days=WRONG_KEEP_D))
+    if not v.get("wrong_backfilled"):                        # answers given before this list existed
+        for e in v.get("alert_log", []):
+            if e.get("dec") == "no":
+                note_wrong(v, e)
+        v["wrong_backfilled"] = 1
+    v["wrong"] = sorted((w for w in v.get("wrong", []) if w["t"] >= cut), key=lambda w: w["t"])[-1000:]
+    return [[w["t"], w["i"], w.get("ti"), w.get("u"), w.get("c"), w.get("cs"), w.get("card"), w.get("kd"), w.get("tot")]
+            for w in reversed(v["wrong"])]
+
+
 def read_requests(state):
     """What the Alerts tab sent since the last look: new settings, or a request for a test alert. A message counts
     only when its signature is right and it is newer than the last one acted on."""
@@ -794,8 +823,12 @@ def read_requests(state):
             if "dec" in env:                      # Brett's Yes / No on the phone's check screen
                 dec = env["dec"]
                 for e in v.get("alert_log", []) + v.get("au_hist", []):
-                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "no"):
+                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "no", "yes"):
+                        if dec["d"] == "yes" and e.get("dec"):
+                            continue                 # "same card" never replaces an answer already given
                         e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
+                        if dec["d"] == "no" and "tot" in e:
+                            note_wrong(v, e)
                 continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                 continue
@@ -812,7 +845,7 @@ def read_requests(state):
                 v["alert_cfg"], v["alert_t"] = cfg, t
                 log("Alerts tab: new settings received")
         elif msg.get("type") == "test":
-            if push("Test alert", "Sent from the Alerts tab. Your phone alerts are working.", priority=4, tags=("white_check_mark",)):
+            if push("Test alert", "Sent from the Notification Settings tab. Your phone alerts are working.", priority=4, tags=("white_check_mark",)):
                 v["test_t"] = t
             log("Alerts tab: test alert requested" + ("" if NTFY_TOPIC else " - but no channel is set on this machine"))
 
@@ -970,7 +1003,8 @@ def alert_hits(state, cat, cards, live, cfg):
         box["n"] += 1
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": (rec.get("title") or "")[:70],
                      "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2],
-                     "kd": kind + ("-suspect" if suspect else "") + ("-drop" if drop else "")})
+                     "kd": kind + ("-suspect" if suspect else "") + ("-drop" if drop else ""),
+                     "tr": rec.get("tier", "clean"), "card": rec["card"], "cs": d.get("s")})
         return 1
 
     n = sum(consider(x[0], x[12], False) for x in live["live"] if x[17] == "open")
@@ -1169,7 +1203,8 @@ def auction_alerts(state, cat, cards, cfg):
         n += 1
         watch[iid]["al"] = True
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": rec["title"][:70], "u": rec["url"],
-                     "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4]})
+                     "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4],
+                     "tr": rec["tier"], "card": rec["card"], "cs": d.get("s")})
         # the Raw Data tab's auction view: the bid when the phone was pinged, and everything needed to re-judge the
         # row later under whatever the Alerts tab then says. The sell side (net) is frozen here; margin and tax are not
         v.setdefault("au_hist", []).append({
@@ -1506,6 +1541,7 @@ def cycle(state, cat, sched, counters):
         au_backfill(state, cat)
         v["au_backfilled"] = 1
     live["alert"]["au"] = au_rows(state)                     # every auction sent to the phone, for the Raw Data tab
+    live["alert"]["wrong"] = wrong_rows(v)                   # clean listings Brett said were not the matched card
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
