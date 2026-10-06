@@ -2005,8 +2005,9 @@ def compute_stats(state, cat, lp):
         N = len(book)
         p = [r["_eff"] for r in book[:3]] + [None] * 3
         unsold = (state.get("unsold") or {}).get(str(cid)) or {}     # outlived 2 days, no record kept: {first-seen day: n}
-        new30 = sum(1 for r in opens[cid] + closed[cid] if comparable(r) and parse_ts(r["first"]) >= win_start) \
-            + sum(n for d, n in unsold.items() if d >= win_start.date().isoformat())
+        win_day = win_start.date().isoformat()                       # by calendar day on both sides, so they line up
+        new30 = sum(1 for r in opens[cid] + closed[cid] if comparable(r) and r["first"][:10] >= win_day) \
+            + sum(n for d, n in unsold.items() if d >= win_day)
         mu = round(new30 / D, 3)
         dos = round(N / lam, 1) if lam else None
         io_ = round(mu / lam, 2) if lam else None
@@ -2015,12 +2016,16 @@ def compute_stats(state, cat, lp):
         last10 = [nm_eq(r) for r in sold_sorted[-10:] if r["total"] is not None]
         smed, s80 = pct(last10, 0.5), pct(last10, 0.8)
         hrs = pct([r["hrs"] for r in sold_sorted[-10:]], 0.5)
-        # sell-through: of comparable listings first seen 3-33 days ago, the share that sold within 48 h of going up
+        # sell-through: of comparable listings first seen about 3-33 days ago, the share that sold within 48 h of going up
         # (listings are only followed for 2 days now, so 48 h is the only horizon the data can answer)
-        st_pool = [r for r in opens[cid] + closed[cid] if comparable(r)
-                   and ST_POOL_MIN_AGE_D <= hours_between(parse_ts(r["first"]), NOW) / 24 <= STAT_WINDOW_D + ST_POOL_MIN_AGE_D]
-        st_lo = (NOW - timedelta(days=STAT_WINDOW_D + ST_POOL_MIN_AGE_D)).date().isoformat()
-        st_hi = (NOW - timedelta(days=ST_POOL_MIN_AGE_D)).date().isoformat()
+        # The pool is cut by first-seen CALENDAR DAY for records and counts alike. (The first version cut records by
+        # the hour and counts by the day: for part of a day the unsold were counted and the sold were not, which
+        # pulled every card's figure down while the pool was only five days deep.) A listing that vanished and has
+        # not been looked up yet is left out altogether: sold or merely ended is not known.
+        st_lo = (NOW - timedelta(days=STAT_WINDOW_D + ST_POOL_MIN_AGE_D + 1)).date().isoformat()
+        st_hi = (NOW - timedelta(days=ST_POOL_MIN_AGE_D + 1)).date().isoformat()     # every listing in it is 3+ days old
+        st_pool = [r for r in opens[cid] + closed[cid] if comparable(r) and st_lo <= r["first"][:10] <= st_hi
+                   and not (r.get("out") is None and r.get("vanished"))]
         st_n = len(st_pool) + sum(n for d, n in unsold.items() if st_lo <= d <= st_hi)
         st_sold = [r for r in st_pool if r.get("out") == "sold" and r["hrs"] <= FOLLOW_D * 24]
         st = round(len(st_sold) / st_n, 3) if st_n >= 3 else None

@@ -321,7 +321,14 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   suspects kept. The waiting queue still showed 11,573 "vanished inside 2 days", but most of those are the mass
   flags of Oct 4-5 (no `seen_open` yet then, so they cannot be told apart) and drop on Oct 7-8: the young / old
   split of the ~3,270 daily flags is therefore still NOT measured - read the hourly "flagged" count once those are
-  gone before trusting any budget estimate. Known costs he accepted:
+  gone before trusting any budget estimate. AT THE 25% BAR (15:00 UTC): 101 cards fast by sales rate; at 20 / 25 /
+  30 / 35% the count passing was 50 / 31 / 20 / 12, so 31 liquid (39 that morning under the old rule, which had
+  measured few cards yet and was heading for about 19 in 79). Listings passing the gate fell from 4-6 to 1. Two
+  faults in that first figure were then fixed: the pool cut records by the hour and counts by the day (unsold
+  counted, sold not, for part of a day - heavy while the pool is five days deep), and it counted
+  vanished-but-not-yet-looked-up listings as unsold; the pool is now by first-seen calendar day on both sides and
+  leaves unknown outcomes out. `st_translation` did its one job and was removed (its 7-day side decays now that
+  nothing is followed past day 2; only its PRE-settle reading - 19 of 79, lowest 25% - is valid). Known costs he accepted:
   sales of copies older than 2 days go unrecorded (lambda, Sold 30d and the anchor lean to fast sales), price drops
   after day 2 are unseen, "Active / Listed now" = fresh copies + the retained cheapest. NOT built (he was offered
   them, did not ask): checking only cards with enough PriceCharting volume; waiting for a second miss before a lookup.

@@ -608,34 +608,6 @@ def close_stale(state, cards):
     return res
 
 
-def st_translation(state, cards, lam_min):
-    """A check on ST_MIN while the old data still exists: for the cards that sell often enough, the old sell-through
-    (sold within 7 days, listings first seen 7-37 days ago) beside the 48-hour share OF THE SAME LISTINGS. The 20% bar
-    was derived by assuming a steady selling rate; this says what the real listings show. -> a line for the log."""
-    by_card = defaultdict(list)
-    for r in list(state["open"].values()) + state["closed"]:
-        if es.comparable(r) and 7 <= es.hours_between(es.parse_ts(r["first"]), es.NOW) / 24 <= es.STAT_WINDOW_D + 7:
-            by_card[str(r["card"])].append(r)
-    lo = (es.NOW - timedelta(days=es.STAT_WINDOW_D + 7)).date().isoformat()
-    hi = (es.NOW - timedelta(days=7)).date().isoformat()
-    pairs = []
-    for cid, c in cards.items():
-        if not c.get("lam") or c["lam"] < lam_min:
-            continue
-        pool = by_card.get(str(cid), [])
-        n = len(pool) + sum(k for d, k in ((state.get("unsold") or {}).get(str(cid)) or {}).items() if lo <= d <= hi)
-        if n < 3:
-            continue
-        s7 = sum(1 for r in pool if r.get("out") == "sold" and r["hrs"] <= 168) / n
-        s2 = sum(1 for r in pool if r.get("out") == "sold" and r["hrs"] <= 48) / n
-        pairs.append((s7, s2))
-    old_ok = sorted(s2 for s7, s2 in pairs if s7 >= 0.5)
-    q = lambda f: f"{old_ok[min(len(old_ok) - 1, int(len(old_ok) * f))] * 100:.0f}%" if old_ok else "-"
-    return (f"Sell-through check: {len(pairs)} fast cards have listings 7+ days old; {len(old_ok)} of them pass the old bar "
-            f"(50% sold within 7 days), and on those same listings the share sold within 48 h is lowest {q(0)}, "
-            f"lower quarter {q(0.25)}, middle {q(0.5)}")
-
-
 def drop_cheap(state):
     """Open listings under the re-read band that nothing will ever check again: removed outright, with no closed
     record, so they count in nothing (a closed-as-stale record would read as 'did not sell')."""
@@ -1529,7 +1501,6 @@ def cycle(state, cat, sched, counters):
             f"{len(sts)} (median {sts[len(sts) // 2] if sts else '-'}%), {sum(1 for x in sts if x >= es.ST_MIN * 100)} of those "
             f"at or over the {es.ST_MIN:.0%} bar (at 20% / 25% / 30% / 35%: "
             + " / ".join(str(sum(1 for x in sts if x >= b)) for b in (20, 25, 30, 35)) + ")")
-        log(st_translation(state, cards, lam_min))
         flags = Counter(r.get("pcm") or "-" for r in state["open"].values())
         ids = Counter(r["idv"] for r in state["open"].values() if r.get("idv"))
         log(f"Identity: {flags['low']} open listings under {es.PC_LOW:.0%} of the PriceCharting price, {flags['high']} over "
