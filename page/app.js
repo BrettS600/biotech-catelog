@@ -104,17 +104,18 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtMoney(r[12]) + '</td>' +
       '<td class="num">' + (r[13] == null ? dash : '<b class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] < 0 ? '−' : '') + fmtMoney(Math.abs(r[13])) + '</b>') + '</td>' +
       '<td class="num">' + fmtPct(r[14]) + '</td><td>' + esc(r[15] || '') + '</td><td class="num">' + fmtMoney(r[16]) + '</td>'},
-  er: {rows: () => LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
+  er: {rows: () => AU_ON() ? (LIVE.au || []) : LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}],   // columns added over time, in order (see makeTable)
-       extra: r => (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
-       rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}],   // columns added over time, in order (see makeTable)
+       extra: r => r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
+       rowClass: r => r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
-       row: r => cells4(r) +
+       row: r => r.au ? auRow(r) : cells4(r) +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
-      '<td class="num">' + fmtMoney(r[7]) + '</td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
+      '<td class="num auc"></td><td class="num auc"></td>' +
+      '<td class="num fxc">' + fmtMoney(r[7]) + '</td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
       '<td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
       '<td class="num">' + fmtMoney(r[35]) + '</td><td class="num">' + fmtPct(r[36]) + '</td>' +
       '<td class="num">' + (r[40] == null ? dash : r[40]) + '</td><td class="num">' + (r[41] == null ? dash : r[41]) + '</td>' +
@@ -124,6 +125,7 @@ const TABLES = {
       '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + fmtMoney(r[13]) + (r[28] ? ' <span class="dim">' + (/^Lead/.test(r[28]) ? 'PC' : 'LP') + '</span>' : '') + '</td>' +
       '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[25]) + '</td>' +
+      '<td class="num auc"></td><td class="num auc"></td>' +
       '<td>' + verdictCell(r) + '</td>' +
       '<td>' + riskCell(r) + '</td>' +
       '<td class="num">' + (r[32] == null ? dash : r[32]) + '</td>' +
@@ -133,6 +135,80 @@ const TABLES = {
       '<td>' + (r[19] === 'open' ? 'open' : r[19] === 'sold' ? '<span class="up">sold</span>' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td>' +
       '<td class="num">' + (r[27] == null ? dash : (r[19] === 'open' ? '<span class="dim">' + fmtNum(r[27], 1) + '</span>' : fmtNum(r[27], 1))) + '</td>'},
 };
+/* ---------------- Raw Data's auction view: "Auctions sent to my phone" ----------------
+   With the switch on the table shows no ordinary listing, only the auctions the collector pinged the phone about
+   (live.alert.au, kept 60 days). Each row is laid out like a listing row so the same columns, sorts and filters work:
+     Max buy, Profit, ROI      = the worst case if he wins: he pays his whole Max buy, so ROI is his margin
+     Profit / ROI at final     = the best case: the price it closed at with no bid from him in the auction
+     Verdict                   = how it closed against his Max buy
+   Margin and buy tax come from the SAVED Alerts-tab settings, never from the boxes at the top (Brett: the view is
+   about what was sent). What selling the card brings in is the figure frozen when the alert went out. */
+function AU_ON() { const e = document.getElementById('au-er'); return !!(e && e.checked); }
+function auRows(live) {
+  const A = (live.alert && live.alert.au) || [], c = Object.assign({}, AL_DEFAULT, (live.alert && live.alert.cfg) || {});
+  const margin = Math.min(0.5, Math.max(0, c.margin / 100)), tax = Math.min(0.15, Math.max(0, c.tax / 100)), now = Date.now();
+  const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+  return A.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((a, i) => {
+    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0] = a;
+    const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {};
+    const lp = dec === 'lp' || (dec !== 'nm' && tc === 'LP'), net = lp ? netLP : netNM;
+    const maxbuy = net == null ? null : r2(net / (1 + margin)), sh = ship == null ? 0 : ship;
+    const sold = fst === 'sold' && fin != null, ftot = sold ? r2(fin + sh) : null, fall = sold ? r2(fin + sh + fin * tax) : null;
+    const res = fst === 'nobids' ? 'no bids' : fst === 'gone' ? 'no result' : !sold ? (end && now < Date.parse(end) + 9e5 ? 'not finished' : 'no result')
+      : maxbuy == null ? 'no result' : fall <= maxbuy ? 'PASS' : 'over max buy';
+    const pc = base[6] == null ? null : base[6];
+    const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', r1((now - Date.parse(t)) / 36e5), ti || '', sold ? fin : null, ship, ftot, fall,
+      cs.A != null ? cs.A : null, sold && cs.A ? r1((ftot / cs.A - 1) * 100) : null, maxbuy, res, tc || 'UNK', false, fb, pct,
+      sold ? 'sold' : fst === 'nobids' ? 'ended' : fst === 'gone' ? 'gone' : 'open', u, null, iid, null,
+      maxbuy == null ? null : r2(net - maxbuy), maxbuy == null ? null : r1(margin * 100), s,
+      null, lp ? 'LP: judged as a lightly played copy' : kd === 'lead' ? 'Lead: priced from PriceCharting, not from eBay sales' : null,
+      tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], t,
+      pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[5] == null ? null : r1(base[5] / 12), cs.k != null ? cs.k : null,
+      bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
+    row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res};
+    return row;
+  });
+}
+function auRow(r) {
+  const x = r.au, money = v => v == null ? dash : fmtMoney(v), signed = v => v == null ? dash : '<span class="' + (v > 0 ? 'up' : v < 0 ? 'down' : '') + '">' + (v < 0 ? '−' : '') + fmtMoney(Math.abs(v)) + '</span>';
+  const said = x.dec ? ' Your answer on the phone: ' + ({nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No'}[x.dec] || x.dec) + '.' : '';
+  const tip = {'PASS': 'It closed at or under your Max buy: a bid of your max might have won it, unless the winner\'s hidden maximum was above yours.',
+               'over max buy': 'It closed above your Max buy: your max would not have won it.', 'no bids': 'The auction ended without a bid.',
+               'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.'}[x.res] || '';
+  return (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') +
+    '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
+    '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
+    '<td class="num auc"' + (x.old ? ' title="An alert from before October 6: worked back from the total the alert recorded"' : '') + '>' + (r[42] != null ? fmtMoney(r[42]) + (x.nb != null ? ' <span class="dim">' + x.nb + ' bid' + (x.nb === 1 ? '' : 's') + '</span>' : '') : x.tot0 != null ? fmtMoney(x.tot0) + ' <span class="dim">with shipping</span>' : dash) + '</td>' +
+    '<td class="num auc">' + (r[43] != null ? '<b>' + fmtMoney(r[43]) + '</b>' + (x.fb2 != null ? ' <span class="dim">' + x.fb2 + ' bid' + (x.fb2 === 1 ? '' : 's') + '</span>' : '') : x.fst === 'nobids' ? '<span class="dim">no bids</span>' : dash) + '</td>' +
+    '<td class="num fxc"></td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
+    '<td class="num">' + money(r[9]) + '</td><td class="num">' + money(r[10]) + '</td>' +
+    '<td class="num">' + money(r[35]) + '</td><td class="num">' + fmtPct(r[36]) + '</td>' +
+    '<td class="num">' + (r[40] == null ? dash : r[40]) + '</td><td class="num">' + (r[41] == null ? dash : r[41]) + '</td>' +
+    '<td class="num">' + money(r[11]) + '</td><td class="num">' + fmtPct(r[12]) + '</td>' +
+    '<td class="num">' + money(r[26]) + '</td>' +
+    '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + money(r[13]) + (r[28] ? ' <span class="dim">' + (/^Lead/.test(r[28]) ? 'PC' : 'LP') + '</span>' : '') + '</td>' +
+    '<td class="num" title="Worst case if you win: you pay your whole Max buy">' + signed(r[24]) + '</td><td class="num" title="Worst case if you win: your margin">' + fmtPct(r[25]) + '</td>' +
+    '<td class="num auc" title="Best case: at the price it closed at">' + signed(r[44]) + '</td><td class="num auc" title="Best case: at the price it closed at">' + fmtPct(r[45]) + '</td>' +
+    '<td><span title="' + esc(tip + said) + '">' + (x.res === 'PASS' ? badge('PASS', 'pass') : '<span class="dim">' + esc(x.res) + '</span>') + (x.dec === 'no' ? ' <span class="dim">· you said No</span>' : '') + '</span></td>' +
+    '<td>' + riskCell(r) + '</td>' +
+    '<td class="num">' + (r[32] === 99 ? dash : r[32]) + '</td>' +
+    '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td><td>' + dash + '</td>' +
+    '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
+    '<td>' + (r[19] === 'sold' ? '<span class="up">sold</span>' : r[19] === 'open' ? 'open' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td><td class="num">' + dash + '</td>';
+}
+// the switch: swap the table over, rename the two "listed" labels, and take the top boxes out of play on this tab
+function auMode() {
+  const on = AU_ON(), here = !$('p-er').hidden;
+  $('p-er').classList.toggle('au-on', on); $('auchip').classList.toggle('on', on);
+  const th = document.querySelector('#p-er th[data-k="5"]'); if (th && th.childNodes[0]) th.childNodes[0].nodeValue = on ? 'Alerted (h ago)' : 'Listed within (h)';
+  const box = document.getElementById('max5-er'), lbl = box && box.parentNode.querySelector('.lbl'); if (lbl) lbl.textContent = on ? 'Alerted within' : 'Listed within';
+  ['conf', 'win', 'margin', 'buytax'].forEach(id => { $(id).disabled = on && here; });
+  $('au-note').hidden = !on;
+  if (!on) return;
+  const c = Object.assign({}, AL_DEFAULT, (LIVE.data && LIVE.data.alert && LIVE.data.alert.cfg) || {});
+  $('au-note').innerHTML = '<b>Auctions sent to your phone</b>, newest first, kept for 60 days. Max buy, Profit and ROI use your saved alert settings (margin <b>' + c.margin + '%</b>, buy tax <b>' + c.tax + '%</b>), not the boxes at the top: they are the <b>worst case</b> if you win, paying your whole Max buy. The two "at final" columns are the <b>best case</b>: the price it closed at with no bid from you. Your own bid would have pushed that price up, or lost to a higher hidden maximum. What the card sells for is the figure the alert used.';
+}
+
 // scam screen: tier badge with the score and the signals behind it on hover
 const RISK_RANK = {clean: 0, watch: 1, suspect: 2};
 function riskCell(r) {
@@ -372,6 +448,7 @@ function showTab(id) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
   history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
+  auMode();                                             // the top boxes are out of play only while Raw Data shows auctions
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
 showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
@@ -540,10 +617,13 @@ function rebuildLive() {
                   d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
                   tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
-                  base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null, LIVE.er.length]);
+                  base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
+                  null, null, null, null, LIVE.er.length]);                    // 42-45 belong to the auction view (auRows)
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
   alRender();
+  LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
+  if (AU_ON()) { auMode(); tables.er.apply(); }
   LIVE.rv = ((live.acct && live.acct.rows) || []).map((r, i) => r.concat([i]));
   tables.rv.apply();
   hitSummary();
@@ -1043,6 +1123,7 @@ $('al-save').addEventListener('click', () => alAct('settings'));
 $('al-test').addEventListener('click', () => alAct('test'));
 Object.values(AL_NUM).concat(Object.values(AL_BOX)).forEach(id => $(id).addEventListener('input', () => { AL.note = ''; alRender(); }));
 // Raw Data: one click puts the alert numbers into the boxes at the top, so the table shows what would alert
+$('au-er').addEventListener('input', () => { auMode(); tables.er.apply(); });
 $('use-al').addEventListener('click', () => {
   const c = Object.assign({}, AL_DEFAULT, (LIVE.data && LIVE.data.alert && LIVE.data.alert.cfg) || {});
   $('conf').value = c.conf; $('win').value = c.window; $('margin').value = c.margin; $('buytax').value = c.tax;

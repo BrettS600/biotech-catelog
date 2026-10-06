@@ -130,6 +130,7 @@
   <select id="set-er"><option value="">All sets (release order)</option></select>
   <span class="count" id="count-er"></span>
 </div>
+<div class="live-note" id="au-note" hidden></div>
 <div class="period" id="per-er"></div>
 <div class="rvsum" id="sum-er"></div>
 <div class="ranges" id="ranges-er">
@@ -137,6 +138,7 @@
   <div class="range condchip" id="suschip"><label><input type="checkbox" id="showsus-er"> Show suspects (<span id="nsus">0</span>)</label></div>
   <div class="range condchip" id="mmchip" title="Only listings priced under 40% of the card's PriceCharting price: treated as wrong matches, never hits - the list to check by hand for a real steal"><label><input type="checkbox" id="mm-er"> Too cheap only (<span id="nmm">0</span>)</label></div>
   <div class="range condchip" id="leadchip" title="Only leads: listings on cards eBay cannot judge yet (fewer than 5 sales), that clear the gate when PriceCharting's price is used instead, capped by the cheapest other copy listed. Check photos and condition - a lead is not a hit"><label><input type="checkbox" id="lead-er"> Leads only (<span id="nlead">0</span>)</label></div>
+  <div class="range condchip" id="auchip" title="Show only the auctions that were sent to your phone, with the bid at that moment and what each one closed at. Every other listing is hidden while this is on"><label><input type="checkbox" id="au-er"> Auctions sent to my phone (<span id="nau">0</span>)</label></div>
   <button class="reset" id="reset-er">Reset filters</button>
 </div>
 <div class="wrap">
@@ -149,7 +151,9 @@
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="5" class="num">Listed within (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
     <th data-k="6">eBay title<span class="s">⇅</span><button class="help" data-h="er_title">?</button></th>
-    <th data-k="7" class="num">Item $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
+    <th data-k="42" class="num auc">Bid at alert $<span class="s">⇅</span><button class="help" data-h="er_aubid">?</button></th>
+    <th data-k="43" class="num auc">Sold for $<span class="s">⇅</span><button class="help" data-h="er_ausold">?</button></th>
+    <th data-k="7" class="num fxc">Item $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
     <th data-k="8" class="num">Ship $<span class="s">⇅</span><button class="help" data-h="er_item">?</button></th>
     <th data-k="9" class="num">Total $<span class="s">⇅</span><button class="help" data-h="er_total">?</button></th>
     <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
@@ -163,6 +167,8 @@
     <th data-k="13" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="ec_maxbuy">?</button></th>
     <th data-k="24" class="num">Profit $<span class="s">⇅</span><button class="help" data-h="er_profit">?</button></th>
     <th data-k="25" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="er_roi">?</button></th>
+    <th data-k="44" class="num auc">Profit at final $<span class="s">⇅</span><button class="help" data-h="er_aupf">?</button></th>
+    <th data-k="45" class="num auc">ROI at final %<span class="s">⇅</span><button class="help" data-h="er_auroi">?</button></th>
     <th data-k="14">Verdict<span class="s">⇅</span><button class="help" data-h="er_verdict">?</button></th>
     <th data-k="30">Risk<span class="s">⇅</span><button class="help" data-h="er_risk">?</button></th>
     <th data-k="32" class="num">Photos<span class="s">⇅</span><button class="help" data-h="er_photos">?</button></th>

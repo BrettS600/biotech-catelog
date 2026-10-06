@@ -181,3 +181,10 @@ tr.fresh td { background: rgba(34, 197, 94, .10); }
 .period input[type=number] { width:58px; }
 .rvsum { padding:0 18px 12px; font-size:14px; }
 .rvsum b.big { font-size:20px; }
+
+/* Raw Data's auction view (the "Auctions sent to my phone" switch): four columns that exist only there, one that does not */
+#p-er th.auc, #p-er td.auc { display:none; }
+#p-er.au-on th.auc, #p-er.au-on td.auc { display:table-cell; }
+#p-er.au-on th.fxc, #p-er.au-on td.fxc { display:none; }
+#au-note { border-left:3px solid var(--link); }
+.tools input:disabled { opacity:.35; cursor:not-allowed; }
