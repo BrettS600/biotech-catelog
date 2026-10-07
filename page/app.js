@@ -238,6 +238,7 @@ function verdictCell(r) {
   if (v === 'LEAD') return tip((r[28] || 'Lead: priced from PriceCharting, not from eBay sales') + '. ' + (r[38] === 'ok' ? 'Item specifics agree with the matched card.' : 'Item specifics not confirmed.') + ' A lead is not a hit: check the photos and the condition first', badge('LEAD' + (r[38] === 'ok' ? ' ✓' : ''), 'hot'));
   if (v === 'ID conflict') return tip('passes on price, but the item specifics describe another card: ' + why, badge('ID conflict', 'warn'));
   if (v === 'mismatch: marked by you') return tip('You marked this listing as not the card it was matched to. It is out of the statistics and out of the hit total, and the matcher learns from it. Untick Mismatch to undo.', badge('mismatch \u2717', 'warn'));
+  if (v === 'reprint?') return tip('An anniversary set has a cheaper card with this name and number' + (r.tw ? ' (' + r.tw[1].map(t => t[0] + ', about ' + fmtMoney(t[1])).join('; ') + ')' : '') + ', and this listing is priced nearer that card than this one. It is most likely the reprint, or a played copy of the original: either way not the near-mint card the numbers assume. Not a hit. Look for the anniversary stamp on the artwork.', badge('reprint?', 'warn'));
   if (v === 'learned') return tip('Held back by what your earlier mismatch marks taught: ' + (r.lrn || '') + '. It cannot be a hit. If it is the right card after all, the mark that taught this was the wrong one to make.', badge('learned', 'watch'));
   if (v === 'mismatch: too cheap') return tip('under ' + pcPct('pcLow', 0.4) + '% of the PriceCharting price: treated as a wrong match (another printing or language, a lot, a fake - far more often than a bargain). Never a hit, left out of the statistics; check it by hand', badge('mismatch ↓', 'watch'));
   if (v === 'mismatch: too high') return tip('over ' + pcPct('pcHigh', 3) + '% of the PriceCharting price: treated as a wrong match and left out of the statistics', badge('mismatch ↑'));
@@ -602,6 +603,7 @@ function verdictOf(x, cs, S) {
   if (x[23] === 'suspect') return ['suspect', allin, null];
   if (x[32]) return ['learned', allin, null];              // held back by what his earlier marks taught
   if (x[28]) return [x[28] === 'low' ? 'mismatch: too cheap' : 'mismatch: too high', allin, null];   // far from PriceCharting: a wrong match
+  if (cs && cs.tw && total < cs.tw[0]) return ['reprint?', allin, null];    // priced nearer its anniversary reprint than the card itself
   if (!cs || cs.A == null || (cs.A_n || 0) < S.minSales) {
     // eBay cannot judge this card yet: is the listing a lead on PriceCharting's price?
     if (cs && COMPARABLE.has(x[13]) && sellerBar(x[15], x[16]) == null) {
@@ -668,7 +670,7 @@ function rebuildLive() {
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
                   base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
                   null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
-    erow.um = umOf(x[0], x[31]); erow.lrn = x[32] || '';
+    erow.um = umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
     LIVE.er.push(erow);
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
@@ -677,6 +679,7 @@ function rebuildLive() {
   const markT = (live.alert && live.alert.mark_t) || 0;  // the collector has taken every mark up to this time
   for (const k of Object.keys(MARKS)) if (markT >= MARKS[k].t) delete MARKS[k];
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
+  $('nmm').textContent = ((live.alert && live.alert.wrong) || []).length;
   if (AU_ON()) { auMode(); tables.er.apply(); }
   LIVE.rv = ((live.acct && live.acct.rows) || []).map((r, i) => r.concat([i]));
   tables.rv.apply();
@@ -820,6 +823,34 @@ function offerRows(S) {
   }
   return out.sort((p, q) => p.off - q.off);
 }
+/* ---------------- Mismatches: which cards go wrong most often ----------------
+   One row per PriceCharting card Brett has marked at least one listing against (a Mismatch tick here, or a "No, not
+   the same card" on the phone), with the count and, where the listings were alerts, "3 of 12 alerts". Clicking a
+   row lists the listings behind the number. live.alert.mm = {card id: [marked, of those alerts, alerts sent]}. */
+function openMismatches() {
+  const A = (LIVE.data && LIVE.data.alert) || {}, W = A.wrong || [], MM = A.mm || {};
+  const by = new Map();
+  W.forEach(w => { const k = w[6] == null ? '?' + w[1] : String(w[6]); if (!by.has(k)) by.set(k, []); by.get(k).push(w); });
+  const cards = [...by.entries()].map(([k, list]) => { const base = idRow.get(+k) || [], m = MM[k] || [list.length, 0, 0];
+    return {k, id: base[0], name: base[1] || list[0][4] || 'Card not on record', set: String(base[2] || list[0][5] || '').replace('Pokemon ', ''), n: list.length, x: m[1], y: m[2], list}; })
+    .sort((p, q) => q.n - p.n || (p.name < q.name ? -1 : 1));
+  const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+  $('btitle').textContent = 'Mismatches';
+  $('bsub').textContent = W.length + ' listing' + (W.length === 1 ? '' : 's') + ' you marked as not the card ' + (W.length === 1 ? 'it was' : 'they were') + ' matched to, across ' + cards.length + ' card' + (cards.length === 1 ? '' : 's') + '. Most-mismatched first. Click a card to see its listings.';
+  $('bbody').innerHTML = '<input class="mmq" id="mm-q" type="search" placeholder="Search card or set\u2026"><div id="mm-list"></div>';
+  const draw = () => {
+    const q = $('mm-q').value.trim().toLowerCase(), show = cards.filter(c => !q || (c.name + ' ' + c.set).toLowerCase().includes(q));
+    $('mm-list').innerHTML = !cards.length ? '<p>None yet. Tick Mismatch on a Raw Data row, or answer "No, not the same card" on your phone.</p>' : !show.length ? '<p>No card matches that search.</p>' :
+      '<table><thead><tr><th>PriceCharting card</th><th class="num">Mismatches</th><th>Of its alerts</th></tr></thead><tbody>' +
+      show.map(c => '<tr class="mmr" data-k="' + esc(c.k) + '"><td>' + (c.id ? '<a href="https://www.pricecharting.com/game/' + c.id + '" target="_blank" rel="noopener">' + esc(c.name) + '</a>' : esc(c.name)) + (c.set ? ' <span class="dim">' + esc(c.set) + '</span>' : '') + '</td><td class="num"><b>' + c.n + '</b></td><td>' + (c.y ? c.x + ' of ' + c.y + ' alert' + (c.y === 1 ? '' : 's') : '<span class="dim">no alerts counted yet</span>') + '</td></tr>' +
+        '<tr class="mmd" data-k="' + esc(c.k) + '" hidden><td colspan="3"><ul>' + c.list.map(w => '<li>' + when(w[0]) + ' \u00b7 <a href="' + esc(w[3] || '#') + '" target="_blank" rel="noopener">' + esc(w[2] || w[1]) + '</a>' + (w[8] != null ? ' \u00b7 ' + fmtMoney(w[8]) : '') + (w[7] ? ' <span class="dim">\u00b7 ' + esc(String(w[7]).replace('-drop', ', price drop').replace('-lead', ', lead')) + '</span>' : '') + '</li>').join('') + '</ul></td></tr>').join('') + '</tbody></table>';
+  };
+  $('mm-q').addEventListener('input', draw);
+  $('bbody').onclick = e => { const tr = e.target.closest ? e.target.closest('tr.mmr') : null; if (!tr || e.target.closest('a')) return; const d = [...$('mm-list').querySelectorAll('tr.mmd')].find(x => x.dataset.k === tr.dataset.k); if (d) d.hidden = !d.hidden; };
+  draw();
+  $('bov').classList.add('open');
+}
+
 function openOffers() {
   const rows = (LIVE.offers || []).slice(0, 300), S = settings();
   const age = h => h == null ? '\u2014' : h < 48 ? h.toFixed(0) + ' h' : (h / 24).toFixed(0) + ' d';
@@ -1193,6 +1224,7 @@ $('al-test').addEventListener('click', () => alAct('test'));
 Object.values(AL_NUM).concat(Object.values(AL_BOX)).forEach(id => $(id).addEventListener('input', () => { AL.note = ''; alRender(); }));
 // Raw Data: one click puts the alert numbers into the boxes at the top, so the table shows what would alert
 $('au-er').addEventListener('input', () => { auMode(); tables.er.apply(); });
+$('mm-btn').addEventListener('click', openMismatches);
 $('use-al').addEventListener('click', () => {
   const c = Object.assign({}, AL_DEFAULT, (LIVE.data && LIVE.data.alert && LIVE.data.alert.cfg) || {});
   $('conf').value = c.conf; $('win').value = c.window; $('margin').value = c.margin; $('buytax').value = c.tax;

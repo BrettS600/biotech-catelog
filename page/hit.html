@@ -26,6 +26,10 @@ h1 { font-size: 17px; margin: 0 0 4px; }
 .row .lab { display: block; font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 1px; }
 .row b { font-size: 18px; }
 .row small { display: block; font-size: 12px; color: #8b949e; margin-top: 1px; }
+.row b.amber { color: #e3b341; }
+.rp { margin-top: 10px; background: #2d1f00; border: 1px solid #9e6a03; border-radius: 10px; padding: 9px 10px; font-size: 14px; overflow: hidden; }
+.rp img { float: right; width: 74px; border-radius: 5px; margin: 0 0 4px 10px; }
+.rp a { color: #58a6ff; }
 a.next { display: block; text-align: center; margin-top: 14px; padding: 8px; color: #58a6ff; text-decoration: none; font-size: 16px; }
 .tag { display: inline-block; background: #30363d; border-radius: 5px; padding: 1px 6px; margin: 2px 3px 0 0; font-size: 12px; }
 .tag.warn { background: #9e6a03; } .tag.bad { background: #da3633; } .tag.ok { background: #238636; }
@@ -52,6 +56,7 @@ a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
     <div class="side"><h2><a id="eblink" target="_blank" rel="noopener">eBay listing &#8599;</a></h2>
       <a id="piclink" target="_blank" rel="noopener"><img class="pic" id="pic" alt="eBay photo: tap to open the listing"></a><div class="thumbs" id="thumbs"></div></div>
   </div>
+  <div class="rp hide" id="rp"></div>
   <div class="rows" id="rows"></div>
   <div class="scam hide" id="scam"></div>
   <div class="btns"><button class="no" id="no">No<small>not the same card</small></button><button class="yes" id="yes">Yes<small>same card</small></button></div>
@@ -104,8 +109,19 @@ else {
   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
   const row = (l, r) => '<div class="row"><div>' + (l || '') + '</div><div>' + (r || '') + '</div></div>';
   const taxAmt = d.ai != null && d.tot != null ? Math.round((d.ai - d.tot) * 100) / 100 : 0;
+  // "Mismatched before": listings Brett marked as not this card - [marked, of those alerts, alerts sent]; shown only from 1 up
+  const mm = d.mm && d.mm[0] > 0 ? d.mm : null;
+  // A cheaper anniversary reprint carries this card's number (30th Celebration, Celebrations): only the photo tells them apart
+  if (d.rp && d.rp.length) {
+    const first = d.rp[0];
+    $('rp').innerHTML = (first[3] ? '<a href="https://www.pricecharting.com/game/' + encodeURIComponent(first[2]) + '" target="_blank" rel="noopener"><img src="' + esc(first[3]) + '" alt="the reprint"></a>' : '') +
+      '<b>Reprint check.</b> A cheaper card with this name and number exists: ' + d.rp.map(t => '<a href="https://www.pricecharting.com/game/' + encodeURIComponent(t[2]) + '" target="_blank" rel="noopener">' + esc(t[0]) + '</a>, about <b>' + money(t[1]) + '</b>').join('; ') +
+      '. If the photo shows an anniversary stamp, this is that reprint and the numbers here do not apply.';
+    $('rp').classList.remove('hide');
+  }
   $('rows').innerHTML =
     row(fact('Set / card number', esc(d.n) + (d.st ? ' / ' + d.st : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
+    (mm ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>on this card' + (mm[2] && mm[0] > mm[1] ? ' \u00b7 ' + mm[0] + ' marked in all' : '') + '</small>') : '') +
     (d.v || d.idv === 'conflict' ? row(d.v ? '<span class="tag warn">' + esc(d.v.toUpperCase()) + '</span><small>a special printing: check the photo shows it</small>' : '',
                                        d.idv === 'conflict' ? '<span class="tag bad">item specifics disagree</span><small>' + esc((d.idr || []).join('; ')) + '</small>' : '') : '') +
     row(fact('Ungraded price', money(d.pc)),

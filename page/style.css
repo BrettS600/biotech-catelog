@@ -209,3 +209,11 @@ tr.fresh td { background: rgba(34, 197, 94, .10); }
 tr.umm td { background:rgba(255, 128, 128, .17); }
 th.mmk, td.mmk { text-align:center; white-space:nowrap; }
 td.mmk input { width:16px; height:16px; cursor:pointer; accent-color:#d1242f; }
+
+/* The Mismatches list */
+.mmq { width:100%; font:inherit; padding:7px 10px; margin:6px 0 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+tr.mmr { cursor:pointer; }
+tr.mmr:hover td { background:var(--hover); }
+tr.mmd td { background:var(--head); }
+tr.mmd ul { margin:4px 0; padding-left:18px; }
+tr.mmd li { margin:3px 0; }
