@@ -104,11 +104,11 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtMoney(r[12]) + '</td>' +
       '<td class="num">' + (r[13] == null ? dash : '<b class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] < 0 ? '−' : '') + fmtMoney(Math.abs(r[13])) + '</b>') + '</td>' +
       '<td class="num">' + fmtPct(r[14]) + '</td><td>' + esc(r[15] || '') + '</td><td class="num">' + fmtMoney(r[16]) + '</td>'},
-  er: {rows: () => AU_ON() ? (LIVE.au || []) : LIVE.er, noun: 'listings', ranges: [24, 25], maxes: [5],
+  er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
        inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}],   // columns added over time, in order (see makeTable)
-       extra: r => r.um ? true : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
+       extra: r => r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => r.au ? auRow(r) : umCell(r) + cells4(r) +
@@ -126,7 +126,7 @@ const TABLES = {
       '<td class="num">' + (r[24] == null ? dash : '<span class="' + (r[24] > 0 ? 'up' : r[24] < 0 ? 'down' : '') + '">' + (r[24] < 0 ? '−' : '') + fmtMoney(Math.abs(r[24])).replace('$', '$') + '</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[25]) + '</td>' +
       '<td class="num auc"></td><td class="num auc"></td>' +
-      '<td>' + verdictCell(r) + '</td>' +
+      '<td>' + verdictCell(r) + hhNote(r) + '</td>' +
       '<td>' + riskCell(r) + '</td>' +
       '<td class="num">' + (r[32] == null ? dash : r[32]) + '</td>' +
       '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
@@ -294,7 +294,9 @@ function rvSummary() {
 function hitLedger() {
   // every hit in the period, newest first: the fixed-price alerts, and the auctions that closed at or under the max
   const A = (LIVE.data && LIVE.data.alert) || {}, P = PERIOD.er, out = [];
-  (A.all || []).forEach(e => { if (/^hit/.test(e[2] || '') && e[1] != null && P.test(e[0])) out.push({t: e[0], src: 'bin', kind: /drop/.test(e[2]) ? 'Buy It Now, price drop' : /suspect/.test(e[2]) ? 'Buy It Now, suspect' : 'Buy It Now', p: e[1], i: e[4], c: e[5] || '', u: e[6], tot: e[7], ti: e[9] || '', dec: e[3], um: umOf(e[4], e[8])}); });
+  const kindOf = k => /drop/.test(k) ? 'Buy It Now, price drop' : /suspect/.test(k) ? 'Buy It Now, suspect' : 'Buy It Now';
+  if (A.hh) (LIVE.hh || []).forEach(r => { if (r[24] != null && P.test(r.hh.t)) out.push({t: r.hh.t, src: 'bin', kind: kindOf(r.hh.kd), p: r[24], i: r[22], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.hh.dec, um: r.um}); });
+  else (A.all || []).forEach(e => { if (/^hit/.test(e[2] || '') && e[1] != null && P.test(e[0])) out.push({t: e[0], src: 'bin', kind: kindOf(e[2]), p: e[1], i: e[4], c: e[5] || '', u: e[6], tot: e[7], ti: e[9] || '', dec: e[3], um: umOf(e[4], e[8])}); });
   (LIVE.au || []).forEach(r => { if (r.au.res0 === 'PASS' && r[44] != null && P.test(r[34])) out.push({t: r[34], src: 'au', kind: 'auction, at the final price', p: r[44], i: r[22], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.au.dec, um: r.um}); });
   return out.sort((x, y) => (x.t < y.t ? 1 : -1));
 }
@@ -461,7 +463,7 @@ function makeTable(id, cfg) {
 const tables = {};
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 periodBar('rv', () => tables.rv.apply());
-periodBar('er', hitSummary);
+periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); });   // the period chooses the table's rows too
 tables.rv.apply();
 
 // Only the row of column names stays in view (Brett: the tabs, boxes and filters staying put was too much). The page
@@ -576,6 +578,52 @@ function paintLp() {
   $('lpt').innerHTML = lp.tiers.map(t => '<span class="' + (t.src === 'tier' ? 'meas' : '') + '" title="' + (t.src === 'tier' ? 'measured in this tier from ' + t.n + ' LP sales' : t.src === 'global' ? 'this tier has ' + t.n + ' LP sales (needs ' + lp.minSales + '); using the ratio measured across all tiers' : 'no measurement yet (' + t.n + ' LP sales in this tier, needs ' + lp.minSales + '); using the 12% default') + '"><i>' + (t.lo === 0 ? '<$' + t.hi : t.hi >= 1e9 ? '$' + t.lo + '+' : '$' + t.lo + '–' + t.hi) + '</i>' + t.pct + '%</span>').join('') + (lp.tiers.every(t => t.src !== 'tier') ? ' <span class="dim" title="No price tier has ' + lp.minSales + ' LP sales of its own yet, so all three show the one figure measured across every LP sale. They separate as sales accumulate">(pooled)</span>' : '');
 }
 const COMPARABLE = new Set(['NM', 'LP', 'UNK']);
+/* ---------------- The table follows the period (Brett, 2026-10-06) ----------------
+   "I selected day 6 to day 6, yet I only see 2 listings instead of all 7." The collector's live rows are a rolling 24
+   hours judged as they stand NOW, so a hit alerted in the morning has, by the evening, aged out or lost its verdict.
+   So the Year / month / day picker now chooses the table's rows as well as the total above it:
+     Only show hits ON  -> every Buy It Now hit ALERTED in the period, drawn from the snapshot taken when it alerted
+                           (live.alert.hh, kept 60 days) with the numbers it had then, plus any listing first seen in
+                           the period that passes right now without having been alerted;
+     Only show hits OFF -> the live rows first seen in the period (only the last 24 hours of listings exist). */
+function hhRows(live) {
+  const H = (live.alert && live.alert.hh) || [], now = Date.now();
+  return H.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((h, i) => {
+    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old] = h;
+    const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {}, pc = base[6] == null ? null : base[6];
+    const marked = umOf(iid, um);
+    const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', first ? r1((now - Date.parse(first)) / 36e5) : null, ti || '', item, ship, tot,
+      tot == null ? null : r2(tot + (item || 0) * (tax || 0) / 100), A, A && tot ? r1((tot / A - 1) * 100) : null, mb, marked ? 'mismatch: marked by you' : 'PASS', tc || 'UNK', !!bo, fb, pct,
+      out === 'unknown' ? 'gone' : out, u, null, iid, null, p, roi, s, null, null, tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], first || t,
+      pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs.k != null ? cs.k : null,
+      null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
+    row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null;
+    return row;
+  });
+}
+function erRows() {
+  const P = PERIOD.er, all = LIVE.er || [], note = $('per-note');
+  if (!P) return all;
+  let rows;
+  if ($('hits').checked) {
+    const mine = (LIVE.hh || []).filter(r => P.test(r.hh.t)), ids = new Set(mine.map(r => r[22]));
+    rows = mine.concat(all.filter(r => (r[14] === 'PASS' || r.um) && !ids.has(r[22]) && P.test(r[34])));   // a row he marked stays in view
+    if (note) { note.hidden = false; note.textContent = 'Showing every Buy It Now hit alerted in ' + P.label() + ', with the numbers each had when it alerted; the Verdict column says where it stands now. Hits are kept for 60 days.'; }
+  } else {
+    rows = all.filter(r => P.test(r[34]));
+    if (note) { note.hidden = rows.length === all.length; note.textContent = 'Showing listings first seen in ' + P.label() + ': ' + rows.length.toLocaleString() + ' of the ' + all.length.toLocaleString() + ' from the last 24 hours. Listings that were not hits are only kept for 24 hours; tick "Only show hits" to see the hits of an earlier day.'; }
+  }
+  return rows;
+}
+// under a hit's verdict: when it alerted, and where the listing stands now
+function hhNote(r) {
+  if (!$('hits').checked || AU_ON()) return '';
+  if (!r.hh) return '<br><span class="dim">passes now \u00b7 no alert sent</span>';
+  const live = LIVE.erMap && LIVE.erMap.get(r[22]);
+  const now = live ? (live[14] === 'PASS' ? 'still passes' : 'now: ' + live[14]) + (live[19] && live[19] !== 'open' ? ' (' + live[19] + ')' : '') : 'older than 24 h' + (r.hh.out && r.hh.out !== 'unknown' ? ', ' + r.hh.out : '');
+  return '<br><span class="dim">' + (/drop/.test(r.hh.kd) ? 'price drop, ' : '') + 'alerted ' + rvWhen(r.hh.t) + ' \u00b7 ' + esc(now) + (r.hh.old ? ' \u00b7 rebuilt from the alert log' : '') + '</span>';
+}
+
 /* ---------------- "Mismatch": Brett's own verdict on a listing ----------------
    A tick on a Raw Data row (or in the list behind the hit total) says the listing is not the card it was matched to.
    The row stays, tinted; the listing leaves the statistics and the hit total; the collector's matcher learns from it
@@ -678,6 +726,8 @@ function rebuildLive() {
   applyHelp(live.help);                                 // descriptions and READMEs he rewrote with the pencil
   const markT = (live.alert && live.alert.mark_t) || 0;  // the collector has taken every mark up to this time
   for (const k of Object.keys(MARKS)) if (markT >= MARKS[k].t) delete MARKS[k];
+  LIVE.erMap = new Map(LIVE.er.map(r => [r[22], r]));
+  LIVE.hh = hhRows(live);
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
   $('nmm').textContent = ((live.alert && live.alert.wrong) || []).length;
   if (AU_ON()) { auMode(); tables.er.apply(); }
