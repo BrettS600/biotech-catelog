@@ -1185,6 +1185,64 @@ def seller_bar(rec):
     return None
 
 
+# ---------------- anniversary reprints: the same card, the same printed number, a fraction of the price ----------------
+# The Celebrations sets (2021, and 30th Celebration in 2026) reprint famous old cards WITH THEIR ORIGINAL NUMBER:
+# the 30th Celebration Charizard still says 4/102, like the 1999 Base Set card it copies, plus an anniversary stamp
+# on the artwork. Sellers - and eBay's own listing form - label the copy "Base Set 4/102", so the title and the
+# item specifics both point at the original; only the photo and the price give it away (Brett, 2026-10-06: a $90
+# auction and two "hits" at $171 and $206 on a $446 card whose reprint is $199.50). Elsewhere in the catalog two
+# cards sharing a name and a number is a coincidence the printed set size already tells apart, so the rule is kept
+# to these sets (REPRINT_SETS). For each original the cut is the geometric middle of its PriceCharting price and its
+# dearest reprint's: a listing under it is nearer the reprint than the card - a reprint, or a played original; either
+# way not the near-mint copy the gate's arithmetic assumes. verdict() answers "reprint?" there; the statistics are
+# NOT touched (Brett approved holding such listings back as hits, nothing more).
+REPRINT_SETS = re.compile(r"celebration", re.I)
+REPRINT_MAX_RATIO = 0.75         # a reprint only matters when it is worth at most this share of the original
+REPRINT_MIN_VOL = 20             # ... and PriceCharting has this many sales a year behind its price
+
+
+def reprint_twins(cat):
+    """{original card id: [cut, [[reprint's set, its price, its card id], ...]]}, dearest reprint first, at most two.
+    WHICH card a reprint copies: several old cards can share its name and number (Charizard #4 is in Base Set, Base
+    Set 2 and Crystal Guardians; Umbreon #17 in Delta Species and POP Series 5), and the catalog does not say which.
+    These sets reprint the FAMOUS card, so the original is taken to be the dearest card with that name and number,
+    with every printing of it in that same set (1st Edition, Shadowless); the other namesakes are left alone.
+    Checked against Brett's catalog on 2026-10-06: 34 originals in his price range, the earliest-card rule got
+    Umbreon wrong (Delta Species 2005 instead of the POP 5 Gold Star 2007), this one did not."""
+    tw = getattr(cat, "_twins", None)
+    if tw is not None:
+        return tw
+    reprints, others = defaultdict(list), defaultdict(list)
+    for c in cat.cards:
+        key = (c["name"].lower(), c["pre"], c["n"], c["suf"])
+        if REPRINT_SETS.search(c["set"]):
+            if c.get("pc") and (c.get("vol") or 0) >= REPRINT_MIN_VOL:
+                reprints[key].append(c)
+        else:
+            others[key].append(c)
+    tw = {}
+    for key, ys in reprints.items():
+        xs = others.get(key)
+        if not xs:
+            continue
+        priced = [x for x in xs if x.get("pc")]
+        if not priced:
+            continue
+        first_set = max(priced, key=lambda x: x["pc"])["set"]
+        one = {}
+        for y in sorted(ys, key=lambda y: (bool(y["variant"]), -y["pc"])):     # one per reprint set, its plain printing first
+            one.setdefault(y["set"], y)
+        for x in xs:
+            if x["set"] != first_set or not x.get("pc"):
+                continue
+            mine = sorted((y for y in one.values() if y["pc"] <= REPRINT_MAX_RATIO * x["pc"]
+                           and (not x.get("rel") or not y.get("rel") or y["rel"] > x["rel"])), key=lambda y: -y["pc"])[:2]
+            if mine:
+                tw[x["id"]] = [round(math.sqrt(x["pc"] * mine[0]["pc"]), 2), [[y["set"].replace("Pokemon ", ""), y["pc"], y["id"]] for y in mine]]
+    cat._twins = tw
+    return tw
+
+
 def wrong_card(rec):
     """An identity check says this listing is probably not the card it was matched to - or Brett did (rec["um"])."""
     return bool(rec.get("pcm")) or rec.get("idv") == "conflict" or bool(rec.get("um"))
@@ -2059,6 +2117,7 @@ def trend_stats(days):
 
 def compute_stats(state, cat, lp):
     by_id = cat.by_id
+    twins = reprint_twins(cat)
     win_start = NOW - timedelta(days=STAT_WINDOW_D)
     opens = defaultdict(list)
     for iid, rec in state["open"].items():
@@ -2197,6 +2256,7 @@ def compute_stats(state, cat, lp):
             "basis": basis, "probT": probT, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy,
             "hot": hot, "confirm": confirm,
             "pc": (by_id.get(cid) or {}).get("pc"), "pcv": (by_id.get(cid) or {}).get("vol"),
+            "tw": twins.get(cid),                    # a cheaper anniversary reprint with this card's number: [cut, [[set, price, id]]]
             "checks": [key for key, v in checks.items() if not v], "lpd": round(lpd * 100, 1),
             "book": [[r["id"], r["total"], r["item"], r["ship"], r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
                       round(hours_between(parse_ts(r["origin"] or r["first"]) or NOW, NOW), 1), r["url"], r["title"]]
@@ -2305,6 +2365,8 @@ def verdict(rec, cs):
         return "learned", allin
     if rec.get("pcm"):                               # far from PriceCharting's price: treated as a wrong match
         return ("mismatch: too cheap" if rec["pcm"] == "low" else "mismatch: too high"), allin
+    if cs and cs.get("tw") and rec["total"] < cs["tw"][0]:   # priced nearer its anniversary reprint than the card itself
+        return "reprint?", allin
     if not cs or cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
         # eBay cannot judge this card yet. Is the listing a lead on PriceCharting's price?
         if cs and rec.get("tcond", "UNK") in COMPARABLE_CONDS and seller_bar(rec) is None:

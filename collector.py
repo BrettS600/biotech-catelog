@@ -827,8 +827,10 @@ def note_wrong(v, e, state=None, forced=False):
         return False
     wrong = v.setdefault("wrong", [])
     if not any(w["i"] == e["i"] for w in wrong):
+        alerted = any(x["i"] == e["i"] for x in v.get("alert_log", []) + v.get("au_hist", []))
         wrong.append({"t": e.get("dt") or es.ts(es.NOW), "i": e["i"], "ti": e.get("ti"), "u": e.get("u"), "c": e.get("c"),
-                      "cs": e.get("cs"), "card": e.get("card"), "kd": e.get("kd"), "tot": e.get("tot"), "sl": e.get("sl")})
+                      "cs": e.get("cs"), "card": e.get("card"), "kd": e.get("kd"), "tot": e.get("tot"), "sl": e.get("sl"),
+                      "al": 1 if alerted else 0})
     if state is not None:
         set_um(state, e["i"], True)
     return True
@@ -1015,7 +1017,56 @@ def hit_payload(rec, cs, cat, kind="hit"):
             "ph": rec.get("n_img"), "A": cs.get("A"), "An": cs.get("A_n"), "tax": round(es.TAX * 100, 2),
             # demand and supply from both sources: PriceCharting's 12-month sales count (all grades), and what this
             # collector has seen on eBay - sales in its 30-day window, the days it has watched the card, copies listed
-            "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N"), "kd": kind}
+            "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N"), "kd": kind,
+            # a cheaper anniversary reprint that carries this card's number (es.reprint_twins): [[set, price, card id]]
+            "rp": [list(t) for t in (cs.get("tw") or [0, []])[1]]}
+
+
+def mm_seed(v):
+    """Once: start the per-card alert counts from the alerts still on record, give the wrong-match entries made
+    before 2026-10-06 their card (old alert-log rows had none) and say whether each was an alert."""
+    if v.get("mm_seeded"):
+        return
+    ca, seen = v.setdefault("card_alerts", {}), set()
+    for e in v.get("alert_log", []) + v.get("au_hist", []):
+        if e.get("card") is not None and e["i"] not in seen:
+            seen.add(e["i"])
+            ca[str(e["card"])] = ca.get(str(e["card"]), 0) + 1
+    known = {}
+    for e in v.get("alert_log", []) + v.get("au_hist", []):  # the record of each alerted listing that names its card, if any does
+        if e["i"] not in known or (known[e["i"]].get("card") is None and e.get("card") is not None):
+            known[e["i"]] = e
+    for w in v.get("wrong", []):
+        if w.get("card") is None and w["i"] in known:
+            w["card"] = known[w["i"]].get("card")
+        w.setdefault("al", 1 if w["i"] in known or str(w.get("kd", "")).split("-")[0] in ("hit", "lead", "auction") else 0)
+    v["mm_seeded"] = 1
+
+
+def mm_counts(v):
+    """{card id: [listings Brett marked as mismatches, how many of those were alerts, alerts sent on the card]} for
+    every card he has marked at least once - "3 of 12 alerts". Alerts are counted from 2026-10-06 (card_alerts)."""
+    mm_seed(v)
+    out = {}
+    for w in v.get("wrong", []):
+        if w.get("card") is not None:
+            n = out.setdefault(w["card"], [0, 0, 0])
+            n[0] += 1
+            n[1] += 1 if w.get("al") else 0
+    for cid, n in out.items():
+        n[2] = max(v.get("card_alerts", {}).get(str(cid), 0), n[1])      # never fewer alerts than alerted mismatches
+    return out
+
+
+def alert_extras(state, d, rec):
+    """What an alert carries beyond the listing itself: the reprint's picture to compare against, how often this card
+    has been a mismatch before - and the alert is counted for that card."""
+    v = state["vps"]
+    if d.get("rp"):
+        d["rp"][0] = d["rp"][0][:3] + [pc_image(state, d["rp"][0][2])]
+    mm = mm_counts(v).get(rec["card"])
+    if mm:
+        d["mm"] = mm
 
 
 def scam_words(rec):
@@ -1077,12 +1128,14 @@ def alert_hits(state, cat, cards, live, cfg):
             return 0
         d["tk"], d["rq"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back
         d["pci"] = pc_image(state, d["pid"])
+        alert_extras(state, d, rec)
         flagged = rec.get("tier") in ("watch", "suspect")
         if flagged:
             d["risk"] = tier_risk(state, rec["tier"])
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
                + (f"\n{'SUSPECT' if suspect else 'Scam watch'}: {scam_words(rec)}" if flagged else "")
+               + (f"\nA cheaper reprint has this number ({d['rp'][0][0]}): look for the stamp" if d.get("rp") else "")
                + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings" + (" - ID conflict?" if d["idv"] == "conflict" else ""))
         title = ("SUSPECT: " if suspect else "") + ("Price drop: " if drop else "") + f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
         if not push(title, msg, click=link, image=rec.get("img"),
@@ -1091,6 +1144,7 @@ def alert_hits(state, cat, cards, live, cfg):
             return 0
         sent[iid] = es.ts(es.NOW)
         box["n"] += 1
+        v.setdefault("card_alerts", {})[str(rec["card"])] = v.get("card_alerts", {}).get(str(rec["card"]), 0) + 1
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": (rec.get("title") or "")[:70],
                      "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2],
                      "kd": kind + ("-suspect" if suspect else "") + ("-drop" if drop else ""),
@@ -1279,11 +1333,13 @@ def auction_alerts(state, cat, cards, cfg):
         d["nm"], d["lp"] = side("NM"), side("LP")
         d["au"] = {"e": end, "b": rec["item"], "n": watch[iid].get("bids") or 0}
         d["tk"], d["rq"], d["pci"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back, pc_image(state, d["pid"])
+        alert_extras(state, d, rec)
         if rec["tier"] == "watch":
             d["risk"] = tier_risk(state, "watch")
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Now ${rec['item']:.2f} + ${rec['ship']:.2f} shipping, {d['au']['n']} bids. Bid up to ${d['nm'][4]:.2f} for a near-mint copy"
                + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
+               + (f"\nA cheaper reprint has this number ({d['rp'][0][0]}): look for the stamp" if d.get("rp") else "")
                + (f"\nScam watch: {scam_words(rec)}" if rec["tier"] == "watch" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
         title = f"Auction ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
         if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3, tags=("hammer",)):
@@ -1291,6 +1347,7 @@ def auction_alerts(state, cat, cards, cfg):
         sent[iid] = es.ts(es.NOW)
         box["n"] += 1
         n += 1
+        v.setdefault("card_alerts", {})[str(rec["card"])] = v.get("card_alerts", {}).get(str(rec["card"]), 0) + 1
         watch[iid]["al"] = True
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": rec["title"][:70], "u": rec["url"],
                      "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4],
@@ -1638,6 +1695,8 @@ def cycle(state, cat, sched, counters):
         v["au_backfilled"] = 1
     live["alert"]["au"] = au_rows(state)                     # every auction sent to the phone, for the Raw Data tab
     live["alert"]["wrong"] = wrong_rows(v)                   # clean listings Brett said were not the matched card
+    mm_seed(v)
+    live["alert"]["mm"] = {str(k): n for k, n in mm_counts(v).items()}   # per card: [marked, of those alerts, alerts sent]
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))

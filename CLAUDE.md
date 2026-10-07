@@ -407,6 +407,24 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the Wrong matches card. HONEST LIMITS told to him: a mismatch whose title was right and whose photo was wrong
   (the Charizard 11/108 one) teaches rules 1-2 only; rule 3 needs three marks sharing a rare word, so it is slow by
   design; there is no button yet to drop a learned word other than unticking the marks behind it.
+- ANNIVERSARY REPRINTS (2026-10-06 night; the 30th Celebration Charizard that printed 4/102 and was sold as "Base
+  Set"). `es.reprint_twins(cat)`: for a card outside the Celebrations sets (REPRINT_SETS = /celebration/), the cards
+  in those sets with the same name and number, later, worth <= 75% of it, 20+ PC sales/yr - and only for the DEAREST
+  namesake's set when several old cards share the name and number (the reprint copies the famous one: Base Set
+  Charizard, not Crystal Guardians #4; POP 5 Umbreon, not Delta Species #17 - "earliest" got Umbreon wrong) -> `tw` =
+  [cut, [[set, price, id], ...]] with cut = sqrt(original's PC price x dearest reprint's). `verdict()` (and the
+  page's verdictOf) answer "reprint?" for a listing under the cut: never a hit, statistics untouched. Every alert on
+  such a card carries `rp` (hit_payload + `alert_extras()` adds the reprint's picture) -> a "Reprint check" box on
+  the phone and a line in the push text; that is all an auction can get, its price saying nothing before the close.
+  WHY ONLY THOSE SETS: in Brett's catalog 138 in-range cards share name+number with a cheaper card in a later set,
+  but only ~25 are true reprints - the rest are coincidences the printed set size already separates. He approved
+  the narrow version. The reprint's own listings (title says 30th / Celebrations) match the reprint's row as before.
+- MISMATCHES BY CARD (same night). "Mismatches (N)" beside Scam screen on Raw Data opens `openMismatches()`: one row
+  per PriceCharting card he has marked a listing against, count, "x of y alerts", search box, click a row for the
+  listings. Collector: `mm_counts(v)` -> {card: [marked, of those alerts, alerts sent]}, `v["card_alerts"]` counts
+  alerts per card from now on (seeded once by `mm_seed()` from the alerts still on record), wrong entries carry `al`
+  (was it an alert). Published as `live["alert"]["mm"]`; each alert carries `mm` when the card has >= 1 mark and the
+  phone shows "Mismatched before: 1 of 2 alerts" in the eBay column, only then (he asked for it there).
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
