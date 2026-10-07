@@ -850,7 +850,7 @@ def set_um(state, iid, on):
             rec["um"] = 1
         else:
             rec.pop("um", None)
-    for e in v.get("alert_log", []) + v.get("au_hist", []):
+    for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
         if e["i"] == iid:
             if on:
                 e["um"] = 1
@@ -909,7 +909,7 @@ def read_requests(state):
             env = json.loads(ev["message"])
             if "dec" in env:                      # Brett's Yes / No on the phone's check screen
                 dec = env["dec"]
-                for e in v.get("alert_log", []) + v.get("au_hist", []):
+                for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
                     if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "no", "yes"):
                         if dec["d"] == "yes" and e.get("dec"):
                             continue                 # "same card" never replaces an answer already given
@@ -1149,6 +1149,8 @@ def alert_hits(state, cat, cards, live, cfg):
                      "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2],
                      "kd": kind + ("-suspect" if suspect else "") + ("-drop" if drop else ""),
                      "tr": rec.get("tier", "clean"), "card": rec["card"], "cs": d.get("s")})
+        if kind == "hit":
+            v.setdefault("hit_hist", []).append(hit_snapshot(rec, d, hist[-1]["kd"], cs))
         return 1
 
     n = sum(consider(x[0], x[12], False) for x in live["live"] if x[17] == "open")
@@ -1360,6 +1362,71 @@ def auction_alerts(state, cat, cards, cfg):
             "fb": rec.get("fb"), "pct": rec.get("pct"), "kd": kind, "s": d["nm"][0], "net": [nets.get("NM"), nets.get("LP")],
             "tier": rec["tier"], "sc": rec["sc"], "scr": rec["scr"], "ph": rec.get("n_img")})
     return n
+
+
+HIT_HIST_KEEP_D = 60             # the Raw Data tab can show the hits of any day this far back
+
+
+def hit_snapshot(rec, d, kd, cs):
+    """A Buy It Now hit exactly as it was when its alert went out: the listing, and the numbers the alert promised.
+    The Raw Data table only holds the last 24 hours and judges every listing as it stands NOW, so by the evening a
+    morning hit has left it or lost its verdict (Brett, 2026-10-06: "7 hits" above a table of 2). With "Only show
+    hits" on, the table is drawn from these, by the day they alerted, whatever became of them since."""
+    return {"i": rec["id"], "t": es.ts(es.NOW), "tk": d.get("tk"), "card": rec["card"], "kd": kd, "tr": rec.get("tier", "clean"),
+            "ti": rec.get("title"), "u": rec.get("url"), "first": rec.get("origin") or rec.get("first"),
+            "item": rec.get("item"), "ship": rec.get("ship"), "tot": rec["total"], "tc": rec.get("tcond", "UNK"),
+            "bo": 1 if rec.get("bo") else 0, "fb": rec.get("fb"), "pct": rec.get("pct"), "ph": rec.get("n_img"),
+            "sc": rec.get("sc", 0), "scr": rec.get("scr") or [], "idv": rec.get("idv") or "", "A": cs.get("A"),
+            "s": d["nm"][0], "mb": d["nm"][1], "p": d["nm"][2], "roi": d["nm"][3], "tax": d.get("tax")}
+
+
+def hh_backfill(state, cat):
+    """Once: the hits alerted before the snapshots existed, rebuilt from the alert log (which kept the total and the
+    promised profit) and from the listing itself where the collector still has it. Marked old: the Max buy is worked
+    back from the profit at the margin in force, and no sell price or anchor is on record for them."""
+    v = state["vps"]
+    hh = v.setdefault("hit_hist", [])
+    have = {r["i"] for r in hh}
+    m = alert_cfg(state).get("margin", 10) / 100.0
+    for e in v.get("alert_log", []):
+        if not str(e.get("kd", "")).startswith("hit") or e["i"] in have:
+            continue
+        rec = find_rec(state, e["i"]) or {}
+        cid = e.get("card") if e.get("card") is not None else rec.get("card")
+        if cid is None:
+            try:
+                ci = es.match_title(cat, e.get("ti") or "", "", state.get("denoms", {}))[0]
+                cid = cat.cards[ci]["id"] if ci is not None else None
+            except Exception:
+                cid = None
+        tot, p = e.get("tot"), e.get("p")
+        hh.append({"i": e["i"], "t": e["t"], "tk": e.get("tk"), "card": cid, "kd": e["kd"], "tr": e.get("tr") or rec.get("tier", "clean"),
+                   "ti": rec.get("title") or e.get("ti"), "u": e.get("u"), "first": rec.get("origin") or rec.get("first"),
+                   "item": rec.get("item"), "ship": rec.get("ship"), "tot": tot, "tc": rec.get("tcond") or es.title_condition(e.get("ti") or ""),
+                   "bo": 1 if rec.get("bo") else 0, "fb": rec.get("fb"), "pct": rec.get("pct"), "ph": rec.get("n_img"),
+                   "sc": rec.get("sc", 0), "scr": rec.get("scr") or [], "idv": rec.get("idv") or "", "A": None, "s": None,
+                   "mb": round((tot + p) / (1 + m), 2) if tot and p is not None else None, "p": p,
+                   "roi": round(p / tot * 100, 1) if tot and p is not None else None, "tax": None, "old": 1,
+                   "dec": e.get("dec"), "um": e.get("um")})
+    hh.sort(key=lambda r: r["t"])
+
+
+def hh_rows(state):
+    """The hit history for the site, kept HIT_HIST_KEEP_D days, each row with what has become of the listing."""
+    v = state["vps"]
+    cut = es.ts(es.NOW - timedelta(days=HIT_HIST_KEEP_D))
+    v["hit_hist"] = [r for r in v.get("hit_hist", []) if r["t"] >= cut]
+    want = {r["i"] for r in v["hit_hist"]}
+    closed = {r["id"]: r for r in state["closed"] if r["id"] in want}
+    rows = []
+    for r in v["hit_hist"]:
+        rec = state["open"].get(r["i"]) or closed.get(r["i"])
+        out = "open" if r["i"] in state["open"] else (rec.get("out") or "closed") if rec else "unknown"
+        rows.append([r["i"], r["t"], r.get("card"), r.get("ti"), r.get("u"), r.get("first"), r.get("item"), r.get("ship"), r.get("tot"),
+                     r.get("tc"), r.get("bo", 0), r.get("fb"), r.get("pct"), r.get("ph"), r.get("tr"), r.get("sc", 0), r.get("scr") or [],
+                     r.get("idv") or "", r.get("A"), r.get("s"), r.get("mb"), r.get("p"), r.get("roi"), r.get("tax"), r.get("kd"),
+                     r.get("dec"), 1 if (r.get("um") or (rec or {}).get("um")) else 0, out, r.get("old", 0)])
+    return rows
 
 
 def au_backfill(state, cat):
@@ -1694,6 +1761,10 @@ def cycle(state, cat, sched, counters):
         au_backfill(state, cat)
         v["au_backfilled"] = 1
     live["alert"]["au"] = au_rows(state)                     # every auction sent to the phone, for the Raw Data tab
+    if not v.get("hh_backfilled"):
+        hh_backfill(state, cat)
+        v["hh_backfilled"] = 1
+    live["alert"]["hh"] = hh_rows(state)                     # every Buy It Now hit as it was when it alerted
     live["alert"]["wrong"] = wrong_rows(v)                   # clean listings Brett said were not the matched card
     mm_seed(v)
     live["alert"]["mm"] = {str(k): n for k, n in mm_counts(v).items()}   # per card: [marked, of those alerts, alerts sent]

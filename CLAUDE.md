@@ -425,6 +425,18 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   alerts per card from now on (seeded once by `mm_seed()` from the alerts still on record), wrong entries carry `al`
   (was it an alert). Published as `live["alert"]["mm"]`; each alert carries `mm` when the card has >= 1 mark and the
   phone shows "Mismatched before: 1 of 2 alerts" in the eBay column, only then (he asked for it there).
+- THE TABLE FOLLOWS THE PERIOD (2026-10-06 late; Brett: "I selected day 6 to day 6, yet I only see 2 listings
+  instead of all 7"). The live rows are a rolling 24 h judged as they stand NOW, so by evening a morning hit has aged
+  out or lost its verdict (that day: 2 still passed, 2 had turned "not liquid", 3 were older than 24 h). Now the
+  Year / month / day picker chooses the Raw Data table's rows as well as the total: `erRows()`. Only show hits ON ->
+  every Buy It Now hit ALERTED in the period, from `live["alert"]["hh"]` (collector `v["hit_hist"]`, a snapshot taken
+  by `hit_snapshot()` when the alert goes out, kept 60 days, 29 fields via `hh_rows()`), drawn with the numbers the
+  alert promised; `hhNote()` adds "alerted ... · still passes / now: not liquid / older than 24 h, sold" under the
+  verdict; a live row that passes now without an alert is added and labelled; a marked row stays. Only show hits OFF
+  -> live rows first seen in the period, with `#per-note` saying how many of the 24 h fall outside it. The hit total
+  reads the same snapshots, so the Profit column of the rows adds up to the line above. `hh_backfill()` rebuilt the
+  hits alerted before this from the alert log (marked old: Max buy worked back from the promised profit, no sell
+  price). Phone answers and Mismatch ticks are written to hit_hist entries too (same loops as alert_log / au_hist).
 - Auction trial sampling: the final-price lookups are capped per hour (AUCTION_LOOKUPS_PER_HOUR), newest finished
   first. The first day's 69 results all came from 8-10 PM Eastern because a daily cap ran out by then.
 - The check screen also shows demand and supply from both sources: PriceCharting sales per month (its 12-month count
