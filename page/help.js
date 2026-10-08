@@ -212,7 +212,12 @@ const HELP = {
   vol: {t: 'Volatility %', f: 'median of |ln(P_t / P_t−1)| over the days the price moved in the last 90 days', m: 'The typical size of a move when the price moves. The median ignores a single wild day, which a standard deviation would not. It sizes the safety cushion in the buy gate: a card that moves 2% at a time can be bought at a thinner discount than one that moves 12%. Needs at least 3 moves.', e: 'Moves of 3.82%, 3.75%, 1.78%, 4.98%, 1.40%, 1.18% → sorted 1.18, 1.40, 1.78, 3.75, 3.82, 4.98 → median = (1.78 + 3.75) / 2 = 2.77%.'},
   ts: {t: 'Slope 30d %/mo (Theil–Sen)', f: 'median over every pair of days (i, j) in the last 30 days of (ln P_j − ln P_i) / (j − i), then converted to % per month: (e^(slope × 30) − 1) × 100', m: 'The robust trend: the median of all pairwise slopes, so one spike day barely moves it, unlike a fitted line. It is the drift used in the buy gate (only negative drift counts against the sell price). Δ30d uses two endpoints; this uses all 465 pairs, so it is the steadier version of the same idea. Needs 10 points in the window.', e: '31 daily prices sliding from $48 to $42 → median pairwise slope −0.00413 per day → e^(−0.00413 × 30) − 1 = −11.7% per month. A plain regression gave −0.44%/day here; add one spike day and the two diverge.'},
   ec_price: {t: 'Price $ (eBay)', f: 'the anchor A once the card has any trimmed sales; until then the cheapest comparable listing', m: 'The card\'s market price from eBay alone, used by the $50–$150 default filter and the scam screen\'s price ratios. See Anchor $ for how it is built.', e: 'A = $94 → $94.'},
-  ec_k: {t: 'Sold 30d (k)', f: 'count of comparable raw listings that sold in the last 30 days', m: 'The raw evidence behind λ. "Comparable" = ungraded, condition NM/LP or not stated, seller ≥ 98%. Sales only exist for listings the collector saw while they were live, so this starts at zero and grows.', e: '13 sales counted → k = 13.'},
+  ec_pcs: {t: 'PC sales (per month)', f: 'PriceCharting sales count for the last 12 months ÷ 12', m: 'How many copies PriceCharting records as sold in an average month, every grade together, raw and graded. The same number as PC sales on the Raw Data tab. Read it against eBay sales: a card PriceCharting calls busy that this collector has barely seen sell is either graded-heavy or its sales are not being caught yet.', e: '3,000 sales in 12 months → 250.'},
+  ec_pc: {t: 'PC $ — PriceCharting ungraded price', f: 'PriceCharting\'s price for a raw copy, as the collector last read it (today\'s catalog price when it has none)', m: 'The outside reference for the anchor. It is a trailing blend of all conditions, so it usually sits a little under a near-mint eBay price and lags a moving market.', e: 'PriceCharting says $120; the anchor from eBay sales is $112.'},
+  ec_vspc: {t: 'vs PC % — the anchor against PriceCharting', f: '(Anchor A ÷ PC $ − 1) × 100', m: 'The fastest sanity check on a card\'s numbers. Around −10% to +20% is normal (eBay near-mint sales run a little above PriceCharting\'s blended price). Far below −40%: the sales feeding the anchor are probably another card, a reprint or damaged copies - open the Book and the Mismatches list. Far above +200%: the anchor is on a few odd sales, or PriceCharting is stale. Both ends are shown in red.', e: 'Anchor $45 on a card PriceCharting prices at $120 → −63%: look at what sold.'},
+  ec_hits: {t: 'Hits 30d — alerts on this card', f: 'Buy It Now hits and auction alerts sent to your phone on this card in the last 30 days', m: 'Deal flow per card: the cards that actually produce buys, as against the ones that merely look good on paper. Sort by it to see where the opportunities have been.', e: '3 = three alerts in the last month.'},
+  mm_ratio: {t: 'Match:mismatch', f: 'listings filed under this card that were not marked wrong : listings you marked as not this card', m: '"5:3" means five listings matched to the card that stand, and three that you marked as mismatches (a Mismatch tick, "Not the same card" on the site, or "No, not the same card" on the phone). Open and closed listings alike, since the collector started. A card with many mismatches relative to matches is one whose title is easy to confuse: look at its listings with more care, and expect its anchor to be shakier.', e: '12:0 = twelve listings, none wrong. 5:3 = three of eight were wrong.'},
+  ec_k: {t: 'eBay sales (k) — sold in 30 days', f: 'count of comparable raw listings that sold in the last 30 days', m: 'The raw evidence behind λ. "Comparable" = ungraded, condition NM/LP or not stated, seller ≥ 98%. Sales only exist for listings the collector saw while they were live, so this starts at zero and grows.', e: '13 sales counted → k = 13.'},
   ec_d: {t: 'Days observed (D)', f: 'days since the first listing of this card was seen, capped at 30', m: 'The denominator for rates. A card first seen 5 days ago with 2 sales is 0.4/day, not 2/30.', e: 'First seen 19 days ago → D = 19.'},
   ec_lam: {t: 'λ — raw sales per day', f: '25th percentile of Gamma(k + ½, D)   (posterior for a Poisson rate with a flat prior)', m: 'Expected raw buyers per day, stated conservatively: the value the true rate exceeds three times out of four. With few sales it reads well below k/D on purpose; after ~20 sales it converges. It decides whether a card is liquid at your Confidence and Window, how long a credible copy may sit before it is ignored (1.6 ÷ λ days), and the Exp. days column.', e: 'k = 12, D = 18: k/D = 0.67/day, but λ = 0.56/day. k = 2, D = 10: k/D = 0.20 but λ = 0.11.'},
   ec_n: {t: 'Active (N)', f: 'number of comparable raw listings currently open for this card', m: 'The size of the book you would be competing in. Only comparable copies count (see Sold 30d).', e: '4 open NM/LP copies from ≥98% sellers → N = 4.'},
@@ -303,6 +308,9 @@ const HELP = {
 // what each eBay column is built from, and what is built from it (shown in the help popup)
 const LINKS = {
   ec_k: ['eBay tracker outcomes', 'λ, Sell-thru, Hot'], ec_d: ['first sighting of the card', 'λ, New/day'],
+  ec_pcs: ['PriceCharting\'s daily file', 'reading only'], ec_pc: ['PriceCharting\'s daily file', 'vs PC %, the mismatch price rule, leads'],
+  ec_vspc: ['Anchor A, PC $', 'reading only'], ec_hits: ['the hit and auction histories', 'reading only'],
+  mm_ratio: ['every listing filed under the card, your mismatch marks', 'reading only'],
   ec_n: ['open comparable listings', 'Days supply, the floor'],
   ec_p: ['open comparable listings, Best Offer haircut', 'the floor L (after the credibility rules), Price (when no sales yet)'],
   ec_mu: ['listings first seen in 30 d, Days obs.', 'In/out'], ec_smed: ['last 10 sales', 'Hot (realized check); reference only'],
@@ -342,6 +350,20 @@ const curTab = () => { const p = document.querySelector('.panel:not([hidden])');
 function applyHelp(hp) {                       // called on every live refresh
   OVR = (hp && hp.v) || {}; OVR_T = (hp && hp.t) || 0;
   for (const k of Object.keys(PEND)) if (OVR_T >= PEND[k].t) delete PEND[k];
+  applyNames();
+}
+// A column header renamed with the pencil (2026-10-08, Brett). The name travels with the description (h:<key>.n),
+// so it follows him to every device, and applies wherever that column appears (the same key = the same meaning).
+const headerOf = key => { const b = document.querySelector('th .help[data-h="' + key + '"]'); return b ? b.closest('th') : null; };
+const headerText = th => { const tn = [...th.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); return tn ? tn.textContent.trim() : ''; };
+function applyNames() {
+  document.querySelectorAll('th .help[data-h]').forEach(b => {
+    const th = b.closest('th'); if (!th) return;
+    const tn = [...th.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); if (!tn) return;
+    if (th.dataset.on == null) th.dataset.on = tn.textContent.trim();
+    const o = ovr('h:' + b.dataset.h), name = (o && o.n) || th.dataset.on;
+    if (tn.textContent.trim() !== name) tn.textContent = name;
+  });
 }
 // README text is HTML he typed into the page: keep the plain structure, drop anything that could run or restyle
 function cleanHtml(html) {
@@ -390,7 +412,8 @@ function openHelp(key) {
   const h = helpOf(key); if (!h) return;
   HCUR = key;
   $('hbar').hidden = true; $('hedit').hidden = false;
-  $('htitle').innerHTML = esc(h.t) + (ovr('h:' + key) ? '<span class="edited">edited by you</span>' : '');
+  const o = ovr('h:' + key);
+  $('htitle').innerHTML = esc((o && o.n) || h.t) + (o ? '<span class="edited">edited by you</span>' : '');
   const L = LINKS[key];
   $('hbody').innerHTML = '<h4>Formula</h4><div class="formula">' + esc(h.f) + '</div><h4>What it means</h4><p>' + esc(h.m) + '</p>' + (h.e ? '<h4>Example</h4><p>' + esc(h.e) + '</p>' : '') +
     (L ? '<h4>Built from</h4><p>' + esc(L[0]) + '</p><h4>Feeds into</h4><p>' + esc(L[1]) + '</p>' : '');
@@ -399,13 +422,20 @@ function openHelp(key) {
 $('hedit').addEventListener('click', () => {
   const key = HCUR, h = helpOf(key); if (!h) return;
   $('hedit').hidden = true;
-  $('hbody').innerHTML = '<h4>Formula</h4><textarea id="he-f" rows="3"></textarea><h4>What it means</h4><textarea id="he-m" rows="10"></textarea><h4>Example</h4><textarea id="he-e" rows="3"></textarea>';
+  const th = headerOf(key), o = ovr('h:' + key);
+  $('hbody').innerHTML = (th ? '<h4>Column name</h4><input class="hname" id="he-n" maxlength="60" placeholder="' + esc(th.dataset.on || headerText(th)) + '">' : '') +
+    '<h4>Formula</h4><textarea id="he-f" rows="3"></textarea><h4>What it means</h4><textarea id="he-m" rows="10"></textarea><h4>Example</h4><textarea id="he-e" rows="3"></textarea>';
+  if (th) $('he-n').value = (o && o.n) || th.dataset.on || headerText(th);
   $('he-f').value = h.f || ''; $('he-m').value = h.m || ''; $('he-e').value = h.e || '';
-  editBar($('hbar'), !!ovr('h:' + key),
-    async say => { if (await sendEdit('h:' + key, {f: $('he-f').value.trim(), m: $('he-m').value.trim(), e: $('he-e').value.trim()}, say)) setTimeout(() => { if (HCUR === key) openHelp(key); }, 1200); },
+  editBar($('hbar'), !!o,
+    async say => {
+      const val = {f: $('he-f').value.trim(), m: $('he-m').value.trim(), e: $('he-e').value.trim()};
+      if (th) { const n = $('he-n').value.trim(); if (n && n !== th.dataset.on) val.n = n; }
+      if (await sendEdit('h:' + key, val, say)) { applyNames(); setTimeout(() => { if (HCUR === key) openHelp(key); }, 1200); }
+    },
     () => openHelp(key),
-    async say => { if (await sendEdit('h:' + key, null, say)) setTimeout(() => { if (HCUR === key) openHelp(key); }, 1200); },
-    'Plain text. Saved for every device.');
+    async say => { if (await sendEdit('h:' + key, null, say)) { applyNames(); setTimeout(() => { if (HCUR === key) openHelp(key); }, 1200); } },
+    'Plain text. The name shows on every tab that has this column. Saved for every device.');
   $('he-m').focus();
 });
 
