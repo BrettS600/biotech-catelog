@@ -385,7 +385,7 @@ function makeTable(id, cfg) {
   t.renderMore = () => {
     const frag = document.createDocumentFragment();
     const end = Math.min(t.shown + PAGE, t.view.length);
-    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); frag.appendChild(tr); }
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
     el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
@@ -403,17 +403,19 @@ function makeTable(id, cfg) {
   } catch (e) {}
   const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
   const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6c1.6 0 3 .3 4.3.9l-1.6 1.6A6 6 0 0 0 12 8c-4.4 0-7.2 3.2-8.1 4 .5.5 1.6 1.7 3.2 2.6l-1.5 1.5C3.4 14.7 2 12 2 12zm20 0s-3.5 6-10 6c-1.6 0-3-.3-4.3-.9l1.6-1.6c.8.3 1.7.5 2.7.5 4.4 0 7.2-3.2 8.1-4-.5-.5-1.6-1.7-3.2-2.6l1.5-1.5C20.6 9.3 22 12 22 12zM4 20 20 4l1.4 1.4L5.4 21.4z" fill="currentColor"/></svg>';
-  const paintHeads = () => [...headRow.children].forEach((th, ci) => {
+  const paintHeads = () => [...headRow.children].forEach((th, pos) => {
+    const ci = th.dataset.ci != null ? +th.dataset.ci : pos;
     const on = hiddenCols.has(ci);
     th.classList.toggle('col-hidden', on);
     const b = th.querySelector('.eye'); if (b) { b.innerHTML = on ? EYE_SHUT : EYE_OPEN; b.title = on ? 'Show column' : 'Hide column'; }
   });
-  const paintRow = tr => { if (hiddenCols.size) hiddenCols.forEach(ci => { const td = tr.children[ci]; if (td) td.classList.add('col-hidden'); }); };
+  const cellOf = (tr, ci) => tr.querySelector('[data-ci="' + ci + '"]') || tr.children[ci];
+  const paintRow = tr => { if (hiddenCols.size) hiddenCols.forEach(ci => { const td = cellOf(tr, ci); if (td) td.classList.add('col-hidden'); }); };
   const toggleCol = ci => {
     if (hiddenCols.has(ci)) hiddenCols.delete(ci); else hiddenCols.add(ci);
     try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
     paintHeads();
-    el('rows').querySelectorAll('tr').forEach(tr => { const td = tr.children[ci]; if (td) td.classList.toggle('col-hidden', hiddenCols.has(ci)); });
+    el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) td.classList.toggle('col-hidden', hiddenCols.has(ci)); });
   };
   [...headRow.children].forEach((th, ci) => {
     const b = document.createElement('button'); b.className = 'eye'; b.type = 'button';
@@ -421,6 +423,60 @@ function makeTable(id, cfg) {
     th.appendChild(b);
   });
   paintHeads();
+  /* Column order (2026-10-08, Brett): click, hold and drag a header to move its column; the order is remembered per
+     tab. Cells keep their ORIGINAL index underneath (data-ci), so the eyes, sorts and row builders are untouched: a row
+     is built in the original order and its cells are then placed by the saved order. On the eBay Catalog the band
+     row (Observed / Rates / ...) spans fixed runs of columns, so a column moves only inside its own band. */
+  const nCols = headRow.children.length;
+  const bands = (() => {                                   // [from, to) column runs under each band header, if any
+    const grp = document.querySelector('#p-' + id + ' thead tr.grp'); if (!grp) return null;
+    const out = []; let at = 0;
+    for (const th of grp.children) { const n = +(th.getAttribute('colspan') || 1); out.push([at, at + n]); at += n; }
+    return out;
+  });
+  const bandOf = ci => { const b = bands(); if (!b) return [0, nCols]; return b.find(([a, z]) => ci >= a && ci < z) || [0, nCols]; };
+  let order = null;                                        // array of original indexes in display order, or null = original
+  try { const sv = JSON.parse(localStorage.getItem('order-' + id) || 'null'); if (Array.isArray(sv) && sv.length === nCols && [...sv].sort((a, b) => a - b).every((v, i) => v === i)) order = sv; } catch (e) {}
+  [...headRow.children].forEach((th, ci) => { th.dataset.ci = ci; th.draggable = true; });
+  const place = tr => { if (!order) return; const cells = [...tr.children]; if (cells.length !== nCols) return; order.forEach(ci => tr.appendChild(cells[ci])); };
+  const placeAll = () => { place(headRow); el('rows').querySelectorAll('tr').forEach(place); };
+  const saveOrder = () => { try { if (order) localStorage.setItem('order-' + id, JSON.stringify(order)); else localStorage.removeItem('order-' + id); } catch (e) {} };
+  t.resetOrder = () => { order = null; saveOrder(); t.apply(); [...headRow.children].sort((a, b) => +a.dataset.ci - +b.dataset.ci).forEach(th => headRow.appendChild(th)); };
+  let dragCi = null;
+  headRow.addEventListener('dragstart', e => {
+    const th = e.target.closest('th'); if (!th || e.target.closest('.eye, .help')) { e.preventDefault(); return; }
+    dragCi = +th.dataset.ci; th.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(dragCi)); } catch (x) {}
+  });
+  headRow.addEventListener('dragover', e => {
+    const th = e.target.closest('th'); if (!th || dragCi == null) return;
+    const [a, z] = bandOf(dragCi), ci = +th.dataset.ci;
+    if (ci < a || ci >= z) return;                         // another band: not a drop target
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    [...headRow.children].forEach(x => x.classList.remove('drop-l', 'drop-r'));
+    const r = th.getBoundingClientRect(); th.classList.add(e.clientX < r.left + r.width / 2 ? 'drop-l' : 'drop-r');
+  });
+  headRow.addEventListener('dragleave', e => { const th = e.target.closest('th'); if (th) th.classList.remove('drop-l', 'drop-r'); });
+  headRow.addEventListener('drop', e => {
+    const th = e.target.closest('th'); if (!th || dragCi == null) return;
+    const [a, z] = bandOf(dragCi); if (+th.dataset.ci < a || +th.dataset.ci >= z) return;   // another band: nothing happens
+    e.preventDefault();
+    const cur = [...headRow.children].map(x => +x.dataset.ci);
+    const r = th.getBoundingClientRect(), before = e.clientX < r.left + r.width / 2;
+    const from = cur.indexOf(dragCi); cur.splice(from, 1);
+    let to = cur.indexOf(+th.dataset.ci) + (before ? 0 : 1);
+    cur.splice(to, 0, dragCi);
+    order = cur.every((v, i) => v === i) ? null : cur;
+    saveOrder();
+    [...headRow.children].forEach(x => x.classList.remove('drop-l', 'drop-r', 'dragging'));
+    const want = order || [...Array(nCols).keys()];
+    const heads = [...headRow.children]; want.forEach(ci => headRow.appendChild(heads.find(x => +x.dataset.ci === ci)));
+    el('rows').querySelectorAll('tr').forEach(tr => { const cells = [...tr.children]; if (cells.length === nCols) { const byCi = {}; cells.forEach(td => { byCi[td.dataset.ci] = td; }); want.forEach(ci => tr.appendChild(byCi[ci])); } });
+    dragCi = null;
+  });
+  headRow.addEventListener('dragend', () => { [...headRow.children].forEach(x => x.classList.remove('drop-l', 'drop-r', 'dragging')); dragCi = null; });
+  t.stampRow = tr => { [...tr.children].forEach((td, ci) => { td.dataset.ci = ci; }); place(tr); };
+  el('rows').querySelectorAll('tr').forEach(t.stampRow);   // rows rendered before this block existed
+  place(headRow);
   const ths = document.querySelectorAll('#p-' + id + ' th[data-k]');
   ths.forEach(th => th.addEventListener('click', () => {
     const k = +th.dataset.k;
@@ -445,6 +501,8 @@ function makeTable(id, cfg) {
     }));
     $('condchip').classList.toggle('on', conds.some(x => !x.checked));
   }
+  if (el('reset')) { const rc = document.createElement('button'); rc.className = 'reset'; rc.type = 'button'; rc.textContent = 'Reset columns'; rc.title = 'Put the columns back in their original order';
+    rc.addEventListener('click', () => t.resetOrder()); el('reset').insertAdjacentElement('afterend', rc); }
   if (el('reset')) el('reset').addEventListener('click', () => {
     el('q').value = ''; sel.value = '';
     cfg.ranges.forEach(k => { const d = cfg.defaults[k] || ['', '']; el('min' + k).value = d[0]; el('max' + k).value = d[1]; });
@@ -630,7 +688,15 @@ function hhNote(r) {
    (ebay_sweep.py: learn_tables). The tick shows at once from MARKS and is confirmed by live.alert.mark_t. */
 const MARKS = {};                                  // item id -> {v: 1 | 0, t}
 const umOf = (iid, flag) => iid in MARKS ? !!MARKS[iid].v : !!flag;
-const umCell = r => '<td class="mmk"><input type="checkbox" class="um" data-i="' + esc(r[22] || '') + '"' + (r.um ? ' checked' : '') + ' title="Tick if this listing is not the card it was matched to"></td>';
+/* The Review column (2026-10-08, Brett's request): the phone's first question - PriceCharting's picture beside the
+   eBay photos, the facts row by row, Same card / Not the same - as a popup on the site, so he can check a match on
+   the laptop the way he does on the phone. "Not the same" IS the Mismatch tick (same flag, same learning); "Same
+   card" clears it and records a confirmed match. The answer shows in the cell; clicking it opens the popup again. */
+const REVIEWS = {};                                // item id -> {v: 1 same | 0 not the same | null withdrawn, t}, until the collector confirms
+const reviewOf = iid => iid in REVIEWS ? REVIEWS[iid].v : (LIVE.data && LIVE.data.alert && LIVE.data.alert.reviews && iid in LIVE.data.alert.reviews ? LIVE.data.alert.reviews[iid] : (umOf(iid, false) ? 0 : null));
+const umCell = r => { const v = r[22] ? reviewOf(r[22]) : null; const marked = r.um && v !== 1;
+  return '<td class="mmk"><button class="rvb' + (v === 1 ? ' same' : marked || v === 0 ? ' diff' : '') + '" data-i="' + esc(r[22] || '') + '" title="' + (v === 1 ? 'You said: same card. Click to review again' : marked || v === 0 ? 'You said: not the same card. Click to review again' : 'Compare the PriceCharting picture with the eBay photos') + '">' +
+    (v === 1 ? '\u2713 same' : marked || v === 0 ? '\u2717 mismatch' : 'Review') + '</button></td>'; };
 async function sendMark(iid, on) {
   if (!iid) return;
   const t = Date.now();
@@ -639,7 +705,59 @@ async function sendMark(iid, on) {
   try { await alSend({type: 'mark', t, i: iid, v: on ? 1 : 0}); }
   catch (e) { delete MARKS[iid]; if (LIVE.data) rebuildLive(); $('sum-er').insertAdjacentHTML('beforeend', ' <span class="down">The mark could not be sent (' + esc(e.message) + ').</span>'); }
 }
-document.addEventListener('change', e => { const b = e.target && e.target.closest ? e.target.closest('input.um') : null; if (b) sendMark(b.dataset.i, b.checked); });
+document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.rvb') : null; if (b && b.dataset.i) openReview(b.dataset.i); });
+const PC_IMG_URL = code => 'https://storage.googleapis.com/images.pricecharting.com/' + code + '/1600.jpg';
+function pcPicture(cid) { const t = LIVE.data && LIVE.data.pcimg; const code = t && t[String(cid)]; return code ? PC_IMG_URL(code) : null; }
+function openReview(iid) {
+  const r = LIVE.erMap && LIVE.erMap.get(iid); if (!r) return;
+  const x = (LIVE.data.live || []).find(z => z[0] === iid) || [];
+  const cs = (LIVE.dec || {})[String(r[0])] || {}, base = idRow.get(r[0]) || [];
+  const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
+  const pics = [r[21]].concat(x[33] || []).filter(Boolean);
+  const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(r[6] || '');
+  const tot = r[9], allin = r[10], taxAmt = allin != null && tot != null ? Math.round((allin - tot) * 100) / 100 : 0;
+  const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
+  const row = (l, rr) => '<div class="rrow"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div></div>';
+  const variant = (/\[([^\]]+)\]/.exec(r[1] || '') || [])[1];
+  const mm = LIVE.data.alert && LIVE.data.alert.mm && LIVE.data.alert.mm[String(r[0])];
+  const v = reviewOf(iid);
+  $('btitle').textContent = r[1] + ' \u2014 ' + String(r[2] || '').replace('Pokemon ', '');
+  $('bsub').innerHTML = 'Is the card in the eBay photos the card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 || r.um ? '<b class="down">You said: not the same.</b>' : '');
+  let h = '<div class="rvpair">' +
+    '<div class="rvside"><h4>PriceCharting <a href="' + pcPage + '" target="_blank" rel="noopener">\u2197</a></h4>' +
+      (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
+           : '<div class="rvbox"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>not fetched yet \u2014 the collector reads a few pages a minute</small></div>') + '</div>' +
+    '<div class="rvside"><h4><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener">eBay listing \u2197</a></h4>' +
+      (pics.length ? '<a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener"><img class="rvpic" id="rvpic" src="' + esc(big(pics[0])) + '" alt="eBay photo: click to open the listing"></a>' +
+        (pics.length > 1 ? '<div class="rvthumbs">' + pics.map((u, i) => '<img src="' + esc(u) + '" data-k="' + i + '"' + (i === 0 ? ' class="on"' : '') + ' alt="">').join('') + '</div>' : '')
+       : '<div class="rvbox"><span class="dim">no photo on file</span></div>') + '</div></div>';
+  h += '<div class="rvrows">' +
+    row(fact('Set / card number', esc(r[3]) + (SET_TOTALS[r[2]] ? ' / ' + SET_TOTALS[r[2]] : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
+    (mm && mm[0] > 0 ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>on this card</small>') : '') +
+    (variant || r[38] === 'conflict' ? row(variant ? '<span class="tag warn">' + esc(variant.toUpperCase()) + '</span><small>a special printing: check the photo shows it</small>' : '',
+                                            r[38] === 'conflict' ? '<span class="tag bad">item specifics disagree</span><small>' + esc((r[39] || []).join('; ')) + '</small>' : '') : '') +
+    row(fact('Ungraded price', fmtMoneyPlain(r[35])), fact('Total price', fmtMoneyPlain(allin), 'card ' + fmtMoneyPlain(r[7]) + ' + shipping ' + fmtMoneyPlain(r[8]) + (taxAmt > 0 ? ' + tax ' + fmtMoneyPlain(taxAmt) : ', no buy tax'))) +
+    row(fact('Sales per month', r[40] == null ? '?' : r[40]), fact('Sold this month', r[41] == null ? '?' : r[41], cs.D == null ? '' : cs.D + ' days tracked')) +
+    row('', fact('Seller', (r[17] == null ? '?' : Number(r[17]).toLocaleString('en-US')) + ' ratings', (r[18] != null ? r[18] + '% positive \u00b7 ' : '') + (r[32] === 99 ? '?' : r[32]) + ' photos')) +
+    '<div class="rrow"><div><span class="lab">Title</span><small>' + esc(r[6]) + '</small></div><div><span class="lab">Verdict</span><b>' + esc(r[14]) + '</b></div></div></div>';
+  h += '<div class="rvbtns"><button class="rvno" id="rv-no">Not the same card<small>leaves the statistics; the matcher learns from it</small></button><button class="rvyes" id="rv-yes">Same card<small>a confirmed match</small></button></div>' +
+       (v != null || r.um ? '<div class="rvundo"><button class="linkbtn" id="rv-undo">Withdraw my answer</button></div>' : '') + '<div id="rvmsg" class="dim"></div>';
+  $('bbody').innerHTML = h;
+  $('bov').classList.add('open');
+  const thumbs = $('bbody').querySelectorAll('.rvthumbs img');
+  thumbs.forEach(t => t.addEventListener('click', e => { e.preventDefault(); $('rvpic').src = big(pics[+t.dataset.k]); thumbs.forEach(z => z.classList.toggle('on', z === t)); }));
+  const answer = async val => {
+    const t = Date.now(); REVIEWS[iid] = {v: val, t};
+    $('rvmsg').textContent = 'Sending\u2026';
+    try { await alSend({type: 'review', t, i: iid, v: val}); $('bov').classList.remove('open'); }
+    catch (e) { delete REVIEWS[iid]; $('rvmsg').innerHTML = '<span class="down">The answer could not be sent (' + esc(e.message) + ').</span>'; }
+    if (LIVE.data) rebuildLive();
+  };
+  $('rv-no').addEventListener('click', () => answer(0));
+  $('rv-yes').addEventListener('click', () => answer(1));
+  const undo = $('rv-undo'); if (undo) undo.addEventListener('click', () => answer(null));
+}
 
 function verdictOf(x, cs, S) {
   // x = raw live row from the collector; cs = decided card stats. Same order as verdict() in the collector.
@@ -718,7 +836,7 @@ function rebuildLive() {
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
                   base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
                   null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
-    erow.um = umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
+    erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
     LIVE.er.push(erow);
   });
   $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
@@ -726,6 +844,8 @@ function rebuildLive() {
   applyHelp(live.help);                                 // descriptions and READMEs he rewrote with the pencil
   const markT = (live.alert && live.alert.mark_t) || 0;  // the collector has taken every mark up to this time
   for (const k of Object.keys(MARKS)) if (markT >= MARKS[k].t) delete MARKS[k];
+  const reviewT = (live.alert && live.alert.review_t) || 0;
+  for (const k of Object.keys(REVIEWS)) if (reviewT >= REVIEWS[k].t) delete REVIEWS[k];
   LIVE.erMap = new Map(LIVE.er.map(r => [r[22], r]));
   LIVE.hh = hhRows(live);
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
