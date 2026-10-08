@@ -107,8 +107,8 @@ const TABLES = {
   er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}],   // columns added over time, in order (see makeTable)
-       extra: r => r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD'),
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable)
+       extra: r => statOk(r[19]) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => r.au ? auRow(r) : umCell(r) + cells4(r) +
@@ -128,7 +128,6 @@ const TABLES = {
       '<td class="num auc"></td><td class="num auc"></td>' +
       '<td>' + verdictCell(r) + hhNote(r) + '</td>' +
       '<td>' + riskCell(r) + '</td>' +
-      '<td class="num">' + (r[32] == null ? dash : r[32]) + '</td>' +
       '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
       '<td>' + (r[16] ? 'BO' : dash) + '</td>' +
       '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
@@ -196,7 +195,6 @@ function auRow(r) {
     '<td class="num auc" title="Best case: at the price it closed at">' + signed(r[44]) + '</td><td class="num auc" title="Best case: at the price it closed at">' + fmtPct(r[45]) + '</td>' +
     '<td><span title="' + esc(tip + said) + '">' + (x.res === 'PASS' ? badge('PASS', 'pass') : r.um ? badge('mismatch \u2717', 'warn') : '<span class="dim">' + esc(x.res) + '</span>') + (x.dec === 'no' ? ' <span class="dim">· you said No</span>' : '') + '</span></td>' +
     '<td>' + riskCell(r) + '</td>' +
-    '<td class="num">' + (r[32] === 99 ? dash : r[32]) + '</td>' +
     '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td><td>' + dash + '</td>' +
     '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
     '<td>' + (r[19] === 'sold' ? '<span class="up">sold</span>' : r[19] === 'open' ? 'open' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td><td class="num">' + dash + '</td>';
@@ -247,6 +245,9 @@ function verdictCell(r) {
 }
 // Raw Data condition filter (NM / LP / n/s chips); MP and HP rows show only when all three are ticked
 const COND_IDS = ['NM', 'LP', 'UNK'];
+const STAT_IDS = ['open', 'sold', 'ended', 'gone', 'stale'];         // the Status chip on Raw Data: untick a status to hide those rows
+function statOk(st) { const c = $('stat-' + st + '-er'); return !c || c.checked; }
+
 function condOk(c) {
   const on = COND_IDS.filter(k => $('cond-' + k + '-er').checked);
   if (on.length === COND_IDS.length) return true;
@@ -307,8 +308,7 @@ function hitSummary() {
   $('sum-er').innerHTML = 'If you had bought every hit in ' + PERIOD.er.label() + ': <b class="big up">' + fmtMoneyPlain(sum(ok)) + '</b> = ' +
     n(bin.length, 'hit') + ' from Buy It Now (<b>' + fmtMoneyPlain(sum(bin)) + '</b>) + ' + n(au.length, 'hit') + ' from auctions (<b>' + fmtMoneyPlain(sum(au)) + '</b>, at the final price)' +
     (L.length !== ok.length ? ' · <b>' + (L.length - ok.length) + '</b> left out as mismatches' : '') +
-    ' · <button class="linkbtn" id="hits-btn">Show them</button>' +
-    ' <span class="dim">· a ceiling: it assumes each was near mint and sold at the expected price, and an auction would have closed higher with your bid in it. Counted since October 5, when alerts began.</span>';
+    ' · <button class="linkbtn" id="hits-btn">Show them</button>';
   $('hits-btn').addEventListener('click', openHits);
   if ($('bov').classList.contains('open') && $('btitle').textContent.indexOf('Hits in') === 0) openHits();
 }
@@ -394,11 +394,16 @@ function makeTable(id, cfg) {
   const headRow = document.querySelector('#p-' + id + ' thead tr:last-child');
   let hiddenCols = new Set();
   try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + id) || '[]')); } catch (e) {}
-  for (const ins of [].concat(cfg.inserted || [])) try {   // columns added since the choice was saved: keep it on the same columns
+  for (const ins of [].concat(cfg.inserted || [])) try {   // columns added (or removed, n < 0) since the choice was saved: keep it on the same columns
     const mark = 'cols-' + id + '-v' + ins.v;
     if (!localStorage.getItem(mark)) {
-      hiddenCols = new Set([...hiddenCols].map(ci => ci >= ins.at ? ci + ins.n : ci));
-      localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); localStorage.setItem(mark, '1');
+      const shift = ci => ins.n < 0 ? (ci > ins.at ? ci + ins.n : ci) : (ci >= ins.at ? ci + ins.n : ci);
+      const keep = ci => ins.n >= 0 || ci !== ins.at;
+      hiddenCols = new Set([...hiddenCols].filter(keep).map(shift));
+      localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols]));
+      for (const key of ['order-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(sv)) localStorage.setItem(key, JSON.stringify(sv.filter(keep).map(shift))); }
+      for (const key of ['hl-' + id, 'width-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (sv && typeof sv === 'object') { const out = Array.isArray(sv) ? sv.filter(keep).map(shift) : Object.fromEntries(Object.entries(sv).filter(([k]) => keep(+k)).map(([k, v]) => [shift(+k), v])); localStorage.setItem(key, JSON.stringify(out)); } }
+      localStorage.setItem(mark, '1');
     }
   } catch (e) {}
   const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
@@ -416,6 +421,7 @@ function makeTable(id, cfg) {
     try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
     paintHeads();
     el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) td.classList.toggle('col-hidden', hiddenCols.has(ci)); });
+    if (t.sizeRow) { const th = [...headRow.children].find(x => +x.dataset.ci === ci) || headRow.children[ci]; const w = (JSON.parse(localStorage.getItem('width-' + id) || '{}') || {})[ci]; if (th) { const on = w && !hiddenCols.has(ci); th.style.width = th.style.minWidth = th.style.maxWidth = on ? w + 'px' : ''; th.classList.toggle('sized', !!on); } el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) { const on = w && !hiddenCols.has(ci); td.style.width = td.style.minWidth = td.style.maxWidth = on ? w + 'px' : ''; td.classList.toggle('sized', !!on); } }); }
   };
   [...headRow.children].forEach((th, ci) => {
     const b = document.createElement('button'); b.className = 'eye'; b.type = 'button';
@@ -423,6 +429,41 @@ function makeTable(id, cfg) {
     th.appendChild(b);
   });
   paintHeads();
+  /* Highlight (2026-10-08, Brett): the small ring beside the eye paints the header neon green, to find the columns
+     that matter at a glance; remembered per tab under hl-<tab>, by original index. */
+  let hlCols = new Set();
+  try { hlCols = new Set(JSON.parse(localStorage.getItem('hl-' + id) || '[]')); } catch (e) {}
+  const paintHl = () => [...headRow.children].forEach((th, pos) => { const ci = th.dataset.ci != null ? +th.dataset.ci : pos; th.classList.toggle('hl', hlCols.has(ci)); const b = th.querySelector('.hlb'); if (b) b.title = hlCols.has(ci) ? 'Remove the highlight' : 'Highlight this column header'; });
+  [...headRow.children].forEach((th, ci) => {
+    const b = document.createElement('button'); b.className = 'hlb'; b.type = 'button'; b.setAttribute('aria-label', 'Highlight column');
+    b.addEventListener('click', e => { e.stopPropagation(); if (hlCols.has(ci)) hlCols.delete(ci); else hlCols.add(ci); try { localStorage.setItem('hl-' + id, JSON.stringify([...hlCols])); } catch (x) {} paintHl(); });
+    th.appendChild(b);
+  });
+  paintHl();
+  /* Width (same day): drag the handle on a header's right edge; double-click it to let the column size itself again.
+     The width is pinned on the header and every cell of the column (min and max too, so a column can be made
+     narrower than its text, which is then clipped); remembered per tab under width-<tab>, by original index. */
+  let widths = {};
+  try { widths = JSON.parse(localStorage.getItem('width-' + id) || '{}') || {}; } catch (e) {}
+  const sizeCell = (cell, ci) => { const w = widths[ci]; if (w && !hiddenCols.has(ci)) { cell.style.width = cell.style.minWidth = cell.style.maxWidth = w + 'px'; cell.classList.add('sized'); } else { cell.style.width = cell.style.minWidth = cell.style.maxWidth = ''; cell.classList.remove('sized'); } };
+  const sizeRow = tr => { for (const ci of Object.keys(widths)) { const td = cellOf(tr, +ci); if (td) sizeCell(td, +ci); } };
+  const sizeCol = ci => { const th = [...headRow.children].find(x => +x.dataset.ci === ci) || headRow.children[ci]; if (th) sizeCell(th, ci); el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) sizeCell(td, ci); }); };
+  const saveWidths = () => { try { if (Object.keys(widths).length) localStorage.setItem('width-' + id, JSON.stringify(widths)); else localStorage.removeItem('width-' + id); } catch (e) {} };
+  t.sizeRow = sizeRow;
+  t.resetLayout = () => { widths = {}; saveWidths(); hlCols = new Set(); try { localStorage.removeItem('hl-' + id); } catch (e) {} paintHl(); [...headRow.children].forEach((th, pos) => sizeCell(th, th.dataset.ci != null ? +th.dataset.ci : pos)); el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => sizeCell(td, td.dataset.ci != null ? +td.dataset.ci : pos))); };
+  let rs = null;                                           // the resize in progress: {ci, x0, w0}
+  [...headRow.children].forEach((th, ci) => {
+    const h = document.createElement('span'); h.className = 'rsz'; h.title = 'Drag to change the width; double-click to let the column size itself';
+    h.draggable = false;
+    h.addEventListener('mousedown', e => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); rs = {ci, x0: e.clientX, w0: th.getBoundingClientRect().width}; th.classList.add('resizing'); document.body.classList.add('col-resizing'); });
+    h.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); delete widths[ci]; saveWidths(); sizeCol(ci); });
+    h.addEventListener('click', e => e.stopPropagation());
+    th.appendChild(h);
+  });
+  document.addEventListener('mousemove', e => { if (!rs) return; widths[rs.ci] = Math.max(28, Math.round(rs.w0 + e.clientX - rs.x0)); sizeCol(rs.ci); });
+  document.addEventListener('mouseup', () => { if (!rs) return; const th = [...headRow.children].find(x => +x.dataset.ci === rs.ci) || headRow.children[rs.ci]; if (th) th.classList.remove('resizing'); document.body.classList.remove('col-resizing'); saveWidths(); t.justResized = Date.now(); rs = null; });
+  headRow.addEventListener('click', e => { if (t.justResized && Date.now() - t.justResized < 300 && !e.target.closest('.eye, .hlb, .help')) { e.stopPropagation(); e.preventDefault(); } }, true);   // the mouseup of a resize is not a sort
+  [...headRow.children].forEach((th, ci) => sizeCell(th, ci));
   /* Column order (2026-10-08, Brett): click, hold and drag a header to move its column; the order is remembered per
      tab. Cells keep their ORIGINAL index underneath (data-ci), so the eyes, sorts and row builders are untouched: a row
      is built in the original order and its cells are then placed by the saved order. On the eBay Catalog the band
@@ -444,7 +485,7 @@ function makeTable(id, cfg) {
   t.resetOrder = () => { order = null; saveOrder(); t.apply(); [...headRow.children].sort((a, b) => +a.dataset.ci - +b.dataset.ci).forEach(th => headRow.appendChild(th)); };
   let dragCi = null;
   headRow.addEventListener('dragstart', e => {
-    const th = e.target.closest('th'); if (!th || e.target.closest('.eye, .help')) { e.preventDefault(); return; }
+    const th = e.target.closest('th'); if (!th || e.target.closest('.eye, .help, .hlb, .rsz')) { e.preventDefault(); return; }
     dragCi = +th.dataset.ci; th.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(dragCi)); } catch (x) {}
   });
   headRow.addEventListener('dragover', e => {
@@ -474,7 +515,7 @@ function makeTable(id, cfg) {
     dragCi = null;
   });
   headRow.addEventListener('dragend', () => { [...headRow.children].forEach(x => x.classList.remove('drop-l', 'drop-r', 'dragging')); dragCi = null; });
-  t.stampRow = tr => { [...tr.children].forEach((td, ci) => { td.dataset.ci = ci; }); place(tr); };
+  t.stampRow = tr => { [...tr.children].forEach((td, ci) => { td.dataset.ci = ci; }); place(tr); if (t.sizeRow) t.sizeRow(tr); };
   el('rows').querySelectorAll('tr').forEach(t.stampRow);   // rows rendered before this block existed
   place(headRow);
   const ths = document.querySelectorAll('#p-' + id + ' th[data-k]');
@@ -501,13 +542,23 @@ function makeTable(id, cfg) {
     }));
     $('condchip').classList.toggle('on', conds.some(x => !x.checked));
   }
-  if (el('reset')) { const rc = document.createElement('button'); rc.className = 'reset'; rc.type = 'button'; rc.textContent = 'Reset columns'; rc.title = 'Put the columns back in their original order';
-    rc.addEventListener('click', () => t.resetOrder()); el('reset').insertAdjacentElement('afterend', rc); }
+  const stats = [...document.querySelectorAll('#ranges-' + id + ' #statchip input')];
+  if (stats.length) {
+    try { const sv = JSON.parse(localStorage.getItem('stat-' + id) || 'null'); if (sv) stats.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
+    stats.forEach(c => c.addEventListener('input', () => {
+      try { localStorage.setItem('stat-' + id, JSON.stringify(stats.filter(x => x.checked).map(x => x.id))); } catch (e) {}
+      $('statchip').classList.toggle('on', stats.some(x => !x.checked)); t.apply();
+    }));
+    $('statchip').classList.toggle('on', stats.some(x => !x.checked));
+  }
+  if (el('reset')) { const rc = document.createElement('button'); rc.className = 'reset'; rc.type = 'button'; rc.textContent = 'Reset columns'; rc.title = 'Original order and widths, no highlights';
+    rc.addEventListener('click', () => { t.resetOrder(); if (t.resetLayout) t.resetLayout(); }); el('reset').insertAdjacentElement('afterend', rc); }
   if (el('reset')) el('reset').addEventListener('click', () => {
     el('q').value = ''; sel.value = '';
     cfg.ranges.forEach(k => { const d = cfg.defaults[k] || ['', '']; el('min' + k).value = d[0]; el('max' + k).value = d[1]; });
     maxes.forEach(k => { el('max' + k).value = ''; });
     conds.forEach(c => { c.checked = true; }); if (conds.length) { $('condchip').classList.remove('on'); try { localStorage.removeItem('cond-' + id); } catch (e) {} }
+    stats.forEach(c => { c.checked = true; }); if (stats.length) { $('statchip').classList.remove('on'); try { localStorage.removeItem('stat-' + id); } catch (e) {} }
     if (sus) { sus.checked = false; $('suschip').classList.remove('on'); }
     if (mm) { mm.checked = false; $('mmchip').classList.remove('on'); }
     if (ld) { ld.checked = false; $('leadchip').classList.remove('on'); }
@@ -777,7 +828,7 @@ function openReview(iid) {
        : '<div class="rvbox"><span class="dim">no photo on file</span></div>') + '</div></div>';
   h += '<div class="rvrows">' +
     row(fact('Set / card number', esc(r[3]) + (SET_TOTALS[r[2]] ? ' / ' + SET_TOTALS[r[2]] : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
-    (mm && mm[0] > 0 ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>on this card</small>') : '') +
+    (mm && mm[0] > 0 ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>' + (mm[3] ? mm[0] + ' of ' + mm[3].toLocaleString('en-US') + ' listings matched to this card (' + (mm[0] / mm[3] * 100).toFixed(1) + '%)' : 'on this card') + '</small>') : '') +
     (variant || r[38] === 'conflict' ? row(variant ? '<span class="tag warn">' + esc(variant.toUpperCase()) + '</span><small>a special printing: check the photo shows it</small>' : '',
                                             r[38] === 'conflict' ? '<span class="tag bad">item specifics disagree</span><small>' + esc((r[39] || []).join('; ')) + '</small>' : '') : '') +
     row(fact('Ungraded price', fmtMoneyPlain(r[35])), fact('Total price', fmtMoneyPlain(allin), 'card ' + fmtMoneyPlain(r[7]) + ' + shipping ' + fmtMoneyPlain(r[8]) + (taxAmt > 0 ? ' + tax ' + fmtMoneyPlain(taxAmt) : ', no buy tax'))) +
@@ -882,7 +933,7 @@ function rebuildLive() {
     erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
     LIVE.er.push(erow);
   });
-  $('nsus').textContent = hiddenSus; $('nmm').textContent = tooCheap; $('nlead').textContent = leads;
+  $('nsus').textContent = hiddenSus; $('ncheap').textContent = tooCheap; $('nlead').textContent = leads;
   alRender();
   applyHelp(live.help);                                 // descriptions and READMEs he rewrote with the pencil
   const markT = (live.alert && live.alert.mark_t) || 0;  // the collector has taken every mark up to this time
@@ -1045,7 +1096,7 @@ function openMismatches() {
   const by = new Map();
   W.forEach(w => { const k = w[6] == null ? '?' + w[1] : String(w[6]); if (!by.has(k)) by.set(k, []); by.get(k).push(w); });
   const cards = [...by.entries()].map(([k, list]) => { const base = idRow.get(+k) || [], m = MM[k] || [list.length, 0, 0];
-    return {k, id: base[0], name: base[1] || list[0][4] || 'Card not on record', set: String(base[2] || list[0][5] || '').replace('Pokemon ', ''), n: list.length, x: m[1], y: m[2], list}; })
+    return {k, id: base[0], name: base[1] || list[0][4] || 'Card not on record', set: String(base[2] || list[0][5] || '').replace('Pokemon ', ''), n: list.length, x: m[1], y: m[2], t: m[3] || 0, list}; })
     .sort((p, q) => q.n - p.n || (p.name < q.name ? -1 : 1));
   const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
   $('btitle').textContent = 'Mismatches';
@@ -1054,9 +1105,9 @@ function openMismatches() {
   const draw = () => {
     const q = $('mm-q').value.trim().toLowerCase(), show = cards.filter(c => !q || (c.name + ' ' + c.set).toLowerCase().includes(q));
     $('mm-list').innerHTML = !cards.length ? '<p>None yet. Tick Mismatch on a Raw Data row, or answer "No, not the same card" on your phone.</p>' : !show.length ? '<p>No card matches that search.</p>' :
-      '<table><thead><tr><th>PriceCharting card</th><th class="num">Mismatches</th><th>Of its alerts</th></tr></thead><tbody>' +
-      show.map(c => '<tr class="mmr" data-k="' + esc(c.k) + '"><td>' + (c.id ? '<a href="https://www.pricecharting.com/game/' + c.id + '" target="_blank" rel="noopener">' + esc(c.name) + '</a>' : esc(c.name)) + (c.set ? ' <span class="dim">' + esc(c.set) + '</span>' : '') + '</td><td class="num"><b>' + c.n + '</b></td><td>' + (c.y ? c.x + ' of ' + c.y + ' alert' + (c.y === 1 ? '' : 's') : '<span class="dim">no alerts counted yet</span>') + '</td></tr>' +
-        '<tr class="mmd" data-k="' + esc(c.k) + '" hidden><td colspan="3"><ul>' + c.list.map(w => '<li>' + when(w[0]) + ' \u00b7 <a href="' + esc(w[3] || '#') + '" target="_blank" rel="noopener">' + esc(w[2] || w[1]) + '</a>' + (w[8] != null ? ' \u00b7 ' + fmtMoney(w[8]) : '') + (w[7] ? ' <span class="dim">\u00b7 ' + esc(String(w[7]).replace('-drop', ', price drop').replace('-lead', ', lead')) + '</span>' : '') + '</li>').join('') + '</ul></td></tr>').join('') + '</tbody></table>';
+      '<table><thead><tr><th>PriceCharting card</th><th class="num">Mismatches</th><th>Of its matches</th><th>Of its alerts</th></tr></thead><tbody>' +
+      show.map(c => '<tr class="mmr" data-k="' + esc(c.k) + '"><td>' + (c.id ? '<a href="https://www.pricecharting.com/game/' + c.id + '" target="_blank" rel="noopener">' + esc(c.name) + '</a>' : esc(c.name)) + (c.set ? ' <span class="dim">' + esc(c.set) + '</span>' : '') + '</td><td class="num"><b>' + c.n + '</b></td><td>' + (c.t ? c.n + ' of ' + c.t.toLocaleString('en-US') + ' listing' + (c.t === 1 ? '' : 's') + ' <span class="dim">(' + (c.n / c.t * 100).toFixed(1) + '%)</span>' : '<span class="dim">no matches on record</span>') + '</td><td>' + (c.y ? c.x + ' of ' + c.y + ' alert' + (c.y === 1 ? '' : 's') : '<span class="dim">no alerts counted yet</span>') + '</td></tr>' +
+        '<tr class="mmd" data-k="' + esc(c.k) + '" hidden><td colspan="4"><ul>' + c.list.map(w => '<li>' + when(w[0]) + ' \u00b7 <a href="' + esc(w[3] || '#') + '" target="_blank" rel="noopener">' + esc(w[2] || w[1]) + '</a>' + (w[8] != null ? ' \u00b7 ' + fmtMoney(w[8]) : '') + (w[7] ? ' <span class="dim">\u00b7 ' + esc(String(w[7]).replace('-drop', ', price drop').replace('-lead', ', lead')) + '</span>' : '') + '</li>').join('') + '</ul></td></tr>').join('') + '</tbody></table>';
   };
   $('mm-q').addEventListener('input', draw);
   $('bbody').onclick = e => { const tr = e.target.closest ? e.target.closest('tr.mmr') : null; if (!tr || e.target.closest('a')) return; const d = [...$('mm-list').querySelectorAll('tr.mmd')].find(x => x.dataset.k === tr.dataset.k); if (d) d.hidden = !d.hidden; };
