@@ -1023,7 +1023,7 @@ def pc_read_image(pid):
     t0 = time.time()
     try:
         import requests
-        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=8,
+        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15,
                          headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"})
     except Exception as e:
         PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
@@ -1114,14 +1114,19 @@ class PcImageWorker(threading.Thread):
         if status == "error":
             self.errors += 1
             self.streak = 0
-            self.gap = min(30.0, self.gap * 2)               # slower from now on: their site said no, or did not answer
-            self.paused_until = time.time() + (900 if self.errors >= 5 else 60)
+            lr = PC_LAST_READ
+            refused = lr.get("code") in (403, 429, 503)      # their site said no: back right off
+            if refused or self.errors >= 3:
+                self.gap = min(30.0, self.gap * 2)
+                self.paused_until = time.time() + (900 if self.errors >= 5 else 60)
+            else:                                            # a slow or dropped page: carry on; the card comes round again
+                self.paused_until = time.time() + 5
             if time.time() - self.logged > 600:              # one line per ten minutes, with what the read looked like
                 self.logged = time.time()
-                lr = PC_LAST_READ
                 log(f"PriceCharting pictures: page read failed (HTTP {lr.get('code')}, {lr.get('s', 0):.1f} s"
-                    f"{', ' + lr['err'] if lr.get('err') else ''}); {self.errors} in a row, pausing "
-                    f"{'15 min' if self.errors >= 5 else '60 s'}, then one page every {self.gap:g} s")
+                    f"{', ' + lr['err'] if lr.get('err') else ''}); {self.errors} in a row, "
+                    f"{'pausing 15 min' if self.errors >= 5 else 'pausing 60 s' if refused or self.errors >= 3 else 'carrying on'}, "
+                    f"one page every {self.gap:g} s")
         else:
             self.errors = 0
             self.read += 1
