@@ -56,6 +56,7 @@ BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")
 REPO = os.path.join(BASE, "repo")
 DATA = os.path.join(BASE, "data")
 LIVE_DIR = os.path.join(DATA, "live")                 # one-commit checkout of the "live" branch
+ARCHIVE_DIR = os.path.join(DATA, "archive")           # checkout of the "archive" branch: the long-run dataset
 STATE_PATH = os.path.join(DATA, es.STATE_NAME)
 LOG_PATH = os.path.join(DATA, "collector.log")
 CATALOG_CACHE = os.path.join(DATA, "catalog.csv.gz")
@@ -811,6 +812,8 @@ def help_edit(v, msg, t):
         return
     if key.startswith("h:") and isinstance(val, dict):
         store[key] = {k: str(val.get(k) or "")[:8000] for k in ("f", "m", "e")}
+        if val.get("n"):                                     # a column header renamed on the site (2026-10-08)
+            store[key]["n"] = str(val["n"])[:60]
     elif key.startswith("r:") and isinstance(val, str):
         store[key] = val[:150000]
     else:
@@ -1360,6 +1363,34 @@ def card_matches(state, cids):
     return out
 
 
+def match_table(state):
+    """{card id: [listings filed under the card that were not marked wrong, listings marked wrong]} for every card
+    with a listing on record - the "match:mismatch" column on both eBay tabs (Brett, 2026-10-08, "5:3 means 5 match
+    and 3 mismatch"). Open and closed listings; a mark counts once per listing."""
+    wrong_ids = {}                                           # listing id -> card, one mark per listing
+    for w in state["vps"].get("wrong", []):
+        if w.get("card") is not None and w.get("i"):
+            wrong_ids.setdefault(str(w["i"]), w["card"])
+    good = Counter()
+    for iid, rec in list(state["open"].items()) + [(r.get("id"), r) for r in state["closed"]]:
+        if rec.get("card") is not None and str(iid) not in wrong_ids:
+            good[rec["card"]] += 1
+    wrong = Counter(wrong_ids.values())
+    return {str(c): [good.get(c, 0), wrong.get(c, 0)] for c in set(good) | set(wrong)}
+
+
+def hits_30d(state):
+    """{card id: alerts sent on the card in the last 30 days} - Buy It Now hits from the hit history, auctions from
+    the auction history. Deal flow per card: the cards that actually produce buys."""
+    v = state["vps"]
+    cut = es.ts(es.NOW - timedelta(days=30))
+    out = Counter()
+    for e in v.get("hit_hist", []) + v.get("au_hist", []):
+        if e.get("t", "") >= cut and e.get("card") is not None:
+            out[e["card"]] += 1
+    return {str(c): n for c, n in out.items()}
+
+
 def alert_extras(state, d, rec):
     """What an alert carries beyond the listing itself: the reprint's picture to compare against, how often this card
     has been a mismatch before - and the alert is counted for that card."""
@@ -1870,6 +1901,62 @@ def publish(files):
         subprocess.run(["git", "gc", "-q", "--prune=now"], cwd=LIVE_DIR, capture_output=True)
 
 
+def archive_put(files):
+    """Add files to the 'archive' branch - ordinary commits, never amended, never trimmed: the long-run dataset for
+    analysis later (Brett, 2026-10-08), holding what the live branch overwrites and the state forgets."""
+    if DRY_RUN:
+        return
+    if not os.path.isdir(os.path.join(ARCHIVE_DIR, ".git")):
+        os.makedirs(ARCHIVE_DIR, exist_ok=True)
+        git("clone", "-q", "--branch", "archive", "--single-branch", PUSH_REMOTE, ARCHIVE_DIR, cwd=DATA, check=False)
+        if not os.path.isdir(os.path.join(ARCHIVE_DIR, ".git")):   # no such branch yet: start it
+            git("init", "-q", "-b", "archive", cwd=ARCHIVE_DIR)
+            git("remote", "add", "origin", PUSH_REMOTE, cwd=ARCHIVE_DIR)
+        git("config", "user.name", "pokemon-collector", cwd=ARCHIVE_DIR)
+        git("config", "user.email", "collector@users.noreply.github.com", cwd=ARCHIVE_DIR)
+    for name, data in files.items():
+        path = os.path.join(ARCHIVE_DIR, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+    git("add", "-A", cwd=ARCHIVE_DIR)
+    git("commit", "-q", "-m", f"archive {es.ts(es.NOW)}", cwd=ARCHIVE_DIR)
+    git("push", "-q", "origin", "archive", cwd=ARCHIVE_DIR)
+
+
+CARD_ARCHIVE_KEYS = ("k", "D", "N", "lam", "mu", "smed", "s80", "hrs", "st", "A", "A_n", "L", "S", "liquid", "probT",
+                     "net", "maxbuy", "hot", "pc", "pcv", "price", "dos", "io")
+
+
+def archive_tick(state, cards):
+    """Once a day, every card's numbers as they stood (cards/<day>.json: the model's view, which nothing else keeps);
+    on the first day of a month, last month's closed listings (closed/<month>.jsonl: every listing with its prices,
+    seller, timing and outcome, which leave the state after 60 days). Gzipped and encrypted like the state."""
+    v = state["vps"]
+    if time.time() < v.get("arch_retry", 0):
+        return
+    files, today = {}, es.TODAY
+    if v.get("arch_day") != today and cards:
+        snap = {str(c): {k: st.get(k) for k in CARD_ARCHIVE_KEYS if st.get(k) is not None} for c, st in cards.items()}
+        files[f"cards/{today}.json.gz.enc"] = es.encrypt_file_blob(gzip.compress(json.dumps(snap, separators=(",", ":")).encode("utf-8")), es.PASSWORD)
+    month = today[:7]
+    if v.get("arch_month") != month:
+        prev = (datetime.strptime(today, "%Y-%m-%d").replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        rows = [r for r in state["closed"] if str(r.get("first", ""))[:7] == prev]
+        if rows:
+            files[f"closed/{prev}.jsonl.gz.enc"] = es.encrypt_file_blob(gzip.compress("\n".join(json.dumps(r, separators=(",", ":")) for r in rows).encode("utf-8")), es.PASSWORD)
+    if not files:
+        v["arch_day"], v["arch_month"] = today, month
+        return
+    try:
+        archive_put(files)
+        v["arch_day"], v["arch_month"] = today, month
+        log(f"Archive: {', '.join(files)} ({sum(len(b) for b in files.values()) // 1024} KB) added to the archive branch")
+    except Exception as e:
+        v["arch_retry"] = time.time() + 3600
+        log(f"Archive failed ({str(e)[:160]}); trying again in an hour")
+
+
 def code_update():
     """Pull main; if the collector's code changed, ask for a restart (systemd brings it back on the new code)."""
     if DRY_RUN:
@@ -2088,6 +2175,8 @@ def cycle(state, cat, sched, counters):
     mm = mm_counts(v)                                        # per card: [marked, of those alerts, alerts sent, listings matched]
     matched = card_matches(state, mm)
     live["alert"]["mm"] = {str(k): n + [matched.get(k, 0)] for k, n in mm.items()}
+    live["mt"] = match_table(state)                          # per card: [matches, mismatches], both eBay tabs
+    live["hits30"] = hits_30d(state)                         # per card: alerts in the last 30 days
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
@@ -2112,6 +2201,10 @@ def cycle(state, cat, sched, counters):
             counters["published"] += 1
         except Exception as e:
             log(f"Publish failed: {e}")
+    try:                                                     # the long-run dataset: once a day, and monthly
+        archive_tick(state, cards)
+    except Exception as e:
+        log(f"Archive: {str(e)[:160]}")
     # 6. hourly summary
     if due("summary", SUMMARY_EVERY_S):
         lags = v.get("lags", [])
