@@ -874,6 +874,36 @@ def mark_listing(state, iid, on, t):
     log(f"Mismatch mark {'set' if on else 'removed'} on the site ({len(v.get('wrong', []))} wrong matches on file)")
 
 
+def review_listing(state, iid, same, t):
+    """The Review button on the Raw Data tab, the site's copy of the phone's first question. "Not the same" is the
+    Mismatch tick (the listing leaves every statistic, is filed as a wrong match, and the matcher learns from it);
+    "Same card" clears any mismatch and records a confirmed match, which the learning rules read as a title that
+    must never become a warning word (`learn_tables`: good titles). Both are remembered in v["reviews"] so the
+    column shows the answer after a reload. `same` None = answer withdrawn."""
+    v = state["vps"]
+    rv = v.setdefault("reviews", {})
+    if same is None:
+        rv.pop(iid, None)
+        mark_listing(state, iid, False, t)
+        return
+    same = bool(same)
+    rv[iid] = {"v": 1 if same else 0, "t": es.ts(es.NOW)}
+    mark_listing(state, iid, not same, t)
+    if same:                                                 # a confirmed match: the learning rules treat its title as good
+        rec = find_rec(state, iid)
+        for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
+            if e["i"] == iid and not e.get("dec"):
+                e["dec"], e["dt"] = "yes", es.ts(es.NOW)
+        good = v.setdefault("right", [])
+        if rec is not None and not any(g["i"] == iid for g in good):
+            good.append({"t": es.ts(es.NOW), "i": iid, "ti": rec.get("title"), "card": rec.get("card"), "sl": rec.get("seller")})
+        v["right"] = good[-2000:]
+    for k in list(rv)[:-20000]:
+        del rv[k]
+    v["review_t"] = t
+    log(f"Review on the site: {'same card' if same else 'not the same'} ({iid})")
+
+
 def wrong_rows(v):
     """The wrong-match list for the site, newest first: [when, item, title, link, matched card, its set, card id, kind, total]."""
     cut = es.ts(es.NOW - timedelta(days=WRONG_KEEP_D))
@@ -940,6 +970,8 @@ def read_requests(state):
             help_edit(v, msg, t)
         elif msg.get("type") == "mark" and msg.get("i"):
             mark_listing(state, str(msg["i"])[:60], bool(msg.get("v")), t)
+        elif msg.get("type") == "review" and msg.get("i"):
+            review_listing(state, str(msg["i"])[:60], msg.get("v"), t)
 
 
 def quiet_now(cfg):
@@ -993,9 +1025,66 @@ def pc_image(state, pid):
     if not m:
         return None                                          # not remembered: the next alert for this card tries again
     cache[str(pid)] = f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg"
-    for k in list(cache)[:-2000]:
+    for k in list(cache)[:-12000]:                           # every card with eBay data, with room to spare
         del cache[k]
     return cache[str(pid)]
+
+
+PC_PREFETCH_PER_MIN = 5          # PriceCharting pages read a minute to learn pictures ahead of time (one every 12 s)
+PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
+
+
+def prefetch_pc_images(state, cards):
+    """Learn PriceCharting's picture for the cards the Review button on the site can be pressed for, before it is
+    pressed: the cards of the last day's listings first, then every card with eBay data. The same one-page-per-card
+    read `pc_image()` does for a phone alert, just ahead of time and a few a minute, so the site has the picture ready
+    the way the phone does. PriceCharting page reads, not eBay calls. Remembered in v["pc_img"] (which `pc_image()`
+    reads first), so the alert path gets faster too. Cards whose page gave no picture are noted with a day stamp and
+    tried again a week later."""
+    v = state["vps"]
+    cache = v.setdefault("pc_img", {})
+    miss = v.setdefault("pc_miss", {})
+    today = es.TODAY
+    cut = es.ts(es.NOW - timedelta(hours=24))
+    want = []
+    seen = set()
+    for rec in state["open"].values():                       # the rows of the Raw Data tab, newest first
+        if rec["first"] >= cut and rec.get("card") is not None and rec["card"] not in seen:
+            seen.add(rec["card"]); want.append(rec["card"])
+    for cid in cards:                                        # then every card with eBay data
+        if int(cid) not in seen:
+            seen.add(int(cid)); want.append(int(cid))
+    n = 0
+    for cid in want:
+        k = str(cid)
+        if k in cache:
+            continue
+        if k in miss and (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(miss[k], "%Y-%m-%d")).days < PC_IMG_FAIL_RETRY_D:
+            continue
+        if pc_image(state, cid) is None:
+            miss[k] = today
+        else:
+            miss.pop(k, None)
+        n += 1
+        if n >= PC_PREFETCH_PER_MIN:
+            break
+    for k in list(miss)[:-5000]:
+        del miss[k]
+    return n
+
+
+def pc_image_table(state):
+    """Card id -> the unique part of its PriceCharting picture address, for the site (the page rebuilds the address).
+    About 15 KB compressed for 7,000 cards."""
+    out = {}
+    for k, url in state["vps"].get("pc_img", {}).items():
+        m = PC_IMG_ID.search(url or "")
+        if m:
+            out[k] = m.group(1)
+    return out
+
+
+PC_IMG_ID = re.compile(r"images\.pricecharting\.com/([A-Za-z0-9_-]+)/")
 
 
 def hit_payload(rec, cs, cat, kind="hit"):
@@ -1755,6 +1844,13 @@ def cycle(state, cat, sched, counters):
     live["alert"]["all"] = [[e["t"], e.get("p"), e.get("kd"), e.get("dec"), e["i"], e.get("c"), e.get("u"), e.get("tot"),
                              1 if e.get("um") else 0, e.get("ti")] for e in v.get("alert_log", [])]
     live["alert"]["mark_t"] = v.get("mark_t", 0)             # the page shows a tick at once; this confirms it arrived
+    live["alert"]["reviews"] = {k: r["v"] for k, r in v.get("reviews", {}).items()}   # Review answers given on the site
+    live["alert"]["review_t"] = v.get("review_t", 0)
+    try:                                                     # a few PriceCharting pages a minute, so Review has its picture
+        counters["pc_img"] += prefetch_pc_images(state, cards)
+    except Exception as e:
+        log(f"PriceCharting pictures: prefetch failed this minute ({str(e)[:100]})")
+    live["pcimg"] = pc_image_table(state)
     live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
                                 "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
     if not v.get("au_backfilled"):
@@ -1775,7 +1871,7 @@ def cycle(state, cat, sched, counters):
     state_raw = save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0))         # a change on the Alerts tab is published at once
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0))   # a change on the Alerts tab is published at once
     changed = sig != v.get("pub_sig")
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
@@ -1833,6 +1929,8 @@ def cycle(state, cat, sched, counters):
             f"{es.PC_HIGH:.0%} (kept out of the statistics); item specifics read on {sum(ids.values())} open listings "
             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
             f"printed totals for {len(cat.totals)} sets")
+        log(f"Pictures: {len(v.get('pc_img', {}))} cards with a PriceCharting picture on file, {counters['pc_img']} pages read this hour, "
+            f"{len(v.get('pc_miss', {}))} cards whose page had none; {len(v.get('reviews', {}))} Review answers on the site")
         by_spec = sum(1 for r in state["open"].values() if (r.get("how") or "").endswith("specifics"))
         log(f"Printing: {by_spec} open listings filed under a printing their item specifics named; "
             f"{len(state.get('pending', {}))} unmatched 'ambiguous variant' listings waiting for a lookup; "
