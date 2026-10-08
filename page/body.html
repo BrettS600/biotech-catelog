@@ -129,7 +129,7 @@
   <label id="callab" title="Shift the sell price by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
 </div>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
-<div class="live-note">Every raw single matched to a card and first seen in the last 24 hours, newest first, with the buy-gate verdict for that listing. Listings with fewer than 2 photos are left out (you need the front and the back); suspect listings are hidden but reviewable. A listing priced under 40% or over 300% of the card's PriceCharting price is treated as a wrong match (verdict "mismatch") and left out of the statistics. "LEAD" marks a listing on a card eBay has too few sales to judge, priced from PriceCharting instead: a listing to look at, not a hit. Phone alerts follow the Notification Settings tab, not the boxes above. <button class="linkbtn" id="use-al">Use my alert settings here</button> · <button class="linkbtn" id="offers-btn">Offer list</button> · <button class="linkbtn" id="unmatched-btn">Unmatched titles</button> · <button class="linkbtn" id="scam-btn">Scam screen</button> · <button class="linkbtn" id="mm-btn">Mismatches (<span id="nmm">0</span>)</button></div>
+<div class="actbar"><button class="actbtn" id="use-al">Use my alert settings here</button><button class="actbtn" id="offers-btn">Offer list</button><button class="actbtn" id="unmatched-btn">Unmatched titles</button><button class="actbtn" id="scam-btn">Scam screen</button><button class="actbtn" id="mm-btn">Mismatches (<span id="nmm">0</span>)</button></div>
 <div class="controls">
   <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
@@ -141,8 +141,9 @@
 <div class="live-note" id="per-note" hidden></div>
 <div class="ranges" id="ranges-er">
   <div class="range condchip" id="condchip"><span class="lbl">Condition</span><label><input type="checkbox" id="cond-NM-er" checked> NM</label><label><input type="checkbox" id="cond-LP-er" checked> LP</label><label><input type="checkbox" id="cond-UNK-er" checked> n/s</label></div>
+  <div class="range condchip" id="statchip"><span class="lbl">Status</span><label><input type="checkbox" id="stat-open-er" checked> open</label><label><input type="checkbox" id="stat-sold-er" checked> sold</label><label><input type="checkbox" id="stat-ended-er" checked> ended</label><label><input type="checkbox" id="stat-gone-er" checked> gone</label><label><input type="checkbox" id="stat-stale-er" checked> stale</label></div>
   <div class="range condchip" id="suschip"><label><input type="checkbox" id="showsus-er"> Show suspects (<span id="nsus">0</span>)</label></div>
-  <div class="range condchip" id="mmchip" title="Only listings priced under 40% of the card's PriceCharting price: treated as wrong matches, never hits - the list to check by hand for a real steal"><label><input type="checkbox" id="mm-er"> Too cheap only (<span id="nmm">0</span>)</label></div>
+  <div class="range condchip" id="mmchip" title="Only listings priced under 40% of the card's PriceCharting price: treated as wrong matches, never hits - the list to check by hand for a real steal"><label><input type="checkbox" id="mm-er"> Too cheap only (<span id="ncheap">0</span>)</label></div>
   <div class="range condchip" id="leadchip" title="Only leads: listings on cards eBay cannot judge yet (fewer than 5 sales), that clear the gate when PriceCharting's price is used instead, capped by the cheapest other copy listed. Check photos and condition - a lead is not a hit"><label><input type="checkbox" id="lead-er"> Leads only (<span id="nlead">0</span>)</label></div>
   <div class="range condchip" id="auchip" title="Show only the auctions that were sent to your phone, with the bid at that moment and what each one closed at. Every other listing is hidden while this is on"><label><input type="checkbox" id="au-er"> Auctions sent to my phone (<span id="nau">0</span>)</label></div>
   <button class="reset" id="reset-er">Reset filters</button>
@@ -178,7 +179,6 @@
     <th data-k="45" class="num auc">ROI at final %<span class="s">⇅</span><button class="help" data-h="er_auroi">?</button></th>
     <th data-k="14">Verdict<span class="s">⇅</span><button class="help" data-h="er_verdict">?</button></th>
     <th data-k="30">Risk<span class="s">⇅</span><button class="help" data-h="er_risk">?</button></th>
-    <th data-k="32" class="num">Photos<span class="s">⇅</span><button class="help" data-h="er_photos">?</button></th>
     <th data-k="15">Cond<span class="s">⇅</span><button class="help" data-h="er_cond">?</button></th>
     <th data-k="16">Offer<span class="s">⇅</span><button class="help" data-h="er_bo">?</button></th>
     <th data-k="17" class="num">Seller fb<span class="s">⇅</span><button class="help" data-h="er_seller">?</button></th>
