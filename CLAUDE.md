@@ -397,13 +397,22 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   same flag, same learning), 1 = mark off + `v["right"]` (confirmed matches; `learn_tables` reads their titles as
   good words) + `dec: "yes"` on any alert entry, null = withdrawn. `v["reviews"]` (item -> {v, t}) is published as
   `live["alert"]["reviews"]` with `review_t`; the page shows ✓ same / ✗ mismatch from `REVIEWS` until confirmed.
-  THE PICTURE IS READY LIKE ON THE PHONE: `prefetch_pc_images()` runs every cycle after the statistics and reads up
-  to PC_PREFETCH_PER_MIN = 5 PriceCharting pages (one every 12 s): the cards of the last day's listings first, then
-  every card with eBay data; results land in `v["pc_img"]` (the cache `pc_image()` already uses for alerts, cap
-  raised 2,000 -> 12,000), misses in `v["pc_miss"]` (retried after PC_IMG_FAIL_RETRY_D = 7 days). The whole table
-  travels as `live["pcimg"]` = {card id: the unique part of the address} (`pc_image_table()`; the page rebuilds
-  https://storage.googleapis.com/images.pricecharting.com/<code>/1600.jpg). PriceCharting page reads, not eBay
-  calls. Hourly log line "Pictures: ...". A card whose picture has not arrived shows the button to their page.
+  THE PICTURE IS READY LIKE ON THE PHONE: `PcImageWorker` (collector.py), a daemon thread started in main(), reads
+  PriceCharting card pages in the background, one every PC_PREFETCH_GAP_S = 2 s while there is a backlog (the
+  first version read 5 a minute inside the cycle; after 40 minutes only 137 of the 2,769 cards listed that day had
+  a picture and Brett saw the button instead - 2026-10-08 evening). Order (`pc_plan()`, handed to the thread every
+  cycle): the newest listings' cards first (the top of the Raw Data tab), then every card with eBay data; cards
+  with a picture, or whose page gave none this week, are skipped. A card Brett presses Review on without a picture
+  goes first: the page sends `{type: "pcimg", c}` over the signed channel (`pcAsk()`, once per 5 min per card),
+  `read_requests` calls `worker.want(c)`, and when the result is filed the cycle publishes at once (`urgent` ->
+  sched["publish"] = 0 and `changed`); the page's minute refresh then swaps the picture into the open popup
+  (`reviewPicRefresh()`, the `.rvbox[data-pc]` placeholder). THE THREAD NEVER WRITES THE STATE: results go through
+  `worker.results` and `file_pc_images()` files them on the main thread into `v["pc_img"]` (the cache `pc_image()`
+  already uses for alerts, cap 12,000) and `v["pc_miss"]` (retried after PC_IMG_FAIL_RETRY_D = 7 days). Backoff: a
+  page that cannot be read pauses the thread a minute, five in a row a quarter of an hour. `pc_read_image()` is the
+  one HTTP read (404 = none). The whole table travels as `live["pcimg"]` = {card id: the unique part of the
+  address} (`pc_image_table()`; the page rebuilds https://storage.googleapis.com/images.pricecharting.com/<code>/
+  1600.jpg). PriceCharting page reads, not eBay calls. Hourly log line "Pictures: ... still to read".
   DRAGGABLE COLUMNS, all five tabs (makeTable): headers are draggable; a drop reorders the header row and every
   row's cells; the order is `localStorage['order-' + id]` (a permutation of ORIGINAL indexes); every cell carries
   `data-ci` = its original index (`t.stampRow`, called in renderMore), so the eyes (`cellOf`), sorts (`data-k`) and
