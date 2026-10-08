@@ -387,6 +387,20 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   24 h earlier. The line now reads "$T = N hits from Buy It Now ($A) + X hits from auctions ($B, at the final
   price) · M left out as mismatches · Show them", and `openHits()` lists each with where it stands in the table now.
   Auction hits = alerted auctions whose close was at or under Max buy, valued at Profit at final.
+- RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
+  edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
+  (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
+  double-click the handle to let the column size itself; the click that ends a resize is swallowed so it is not a
+  sort. The small ring beside the eye (`.hlb`) paints the header neon green (`th.hl`, #39ff14), remembered in
+  `hl-<tab>`; "Reset columns" now resets order, widths and highlights. Raw Data: the Photos column is gone (the
+  filter "at least 2 photos" stays; `inserted` got `{v: 8, at: 28, n: -1}` and the makeTable migration handles n < 0:
+  the removed index is dropped and later ones shift, for hide-, order-, hl- and width-); a Status chip (open / sold /
+  ended / gone / stale, `statOk`, remembered as `stat-er`); the explanatory paragraph above the table is gone and its
+  five tools are buttons (`.actbar .actbtn`); the "a ceiling: ..." sentence after the every-hit total is gone; the
+  "Too cheap only" counter has its own span `#ncheap` (it shared `#nmm` with the Mismatches button and never
+  updated). Mismatches: `live["alert"]["mm"]` carries a 4th number, listings matched to the card (`card_matches()`,
+  open + closed), shown as "N of M listings (x%)" in the Mismatches popup and on the Review popup's "Mismatched
+  before" row.
 - REVIEWER COLUMN AND DRAGGABLE COLUMNS (2026-10-08, Brett's request, "so that I may check card identity on my
   laptop website, just like my phone"). The Mismatch tick became the "Reviewer" column (`umCell` -> a `button.rvb`):
   "Review" opens `openReview()` in the book modal - a copy of the phone's first question: PriceCharting's picture
