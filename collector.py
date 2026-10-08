@@ -1014,15 +1014,21 @@ def push(title, message, click=None, image=None, priority=5, tags=("moneybag",))
 PC_IMG = re.compile(r"https://storage\.googleapis\.com/images\.pricecharting\.com/([A-Za-z0-9_-]+)/\d+\.jpg")
 
 
+PC_LAST_READ = {}                # what the last page read looked like: status code, seconds, error - for the log
+
+
 def pc_read_image(pid):
     """One PriceCharting card page -> ("ok", picture address), ("none", None) when the page has no picture or does
     not exist, ("error", None) when it could not be read just now (the background reader then backs off)."""
+    t0 = time.time()
     try:
         import requests
         r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=8,
                          headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"})
-    except Exception:
+    except Exception as e:
+        PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
         return "error", None
+    PC_LAST_READ.update(code=r.status_code, s=time.time() - t0, err=None)
     if r.status_code == 404:
         return "none", None
     if r.status_code != 200:
@@ -1070,6 +1076,7 @@ class PcImageWorker(threading.Thread):
         self.plan, self.wanted, self.done = deque(), deque(), set()
         self.results = queue.Queue()
         self.errors, self.paused_until, self.read = 0, 0.0, 0
+        self.gap, self.streak, self.logged = PC_PREFETCH_GAP_S, 0, 0.0   # the gap adapts to what their site tolerates
 
     def set_plan(self, cards):
         with self.lock:
@@ -1106,10 +1113,22 @@ class PcImageWorker(threading.Thread):
         self.results.put((cid, status, url, urgent))
         if status == "error":
             self.errors += 1
+            self.streak = 0
+            self.gap = min(30.0, self.gap * 2)               # slower from now on: their site said no, or did not answer
             self.paused_until = time.time() + (900 if self.errors >= 5 else 60)
+            if time.time() - self.logged > 600:              # one line per ten minutes, with what the read looked like
+                self.logged = time.time()
+                lr = PC_LAST_READ
+                log(f"PriceCharting pictures: page read failed (HTTP {lr.get('code')}, {lr.get('s', 0):.1f} s"
+                    f"{', ' + lr['err'] if lr.get('err') else ''}); {self.errors} in a row, pausing "
+                    f"{'15 min' if self.errors >= 5 else '60 s'}, then one page every {self.gap:g} s")
         else:
             self.errors = 0
             self.read += 1
+            self.streak += 1
+            if self.streak >= 20 and self.gap > PC_PREFETCH_GAP_S:    # a run of good reads: speed back up, gently
+                self.streak = 0
+                self.gap = max(PC_PREFETCH_GAP_S, self.gap * 0.75)
         return True
 
     def run(self):
@@ -1118,7 +1137,7 @@ class PcImageWorker(threading.Thread):
                 if time.time() < self.paused_until or not self.step():
                     time.sleep(5)
                 else:
-                    time.sleep(PC_PREFETCH_GAP_S)
+                    time.sleep(self.gap)
             except Exception:
                 time.sleep(30)
 
@@ -1972,6 +1991,9 @@ def cycle(state, cat, sched, counters):
             log(f"PriceCharting pictures: plan failed this minute ({str(e)[:100]})")
     if urgent:                                               # a picture Brett is waiting for on the site: publish now
         sched["publish"] = 0
+    if pc is not None and pc.backlog() and due("pictures", 600):   # while the backlog lasts: a line every ten minutes
+        log(f"Pictures: {len(v.get('pc_img', {}))} on file, {pc.read} pages read since the start, {pc.backlog()} to go, "
+            f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s")
     live["pcimg"] = pc_image_table(state)
     live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
                                 "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
@@ -2052,8 +2074,9 @@ def cycle(state, cat, sched, counters):
             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
             f"printed totals for {len(cat.totals)} sets")
         log(f"Pictures: {len(v.get('pc_img', {}))} cards with a PriceCharting picture on file, {counters['pc_img']} pages read this hour, "
-            f"{len(v.get('pc_miss', {}))} cards whose page had none, {pc_worker().backlog() if pc_worker() else 0} still to read; "
-            f"{len(v.get('reviews', {}))} Review answers on the site")
+            f"{len(v.get('pc_miss', {}))} cards whose page had none, {pc_worker().backlog() if pc_worker() else 0} still to read "
+            f"(one page every {pc_worker().gap if pc_worker() else 0:g} s, last read HTTP {PC_LAST_READ.get('code')} in "
+            f"{PC_LAST_READ.get('s', 0):.1f} s); {len(v.get('reviews', {}))} Review answers on the site")
         by_spec = sum(1 for r in state["open"].values() if (r.get("how") or "").endswith("specifics"))
         log(f"Printing: {by_spec} open listings filed under a printing their item specifics named; "
             f"{len(state.get('pending', {}))} unmatched 'ambiguous variant' listings waiting for a lookup; "
