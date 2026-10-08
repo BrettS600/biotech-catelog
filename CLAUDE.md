@@ -387,6 +387,28 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   24 h earlier. The line now reads "$T = N hits from Buy It Now ($A) + X hits from auctions ($B, at the final
   price) · M left out as mismatches · Show them", and `openHits()` lists each with where it stands in the table now.
   Auction hits = alerted auctions whose close was at or under Max buy, valued at Profit at final.
+- REVIEWER COLUMN AND DRAGGABLE COLUMNS (2026-10-08, Brett's request, "so that I may check card identity on my
+  laptop website, just like my phone"). The Mismatch tick became the "Reviewer" column (`umCell` -> a `button.rvb`):
+  "Review" opens `openReview()` in the book modal - a copy of the phone's first question: PriceCharting's picture
+  (click -> their page) beside the eBay photos with thumbnails (click -> the listing; row field 33 carries the
+  listing's other photos, kept from the search's additionalImages in `summary_record`), the facts row by row, then
+  "Not the same card" / "Same card" / "Withdraw my answer". Answers go over the signed channel as
+  `{type: "review", i, v: 1 | 0 | null}`; `review_listing()` in collector.py: 0 = `mark_listing(on)` (the old tick,
+  same flag, same learning), 1 = mark off + `v["right"]` (confirmed matches; `learn_tables` reads their titles as
+  good words) + `dec: "yes"` on any alert entry, null = withdrawn. `v["reviews"]` (item -> {v, t}) is published as
+  `live["alert"]["reviews"]` with `review_t`; the page shows ✓ same / ✗ mismatch from `REVIEWS` until confirmed.
+  THE PICTURE IS READY LIKE ON THE PHONE: `prefetch_pc_images()` runs every cycle after the statistics and reads up
+  to PC_PREFETCH_PER_MIN = 5 PriceCharting pages (one every 12 s): the cards of the last day's listings first, then
+  every card with eBay data; results land in `v["pc_img"]` (the cache `pc_image()` already uses for alerts, cap
+  raised 2,000 -> 12,000), misses in `v["pc_miss"]` (retried after PC_IMG_FAIL_RETRY_D = 7 days). The whole table
+  travels as `live["pcimg"]` = {card id: the unique part of the address} (`pc_image_table()`; the page rebuilds
+  https://storage.googleapis.com/images.pricecharting.com/<code>/1600.jpg). PriceCharting page reads, not eBay
+  calls. Hourly log line "Pictures: ...". A card whose picture has not arrived shows the button to their page.
+  DRAGGABLE COLUMNS, all five tabs (makeTable): headers are draggable; a drop reorders the header row and every
+  row's cells; the order is `localStorage['order-' + id]` (a permutation of ORIGINAL indexes); every cell carries
+  `data-ci` = its original index (`t.stampRow`, called in renderMore), so the eyes (`cellOf`), sorts (`data-k`) and
+  the row builders are untouched; "Reset columns" beside Reset filters restores it. On the eBay Catalog a column
+  moves only inside its band (the `tr.grp` colspans). Drags cannot start on the eye or the "?" buttons.
 - MISMATCH MARKS (same evening, his request). Raw Data has a "Mismatch" column after Row (`umCell`); ticking sends a
   signed `{type: "mark", i, v}`; `mark_listing()` sets `rec["um"]` and the same flag on the alert-log and au_hist
   entries, and files the listing in `v["wrong"]` (forced, whatever the scam tier). `um` makes `wrong_card()` true -
