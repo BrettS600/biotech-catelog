@@ -861,6 +861,9 @@ def summary_record(s):
         "origin": s.get("itemOriginDate") or s.get("itemCreationDate"), "created": s.get("itemCreationDate"),
         "end": s.get("itemEndDate"),
         "epid": s.get("epid") or "", "img": (s.get("image") or {}).get("imageUrl"),
+        # front, back and two more, straight from the search result: the check screens show them (none = key left out)
+        **({"imgs": [u for u in [(p or {}).get("imageUrl") for p in [s.get("image")] + list(s.get("additionalImages") or [])] if u][:4]}
+           if s.get("additionalImages") else {}),
         "url": s.get("itemWebUrl"), "loc": (s.get("itemLocation") or {}).get("stateOrProvince"),
         "promo": bool(s.get("priorityListing")), "top": bool(s.get("topRatedBuyingExperience")),
     }
@@ -1312,6 +1315,8 @@ def learn_tables(state, cat):
     for e in v.get("alert_log", []):
         if e.get("dec") in ("nm", "lp", "yes") and not e.get("um"):
             good |= title_words(e.get("ti"))
+    for g in v.get("right", []):                             # "Same card" answers given with the site's Review button
+        good |= title_words(g.get("ti"))
     n = max(1, _bg["n"])
     for word, k in bad.items():
         share = _bg["df"].get(word, 0) / n
@@ -2443,7 +2448,8 @@ def build_live(state, cards, lp):
                      s_own,                                                                      # 26: this listing's own sell price
                      r.get("pc"), r.get("pcm") or "",             # 27-28: PriceCharting ungraded price, mismatch flag (low/high)
                      r.get("idv") or "", r.get("idr") or [],      # 29-30: item-specifics check (ok/conflict/none), what it found
-                     1 if r.get("um") else 0, r.get("lrn") or ""])  # 31: marked a mismatch by Brett; 32: held back by learning, and why
+                     1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
+                     (r.get("imgs") or [])[1:4]])                   # 33: the listing's other photos (the first is 20), for the Review screen
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
