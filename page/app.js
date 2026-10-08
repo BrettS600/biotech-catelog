@@ -707,12 +707,39 @@ async function sendMark(iid, on) {
 }
 document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.rvb') : null; if (b && b.dataset.i) openReview(b.dataset.i); });
 const PC_IMG_URL = code => 'https://storage.googleapis.com/images.pricecharting.com/' + code + '/1600.jpg';
-function pcPicture(cid) { const t = LIVE.data && LIVE.data.pcimg; const code = t && t[String(cid)]; return code ? PC_IMG_URL(code) : null; }
+const PCIMG_KNOWN = {};                            // card id -> picture code learned over the channel before the live file carries it
+function pcPicture(cid) { const t = LIVE.data && LIVE.data.pcimg; const code = PCIMG_KNOWN[String(cid)] || (t && t[String(cid)]); return code ? PC_IMG_URL(code) : null; }
 const PCIMG_ASKED = {};                            // card id -> when the collector was asked for its picture (once per 5 minutes)
 function pcAsk(cid) {
   if (cid == null || PCIMG_ASKED[cid] > Date.now() - 300000) return;
-  PCIMG_ASKED[cid] = Date.now();
-  alSend({type: 'pcimg', t: Date.now(), c: cid}).catch(() => { delete PCIMG_ASKED[cid]; });
+  const t = Date.now(); PCIMG_ASKED[cid] = t;
+  alSend({type: 'pcimg', t, c: cid}, '-pc').then(() => pcWait(cid, t)).catch(() => { delete PCIMG_ASKED[cid]; });
+}
+// the collector answers on the channel's reply topic the moment it has read the card's page (the live file takes
+// minutes to reach the browser): look every 4 seconds for two and a half minutes, while the popup is still on that card
+async function pcWait(cid, t0) {
+  const ch = await alChannel(), enc = new TextEncoder();
+  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
+  let since = Math.floor(t0 / 1000) - 5;
+  for (let i = 0; i < 38; i++) {
+    await new Promise(r => setTimeout(r, 4000));
+    if (!$('bov').classList.contains('open') || LIVE.rvCard !== cid) return;
+    let lines = [];
+    try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-pcr/json?poll=1&since=' + since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { continue; }
+    for (const line of lines) {
+      try {
+        const ev = JSON.parse(line); if (ev.event !== 'message') continue;
+        since = ev.id;
+        const env = JSON.parse(ev.message);
+        if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
+        const msg = JSON.parse(env.m);
+        if (msg.type !== 'pcimg' || String(msg.c) !== String(cid)) continue;
+        if (msg.code) { PCIMG_KNOWN[String(cid)] = msg.code; reviewPicRefresh(); }
+        else { const box = $('bbody').querySelector('.rvbox[data-pc]'); if (box) { box.removeAttribute('data-pc'); box.querySelector('small').textContent = 'PriceCharting has no picture of this card'; } }
+        return;
+      } catch (e) { continue; }
+    }
+  }
 }
 // the popup is open on a card whose picture had not arrived: when the live data brings it, show it in place
 function reviewPicRefresh() {
@@ -1386,12 +1413,12 @@ async function alChannel() {
   const enc = new TextEncoder();
   const hex = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
   return {topic: 'pc-' + (await hex(HKEY + ':alerts-topic')).slice(0, 40),
-          key: await crypto.subtle.importKey('raw', enc.encode(await hex(HKEY + ':alerts-key')), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign'])};
+          key: await crypto.subtle.importKey('raw', enc.encode(await hex(HKEY + ':alerts-key')), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign', 'verify'])};
 }
-async function alSend(msg) {
+async function alSend(msg, suffix) {                // suffix: a side topic of the same channel ('-pc' = picture requests)
   const ch = await alChannel(), body = JSON.stringify(msg);
   const sig = [...new Uint8Array(await crypto.subtle.sign('HMAC', ch.key, new TextEncoder().encode(body)))].map(b => b.toString(16).padStart(2, '0')).join('');
-  const r = await fetch('https://ntfy.sh/' + ch.topic, {method: 'POST', body: JSON.stringify({m: body, s: sig})});
+  const r = await fetch('https://ntfy.sh/' + ch.topic + (suffix || ''), {method: 'POST', body: JSON.stringify({m: body, s: sig})});
   if (!r.ok) throw new Error('HTTP ' + r.status);
 }
 async function alAct(kind) {
