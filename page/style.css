@@ -85,6 +85,10 @@
   .eye:hover { color:var(--link); }
   .eye svg { width:13px; height:13px; display:block; }
   th.col-hidden { width:22px; min-width:22px; max-width:22px; padding:6px 3px; text-align:center; font-size:0; overflow:hidden; }
+  th[draggable=true] { cursor:grab; }
+  th.dragging { opacity:.45; }
+  th.drop-l { box-shadow:inset 3px 0 0 var(--link); }
+  th.drop-r { box-shadow:inset -3px 0 0 var(--link); }
   th.col-hidden > *:not(.eye) { display:none; }
   th.col-hidden .eye { margin:0; color:var(--down); }
   th.col-hidden:hover { text-decoration:none; }
@@ -209,6 +213,35 @@ tr.fresh td { background: rgba(34, 197, 94, .10); }
 tr.umm td { background:rgba(255, 128, 128, .17); }
 th.mmk, td.mmk { text-align:center; white-space:nowrap; }
 td.mmk input { width:16px; height:16px; cursor:pointer; accent-color:#d1242f; }
+button.rvb { font:inherit; font-size:12px; padding:2px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--link); cursor:pointer; white-space:nowrap; }
+button.rvb.same { color:#1a7f37; border-color:#1a7f37; }
+button.rvb.diff { color:#d1242f; border-color:#d1242f; }
+/* the Review popup: the phone's first question, on the site */
+.rvpair { display:flex; gap:10px; align-items:stretch; }
+.rvside { flex:1 1 0; min-width:0; background:var(--bg2, rgba(128,128,128,.08)); border:1px solid var(--line); border-radius:10px; padding:8px; }
+.rvside h4 { font-size:12px; margin:0 0 6px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.rvside h4 a { color:var(--link); text-decoration:none; }
+.rvpic { width:100%; aspect-ratio:5 / 7; object-fit:contain; background:#010409; border-radius:6px; display:block; }
+.rvbox { width:100%; aspect-ratio:5 / 7; background:#010409; border-radius:6px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:10px; gap:8px; }
+.rvbox a { color:#fff; background:#1f6feb; padding:10px 12px; border-radius:8px; text-decoration:none; font-weight:600; }
+.rvbox small { color:#8b949e; }
+.rvthumbs { display:flex; gap:4px; margin-top:4px; }
+.rvthumbs img { width:25%; aspect-ratio:1; object-fit:cover; border-radius:4px; border:2px solid transparent; cursor:pointer; }
+.rvthumbs img.on { border-color:#1f6feb; }
+.rvrows { margin-top:10px; border-top:1px solid var(--line); }
+.rrow { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px 9px; border-bottom:1px solid var(--line); }
+.rrow > div { min-width:0; }
+.rrow .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:1px; }
+.rrow b { font-size:16px; }
+.rrow small { display:block; font-size:12px; color:var(--muted); margin-top:1px; }
+.rrow b.amber { color:#e3b341; }
+.rrow .tag { display:inline-block; background:#30363d; color:#fff; border-radius:5px; padding:1px 6px; margin:2px 3px 0 0; font-size:12px; }
+.rrow .tag.warn { background:#9e6a03; } .rrow .tag.bad { background:#da3633; }
+.rvbtns { display:flex; gap:10px; margin-top:14px; }
+.rvbtns button { flex:1; border:0; border-radius:12px; padding:14px 8px; font:600 16px/1.25 inherit; color:#fff; cursor:pointer; }
+.rvbtns button small { display:block; font-weight:400; font-size:12px; margin-top:4px; opacity:.9; }
+.rvbtns .rvyes { background:#238636; } .rvbtns .rvno { background:#da3633; }
+.rvundo { text-align:center; margin-top:8px; }
 
 /* The Mismatches list */
 .mmq { width:100%; font:inherit; padding:7px 10px; margin:6px 0 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
