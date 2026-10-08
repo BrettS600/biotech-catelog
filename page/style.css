@@ -90,6 +90,17 @@
   th.drop-l { box-shadow:inset 3px 0 0 var(--link); }
   th.drop-r { box-shadow:inset -3px 0 0 var(--link); }
   th.col-hidden > *:not(.eye) { display:none; }
+  /* header highlight (the small ring beside the eye): neon green, for the columns that matter */
+  .hlb { display:inline-flex; width:12px; height:12px; margin-left:4px; border:1.5px solid var(--muted); border-radius:50%; background:none; cursor:pointer; padding:0; vertical-align:middle; }
+  .hlb:hover { border-color:#39ff14; background:rgba(57,255,20,.35); }
+  th.hl { background:#39ff14; color:#111; }
+  th.hl .s, th.hl .help, th.hl .eye, th.hl .hlb { color:#111; border-color:#111; }
+  th.hl .hlb { background:#111; }
+  /* column width: the handle on the right edge of a header */
+  .rsz { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; user-select:none; z-index:2; }
+  .rsz:hover, th.resizing .rsz { background:rgba(31,111,235,.55); }
+  th.sized, td.sized { overflow:hidden; text-overflow:ellipsis; }
+  body.col-resizing, body.col-resizing th[draggable=true] { cursor:col-resize; user-select:none; }
   th.col-hidden .eye { margin:0; color:var(--down); }
   th.col-hidden:hover { text-decoration:none; }
   td.col-hidden { width:22px; min-width:22px; max-width:22px; padding:0; font-size:0; color:transparent; overflow:hidden; }
@@ -134,6 +145,10 @@
   td.ttl { max-width:420px; overflow:hidden; text-overflow:ellipsis; }
   .live-note { color:var(--muted); font-size:12px; padding:0 18px 8px; }
   .linkbtn { font:inherit; font-size:12px; border:none; background:none; color:var(--link); cursor:pointer; padding:0; text-decoration:underline; }
+  /* Raw Data's tools (Use my alert settings, Offer list, Unmatched titles, Scam screen, Mismatches): buttons, not links */
+  .actbar { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 10px; }
+  .actbtn { font:inherit; font-size:13px; font-weight:600; padding:6px 12px; border:1px solid var(--link); border-radius:6px; background:none; color:var(--link); cursor:pointer; }
+  .actbtn:hover { background:var(--hover); }
   .modal.mid { width:min(820px, 100%); }
   .book table { min-width:0; width:100%; font-size:13px; }
   .book th { position:static; cursor:default; }
