@@ -29,6 +29,8 @@ const cells4 = r =>
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
   '<td>' + esc(r[2]) + '</td><td class="num">' + numCell(r[3], r[2]) + '</td><td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
+const mtOf = cid => { const t = LIVE.data && LIVE.data.mt; const m = t && t[String(cid)]; return m ? m[0] + ':' + m[1] : null; };   // "match:mismatch" for a card
+const mmRatio = v => v == null ? dash : (/:0$/.test(v) ? esc(v) : '<span class="down">' + esc(v) + '</span>');
 const badge = (txt, cls) => '<span class="badge' + (cls ? ' ' + cls : '') + '">' + esc(txt) + '</span>';
 const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // filled by loadLive(); prevT = the previous data's stamp; sets = printed set sizes
 
@@ -50,17 +52,20 @@ const TABLES = {
   //   Observed: 5 k 6 D 7 N 8 p1 9 p2 10 p3 11 mu 12 smed 13 s80 14 hrs 15 st |
   //   Rates: 16 lam 17 price 18 dos 19 io |
   //   Decisions: 20 A 21 L 22 sell 23 probT 24 edays 25 maxbuy 26 hot 27 liquid 28 confirm 29 checks |
-  //   Trends: 30 spm 31 d7 32 d30 33 pos 34 vdp 35 vd 36 vol 37 ts | 38 net 39 A_n | 40 ord
-  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 16, 7, 18, 12, 14, 15, 20, 22, 25, 38, 30, 32, 37],
-       inserted: [{v: 3, at: 0, n: 1}],
-       labels: {17: 'Price $', 5: 'Sold 30d', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 30: 'Sales/month', 32: 'Δ30d %', 37: 'Slope %/mo'},
+  //   Trends: 30 spm 31 d7 32 d30 33 pos 34 vdp 35 vd 36 vol 37 ts | 38 net 39 A_n | 40 ord |
+  //   41 PC sales/month 42 PC ungraded $ 43 vs PC % 44 hits 30d 45 "match:mismatch"
+  //   (6 D, 8-10 p1-p3 and 30 spm stay in the row for the Book and the chart; the table no longer shows them - 2026-10-08)
+  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 41, 16, 7, 18, 12, 14, 15, 20, 43, 22, 25, 38, 44, 32, 37],
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}],   // v4: the column set was rebuilt, saved eyes / order / widths start over
+       compact: [9, 10, 11, 12, 14, 15, 16, 17, 21, 24],   // hidden in the Compact view: the diagnostics behind the decision numbers
+       labels: {17: 'Price $', 5: 'eBay sales', 41: 'PC sales', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 43: 'vs PC %', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 44: 'Hits 30d', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 500]},
        hay: r => r[1] + ' ' + r[2],
        row: r => cells4(r) +
+      '<td class="num">' + mmRatio(r[45]) + '</td>' +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
-      '<td class="num">' + fmtNum(r[6], 0) + '</td>' +
+      '<td class="num">' + (r[41] == null ? dash : fmtNum(r[41], r[41] < 10 ? 1 : 0)) + '</td>' +
       '<td class="num">' + fmtInt(r[7]) + '</td>' +
-      '<td class="num">' + fmtMoney(r[8]) + '</td><td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
       '<td class="num">' + fmtNum(r[11], 2) + '</td>' +
       '<td class="num">' + fmtMoney(r[12]) + '</td><td class="num">' + fmtMoney(r[13]) + '</td>' +
       '<td class="num">' + fmtNum(r[14], 0) + '</td>' +
@@ -70,6 +75,8 @@ const TABLES = {
       '<td class="num">' + fmtNum(r[18], 1) + '</td>' +
       '<td class="num">' + fmtNum(r[19], 2) + '</td>' +
       '<td class="num"' + (r[39] ? ' title="' + r[39] + ' sales behind the anchor"' : '') + '>' + fmtMoney(r[20]) + (r[20] != null && r[39] < (LIVE.data && LIVE.data.gate && LIVE.data.gate.minSales || 5) ? ' <span class="dim">thin</span>' : '') + '</td>' +
+      '<td class="num">' + fmtMoney(r[42]) + '</td>' +
+      '<td class="num">' + (r[43] == null ? dash : '<span class="' + (r[43] < -40 || r[43] > 200 ? 'down' : '') + '">' + fmtPct(r[43], true, 0) + '</span>') + '</td>' +
       '<td class="num">' + fmtMoney(r[21]) + '</td>' +
       '<td class="num">' + (r[22] == null ? dash : '<b>' + fmtMoney(r[22]) + '</b>') + '</td>' +
       '<td class="num">' + fmtPct(r[23], false, 0) + '</td>' +
@@ -77,7 +84,7 @@ const TABLES = {
       '<td class="num">' + (r[25] == null ? dash : '<b>' + fmtMoney(r[25]) + '</b>' + (r[27] ? '' : ' <span class="dim" title="too slow for the window at this confidence">illiquid</span>')) + '</td>' +
       '<td class="num">' + fmtMoney(r[38]) + '</td>' +
       '<td>' + (r[26] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[26] === 'candidate' ? badge('Hot ' + r[28] + '/3', 'hot') : r[29] && r[29].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[29].join(', ')) + '">fails ' + r[29].length + '</span>' : dash) + '</td>' +
-      '<td class="num">' + fmtInt(r[30]) + '</td>' +
+      '<td class="num">' + (r[44] ? '<b>' + r[44] + '</b>' : dash) + '</td>' +
       '<td class="num">' + fmtPct(r[31]) + '</td>' +
       '<td class="num">' + fmtPct(r[32]) + '</td>' +
       '<td class="num">' + fmtPct(r[33], false, 0) + '</td>' +
@@ -107,11 +114,12 @@ const TABLES = {
   er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable)
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable)
        extra: r => statOk(r[19]) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
        row: r => r.au ? auRow(r) : umCell(r) + cells4(r) +
+      '<td class="num">' + mmRatio(r[46]) + '</td>' +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
       '<td class="num auc"></td><td class="num auc"></td>' +
@@ -167,6 +175,7 @@ function auRows(live) {
       tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], t,
       pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[5] == null ? null : r1(base[5] / 12), cs.k != null ? cs.k : null,
       bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
+    row[46] = mtOf(cid);
     row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um;
     return row;
   });
@@ -179,7 +188,7 @@ function auRow(r) {
                'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.',
                'closed too cheap': 'It closed under ' + pcPct('pcLow', 0.4) + '% of the card\'s PriceCharting price. Other bidders do not let the real card go for that: treated as a wrong match (another card, a damaged copy, a fake), not a hit.',
                'mismatch: marked by you': 'You marked this auction as not the card it was matched to. It is left out of the hit total. Untick Mismatch to undo.'}[x.res] || '';
-  return umCell(r) + (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') +
+  return umCell(r) + (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') + '<td class="num">' + mmRatio(r[46]) + '</td>' +
     '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
     '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
     '<td class="num auc"' + (x.old ? ' title="An alert from before October 6: worked back from the total the alert recorded"' : '') + '>' + (r[42] != null ? fmtMoney(r[42]) + (x.nb != null ? ' <span class="dim">' + x.nb + ' bid' + (x.nb === 1 ? '' : 's') + '</span>' : '') : x.tot0 != null ? fmtMoney(x.tot0) + ' <span class="dim">with shipping</span>' : dash) + '</td>' +
@@ -397,15 +406,22 @@ function makeTable(id, cfg) {
   for (const ins of [].concat(cfg.inserted || [])) try {   // columns added (or removed, n < 0) since the choice was saved: keep it on the same columns
     const mark = 'cols-' + id + '-v' + ins.v;
     if (!localStorage.getItem(mark)) {
+      if (ins.reset) {                                     // the column set was rebuilt: saved eyes, order, widths and highlights start over
+        for (const key of ['hide-' + id, 'order-' + id, 'hl-' + id, 'width-' + id]) localStorage.removeItem(key);
+        hiddenCols = new Set(); localStorage.setItem(mark, '1'); continue;
+      }
       const shift = ci => ins.n < 0 ? (ci > ins.at ? ci + ins.n : ci) : (ci >= ins.at ? ci + ins.n : ci);
       const keep = ci => ins.n >= 0 || ci !== ins.at;
       hiddenCols = new Set([...hiddenCols].filter(keep).map(shift));
       localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols]));
-      for (const key of ['order-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(sv)) localStorage.setItem(key, JSON.stringify(sv.filter(keep).map(shift))); }
+      for (const key of ['order-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(sv)) { const out = sv.filter(keep).map(shift); if (ins.n > 0) { const fresh = [...Array(ins.n).keys()].map(i => ins.at + i); out.splice(ins.at === 0 ? 0 : out.indexOf(ins.at - 1) + 1, 0, ...fresh); } localStorage.setItem(key, JSON.stringify(out)); } }   // a new column takes its natural place in a saved order
       for (const key of ['hl-' + id, 'width-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (sv && typeof sv === 'object') { const out = Array.isArray(sv) ? sv.filter(keep).map(shift) : Object.fromEntries(Object.entries(sv).filter(([k]) => keep(+k)).map(([k, v]) => [shift(+k), v])); localStorage.setItem(key, JSON.stringify(out)); } }
       localStorage.setItem(mark, '1');
     }
   } catch (e) {}
+  if (cfg.compact && localStorage.getItem('hide-' + id) == null) {   // first visit (or a rebuilt set): the Compact view
+    hiddenCols = new Set(cfg.compact); try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
+  }
   const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
   const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6c1.6 0 3 .3 4.3.9l-1.6 1.6A6 6 0 0 0 12 8c-4.4 0-7.2 3.2-8.1 4 .5.5 1.6 1.7 3.2 2.6l-1.5 1.5C3.4 14.7 2 12 2 12zm20 0s-3.5 6-10 6c-1.6 0-3-.3-4.3-.9l1.6-1.6c.8.3 1.7.5 2.7.5 4.4 0 7.2-3.2 8.1-4-.5-.5-1.6-1.7-3.2-2.6l1.5-1.5C20.6 9.3 22 12 22 12zM4 20 20 4l1.4 1.4L5.4 21.4z" fill="currentColor"/></svg>';
   const paintHeads = () => [...headRow.children].forEach((th, pos) => {
@@ -464,6 +480,58 @@ function makeTable(id, cfg) {
   document.addEventListener('mouseup', () => { if (!rs) return; const th = [...headRow.children].find(x => +x.dataset.ci === rs.ci) || headRow.children[rs.ci]; if (th) th.classList.remove('resizing'); document.body.classList.remove('col-resizing'); saveWidths(); t.justResized = Date.now(); rs = null; });
   headRow.addEventListener('click', e => { if (t.justResized && Date.now() - t.justResized < 300 && !e.target.closest('.eye, .hlb, .help')) { e.stopPropagation(); e.preventDefault(); } }, true);   // the mouseup of a resize is not a sort
   [...headRow.children].forEach((th, ci) => sizeCell(th, ci));
+  /* The Columns picker (2026-10-08, Brett: "a button where I can select which columns I would like to switch on
+     and off"): every column with a tick, plus Compact (the tab's lean set, where one is defined) and All. Same
+     memory as the eyes (hide-<tab>). */
+  const colLabel = th => { const tn = [...th.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); return (tn ? tn.textContent : th.textContent).replace(/[\u21c5?]/g, '').trim() || ('Column ' + th.dataset.ci); };
+  t.setHidden = set => {
+    hiddenCols = new Set([...set].map(Number));
+    try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
+    paintHeads();
+    el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => { td.classList.toggle('col-hidden', hiddenCols.has(td.dataset.ci != null ? +td.dataset.ci : pos)); }));
+    [...headRow.children].forEach((th, pos) => sizeCell(th, th.dataset.ci != null ? +th.dataset.ci : pos));
+    el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => sizeCell(td, td.dataset.ci != null ? +td.dataset.ci : pos)));
+  };
+  const tabName = () => { const b = document.querySelector('.tab[data-t="' + id + '"]'); return b ? b.textContent.trim() : id; };
+  t.openColumns = () => {
+    const ths = [...headRow.children].sort((a, b) => +a.dataset.ci - +b.dataset.ci);
+    $('btitle').textContent = 'Columns \u00b7 ' + tabName();
+    $('bsub').textContent = 'Tick the columns to show on this tab. The eye on a header does the same one at a time; both are remembered in this browser.';
+    $('bbody').innerHTML = '<div class="colpick">' + ths.map(th => '<label><input type="checkbox" data-ci="' + th.dataset.ci + '"' + (hiddenCols.has(+th.dataset.ci) ? '' : ' checked') + '> ' + esc(colLabel(th)) + '</label>').join('') + '</div>' +
+      '<div class="pickbtns">' + (cfg.compact ? '<button class="reset" id="cp-compact" title="The lean set: the decision numbers, the trends, nothing else">Compact</button>' : '') + '<button class="reset" id="cp-all">All columns</button><button class="reset" id="cp-done">Done</button></div>';
+    const sync = () => $('bbody').querySelectorAll('.colpick input').forEach(i => { i.checked = !hiddenCols.has(+i.dataset.ci); });
+    $('bbody').querySelector('.colpick').addEventListener('input', e => { const i = e.target; if (!i || i.dataset.ci == null) return; const set = new Set(hiddenCols); if (i.checked) set.delete(+i.dataset.ci); else set.add(+i.dataset.ci); t.setHidden(set); });
+    if (cfg.compact) $('cp-compact').addEventListener('click', () => { t.setHidden(cfg.compact); sync(); });
+    $('cp-all').addEventListener('click', () => { t.setHidden([]); sync(); });
+    $('cp-done').addEventListener('click', () => $('bov').classList.remove('open'));
+    $('bov').classList.add('open');
+  };
+  /* The Filters picker (same request): which filter chips are shown above the table. A hidden chip is switched off
+     (its boxes cleared, its ticks back to neutral), so nothing filters unseen. Remembered as chips-<tab>. */
+  const chipAll = () => [...el('ranges').querySelectorAll('.range')];
+  const chipId = div => div.id || ('r' + ((div.querySelector('input') || {}).id || '').replace(/^(min|max)/, '').replace('-' + id, ''));
+  const chipLabel = div => { const l = div.querySelector('.lbl'); return (l ? l.textContent : div.textContent).replace(/\(\s*\d+\s*\)/g, '').replace(/\s+/g, ' ').trim() || chipId(div); };
+  let hiddenChips = new Set();
+  try { hiddenChips = new Set(JSON.parse(localStorage.getItem('chips-' + id) || '[]')); } catch (e) {}
+  const neutralize = div => {
+    div.querySelectorAll('input[type=number]').forEach(i => { if (i.value !== '') { i.value = ''; i.dispatchEvent(new Event('input', {bubbles: true})); } });
+    const all = div.id === 'condchip' || div.id === 'statchip';
+    div.querySelectorAll('input[type=checkbox]').forEach(i => { if (i.checked !== all) { i.checked = all; i.dispatchEvent(new Event('input', {bubbles: true})); } });
+  };
+  const paintChipsVis = () => chipAll().forEach(div => { const off = hiddenChips.has(chipId(div)); if (off) neutralize(div); div.hidden = off; });
+  t.paintChipsVis = paintChipsVis;
+  t.openFilters = () => {
+    const chips = chipAll();
+    $('btitle').textContent = 'Filters \u00b7 ' + tabName();
+    $('bsub').textContent = 'Tick the filters to keep above the table. A hidden filter is switched off, so nothing filters out of sight. Remembered in this browser.';
+    $('bbody').innerHTML = '<div class="colpick">' + chips.map(div => '<label><input type="checkbox" data-id="' + esc(chipId(div)) + '"' + (hiddenChips.has(chipId(div)) ? '' : ' checked') + '> ' + esc(chipLabel(div)) + '</label>').join('') + '</div>' +
+      '<div class="pickbtns"><button class="reset" id="fp-all">All filters</button><button class="reset" id="fp-done">Done</button></div>';
+    const save = () => { try { if (hiddenChips.size) localStorage.setItem('chips-' + id, JSON.stringify([...hiddenChips])); else localStorage.removeItem('chips-' + id); } catch (e) {} paintChipsVis(); };
+    $('bbody').querySelector('.colpick').addEventListener('input', e => { const i = e.target; if (!i || !i.dataset.id) return; if (i.checked) hiddenChips.delete(i.dataset.id); else hiddenChips.add(i.dataset.id); save(); });
+    $('fp-all').addEventListener('click', () => { hiddenChips = new Set(); save(); $('bbody').querySelectorAll('.colpick input').forEach(i => { i.checked = true; }); });
+    $('fp-done').addEventListener('click', () => $('bov').classList.remove('open'));
+    $('bov').classList.add('open');
+  };
   /* Column order (2026-10-08, Brett): click, hold and drag a header to move its column; the order is remembered per
      tab. Cells keep their ORIGINAL index underneath (data-ci), so the eyes, sorts and row builders are untouched: a row
      is built in the original order and its cells are then placed by the saved order. On the eBay Catalog the band
@@ -552,7 +620,10 @@ function makeTable(id, cfg) {
     $('statchip').classList.toggle('on', stats.some(x => !x.checked));
   }
   if (el('reset')) { const rc = document.createElement('button'); rc.className = 'reset'; rc.type = 'button'; rc.textContent = 'Reset columns'; rc.title = 'Original order and widths, no highlights';
-    rc.addEventListener('click', () => { t.resetOrder(); if (t.resetLayout) t.resetLayout(); }); el('reset').insertAdjacentElement('afterend', rc); }
+    rc.addEventListener('click', () => { t.resetOrder(); if (t.resetLayout) t.resetLayout(); }); el('reset').insertAdjacentElement('afterend', rc);
+    const cb = document.createElement('button'); cb.className = 'reset'; cb.type = 'button'; cb.textContent = 'Columns\u2026'; cb.title = 'Choose which columns to show'; cb.addEventListener('click', () => t.openColumns()); rc.insertAdjacentElement('afterend', cb);
+    const fb = document.createElement('button'); fb.className = 'reset'; fb.type = 'button'; fb.textContent = 'Filters\u2026'; fb.title = 'Choose which filters to show'; fb.addEventListener('click', () => t.openFilters()); cb.insertAdjacentElement('afterend', fb);
+    t.paintChipsVis(); }
   if (el('reset')) el('reset').addEventListener('click', () => {
     el('q').value = ''; sel.value = '';
     cfg.ranges.forEach(k => { const d = cfg.defaults[k] || ['', '']; el('min' + k).value = d[0]; el('max' + k).value = d[1]; });
@@ -560,6 +631,7 @@ function makeTable(id, cfg) {
     conds.forEach(c => { c.checked = true; }); if (conds.length) { $('condchip').classList.remove('on'); try { localStorage.removeItem('cond-' + id); } catch (e) {} }
     stats.forEach(c => { c.checked = true; }); if (stats.length) { $('statchip').classList.remove('on'); try { localStorage.removeItem('stat-' + id); } catch (e) {} }
     if (sus) { sus.checked = false; $('suschip').classList.remove('on'); }
+    if (t.paintChipsVis) setTimeout(t.paintChipsVis, 0);   // a hidden chip stays switched off
     if (mm) { mm.checked = false; $('mmchip').classList.remove('on'); }
     if (ld) { ld.checked = false; $('leadchip').classList.remove('on'); }
     t.apply();
@@ -706,6 +778,7 @@ function hhRows(live) {
       out === 'unknown' ? 'gone' : out, u, null, iid, null, p, roi, s, null, null, tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], first || t,
       pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs.k != null ? cs.k : null,
       null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
+    row[46] = mtOf(cid);
     row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null;
     return row;
   });
@@ -906,7 +979,12 @@ function rebuildLive() {
                   d.A, d.L, d.sell, d.probT, d.edays, d.maxbuy, hot, d.liquid, c.confirm, c.checks,
                   t.spm == null ? null : t.spm, t.d7 == null ? null : t.d7, t.d30 == null ? null : t.d30, t.pos == null ? null : t.pos,
                   t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
-                  d.net, c.A_n || 0, LIVE.ec.length]);
+                  d.net, c.A_n || 0, LIVE.ec.length,
+                  c.pcv == null ? null : Math.round(c.pcv / 12 * 10) / 10,                       // 41 PriceCharting sales a month
+                  c.pc == null ? base[6] : c.pc,                                                  // 42 PriceCharting ungraded $
+                  (c.pc || base[6]) && d.A ? Math.round((d.A / (c.pc || base[6]) - 1) * 1000) / 10 : null,   // 43 anchor vs PriceCharting
+                  (live.hits30 || {})[String(cid)] || 0,                                          // 44 alerts on the card, 30 days
+                  mtOf(cid)]);                                                                    // 45 "match:mismatch"
   }
   let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0, leads = 0;
   live.live.forEach(x => {
@@ -930,6 +1008,7 @@ function rebuildLive() {
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
                   base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
                   null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
+    erow[46] = mtOf(x[1]);
     erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
     LIVE.er.push(erow);
   });
