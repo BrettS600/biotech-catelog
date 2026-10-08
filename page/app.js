@@ -708,6 +708,20 @@ async function sendMark(iid, on) {
 document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.rvb') : null; if (b && b.dataset.i) openReview(b.dataset.i); });
 const PC_IMG_URL = code => 'https://storage.googleapis.com/images.pricecharting.com/' + code + '/1600.jpg';
 function pcPicture(cid) { const t = LIVE.data && LIVE.data.pcimg; const code = t && t[String(cid)]; return code ? PC_IMG_URL(code) : null; }
+const PCIMG_ASKED = {};                            // card id -> when the collector was asked for its picture (once per 5 minutes)
+function pcAsk(cid) {
+  if (cid == null || PCIMG_ASKED[cid] > Date.now() - 300000) return;
+  PCIMG_ASKED[cid] = Date.now();
+  alSend({type: 'pcimg', t: Date.now(), c: cid}).catch(() => { delete PCIMG_ASKED[cid]; });
+}
+// the popup is open on a card whose picture had not arrived: when the live data brings it, show it in place
+function reviewPicRefresh() {
+  if (!$('bov').classList.contains('open') || LIVE.rvCard == null) return;
+  const box = $('bbody').querySelector('.rvbox[data-pc]'); if (!box) return;
+  const pcu = pcPicture(LIVE.rvCard); if (!pcu) return;
+  const pcPage = 'https://www.pricecharting.com/game/' + LIVE.rvCard;
+  box.outerHTML = '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>';
+}
 function openReview(iid) {
   const r = LIVE.erMap && LIVE.erMap.get(iid); if (!r) return;
   const x = (LIVE.data.live || []).find(z => z[0] === iid) || [];
@@ -715,6 +729,8 @@ function openReview(iid) {
   const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
   const pics = [r[21]].concat(x[33] || []).filter(Boolean);
   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
+  LIVE.rvCard = r[0];
+  if (!pcu) pcAsk(r[0]);                           // the collector reads that one page now; the picture lands here within a minute or two
   const m = /(\d+)\s*\/\s*(\d+)/.exec(r[6] || '');
   const tot = r[9], allin = r[10], taxAmt = allin != null && tot != null ? Math.round((allin - tot) * 100) / 100 : 0;
   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
@@ -727,7 +743,7 @@ function openReview(iid) {
   let h = '<div class="rvpair">' +
     '<div class="rvside"><h4>PriceCharting <a href="' + pcPage + '" target="_blank" rel="noopener">\u2197</a></h4>' +
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
-           : '<div class="rvbox"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>not fetched yet \u2014 the collector reads a few pages a minute</small></div>') + '</div>' +
+           : '<div class="rvbox" data-pc="1"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>being fetched now \u2014 it appears here within a minute or two</small></div>') + '</div>' +
     '<div class="rvside"><h4><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener">eBay listing \u2197</a></h4>' +
       (pics.length ? '<a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener"><img class="rvpic" id="rvpic" src="' + esc(big(pics[0])) + '" alt="eBay photo: click to open the listing"></a>' +
         (pics.length > 1 ? '<div class="rvthumbs">' + pics.map((u, i) => '<img src="' + esc(u) + '" data-k="' + i + '"' + (i === 0 ? ' class="on"' : '') + ' alt="">').join('') + '</div>' : '')
@@ -891,7 +907,7 @@ async function refreshLive() {
   if (document.hidden || !LIVE.data) return;
   try {
     const d = await fetchLive();
-    if (d.t !== LIVE.data.t) { LIVE.prevT = LIVE.data.t; LIVE.data = d; rebuildLive(); }
+    if (d.t !== LIVE.data.t) { LIVE.prevT = LIVE.data.t; LIVE.data = d; rebuildLive(); reviewPicRefresh(); }
   } catch (e) { /* keep showing what we have; the next minute retries */ }
 }
 function tickAge() {
