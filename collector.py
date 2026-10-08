@@ -34,13 +34,15 @@ import io
 import json
 import math
 import os
+import queue
 import re
 import statistics
 import subprocess
 import sys
+import threading
 import time
 import traceback
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -972,6 +974,12 @@ def read_requests(state):
             mark_listing(state, str(msg["i"])[:60], bool(msg.get("v")), t)
         elif msg.get("type") == "review" and msg.get("i"):
             review_listing(state, str(msg["i"])[:60], msg.get("v"), t)
+        elif msg.get("type") == "pcimg" and msg.get("c") is not None:   # Review pressed on a card without its picture
+            try:
+                if pc_worker() is not None:
+                    pc_worker().want(int(msg["c"]))
+            except (TypeError, ValueError):
+                pass
 
 
 def quiet_now(cfg):
@@ -1006,71 +1014,179 @@ def push(title, message, click=None, image=None, priority=5, tags=("moneybag",))
 PC_IMG = re.compile(r"https://storage\.googleapis\.com/images\.pricecharting\.com/([A-Za-z0-9_-]+)/\d+\.jpg")
 
 
+def pc_read_image(pid):
+    """One PriceCharting card page -> ("ok", picture address), ("none", None) when the page has no picture or does
+    not exist, ("error", None) when it could not be read just now (the background reader then backs off)."""
+    try:
+        import requests
+        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=8,
+                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"})
+    except Exception:
+        return "error", None
+    if r.status_code == 404:
+        return "none", None
+    if r.status_code != 200:
+        return "error", None
+    m = PC_IMG.search(r.text)
+    return ("ok", f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg") if m else ("none", None)
+
+
 def pc_image(state, pid):
     """PriceCharting's own picture of a card, for the phone's check screen (Brett compares it with the eBay photo:
     a listing whose title and item specifics both name one card while the photo shows another can only be caught
     by eye). Their data feed has no image field, so the address is read off the card's public page - one page per
-    card, fetched only when an alert is about to go out. Their terms have no rule against it and robots.txt allows
-    /game/ (both read 2026-10-05). None when it cannot be had; the screen then shows the button instead."""
+    card. Their terms have no rule against it and robots.txt allows /game/ (both read 2026-10-05). Usually the
+    background reader (`PcImageWorker`) has the picture on file already; otherwise the page is read now. None when
+    it cannot be had; the screen then shows the button instead."""
     cache = state["vps"].setdefault("pc_img", {})
     if str(pid) in cache:
         return cache[str(pid)]
-    try:
-        import requests
-        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=6,
-                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per alert"})
-        m = PC_IMG.search(r.text) if r.status_code == 200 else None
-    except Exception:
-        m = None
-    if not m:
+    status, url = pc_read_image(pid)
+    if not url:
         return None                                          # not remembered: the next alert for this card tries again
-    cache[str(pid)] = f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg"
+    cache[str(pid)] = url
     for k in list(cache)[:-12000]:                           # every card with eBay data, with room to spare
         del cache[k]
-    return cache[str(pid)]
+    return url
 
 
-PC_PREFETCH_PER_MIN = 5          # PriceCharting pages read a minute to learn pictures ahead of time (one every 12 s)
+PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
 PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
 
 
-def prefetch_pc_images(state, cards):
-    """Learn PriceCharting's picture for the cards the Review button on the site can be pressed for, before it is
-    pressed: the cards of the last day's listings first, then every card with eBay data. The same one-page-per-card
-    read `pc_image()` does for a phone alert, just ahead of time and a few a minute, so the site has the picture ready
-    the way the phone does. PriceCharting page reads, not eBay calls. Remembered in v["pc_img"] (which `pc_image()`
-    reads first), so the alert path gets faster too. Cards whose page gave no picture are noted with a day stamp and
-    tried again a week later."""
-    v = state["vps"]
-    cache = v.setdefault("pc_img", {})
-    miss = v.setdefault("pc_miss", {})
-    today = es.TODAY
-    cut = es.ts(es.NOW - timedelta(hours=24))
-    want = []
-    seen = set()
-    for rec in state["open"].values():                       # the rows of the Raw Data tab, newest first
-        if rec["first"] >= cut and rec.get("card") is not None and rec["card"] not in seen:
-            seen.add(rec["card"]); want.append(rec["card"])
-    for cid in cards:                                        # then every card with eBay data
-        if int(cid) not in seen:
-            seen.add(int(cid)); want.append(int(cid))
-    n = 0
-    for cid in want:
-        k = str(cid)
-        if k in cache:
-            continue
-        if k in miss and (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(miss[k], "%Y-%m-%d")).days < PC_IMG_FAIL_RETRY_D:
-            continue
-        if pc_image(state, cid) is None:
-            miss[k] = today
+class PcImageWorker(threading.Thread):
+    """Reads PriceCharting's picture for every card the Review button on the site can be pressed for, in the
+    background, so the site has the picture ready the way the phone does. A card Brett asks for (Review pressed on a
+    card without one) goes first; otherwise the reader follows the plan the main loop hands it each cycle
+    (`pc_plan`: newest listings first, then every card with eBay data). One page every PC_PREFETCH_GAP_S seconds
+    while there is a backlog - the whole backlog is read in a few hours, after which only new cards need a read.
+    PriceCharting page reads, not eBay calls. The thread never touches the state: what it finds goes through
+    `results`, and the main loop files it (`file_pc_images`). On a page it cannot read it backs off (a minute, then
+    a quarter of an hour after five failures in a row)."""
+
+    def __init__(self, state):
+        super().__init__(daemon=True, name="pc-images")
+        self.state, self.lock = state, threading.Lock()
+        self.plan, self.wanted, self.done = deque(), deque(), set()
+        self.results = queue.Queue()
+        self.errors, self.paused_until, self.read = 0, 0.0, 0
+
+    def set_plan(self, cards):
+        with self.lock:
+            self.plan, self.done = deque(cards), set()
+
+    def want(self, cid):                                     # from the site: first in line
+        with self.lock:
+            if cid not in self.wanted:
+                self.wanted.append(cid)
+
+    def backlog(self):
+        return len(self.plan) + len(self.wanted)
+
+    def next_card(self):
+        cache = self.state["vps"].get("pc_img", {})
+        with self.lock:
+            while self.wanted:
+                cid = self.wanted.popleft()
+                if str(cid) not in cache:
+                    self.done.add(cid)
+                    return cid, True
+            while self.plan:
+                cid = self.plan.popleft()
+                if str(cid) not in cache and cid not in self.done:   # read once per plan, even if filed later
+                    self.done.add(cid)
+                    return cid, False
+        return None, False
+
+    def step(self):
+        cid, urgent = self.next_card()
+        if cid is None:
+            return False
+        status, url = pc_read_image(cid)
+        self.results.put((cid, status, url, urgent))
+        if status == "error":
+            self.errors += 1
+            self.paused_until = time.time() + (900 if self.errors >= 5 else 60)
         else:
-            miss.pop(k, None)
-        n += 1
-        if n >= PC_PREFETCH_PER_MIN:
+            self.errors = 0
+            self.read += 1
+        return True
+
+    def run(self):
+        while True:
+            try:
+                if time.time() < self.paused_until or not self.step():
+                    time.sleep(5)
+                else:
+                    time.sleep(PC_PREFETCH_GAP_S)
+            except Exception:
+                time.sleep(30)
+
+
+PC_WORKER = None
+
+
+def pc_worker(state=None):
+    """The one background reader, started on the first call that brings the state (main); None before that."""
+    global PC_WORKER
+    if PC_WORKER is None and state is not None:
+        PC_WORKER = PcImageWorker(state)
+        if not DRY_RUN:
+            PC_WORKER.start()
+    return PC_WORKER
+
+
+def pc_plan(state, cards):
+    """The order the background reader takes cards in: the newest listings' cards first (the top of the Raw Data
+    tab), then every card with eBay data. Cards with a picture on file, or whose page gave none this week, are left
+    out."""
+    v = state["vps"]
+    cache, miss = v.get("pc_img", {}), v.get("pc_miss", {})
+    today = datetime.strptime(es.TODAY, "%Y-%m-%d")
+
+    def fresh_miss(k):
+        d = miss.get(k)
+        return d is not None and (today - datetime.strptime(d, "%Y-%m-%d")).days < PC_IMG_FAIL_RETRY_D
+    cut = es.ts(es.NOW - timedelta(hours=24))
+    recent = sorted((rec for rec in state["open"].values() if rec["first"] >= cut and rec.get("card") is not None),
+                    key=lambda r: r["first"], reverse=True)
+    out, seen = [], set()
+    for cid in [r["card"] for r in recent] + [int(c) for c in cards]:
+        k = str(cid)
+        if cid in seen or k in cache or fresh_miss(k):
+            continue
+        seen.add(cid)
+        out.append(cid)
+    return out
+
+
+def file_pc_images(state, worker):
+    """File what the background reader found since the last cycle (it never writes the state itself). Returns how
+    many pages were read and how many of them were cards Brett had asked for from the site - those get published at
+    once."""
+    v = state["vps"]
+    cache, miss = v.setdefault("pc_img", {}), v.setdefault("pc_miss", {})
+    n = urgent = 0
+    if worker is None:
+        return 0, 0
+    while True:
+        try:
+            cid, status, url, urg = worker.results.get_nowait()
+        except queue.Empty:
             break
+        k = str(cid)
+        n += 1
+        if status == "ok":
+            cache[k] = url
+            miss.pop(k, None)
+            urgent += 1 if urg else 0
+        elif status == "none":
+            miss[k] = es.TODAY
+    for k in list(cache)[:-12000]:
+        del cache[k]
     for k in list(miss)[:-5000]:
         del miss[k]
-    return n
+    return n, urgent
 
 
 def pc_image_table(state):
@@ -1846,10 +1962,16 @@ def cycle(state, cat, sched, counters):
     live["alert"]["mark_t"] = v.get("mark_t", 0)             # the page shows a tick at once; this confirms it arrived
     live["alert"]["reviews"] = {k: r["v"] for k, r in v.get("reviews", {}).items()}   # Review answers given on the site
     live["alert"]["review_t"] = v.get("review_t", 0)
-    try:                                                     # a few PriceCharting pages a minute, so Review has its picture
-        counters["pc_img"] += prefetch_pc_images(state, cards)
-    except Exception as e:
-        log(f"PriceCharting pictures: prefetch failed this minute ({str(e)[:100]})")
+    pc = pc_worker()                                         # the background reader: file what it found, hand it the next plan
+    got, urgent = file_pc_images(state, pc)
+    counters["pc_img"] += got
+    if pc is not None:
+        try:
+            pc.set_plan(pc_plan(state, cards))
+        except Exception as e:
+            log(f"PriceCharting pictures: plan failed this minute ({str(e)[:100]})")
+    if urgent:                                               # a picture Brett is waiting for on the site: publish now
+        sched["publish"] = 0
     live["pcimg"] = pc_image_table(state)
     live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
                                 "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
@@ -1872,7 +1994,7 @@ def cycle(state, cat, sched, counters):
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0))   # a change on the Alerts tab is published at once
-    changed = sig != v.get("pub_sig")
+    changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
         v["pub_sig"] = sig
@@ -1930,7 +2052,8 @@ def cycle(state, cat, sched, counters):
             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
             f"printed totals for {len(cat.totals)} sets")
         log(f"Pictures: {len(v.get('pc_img', {}))} cards with a PriceCharting picture on file, {counters['pc_img']} pages read this hour, "
-            f"{len(v.get('pc_miss', {}))} cards whose page had none; {len(v.get('reviews', {}))} Review answers on the site")
+            f"{len(v.get('pc_miss', {}))} cards whose page had none, {pc_worker().backlog() if pc_worker() else 0} still to read; "
+            f"{len(v.get('reviews', {}))} Review answers on the site")
         by_spec = sum(1 for r in state["open"].values() if (r.get("how") or "").endswith("specifics"))
         log(f"Printing: {by_spec} open listings filed under a printing their item specifics named; "
             f"{len(state.get('pending', {}))} unmatched 'ambiguous variant' listings waiting for a lookup; "
@@ -1997,6 +2120,9 @@ def main():
         log(f"Inherited flags: {kept} kept for confirmation, {cleared} cleared as too old")
     state["vps"]["catalog"] = cat_name
     log(f"Catalog {cat_name}; state: {len(state['open'])} open, {len(state['closed'])} closed")
+    pc_worker(state)                                         # PriceCharting pictures for the Review button, in the background
+    log(f"PriceCharting pictures: {len(state['vps'].get('pc_img', {}))} on file; the background reader takes one page every "
+        f"{PC_PREFETCH_GAP_S:g} s until every card has one")
     if NTFY_TOPIC:
         tag = hashlib.sha1(NTFY_TOPIC.encode()).hexdigest()[:10]
         if state["vps"].get("ntfy_hello") != tag and push(
