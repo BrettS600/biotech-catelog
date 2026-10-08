@@ -403,10 +403,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   a picture and Brett saw the button instead - 2026-10-08 evening). Order (`pc_plan()`, handed to the thread every
   cycle): the newest listings' cards first (the top of the Raw Data tab), then every card with eBay data; cards
   with a picture, or whose page gave none this week, are skipped. A card Brett presses Review on without a picture
-  goes first: the page sends `{type: "pcimg", c}` over the signed channel (`pcAsk()`, once per 5 min per card),
-  `read_requests` calls `worker.want(c)`, and when the result is filed the cycle publishes at once (`urgent` ->
-  sched["publish"] = 0 and `changed`); the page's minute refresh then swaps the picture into the open popup
-  (`reviewPicRefresh()`, the `.rvbox[data-pc]` placeholder). THE THREAD NEVER WRITES THE STATE: results go through
+  goes first: the page posts `{type: "pcimg", c}` (signed as usual) to the channel's side topic `<topic>-pc`
+  (`pcAsk()`, once per 5 min per card); the thread polls that topic every 4 s (`poll_requests`), reads the page and
+  posts the signed answer `{c, code | null}` to `<topic>-pcr` (`answer`); the page polls `-pcr` every 4 s for 2.5
+  minutes (`pcWait()`), verifies the signature, keeps the code in `PCIMG_KNOWN` and swaps the picture into the open
+  popup (`reviewPicRefresh()`, the `.rvbox[data-pc]` placeholder) - typically 5-15 s after the click. The live file
+  carries it too (an urgent result -> sched["publish"] = 0 and `changed`), but raw.githubusercontent holds the live
+  file up to 5 min (cache-control: max-age=300) and the page polls it once a minute, so the live file alone was too
+  slow: Brett still saw the button (2026-10-08). `read_requests` on the main topic accepts `pcimg` as well. THE
+  THREAD NEVER WRITES THE STATE: results go through
   `worker.results` and `file_pc_images()` files them on the main thread into `v["pc_img"]` (the cache `pc_image()`
   already uses for alerts, cap 12,000) and `v["pc_miss"]` (retried after PC_IMG_FAIL_RETRY_D = 7 days). Backoff: a
   page that cannot be read pauses the thread a minute, five in a row a quarter of an hour. `pc_read_image()` is the
