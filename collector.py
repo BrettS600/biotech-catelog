@@ -1077,6 +1077,7 @@ class PcImageWorker(threading.Thread):
         self.results = queue.Queue()
         self.errors, self.paused_until, self.read = 0, 0.0, 0
         self.gap, self.streak, self.logged = PC_PREFETCH_GAP_S, 0, 0.0   # the gap adapts to what their site tolerates
+        self.req_since, self.polled, self.tries = None, 0.0, {}
 
     def set_plan(self, cards):
         with self.lock:
@@ -1089,6 +1090,49 @@ class PcImageWorker(threading.Thread):
 
     def backlog(self):
         return len(self.plan) + len(self.wanted)
+
+    def poll_requests(self):
+        """Picture requests from the site's Review button arrive on their own topic (<channel>-pc), so this thread can
+        look every few seconds instead of once a cycle; the answer goes back on <channel>-pcr the moment the page has
+        been read (`answer`), and the page shows the picture without waiting for the next live file (which the raw
+        CDN holds for up to five minutes anyway). Same signature as the main channel."""
+        self.polled = time.time()
+        if DRY_RUN or not es.PASSWORD:
+            return
+        topic, key = alert_channel()
+        try:
+            import requests
+            r = requests.get(f"{NTFY_SERVER}/{topic}-pc/json", params={"poll": "1", "since": self.req_since or "2m"}, timeout=5)
+            lines = r.text.splitlines() if r.status_code == 200 else []
+        except Exception:
+            return
+        for line in lines:
+            try:
+                ev = json.loads(line)
+                if ev.get("event") != "message":
+                    continue
+                self.req_since = ev["id"]
+                env = json.loads(ev["message"])
+                if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
+                    continue
+                msg = json.loads(env["m"])
+                if msg.get("type") == "pcimg" and msg.get("c") is not None and abs(time.time() * 1000 - int(msg["t"])) < 600_000:
+                    self.want(int(msg["c"]))
+            except Exception:
+                continue
+
+    def answer(self, cid, url):
+        """Tell the page what the read found: the picture's code, or None when PriceCharting has no picture."""
+        if DRY_RUN or not es.PASSWORD:
+            return
+        topic, key = alert_channel()
+        m = PC_IMG_ID.search(url or "")
+        body = json.dumps({"type": "pcimg", "c": cid, "code": m.group(1) if m else None, "t": int(time.time() * 1000)}, separators=(",", ":"))
+        try:
+            import requests
+            requests.post(f"{NTFY_SERVER}/{topic}-pcr", data=json.dumps({"m": body, "s": hmac.new(key, body.encode(), "sha256").hexdigest()}).encode(), timeout=5)
+        except Exception:
+            pass
 
     def next_card(self):
         cache = self.state["vps"].get("pc_img", {})
@@ -1111,6 +1155,12 @@ class PcImageWorker(threading.Thread):
             return False
         status, url = pc_read_image(cid)
         self.results.put((cid, status, url, urgent))
+        if urgent:                                           # the site is waiting: answer now, or try again shortly
+            if status != "error":
+                self.answer(cid, url)
+            elif self.tries.get(cid, 0) < 3:
+                self.tries[cid] = self.tries.get(cid, 0) + 1
+                self.want(cid)
         if status == "error":
             self.errors += 1
             self.streak = 0
@@ -1139,8 +1189,10 @@ class PcImageWorker(threading.Thread):
     def run(self):
         while True:
             try:
+                if time.time() - self.polled >= 4:
+                    self.poll_requests()
                 if time.time() < self.paused_until or not self.step():
-                    time.sleep(5)
+                    time.sleep(2)
                 else:
                     time.sleep(self.gap)
             except Exception:
