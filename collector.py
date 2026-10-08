@@ -1347,6 +1347,19 @@ def mm_counts(v):
     return out
 
 
+def card_matches(state, cids):
+    """{card id: listings the matcher has filed under the card, open and closed}, for the cards asked about - so a
+    mismatch count can be read against how often the card is matched at all (Brett, 2026-10-08)."""
+    want = set(cids)
+    out = {c: 0 for c in want}
+    if want:
+        for rec in list(state["open"].values()) + list(state["closed"]):
+            c = rec.get("card")
+            if c in want:
+                out[c] += 1
+    return out
+
+
 def alert_extras(state, d, rec):
     """What an alert carries beyond the listing itself: the reprint's picture to compare against, how often this card
     has been a mismatch before - and the alert is counted for that card."""
@@ -2072,7 +2085,9 @@ def cycle(state, cat, sched, counters):
     live["alert"]["hh"] = hh_rows(state)                     # every Buy It Now hit as it was when it alerted
     live["alert"]["wrong"] = wrong_rows(v)                   # clean listings Brett said were not the matched card
     mm_seed(v)
-    live["alert"]["mm"] = {str(k): n for k, n in mm_counts(v).items()}   # per card: [marked, of those alerts, alerts sent]
+    mm = mm_counts(v)                                        # per card: [marked, of those alerts, alerts sent, listings matched]
+    matched = card_matches(state, mm)
+    live["alert"]["mm"] = {str(k): n + [matched.get(k, 0)] for k, n in mm.items()}
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
