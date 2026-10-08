@@ -70,9 +70,13 @@ jobs:
       - name: Password-protect the page
         env:
           STATICRYPT_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          # a fixed salt, so the "Remember me" box survives rebuilds: the remembered value is the password hashed with
+          # this salt, and a fresh salt every build (what --config false did) logged Brett out after every change
+          # (2026-10-08). The salt is in the published page anyway; it is not a secret.
+          STATICRYPT_SALT: "d7286d997ea6320153e33a0a772d1d7b"
         run: |
           cd site
-          npx --yes staticrypt index.html -d ../public --config false --short \
+          npx --yes staticrypt index.html -d ../public --config false --short --salt "$STATICRYPT_SALT" \
             --remember 90 --template-title "Pokemon Card Catalog" \
             --template-color-primary "#1f6feb" --template-color-secondary "#0d1117"
           # the phone's hit-check screen: a plain page with no data in it (each alert's link carries the hit)
