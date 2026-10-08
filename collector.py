@@ -1136,18 +1136,26 @@ class PcImageWorker(threading.Thread):
 
     def next_card(self):
         cache = self.state["vps"].get("pc_img", {})
+        cid, urgent, ready = None, False, []
         with self.lock:
             while self.wanted:
-                cid = self.wanted.popleft()
-                if str(cid) not in cache:
-                    self.done.add(cid)
-                    return cid, True
-            while self.plan:
-                cid = self.plan.popleft()
-                if str(cid) not in cache and cid not in self.done:   # read once per plan, even if filed later
-                    self.done.add(cid)
-                    return cid, False
-        return None, False
+                c = self.wanted.popleft()
+                if str(c) in cache:                          # read already - the page's live file runs minutes behind
+                    ready.append(c)
+                    continue
+                cid, urgent = c, True
+                break
+            if cid is None:
+                while self.plan:
+                    c = self.plan.popleft()
+                    if str(c) not in cache and c not in self.done:   # read once per plan, even if filed later
+                        cid = c
+                        break
+            if cid is not None:
+                self.done.add(cid)
+        for c in ready:                                      # so tell the page now, from what is on file
+            self.answer(c, cache.get(str(c)))
+        return cid, urgent
 
     def step(self):
         cid, urgent = self.next_card()
