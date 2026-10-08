@@ -387,6 +387,30 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   24 h earlier. The line now reads "$T = N hits from Buy It Now ($A) + X hits from auctions ($B, at the final
   price) · M left out as mismatches · Show them", and `openHits()` lists each with where it stands in the table now.
   Auction hits = alerted auctions whose close was at or under Max buy, valued at Profit at final.
+- EBAY CATALOG REBUILT, PICKERS, RENAMES, THE ARCHIVE (2026-10-08 night, Brett's request after a column review).
+  eBay Catalog (37 columns, the row keeps every old index): Card band + "Match:mismatch" (row 45, from
+  `live["mt"]` = {card: [listings not marked wrong, marked wrong]}, `match_table()`, open + closed, one mark per
+  listing - "5:3 = 5 match and 3 mismatch"); Observed = eBay sales (k, was "Sold 30d"), PC sales (row 41 = pcv/12,
+  was the duplicate "Sales/month"), Active, New/day, Sold med, Sold 80%, Hrs to sale, Sell-thru; Rates unchanged;
+  Decisions + PC $ (row 42, c.pc or the catalog price), vs PC % (row 43 = A/PC - 1, red under -40% or over +200%)
+  and Hits 30d (row 44, `live["hits30"]` = alerts per card from hit_hist + au_hist, 30 days); Trends minus
+  Sales/month; Days obs. and p1-p3 are no longer shown (still in the row for the Book). The paragraph above the
+  table is gone (the band legend stays). `inserted: {v: 4, reset: 1}` cleared saved eyes/order/widths/highlights
+  once; `compact: [...]` is the lean view (the 10 diagnostics hidden: New/day, Sold med, Sold 80%, Hrs, λ, Price,
+  Days supply, In/out, Floor, Exp. days) applied when no hide-ec is saved. Raw Data gets Match:mismatch after
+  Released (row 46; `inserted {v: 9, at: 6, n: 1}`; auction and hit-history rows carry it too). EVERY TAB: a
+  "Columns..." button (checklist of all columns, Compact where defined, All; `t.setHidden`, same hide-<tab> memory
+  as the eyes) and a "Filters..." button (which chips show above the table; a hidden chip is neutralised -
+  numbers cleared, condition/status ticks all on, switches off - so nothing filters unseen; `chips-<tab>`;
+  Reset filters keeps hidden chips neutral). HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
+  the name is stored with the description (`h:<key>.n`, collector `help_edit` keeps n up to 60 chars) and
+  `applyNames()` (help.js) writes it into every header sharing that key, on every live refresh; the original is
+  kept in th.dataset.on; an empty name restores it. THE ARCHIVE: `archive_tick()` (collector.py), after the publish
+  each cycle, writes once a day cards/<day>.json.gz.enc (every card's numbers: CARD_ARCHIVE_KEYS) and on the first
+  cycle of a month closed/<prev month>.jsonl.gz.enc (last month's closed listings, whole records) to the
+  "archive" branch (`archive_put`: an ordinary, append-only branch; checkout in data/archive, cloned or started on
+  first use), encrypted like the state (es.encrypt_file_blob). Failures back off an hour. This is the long-run
+  dataset for later analysis: the live branch is overwritten and the state forgets closed listings after 60 days.
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
