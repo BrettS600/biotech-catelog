@@ -387,10 +387,18 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   24 h earlier. The line now reads "$T = N hits from Buy It Now ($A) + X hits from auctions ($B, at the final
   price) · M left out as mismatches · Show them", and `openHits()` lists each with where it stands in the table now.
   Auction hits = alerted auctions whose close was at or under Max buy, valued at Profit at final.
+- MATCH:MISMATCH COUNTS ONLY BRETT'S OWN MARKS (2026-10-09, "I only want to see where I specifically marked it as
+  a match"). `match_table()` now returns {card: [confirmed, mismatched, filed by the matcher]}: confirmed = listings
+  he answered "Same card" to (v["right"] / v["reviews"] v=1 from the site's Review button, or a phone entry with
+  dec yes/nm/lp and no um flag, in alert_log/au_hist/hit_hist - the card comes from the mark or from the listing
+  record); mismatched = v["wrong"], one mark per listing, and a listing marked both ways counts as a mismatch; the
+  third number is the matcher's own count (open + closed) and is only the cell's tooltip (`mtOf` encodes
+  "a:b|n", `mmRatio` splits it). So most cards read 0:0; at the change 7 confirmed listings on 5 cards. The
+  Mismatches / Review popups still say "N of M listings" with M = `card_matches()` (the matcher's count), since
+  that line answers how often a card's title goes wrong.
 - EBAY CATALOG REBUILT, PICKERS, RENAMES, THE ARCHIVE (2026-10-08 night, Brett's request after a column review).
   eBay Catalog (37 columns, the row keeps every old index): Card band + "Match:mismatch" (row 45, from
-  `live["mt"]` = {card: [listings not marked wrong, marked wrong]}, `match_table()`, open + closed, one mark per
-  listing - "5:3 = 5 match and 3 mismatch"); Observed = eBay sales (k, was "Sold 30d"), PC sales (row 41 = pcv/12,
+  `live["mt"]`, `match_table()` - see the 2026-10-09 entry above for what it counts now); Observed = eBay sales (k, was "Sold 30d"), PC sales (row 41 = pcv/12,
   was the duplicate "Sales/month"), Active, New/day, Sold med, Sold 80%, Hrs to sale, Sell-thru; Rates unchanged;
   Decisions + PC $ (row 42, c.pc or the catalog price), vs PC % (row 43 = A/PC - 1, red under -40% or over +200%)
   and Hits 30d (row 44, `live["hits30"]` = alerts per card from hit_hist + au_hist, 30 days); Trends minus
