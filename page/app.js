@@ -29,8 +29,14 @@ const cells4 = r =>
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
   '<td>' + esc(r[2]) + '</td><td class="num">' + numCell(r[3], r[2]) + '</td><td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
-const mtOf = cid => { const t = LIVE.data && LIVE.data.mt; const m = t && t[String(cid)]; return m ? m[0] + ':' + m[1] : null; };   // "match:mismatch" for a card
-const mmRatio = v => v == null ? dash : (/:0$/.test(v) ? esc(v) : '<span class="down">' + esc(v) + '</span>');
+const mtOf = cid => { const t = LIVE.data && LIVE.data.mt; const m = t && t[String(cid)]; return m ? m[0] + ':' + m[1] + (m[2] ? '|' + m[2] : '') : null; };   // "confirmed:mismatch|filed by the matcher" for a card
+const mmRatio = v => {                                        // the cell shows only what Brett marked; the matcher's own count is the tooltip
+  if (v == null) return dash;
+  const [s, n] = String(v).split('|'), m = /^(\d+):(\d+)$/.exec(s);
+  const tip = (n ? n + ' listing' + (n === '1' ? '' : 's') + ' filed under this card by the matcher' : 'no listings on record for this card') + ' \u00b7 ' +
+    (!m ? '' : m[1] === '0' && m[2] === '0' ? 'none marked by you yet' : m[1] + ' you confirmed as the same card, ' + m[2] + ' you marked as not this card');
+  return '<span' + (/:0$/.test(s) ? '' : ' class="down"') + ' title="' + esc(tip) + '">' + esc(s) + '</span>';
+};
 const badge = (txt, cls) => '<span class="badge' + (cls ? ' ' + cls : '') + '">' + esc(txt) + '</span>';
 const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // filled by loadLive(); prevT = the previous data's stamp; sets = printed set sizes
 
