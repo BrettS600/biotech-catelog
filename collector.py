@@ -1364,19 +1364,46 @@ def card_matches(state, cids):
 
 
 def match_table(state):
-    """{card id: [listings filed under the card that were not marked wrong, listings marked wrong]} for every card
-    with a listing on record - the "match:mismatch" column on both eBay tabs (Brett, 2026-10-08, "5:3 means 5 match
-    and 3 mismatch"). Open and closed listings; a mark counts once per listing."""
-    wrong_ids = {}                                           # listing id -> card, one mark per listing
-    for w in state["vps"].get("wrong", []):
-        if w.get("card") is not None and w.get("i"):
-            wrong_ids.setdefault(str(w["i"]), w["card"])
-    good = Counter()
-    for iid, rec in list(state["open"].items()) + [(r.get("id"), r) for r in state["closed"]]:
-        if rec.get("card") is not None and str(iid) not in wrong_ids:
-            good[rec["card"]] += 1
-    wrong = Counter(wrong_ids.values())
-    return {str(c): [good.get(c, 0), wrong.get(c, 0)] for c in set(good) | set(wrong)}
+    """{card id: [listings Brett marked as the same card, listings he marked as not this card, listings the matcher
+    filed under the card]} for every card with a listing or a mark on record. The "match:mismatch" column on both
+    eBay tabs shows the first two - only what Brett marked himself, so most cards read 0:0 (Brett, 2026-10-09: "I
+    only want to see where I specifically marked it as a match"); the matcher's own count rides along third, for
+    the cell's tooltip. A mark counts once per listing however it was given - the site's Review button ("Same card"
+    / "Not the same"), the Mismatch tick, or the phone's Yes / NM / LP / No - and a listing marked both ways counts
+    the way its mismatch mark says, since that is the mark the statistics follow."""
+    v = state["vps"]
+    closed_by_id = {r.get("id"): r for r in state["closed"]}
+
+    def card_of(iid, hint=None):
+        if hint is not None:
+            return hint
+        rec = state["open"].get(iid) or closed_by_id.get(iid)
+        return rec.get("card") if rec else None
+
+    wrong_ids, good_ids = {}, {}                             # listing id -> card, one mark per listing
+    for w in v.get("wrong", []):
+        c = card_of(w.get("i"), w.get("card")) if w.get("i") else None
+        if c is not None:
+            wrong_ids.setdefault(str(w["i"]), c)
+    for g in v.get("right", []):                             # "Same card" on the site
+        c = card_of(g.get("i"), g.get("card")) if g.get("i") else None
+        if c is not None:
+            good_ids.setdefault(str(g["i"]), c)
+    for iid, r in v.get("reviews", {}).items():
+        if r.get("v") == 1:
+            c = card_of(iid)
+            if c is not None:
+                good_ids.setdefault(str(iid), c)
+    for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
+        if e.get("dec") in ("yes", "nm", "lp") and e.get("i") and not e.get("um"):      # "Yes, same card" on the phone
+            c = card_of(e["i"], e.get("card"))
+            if c is not None:
+                good_ids.setdefault(str(e["i"]), c)
+    for iid in wrong_ids:
+        good_ids.pop(iid, None)
+    auto = Counter(rec["card"] for rec in list(state["open"].values()) + state["closed"] if rec.get("card") is not None)
+    good, wrong = Counter(good_ids.values()), Counter(wrong_ids.values())
+    return {str(c): [good.get(c, 0), wrong.get(c, 0), auto.get(c, 0)] for c in set(good) | set(wrong) | set(auto)}
 
 
 def hits_30d(state):
@@ -2175,7 +2202,7 @@ def cycle(state, cat, sched, counters):
     mm = mm_counts(v)                                        # per card: [marked, of those alerts, alerts sent, listings matched]
     matched = card_matches(state, mm)
     live["alert"]["mm"] = {str(k): n + [matched.get(k, 0)] for k, n in mm.items()}
-    live["mt"] = match_table(state)                          # per card: [matches, mismatches], both eBay tabs
+    live["mt"] = match_table(state)                          # per card: [confirmed, mismatches, filed by the matcher], both eBay tabs
     live["hits30"] = hits_30d(state)                         # per card: alerts in the last 30 days
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     live["source"] = "vps"
