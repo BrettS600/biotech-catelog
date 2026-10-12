@@ -1529,7 +1529,8 @@ function drawPcChart() {
   hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
   const first = all[0].m, last = all[all.length - 1].m;
   const si = (LIVE.data && LIVE.data.pch && LIVE.data.pch.signin) || 'none';
-  const why = hasVol ? ' \u00b7 the ungraded price and the total sales volume per month, as the chart on their page shows them'
+  const why = hasVol && h.sv && !h.s ? ' \u00b7 the ungraded price per month; the volume bars are as of ' + h.sv + ', the last page read with the collector\u2019s PriceCharting sign-in (it has lapsed since: replace PC_COOKIE in /etc/pokemon-collector.env and restart the service)'
+    : hasVol ? ' \u00b7 the ungraded price and the total sales volume per month, as the chart on their page shows them'
     : si === 'ok' ? ' \u00b7 the ungraded price per month; the volume bars come once this card\u2019s page is read again with the collector\u2019s PriceCharting sign-in (asked for it now)'
     : si === 'expired' ? ' \u00b7 the ungraded price per month; the collector\u2019s PriceCharting sign-in has expired (replace PC_COOKIE in /etc/pokemon-collector.env and restart the service), so the volume bars are missing'
     : ' \u00b7 the ungraded price per month as the chart on their page shows it; PriceCharting shows the volume bars to signed-in subscribers only, and the collector reads the pages without signing in';
