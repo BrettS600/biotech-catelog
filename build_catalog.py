@@ -38,6 +38,8 @@ import numpy as np
 import pandas as pd
 import requests
 
+import cardfacts                      # rarity and finish for every row (TCGplayer via TCGCSV + the open dataset)
+
 PC_CSV = "pricecharting.csv"
 URL_FILE = "pc_download_url.txt"     # optional, local only - your personal CSV link
 SITE_DIR = "site"
@@ -186,6 +188,13 @@ pc["n_num"] = [p[1] for p in parts]
 pc["n_suffix"] = [p[2] for p in parts]
 pc = pc.sort_values(["set_date", "console-name", "n_prefix", "n_num", "n_suffix", "product-name"],
                     kind="stable")
+
+# ---------- 3b. Rarity and finish ----------
+# PriceCharting states neither. cardfacts.py joins every row to TCGplayer's catalog (the tcg-id column, through
+# TCGCSV) and to the open Pokemon TCG dataset (set name + card number), and derives the finish of the untagged
+# printing from TCGplayer's printings or the rarity. The columns ride along in the snapshot (the collector reads
+# them from there) and in the page rows (14, 15).
+pc["rarity"], pc["finish"], pc["rf-source"] = cardfacts.annotate(pc, print)
 
 # ---------- 4. Build the rows ----------
 today = date.today().isoformat()
@@ -419,7 +428,7 @@ else:
 # Page columns (the snapshot keeps every PriceCharting column regardless, including retail buy/sell):
 #   0 Card ID (link only) | 1 Card | 2 Set | 3 # | 4 Released | 5 Sales/yr | 6 Ungraded $
 #   7 d7 % | 8 d30 % | 9 Range 90d % | 10 Volume drift 30d % | 11 Volume drift 30d (units, display only)
-#   12 Volatility % | 13 Slope %/mo
+#   12 Volatility % | 13 Slope %/mo | 14 Rarity | 15 Finish   (cardfacts.py; "" when unknown)
 # Columns 1-4 are the shared identity columns: the eBay tabs show the same four first.
 page = pd.DataFrame({
     0: pc["id"].map(integer),
@@ -436,6 +445,8 @@ page = pd.DataFrame({
     11: np.round(st["vd"], 0),
     12: np.round(st["vol"], 2),
     13: np.round(st["ts"], 1),
+    14: pc["rarity"].fillna("").astype(str),
+    15: pc["finish"].fillna("").astype(str),
 })
 rows = page.values.tolist()
 rows = [[None if (isinstance(v, float) and v != v) else v for v in r] for r in rows]  # NaN -> null
