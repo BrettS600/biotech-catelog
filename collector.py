@@ -449,7 +449,8 @@ def reread_window(state, key, n_expected):
 
 def confirm(state, iid, rec, why, cat=None):
     """One getItem: close the listing as sold / ended / gone, or note a false alarm. The first look at a listing
-    is the full item (same one call, bigger reply): it carries eBay's catalog product and the seller's item
+    is the full item with fieldgroups=PRODUCT (same one call, bigger reply; the product container only comes with
+    that field group): it carries eBay's catalog product and the seller's item
     specifics, which teach the record and the ePID memory what the card is (es.learn_facts) - the only way to read
     them for every listing that sells without spending a call of its own (Brett, 2026-10-12)."""
     full = cat is not None and "ef" not in rec
@@ -457,7 +458,7 @@ def confirm(state, iid, rec, why, cat=None):
         it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
     else:
         try:
-            it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {} if full else {"fieldgroups": "COMPACT"}, ok_404=True)
+            it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "PRODUCT"} if full else {"fieldgroups": "COMPACT"}, ok_404=True)
         except RuntimeError as e:
             log(f"Confirm: lookup failed for {iid} ({e})")
             return "error"
