@@ -1327,7 +1327,10 @@ def hit_payload(rec, cs, cat, kind="hit"):
             # collector has seen on eBay - sales in its 30-day window, the days it has watched the card, copies listed
             "pv": c.get("vol"), "k": cs.get("k"), "D": cs.get("D"), "N": cs.get("N"), "kd": kind,
             # a cheaper anniversary reprint that carries this card's number (es.reprint_twins): [[set, price, card id]]
-            "rp": [list(t) for t in (cs.get("tw") or [0, []])[1]]}
+            "rp": [list(t) for t in (cs.get("tw") or [0, []])[1]],
+            # set name, rarity and finish from both sides (2026-10-12): the card's own words (cardfacts.py, the daily
+            # build) and eBay's record of this listing - es.facts_row: None = not read, [] = nothing on the listing
+            "rf": [c.get("rarity") or "", c.get("finish") or ""], "ef": es.facts_row(rec)}
 
 
 def mm_seed(v):
@@ -1490,12 +1493,16 @@ def alert_hits(state, cat, cards, live, cfg):
             return 0
         if suspect and not rec.get("idv"):        # suspects are not in the identity queue: read the specifics now
             try:
-                it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+                it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "PRODUCT"}, ok_404=True)
             except Exception:
                 it = None
             if it:
                 rec["idv"], rec["idr"], _ = es.check_identity(cat, cat.by_id.get(rec["card"]), it, rec.get("title") or "", rec["total"])
                 es.item_facts(rec, it)
+                try:
+                    es.learn_facts(state, cat, rec, it)      # eBay's set / rarity / finish for the check screen
+                except Exception as e:
+                    log(f"Facts: could not read {iid} ({e})")
             if rec.get("idv") == "conflict":
                 sent[iid] = es.ts(es.NOW)
                 return 0
@@ -1690,7 +1697,7 @@ def auction_alerts(state, cat, cards, cfg):
     for _, iid, rec, cs, kind, decision, end, left in cands[:AUCTION_ALERT_CHECKS]:
         if box["n"] >= AUCTION_ALERTS_PER_HOUR:
             break
-        it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+        it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "PRODUCT"}, ok_404=True)   # PRODUCT: eBay's catalog product too
         if not it:
             continue
         status, notes, _ = es.check_identity(cat, cat.by_id.get(rec["card"]), it, rec["title"], rec["total"])
@@ -1699,6 +1706,10 @@ def auction_alerts(state, cat, cards, cfg):
             continue
         rec["idv"], rec["idr"] = status, notes
         es.item_facts(rec, it)
+        try:
+            es.learn_facts(state, cat, rec, it)              # eBay's set / rarity / finish for the check screen
+        except Exception as e:
+            log(f"Facts: could not read {iid} ({e})")
         d = hit_payload(rec, cs, cat, kind)
 
         nets = {}                                            # what selling it brings in after fees: frozen with the alert
