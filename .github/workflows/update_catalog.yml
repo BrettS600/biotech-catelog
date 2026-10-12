@@ -98,10 +98,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view snapshots --json assets -q '.assets[].name' > /tmp/on_release.txt
+          today=$(date -u +%F)
           for f in snapshots/pc_catalog_*; do
-            if ! grep -qx "$(basename "$f")" /tmp/on_release.txt; then
-              echo "Uploading $(basename "$f")"
+            b=$(basename "$f")
+            if ! grep -qx "$b" /tmp/on_release.txt; then
+              echo "Uploading $b"
               gh release upload snapshots "$f"
+            elif [[ "$b" == *"$today"* ]]; then
+              echo "Replacing $b (a later run today: same prices, newer columns)"
+              gh release upload snapshots "$f" --clobber
             fi
           done
           echo "Release now holds $(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | length') snapshot(s)."
