@@ -398,12 +398,14 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   overrides (tag_finish). New snapshot columns `rarity`, `finish`, `rf-source` (tcgplayer | dataset | tag), page
   rows DATA[14], DATA[15]. The vocabulary for comparing the two sides is coarse on purpose (rarity_tier C / U / R /
   H / X / P, rarity_agree same / near / far; finish_class reverse / holo / plain): "near" is seller imprecision,
-  "far" is another card. THE EBAY SIDE: a full getItem carries eBay's catalog product (`product.aspectGroups` -
+  "far" is another card. THE EBAY SIDE: a getItem with fieldgroups=PRODUCT (the product container comes ONLY with
+  that field group - found the hard way on deploy day) carries eBay's catalog product (`product.aspectGroups` -
   the "About this product" block: Set, Rarity, Finish, Card Number, Card Name) and the seller's `localizedAspects`;
   es.ebay_facts(it) takes the product's word first -> rec["ef"] = {s, r, f, n, k, src, cmp} (es.learn_facts), kept
-  on the closed record too. It is read at a listing's FIRST lookup: the collector's confirm() asks for the full
-  item instead of COMPACT when the record has no "ef" (same one call, bigger reply - no extra API budget; the
-  budget is fully spent and the confirm queue already starves), and the ID checks already fetch the full item.
+  on the closed record too. It is read at a listing's FIRST lookup: the collector's confirm() asks for
+  fieldgroups=PRODUCT instead of COMPACT when the record has no "ef" (same one call, bigger reply - no extra API
+  budget; the budget is fully spent and the confirm queue already starves), and the ID checks (verify_hits) ask
+  for PRODUCT too.
   THE EPID MEMORY: state["epids"][epid] = the product's facts + votes {card id: n} for the catalog card its
   listings were filed under when the number named the card and nothing was "far"; es.match_title(..., mem=
   state["epids"]) tries memory_card() first (how = "epid"), checked by epid_match against the title;
