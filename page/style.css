@@ -134,6 +134,18 @@
   .gate td.n { text-align:right; font-variant-numeric:tabular-nums; padding-right:16px; white-space:nowrap; }
   .gate .big td { font-weight:700; font-size:15px; }
   .gate .why { color:var(--muted); font-size:12px; }
+  .gate .gin { margin:2px 0 8px; }
+  .gate .gin input[type=number] { width:70px; }
+  .zb { font:inherit; font-size:13px; padding:4px 11px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }   /* PriceCharting's Zoom buttons */
+  .zb.on { background:var(--link); border-color:var(--link); color:#fff; }
+  #pctable { margin-top:10px; }
+  .pcth { display:flex; align-items:center; gap:8px; margin:0 0 6px; font-size:13px; }
+  .pcth .reset { margin-left:auto; }
+  .pctbox { max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+  .pctbox table { width:100%; min-width:0; font-size:13px; border-collapse:collapse; }
+  .pctbox th { position:sticky; top:0; background:var(--head); text-align:left; padding:6px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
+  .pctbox td { padding:4px 10px; border-top:1px solid var(--line); white-space:nowrap; }
+  .pctbox th.num, .pctbox td.num { text-align:right; font-variant-numeric:tabular-nums; }
   .formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; background:var(--head); border:1px solid var(--line); border-radius:6px; padding:8px 10px; white-space:pre-wrap; margin:6px 0 10px; }
   .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; border:1px solid var(--line); background:var(--head); white-space:nowrap; }
   .badge.pass { color:#fff; background:var(--up); border-color:var(--up); font-weight:700; }
