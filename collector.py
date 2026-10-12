@@ -1112,10 +1112,12 @@ class PcImageWorker(threading.Thread):
         super().__init__(daemon=True, name="pc-images")
         self.state, self.lock = state, threading.Lock()
         self.plan, self.wanted, self.done = deque(), deque(), set()
+        self.wanted_hist = deque()                           # cards whose history the site asked to refresh now
         self.results = queue.Queue()
         self.errors, self.paused_until, self.read = 0, 0.0, 0
         self.gap, self.streak, self.logged = PC_PREFETCH_GAP_S, 0, 0.0   # the gap adapts to what their site tolerates
         self.req_since, self.polled, self.tries = None, 0.0, {}
+        self.rush = False                                    # the card being read was asked for from the site's chart
 
     def set_plan(self, cards):
         """cards: [(card id, picture wanted)] - a card read for its history alone does not fill the picture cache."""
@@ -1126,6 +1128,11 @@ class PcImageWorker(threading.Thread):
         with self.lock:
             if cid not in self.wanted:
                 self.wanted.append(cid)
+
+    def want_hist(self, cid):                                # from the site: read the page again for its history
+        with self.lock:
+            if cid not in self.wanted_hist:
+                self.wanted_hist.append(cid)
 
     def backlog(self):
         return len(self.plan) + len(self.wanted)
@@ -1155,8 +1162,8 @@ class PcImageWorker(threading.Thread):
                 if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                     continue
                 msg = json.loads(env["m"])
-                if msg.get("type") == "pcimg" and msg.get("c") is not None and abs(time.time() * 1000 - int(msg["t"])) < 600_000:
-                    self.want(int(msg["c"]))
+                if msg.get("type") in ("pcimg", "pchist") and msg.get("c") is not None and abs(time.time() * 1000 - int(msg["t"])) < 600_000:
+                    (self.want if msg["type"] == "pcimg" else self.want_hist)(int(msg["c"]))
             except Exception:
                 continue
 
@@ -1184,6 +1191,8 @@ class PcImageWorker(threading.Thread):
                     continue
                 cid, urgent = c, True
                 break
+            if cid is None and self.wanted_hist:              # a chart Brett has open: its page is read now
+                cid, want_img, self.rush = self.wanted_hist.popleft(), False, True
             if cid is None:
                 while self.plan:
                     c, want_img = self.plan.popleft()
@@ -1201,7 +1210,8 @@ class PcImageWorker(threading.Thread):
         if cid is None:
             return False
         status, url, hist, note = pc_read_page(cid)
-        self.results.put((cid, status, url, hist, note, urgent, want_img))
+        rush, self.rush = self.rush, False
+        self.results.put((cid, status, url, hist, note, urgent or rush, want_img))
         if urgent:                                           # the site is waiting: answer now, or try again shortly
             if status != "error":
                 self.answer(cid, url)
@@ -1319,8 +1329,8 @@ def file_pc_images(state, worker):
         if status != "error":                                # the page was read: file the history it carried
             try:
                 pchist.file(cid, hist)
-                if len(pchist.SHAPES) and v.get("pch_shape_logged") != 2:   # the first page: what it carried, once
-                    v["pch_shape_logged"] = 2
+                if len(pchist.SHAPES) and v.get("pch_shape_logged") != 3:   # the first page: what it carried, once
+                    v["pch_shape_logged"] = 3
                     sh = pchist.SHAPES[0]
                     log(f"PriceCharting history: first page read for card {cid}: series {json.dumps(sh['shape'])}; "
                         f"first points {json.dumps(sh['first'])[:400]}; {sh['how']}; months {sh['months']}")
@@ -2343,7 +2353,7 @@ def cycle(state, cat, sched, counters):
             pass
         if due("backup", STATE_BACKUP_EVERY_S):
             files[es.STATE_NAME] = es.encrypt_file_blob(state_raw, es.PASSWORD) if es.PASSWORD else state_raw
-        if pchist.dirty_count() and due("pchist", PC_HIST_PUBLISH_S):   # PriceCharting history shards that changed
+        if pchist.dirty_count() and (due("pchist", PC_HIST_PUBLISH_S) or urgent):   # PriceCharting history shards that changed
             try:
                 files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
             except Exception as e:
