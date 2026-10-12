@@ -27,6 +27,9 @@ h1 { font-size: 17px; margin: 0 0 4px; }
 .row b { font-size: 18px; }
 .row small { display: block; font-size: 12px; color: #8b949e; margin-top: 1px; }
 .row b.amber { color: #e3b341; }
+.row b.fit { display: block; white-space: nowrap; overflow: hidden; font-size: 16px; }   /* set name, rarity, finish: one line each, shrunk to fit */
+.row b.bad { color: #f85149; }
+.row b.mute { color: #8b949e; font-weight: 400; }
 .rp { margin-top: 10px; background: #2d1f00; border: 1px solid #9e6a03; border-radius: 10px; padding: 9px 10px; font-size: 14px; overflow: hidden; }
 .rp img { float: right; width: 74px; border-radius: 5px; margin: 0 0 4px 10px; }
 .rp a { color: #58a6ff; }
@@ -108,6 +111,25 @@ else {
   const m = /(\d+)\s*\/\s*(\d+)/.exec(d.t || '');
   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
   const row = (l, r) => '<div class="row"><div>' + (l || '') + '</div><div>' + (r || '') + '</div></div>';
+  // Set name, rarity and finish, PriceCharting against eBay (Brett, 2026-10-12): the card's own words from the daily build
+  // on the left; what eBay's "About this product" block or the seller's item specifics say on the right - red when the
+  // collector finds them naming another card, amber when one tier apart. Long names shrink to stay on one line (fitRows).
+  const rf = d.rf || ['', ''], ef = d.ef;                 // ef: null = not read, [] = nothing on the listing, else eBay's record
+  const pcv = v => v ? '<b class="fit">' + esc(v) + '</b>' : '<b class="fit mute">unknown</b>';
+  const ebv = (i, cmp) => ef == null ? '<b class="fit mute">not read</b>' : !ef.length || !ef[i] ? '<b class="fit mute">not stated</b>'
+    : '<b class="fit' + (cmp === 'far' ? ' bad' : cmp === 'near' ? ' amber' : '') + '">' + esc(ef[i]) + '</b>';
+  const trio = ['Set name', 'Rarity', 'Finish'].map((lab, i) => row('<span class="lab">' + lab + '</span>' + pcv(i ? rf[i - 1] : String(d.s || '').replace(/^Pokemon /, '')),
+                                                                     '<span class="lab">' + lab + '</span>' + ebv(i, ef && ef[6 + i]))).join('');
+  const fitRows = () => { for (const b of document.querySelectorAll('b.fit')) {   // one line each: shrink to 9px; then drop eBay's era
+    if (!b.dataset.full) b.dataset.full = b.textContent;                           // prefix ("Scarlet & Violet: 151" -> "151"); a name that
+    b.textContent = b.dataset.full; b.style.whiteSpace = 'nowrap';                 // still overflows (a Topps set) wraps rather than clips
+    const shrink = min => { let px = 16; b.style.fontSize = px + 'px'; while (px > min && b.scrollWidth > b.clientWidth) { px -= 0.5; b.style.fontSize = px + 'px'; } return b.scrollWidth <= b.clientWidth; };
+    if (shrink(12)) continue;
+    const i = b.dataset.full.indexOf(': ');
+    if (i > 0 && i < 20) b.textContent = b.dataset.full.slice(i + 2);
+    if (shrink(9)) continue;
+    b.style.whiteSpace = 'normal'; b.style.fontSize = '11px';
+  } };
   const taxAmt = d.ai != null && d.tot != null ? Math.round((d.ai - d.tot) * 100) / 100 : 0;
   // "Mismatched before": listings Brett marked as not this card - [marked, of those alerts, alerts sent]; shown only from 1 up
   const mm = d.mm && d.mm[0] > 0 ? d.mm : null;
@@ -121,6 +143,7 @@ else {
   }
   $('rows').innerHTML =
     row(fact('Set / card number', esc(d.n) + (d.st ? ' / ' + d.st : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
+    trio +
     (mm ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>on this card' + (mm[2] && mm[0] > mm[1] ? ' \u00b7 ' + mm[0] + ' marked in all' : '') + '</small>') : '') +
     (d.v || d.idv === 'conflict' ? row(d.v ? '<span class="tag warn">' + esc(d.v.toUpperCase()) + '</span><small>a special printing: check the photo shows it</small>' : '',
                                        d.idv === 'conflict' ? '<span class="tag bad">item specifics disagree</span><small>' + esc((d.idr || []).join('; ')) + '</small>' : '') : '') +
@@ -128,6 +151,7 @@ else {
         fact(au ? 'Total at this bid' : 'Total price', money(d.ai), (au ? 'bid ' : 'card ') + money(d.it) + ' + shipping ' + money(d.sh) + (taxAmt > 0 ? ' + tax ' + money(taxAmt) + ' (' + d.tax + '%)' : ', no buy tax'))) +
     row(fact('Sales per month', d.pv == null ? '?' : one(d.pv / 12)), fact('Sold this month', d.k == null ? '?' : d.k, d.D == null ? '' : one(d.D) + ' days tracked')) +
     row('', fact('Seller', (d.fb == null ? '?' : Number(d.fb).toLocaleString('en-US')) + ' ratings', (d.pct != null ? d.pct + '% positive \u00b7 ' : '') + (d.ph == null ? '?' : d.ph) + ' photos'));
+  fitRows(); window.addEventListener('resize', fitRows);
   if (d.tier === 'watch' || d.tier === 'suspect') {
     const sus = d.tier === 'suspect', k9 = d.risk && d.risk[1] ? d.risk[0] / d.risk[1] : null;
     $('scam').classList.remove('hide'); $('scam').classList.toggle('sus', sus);
