@@ -921,7 +921,7 @@ function pcHistAsk(cid, i) {
       await new Promise(r => setTimeout(r, 45000));
       if (!$('ov').classList.contains('open') || !pcGateCard || pcGateCard[0] !== cid) return;
       const h = await loadPcHist(cid, true).catch(() => null);
-      if (h && (!pcCur || pcCur.h.t !== h.t || pcCur.h.p.length !== h.p.length)) { pcCur = {h, card: DATA[i]}; drawPcChart(); renderPcTable(); return; }
+      if (h && (!pcCur || pcCur.h.t !== h.t || pcCur.h.p.length !== h.p.length || !!pcCur.h.s !== !!h.s)) { pcCur = {h, card: DATA[i]}; drawPcChart(); renderPcTable(); return; }
     }
   }).catch(() => { delete PCHIST_ASKED[cid]; });
 }
@@ -1440,7 +1440,8 @@ async function openTrend(i) {
   if (hist && !hist.err && hist.p && hist.p.length) {
     pcCur = {h: hist, card: r};
     drawPcChart(); renderPcTable();
-    if (!hist.t || Date.now() - Date.parse(hist.t + 'T00:00:00Z') > 86400000) pcHistAsk(r[0], i);   // a day old: refresh it now
+    const si = pch && pch.signin;
+    if (!hist.t || Date.now() - Date.parse(hist.t + 'T00:00:00Z') > 86400000 || (si === 'ok' && !hist.s)) pcHistAsk(r[0], i);   // a day old, or read before the sign-in: refresh it now
   } else if (hist && hist.err) {
     $('note').textContent = 'PriceCharting\u2019s history could not be loaded (' + hist.err + ') \u2014 try again in a minute.';
   } else {
@@ -1527,8 +1528,12 @@ function drawPcChart() {
   hit.addEventListener('mousemove', move); hit.addEventListener('touchmove', ev => { move(ev); ev.preventDefault(); }, {passive: false}); hit.addEventListener('touchstart', move, {passive: true});
   hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
   const first = all[0].m, last = all[all.length - 1].m;
-  $('note').textContent = 'PriceCharting\u2019s own history: ' + all.length + ' months, ' + monthShort(first) + ' \u2013 ' + monthShort(last) + (h.t ? ' \u00b7 read ' + h.t : '') +
-    (hasVol ? ' \u00b7 the ungraded price and the total sales volume per month, as the chart on their page shows them' : ' \u00b7 the ungraded price per month as the chart on their page shows it; PriceCharting shows the volume bars to signed-in subscribers only, and the collector reads the pages without signing in') +
+  const si = (LIVE.data && LIVE.data.pch && LIVE.data.pch.signin) || 'none';
+  const why = hasVol ? ' \u00b7 the ungraded price and the total sales volume per month, as the chart on their page shows them'
+    : si === 'ok' ? ' \u00b7 the ungraded price per month; the volume bars come once this card\u2019s page is read again with the collector\u2019s PriceCharting sign-in (asked for it now)'
+    : si === 'expired' ? ' \u00b7 the ungraded price per month; the collector\u2019s PriceCharting sign-in has expired (replace PC_COOKIE in /etc/pokemon-collector.env and restart the service), so the volume bars are missing'
+    : ' \u00b7 the ungraded price per month as the chart on their page shows it; PriceCharting shows the volume bars to signed-in subscribers only, and the collector reads the pages without signing in';
+  $('note').textContent = 'PriceCharting\u2019s own history: ' + all.length + ' months, ' + monthShort(first) + ' \u2013 ' + monthShort(last) + (h.t ? ' \u00b7 read ' + h.t : '') + why +
     (span && n < all.length ? ' \u00b7 showing the last ' + n + ' months' : '');
 }
 function renderPcTable() {
