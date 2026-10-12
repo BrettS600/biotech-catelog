@@ -84,6 +84,18 @@ function efCardCell(f, p) {                              // eBay Catalog: the ca
   return '<td' + rfCls(worst) + ' title="' + esc(tip) + '">' + (rfText([f[0], f[1]]) ? esc(rfText([f[0], f[1]])) : dash) + ' <span class="dim">' + f[2] + '</span></td>';
 }
 const rfBad = r => !!(r[48] && r[48].length && (r[48][6] === 'far' || r[48][7] === 'far' || r[48][8] === 'far'));
+function fitRows(root) {                                 // one-line cells (b.fit): shrink the font to 9px; then drop eBay's era prefix
+  for (const b of (root || document).querySelectorAll('b.fit')) {   // ("Scarlet & Violet: 151" -> "151"); a name that still overflows
+    if (!b.dataset.full) b.dataset.full = b.textContent;            // (a Topps set) wraps rather than clips
+    b.textContent = b.dataset.full; b.style.whiteSpace = 'nowrap';
+    const shrink = min => { let px = 16; b.style.fontSize = px + 'px'; while (px > min && b.scrollWidth > b.clientWidth) { px -= 0.5; b.style.fontSize = px + 'px'; } return b.scrollWidth <= b.clientWidth; };
+    if (shrink(12)) continue;
+    const i = b.dataset.full.indexOf(': ');
+    if (i > 0 && i < 20) b.textContent = b.dataset.full.slice(i + 2);
+    if (shrink(9)) continue;
+    b.style.whiteSpace = 'normal'; b.style.fontSize = '11px';
+  }
+}
 const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // filled by loadLive(); prevT = the previous data's stamp; sets = printed set sizes
 
 const TABLES = {
@@ -947,6 +959,14 @@ function openReview(iid) {
   const row = (l, rr) => '<div class="rrow"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div></div>';
   const variant = (/\[([^\]]+)\]/.exec(r[1] || '') || [])[1];
   const mm = LIVE.data.alert && LIVE.data.alert.mm && LIVE.data.alert.mm[String(r[0])];
+  // Set name, rarity and finish, PriceCharting against eBay (the phone's rows, 2026-10-12): the card's own words (daily
+  // build) and eBay's record of this listing (row 48) - red when they name another card, amber when one tier apart
+  const p = pcRF(base) || ['', ''], ef = r[48];
+  const pcv = v => v ? '<b class="fit">' + esc(v) + '</b>' : '<b class="fit mute">unknown</b>';
+  const ebv = (i, cmp) => ef == null ? '<b class="fit mute">not read</b>' : !ef.length || !ef[i] ? '<b class="fit mute">not stated</b>'
+    : '<b class="fit' + (cmp === 'far' ? ' bad' : cmp === 'near' ? ' amber' : '') + '">' + esc(ef[i]) + '</b>';
+  const trio = ['Set name', 'Rarity', 'Finish'].map((lab, i) => row('<span class="lab">' + lab + '</span>' + pcv(i ? p[i - 1] : String(r[2] || '').replace(/^Pokemon /, '')),
+                                                                     '<span class="lab">' + lab + '</span>' + ebv(i, ef && ef[6 + i]))).join('');
   const v = reviewOf(iid);
   $('btitle').textContent = r[1] + ' \u2014 ' + String(r[2] || '').replace('Pokemon ', '');
   $('bsub').innerHTML = 'Is the card in the eBay photos the card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 || r.um ? '<b class="down">You said: not the same.</b>' : '');
@@ -960,6 +980,7 @@ function openReview(iid) {
        : '<div class="rvbox"><span class="dim">no photo on file</span></div>') + '</div></div>';
   h += '<div class="rvrows">' +
     row(fact('Set / card number', esc(r[3]) + (SET_TOTALS[r[2]] ? ' / ' + SET_TOTALS[r[2]] : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
+    trio +
     (mm && mm[0] > 0 ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>' + (mm[3] ? mm[0] + ' of ' + mm[3].toLocaleString('en-US') + ' listings matched to this card (' + (mm[0] / mm[3] * 100).toFixed(1) + '%)' : 'on this card') + '</small>') : '') +
     (variant || r[38] === 'conflict' ? row(variant ? '<span class="tag warn">' + esc(variant.toUpperCase()) + '</span><small>a special printing: check the photo shows it</small>' : '',
                                             r[38] === 'conflict' ? '<span class="tag bad">item specifics disagree</span><small>' + esc((r[39] || []).join('; ')) + '</small>' : '') : '') +
@@ -971,6 +992,7 @@ function openReview(iid) {
        (v != null || r.um ? '<div class="rvundo"><button class="linkbtn" id="rv-undo">Withdraw my answer</button></div>' : '') + '<div id="rvmsg" class="dim"></div>';
   $('bbody').innerHTML = h;
   $('bov').classList.add('open');
+  fitRows($('bbody'));
   const thumbs = $('bbody').querySelectorAll('.rvthumbs img');
   thumbs.forEach(t => t.addEventListener('click', e => { e.preventDefault(); $('rvpic').src = big(pics[+t.dataset.k]); thumbs.forEach(z => z.classList.toggle('on', z === t)); }));
   const answer = async val => {
