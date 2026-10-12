@@ -244,11 +244,26 @@ def file(cid, rec, today=None):
             return
         sh = shard_of(cid)
         d = _load(sh)
+        old = d.get(str(cid))
+        if old and (old.get("s") or old.get("sv")) and not rec.get("s"):
+            rec = keep_volume(old, rec)
         d[str(cid)] = dict(rec, t=today)
         _save(sh, d)
         _index[int(cid)] = (day_index(), bool(rec.get("s")))
         _miss.pop(int(cid), None)
         _dirty.add(sh)
+
+
+def keep_volume(old, new):
+    """A page read without the sign-in (it lapsed, or the cookie was replaced by a bad one) must not wipe the bars a
+    signed read gave: the new prices with the old volume for the months the old record covered, and "sv" = the day
+    that volume was read (the page says so). The record counts as unsigned, so a working sign-in re-reads it."""
+    v = list(new["v"])
+    for k in range(len(v)):
+        j = new["m0"] + k - old["m0"]
+        if 0 <= j < len(old["v"]):
+            v[k] = old["v"][j]
+    return dict(new, v=v, sv=old.get("sv") or old.get("t"))
 
 
 def get(cid):
