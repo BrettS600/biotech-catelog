@@ -53,6 +53,8 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 
+import cardfacts                      # rarity / finish vocabulary shared with the daily build
+
 # ---------------- settings ----------------
 RELEASE_TAG = "snapshots"
 STATE_NAME = "ebay_state.json.gz.enc"
@@ -496,6 +498,9 @@ class Catalog:
                 "epid": str(r.get("epid", "")).strip(), "release": release, "rel": rel,
                 # PriceCharting's ungraded price and sales/yr: used only by the wrong-match check (pc_flag)
                 "pc": money(r.get("loose-price", "")), "vol": whole(r.get("sales-volume", "")),
+                # what the card is (cardfacts.py, from the daily build): "Rare Holo", "Holo" / "Reverse Holo" ...
+                "rarity": str(r.get("rarity", "")).strip(), "finish": str(r.get("finish", "")).strip(),
+                "rfsrc": str(r.get("rf-source", "")).strip(),   # tcgplayer | dataset | tag: how sure the finish is
             })
         first = {}                               # each set's earliest dated card ...
         for c in self.cards:
@@ -505,6 +510,7 @@ class Catalog:
             if c["rel"] is None and "promo" not in c["set"].lower():   # sets, whose cards span decades
                 c["rel"] = first.get(c["set"])
         self.by_id = {c["id"]: c for c in self.cards}
+        self.idx_of = {c["id"]: i for i, c in enumerate(self.cards)}
         self.by_epid = {}                        # eBay product id -> card indexes (usually one)
         for i, c in enumerate(self.cards):
             self.by_num[c["n"]].append(i)
@@ -644,9 +650,21 @@ def epid_match(cat, idxs, parsed, tset):
     return choice if choice is not None else (idxs[0] if len(idxs) == 1 else None)
 
 
-def match_title(cat, title, epid, denoms, out=None):
+def memory_card(mem, epid):
+    """The catalog card the ePID memory has settled on: the one most of the product's looked-up listings were filed
+    under when eBay's own facts (number, set, rarity, finish) agreed with it. None until a product has a vote."""
+    m = (mem or {}).get(str(epid or ""))
+    if not m or not m.get("v"):
+        return None
+    best = max(m["v"], key=m["v"].get)
+    return int(best)
+
+
+def match_title(cat, title, epid, denoms, out=None, mem=None):
     """Return (card_index, method, score) or (None, reason, 0). When the title fits one card but not one printing
-    of it ("ambiguous variant"), that card's catalog rows are left in out["group"] for the item specifics to settle."""
+    of it ("ambiguous variant"), that card's catalog rows are left in out["group"] for the item specifics to settle.
+    mem = state["epids"], the learned ePID memory: a product already tied to a card matches at once, the title only
+    checked for agreement (same number, the name present) and for the printing."""
     rj = REJECT.search(title)
     if rj:
         return None, "rejected: " + rj.group(1).lower(), 0
@@ -656,10 +674,16 @@ def match_title(cat, title, epid, denoms, out=None):
     tset = set(ttoks)
     if "celebrations" in tset:                    # "30th Celebrations" is the set PriceCharting calls "30th Celebration"
         tset.add("celebration")
-    if epid and epid in cat.by_epid:
-        ci = epid_match(cat, cat.by_epid[epid], parsed, tset)
-        if ci is not None:
-            return ci, "epid", 1.0
+    if epid:
+        cid = memory_card(mem, epid)
+        if cid is not None and cid in cat.idx_of:
+            ci = epid_match(cat, [cat.idx_of[cid]], parsed, tset)
+            if ci is not None:
+                return ci, "epid", 1.0
+        if epid in cat.by_epid:
+            ci = epid_match(cat, cat.by_epid[epid], parsed, tset)
+            if ci is not None:
+                return ci, "epid", 1.0
     if not parsed:
         return None, "no card number", 0
     pre, n, suf, den = parsed
@@ -932,7 +956,7 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
                 new += 1
                 state["seen"][iid] = ts(NOW)
                 out = {}
-                ci, how, score = match_title(cat, rec["title"], rec["epid"], state["denoms"], out)
+                ci, how, score = match_title(cat, rec["title"], rec["epid"], state["denoms"], out, mem=state.get("epids"))
                 if ci is None:
                     unmatched += 1
                     state["unmatched"].append([ts(NOW), iid, rec["title"], rec["total"], rec["url"], how])
@@ -981,7 +1005,7 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "seller": rec.get("seller"), "n_img": rec.get("n_img"), "qty": rec.get("qty"), "ret": rec.get("ret"),
         "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
         **({"tier": rec["tier"]} if "tier" in rec else {}),
-        **{k: rec[k] for k in ("pc", "pcm", "idv", "idr") if k in rec},     # identity checks, as they stood
+        **{k: rec[k] for k in ("pc", "pcm", "idv", "idr", "ef", "epid") if k in rec},   # identity checks and eBay's facts, as they stood
     })
     del state["open"][iid]
 
@@ -1442,6 +1466,114 @@ def specifics(it):
     return asp
 
 
+def product_aspects(it):
+    """The eBay catalog product the seller attached the listing to (the "About this product" block: Set, Rarity,
+    Finish, Card Number, Card Name, Language ...) -> {aspect name (lower case): [values]}. Empty when there is
+    none - about half of the listings have one. Unlike the seller's own specifics it is eBay's record of the
+    product, the same for every listing of that ePID."""
+    asp = defaultdict(list)
+    for g in ((it or {}).get("product") or {}).get("aspectGroups") or []:
+        for a in g.get("aspects") or []:
+            name = str(a.get("localizedName", "")).strip().lower()
+            for v in a.get("localizedValues") or []:
+                if name and v not in (None, ""):
+                    asp[name].append(str(v).strip())
+    return asp
+
+
+FACT_KEYS = (("s", ("set",)), ("r", ("rarity",)), ("f", ("finish",)), ("n", ("card name", "character")),
+             ("k", ("card number",)))
+
+
+def ebay_facts(it):
+    """What eBay says the listing is: {"s": set, "r": rarity, "f": finish, "n": card name, "k": card number,
+    "src": "product" | "seller" | "both"} - the catalog product's word first, the seller's item specifics where
+    the product is silent (Features stand in for a missing Finish). None when the payload says nothing."""
+    prod, sell = product_aspects(it), specifics(it)
+    out, srcs = {}, set()
+    for key, names in FACT_KEYS:
+        for src, asp in (("product", prod), ("seller", sell)):
+            v = next((asp[n][0] for n in names if asp.get(n)), None)
+            if v:
+                out[key], _ = v[:60], srcs.add(src)
+                break
+    if "f" not in out:
+        feats = " ".join(sell.get("features", []))
+        if cardfacts.finish_class(feats):
+            out["f"], _ = feats[:60], srcs.add("seller")
+    if not out:
+        return None
+    out["src"] = "both" if len(srcs) == 2 else next(iter(srcs))
+    return out
+
+
+def number_agrees(num, c):
+    """The eBay card number ("030/128", "4", "SWSH001") names the catalog card's number."""
+    p = parse_number(num or "") or parse_number("#" + (num or ""))
+    return bool(p) and p[1] == c["n"] and (not p[0] or p[0] == c["pre"])
+
+
+def compare_facts(cat, c, ef):
+    """How eBay's facts sit against the catalog card the listing is filed under:
+    {"s": "same" | "far" | None, "r": "same" | "near" | "far" | None, "f": "same" | "far" | None}."""
+    out = {}
+    if ef.get("s"):
+        mine, other, _ = cat.set_fit(ef["s"], c["set"])
+        out["s"] = "far" if other > 1.5 * mine else ("same" if mine > 0 else None)
+    out["r"] = cardfacts.rarity_agree(ef.get("r"), c.get("rarity")) if ef.get("r") and c.get("rarity") else None
+    out["f"] = cardfacts.finish_agree(ef.get("f"), c.get("finish")) if ef.get("f") and c.get("finish") else None
+    return out
+
+
+def learn_facts(state, cat, rec, it):
+    """From a full item payload: keep what eBay says the listing is on the record (rec["ef"], with how it compares
+    with the card it is filed under; {} when the payload says nothing), and teach the ePID memory - the product's
+    facts, and a vote for the catalog card when the number names it and nothing is far off - so that every later
+    listing of the product matches at once (match_title)."""
+    ef = ebay_facts(it)
+    c = cat.by_id.get(rec.get("card"))
+    if ef and c:
+        ef["cmp"] = compare_facts(cat, c, ef)
+    rec["ef"] = ef or {}
+    epid = rec.get("epid") or (it or {}).get("epid") or ""
+    if not ef or not epid or not product_aspects(it):
+        return
+    rec["epid"] = str(epid)
+    m = state.setdefault("epids", {}).setdefault(str(epid), {"v": {}})
+    for k in ("s", "r", "f", "n", "k"):
+        if ef.get(k):
+            m[k] = ef[k]
+    m["t"] = ts(NOW)
+    cmp = ef.get("cmp") or {}
+    if c and "far" not in cmp.values() and number_agrees(ef.get("k"), c):
+        m["v"][str(c["id"])] = m["v"].get(str(c["id"]), 0) + 1
+
+
+def apply_epid_memory(state, cat):
+    """Open listings filed under a card their product's memory contradicts (two or more votes for another card,
+    none for this one) are moved when the title agrees with the memory's card. -> how many moved."""
+    mem = state.get("epids") or {}
+    moved = 0
+    for iid, r in state["open"].items():
+        cid = memory_card(mem, r.get("epid"))
+        if cid is None or cid == r.get("card") or cid not in cat.idx_of:
+            continue
+        votes = mem[str(r["epid"])]["v"]
+        if votes.get(str(cid), 0) < 2 or votes.get(str(r.get("card")), 0):
+            continue
+        title = r.get("title") or ""
+        tset = set(expand_aliases(norm_tokens(re.sub(r"\bstage\s?[12]\b", " ", title, flags=re.I))))
+        ci = epid_match(cat, [cat.idx_of[cid]], parse_number(title), tset)
+        if ci is None:
+            continue
+        refile(r, cat.cards[ci])
+        r["how"] = "epid-memory"
+        if r.get("ef") and cat.by_id.get(r["card"]):
+            r["ef"]["cmp"] = compare_facts(cat, cat.by_id[r["card"]], r["ef"])
+        moved += 1
+    return moved
+
+
 def printing_words(asp):
     """What a seller's Finish / Features / Card Size specifics say, as title words ("reverse", "holo", "jumbo")."""
     return set(expand_aliases(norm_tokens(" ".join(asp.get("finish", []) + asp.get("features", []) + asp.get("card size", [])))))
@@ -1458,8 +1590,9 @@ def check_identity(cat, c, it, title="", total=None):
     believed blindly either - sellers stuff Features (the 2026-10-04 trial found "1st Edition" on a listing titled
     "Unlimited"): a move needs a title that names no printing of its own and a price that fits the printing named;
     otherwise the disagreement is a conflict, to be settled from the photos."""
-    asp = specifics(it)
-    first = lambda *names: next((asp[n][0] for n in names if asp.get(n)), None)
+    asp, prod = specifics(it), product_aspects(it)
+    first = lambda *names: next((prod[n][0] for n in names if prod.get(n)), None) \
+        or next((asp[n][0] for n in names if asp.get(n)), None)         # the catalog product's word first
     bad, notes = [], []
     num_ok = name_ok = set_ok = False
     num = first("card number")
@@ -1493,7 +1626,7 @@ def check_identity(cat, c, it, title="", total=None):
     if (first("graded") or "").lower().startswith("y"):
         bad.append("graded")
     # the printing: what Finish / Features / Card Size say, against the rows PriceCharting lists for this card
-    said, move = printing_words(asp), None
+    said, move = printing_words(asp) | printing_words(prod), None     # the product's Finish counts too
     group = cat.by_key[(c["set"], c["pre"], c["n"], c["suf"])]
     gone = missing_printing(cat, group, said)
     if gone:
@@ -1513,6 +1646,20 @@ def check_identity(cat, c, it, title="", total=None):
             elif m["id"] != c["id"]:
                 move = m
                 notes.append(f"filed under [{m['variant']}] from the item specifics")
+    # rarity and finish (cardfacts.py): a rarity two tiers off is another card ("Illustration Rare" on a Common
+    # is 223/197 read as 23/197); a finish eBay's product record contradicts is a conflict too, a seller's
+    # "Holo" on a plain card only a note - unless the printing rules above are already moving the listing
+    ef = ebay_facts(it)
+    if ef:
+        cmp = compare_facts(cat, move or c, ef)
+        if cmp.get("r") == "far":
+            bad.append(f"rarity {ef['r']} (the card is {(move or c).get('rarity') or 'of unknown rarity'})")
+        if cmp.get("f") == "far" and move is None and not any(b.startswith("printing") for b in bad):
+            line = f"finish {ef['f']} (the catalog row is {c.get('finish')})"
+            if ef.get("src") == "product" and c.get("rfsrc") in ("tcgplayer", "tag"):
+                bad.append(line)                             # eBay's record against TCGplayer's printings: a conflict
+            else:
+                notes.append(line + (", by the seller" if ef.get("src") != "product" else ", finish inferred from the rarity"))
     if bad:
         return "conflict", bad, None
     return ("ok" if num_ok or (name_ok and set_ok) else "none"), notes, move
@@ -1585,6 +1732,7 @@ def settle_pending(state, cat, iid, rec, it):
                 "rev": None, "hist": [], "enriched": True, "idv": status,
                 "idr": notes + ["printing taken from the item specifics"]})
     rec["pc"], rec["pcm"] = c.get("pc"), pc_flag(rec, c)
+    learn_facts(state, cat, rec, it)
     state["open"][iid] = rec
     return f"filed as {c['name']}" + (f" [{c['variant']}]" if c["variant"] else "") + f" #{c['num']}"
 
@@ -1650,6 +1798,7 @@ def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
         r["idv"], r["idr"], move = check_identity(cat, c, it, r["title"], r.get("total"))
         if move is not None:
             refile(r, move)
+        learn_facts(state, cat, r, it)
         log(f"ID check: {r['idv']} - {r['title'][:70]} -> {c['name']} #{c['num']} ({c['set']})"
             + (f": {', '.join(r['idr'])}" if r["idr"] else ""))
     return n
@@ -2426,6 +2575,36 @@ def set_sizes(state):
     return out
 
 
+def facts_row(r):
+    """[set, rarity, finish, card name, card number, source, set cmp, rarity cmp, finish cmp] for the page."""
+    if "ef" not in r:
+        return None
+    ef = r.get("ef") or {}
+    if not ef:
+        return []
+    cmp = ef.get("cmp") or {}
+    return [ef.get("s"), ef.get("r"), ef.get("f"), ef.get("n"), ef.get("k"), ef.get("src"), cmp.get("s"), cmp.get("r"), cmp.get("f")]
+
+
+def card_facts(state):
+    """{card id: [rarity most listings' eBay record gives, finish likewise, listings with facts, listings whose facts
+    are far off]} over open and closed listings - the eBay Catalog's "eBay Rarity/Finish"."""
+    rar, fin, n, far = defaultdict(Counter), defaultdict(Counter), Counter(), Counter()
+    for r in list(state["open"].values()) + state["closed"]:
+        ef, c = r.get("ef"), r.get("card")
+        if not ef or c is None:
+            continue
+        n[c] += 1
+        if ef.get("r"):
+            rar[c][ef["r"]] += 1
+        if ef.get("f"):
+            fin[c][ef["f"]] += 1
+        if "far" in (ef.get("cmp") or {}).values():
+            far[c] += 1
+    return {str(c): [rar[c].most_common(1)[0][0] if rar[c] else None, fin[c].most_common(1)[0][0] if fin[c] else None,
+                     n[c], far[c]] for c in n}
+
+
 def build_live(state, cards, lp):
     day_ago = NOW - timedelta(hours=24)
     live = []
@@ -2449,7 +2628,8 @@ def build_live(state, cards, lp):
                      r.get("pc"), r.get("pcm") or "",             # 27-28: PriceCharting ungraded price, mismatch flag (low/high)
                      r.get("idv") or "", r.get("idr") or [],      # 29-30: item-specifics check (ok/conflict/none), what it found
                      1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
-                     (r.get("imgs") or [])[1:4]])                   # 33: the listing's other photos (the first is 20), for the Review screen
+                     (r.get("imgs") or [])[1:4],                    # 33: the listing's other photos (the first is 20), for the Review screen
+                     facts_row(r)])                                 # 34: eBay's facts (None = not looked up, [] = none on the listing)
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
@@ -2465,7 +2645,8 @@ def build_live(state, cards, lp):
                  "leadMinSales": LEAD_MIN_PC_SALES, "leadMinPc": LEAD_MIN_PC, "leadSellPc": LEAD_SELL_PC,
                  "leadSellNoFloor": LEAD_SELL_NO_FLOOR},
         "cards": cards, "live": live, "unmatched": unmatched, "lp": lp, "scam": scam_calib(state),
-        "deals": deal_calib(state), "sets": set_sizes(state),
+        "deals": deal_calib(state), "sets": set_sizes(state), "ef": card_facts(state),
+        "epids": len(state.get("epids") or {}),
         "calib": {"h48": calibrate(state, 48, "p48_0"), "h24": calibrate(state, 24, "p24_0")},
     }
 
