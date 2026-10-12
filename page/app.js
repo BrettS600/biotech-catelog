@@ -25,9 +25,9 @@ const ordOf = r => r[r.length - 1];
 // build time); a set that did not match uses the size the collector learned from eBay titles, which arrives with the
 // live data; prefixed numbers (TG05, SV001) are shown as printed
 const numCell = (num, set) => { const t = SET_TOTALS[set] || (LIVE.sets && LIVE.sets[set]); return esc(num) + (t && /^\d+[a-z]?$/.test(String(num)) ? '<span class="dim">/' + t + '</span>' : ''); };
-const cells4 = r =>
+const cells4 = (r, mid = '', afterSet = '') =>                 // Card, Set, [afterSet], Set / Card, [mid], Released
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
-  '<td>' + esc(r[2]) + '</td><td class="num">' + numCell(r[3], r[2]) + '</td><td>' + (r[4] || dash) + '</td>';
+  '<td>' + esc(r[2]) + '</td>' + afterSet + '<td class="num">' + numCell(r[3], r[2]) + '</td>' + mid + '<td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
 const mtOf = cid => { const t = LIVE.data && LIVE.data.mt; const m = t && t[String(cid)]; return m ? m[0] + ':' + m[1] + (m[2] ? '|' + m[2] : '') : null; };   // "confirmed:mismatch|filed by the matcher" for a card
 const mmRatio = v => {                                        // the cell shows only what Brett marked; the matcher's own count is the tooltip
@@ -38,13 +38,59 @@ const mmRatio = v => {                                        // the cell shows 
   return '<span' + (/:0$/.test(s) ? '' : ' class="down"') + ' title="' + esc(tip) + '">' + esc(s) + '</span>';
 };
 const badge = (txt, cls) => '<span class="badge' + (cls ? ' ' + cls : '') + '">' + esc(txt) + '</span>';
+/* ---------------- rarity and finish (2026-10-12, Brett: "most mismatches are finish and rarity mismatches") ----------------
+   The PriceCharting side rides with the catalog rows (DATA 14 rarity, 15 finish: cardfacts.py in the daily build, from
+   TCGplayer's catalog through the tcg-id column and the open Pokemon TCG dataset). The eBay side is what eBay's catalog
+   product ("About this product") or the seller's item specifics say, read by the collector the first time it looks a
+   listing up (when it sells, or when it clears the price gate): live row 34 = [set, rarity, finish, card name, card
+   number, source, set cmp, rarity cmp, finish cmp] (null = not looked up, [] = nothing on the listing), and live.ef =
+   {card: [rarity most listings carry, finish likewise, listings with facts, listings that disagree]} for the eBay
+   Catalog. The comparison vocabulary mirrors cardfacts.py: coarse tiers for rarity, three classes for finish. */
+const RF_SEP = ' \u00b7 ';
+const pcRF = base => base && (base[14] || base[15]) ? [base[14] || '', base[15] || ''] : null;
+const rfText = p => p ? [p[0], p[1]].filter(Boolean).join(RF_SEP) : '';
+const normRF = s => String(s || '').toLowerCase().replace(/\u00e9/g, 'e').replace(/1st/g, 'first').replace(/-/g, ' ').replace(/[^a-z0-9 ]+/g, ' ').trim();
+const ULTRA_W = new Set('ex gx v vmax vstar lvx lv ultra double secret hyper rainbow illustration full art shiny amazing radiant ace spec break prime legend gold star prism crystal gallery character pikachu classic special mega tag team alternate alt textured shining delta'.split(' '));
+const HOLO_W = new Set('holo holofoil foil cosmos cracked rainbow textured sparkle galaxy confetti spectra tekno shiny shining gold silver prism crystal etched'.split(' '));
+const PLAIN_W = new Set('regular nonholo non normal standard none matte plain'.split(' '));
+const PATTERN_W = new Set('ball pokeball masterball pattern'.split(' '));
+function rarityTier(s) { const t = normRF(s); if (!t) return null; const k = t.split(/\s+/); if (k.includes('promo') || k.includes('promotional')) return 'P'; if (k.some(w => ULTRA_W.has(w))) return 'X'; if (k.includes('common') && !k.includes('uncommon')) return 'C'; if (k.includes('uncommon')) return 'U'; if (k.includes('holo') || k.includes('holofoil') || k.includes('foil')) return 'H'; if (k.includes('rare')) return 'R'; return null; }
+const RF_RANK = {C: 0, U: 1, R: 2, H: 3, X: 4};
+function rarityAgree(a, b) { const x = rarityTier(a), y = rarityTier(b); if (!x || !y) return null; if (x === y) return 'same'; if (x === 'P' || y === 'P') return 'far'; return Math.abs(RF_RANK[x] - RF_RANK[y]) === 1 ? 'near' : 'far'; }
+function finishClass(s) { const t = normRF(s); if (!t) return null; const k = t.split(/\s+/); if (k.includes('reverse') || k.some(w => PATTERN_W.has(w))) return 'reverse'; if ((k.includes('non') && k.includes('holo')) || k.some(w => PLAIN_W.has(w)) || t === 'no' || t === 'n a') return 'plain'; if (k.some(w => HOLO_W.has(w))) return 'holo'; return null; }
+function finishAgree(a, b) { const x = finishClass(a), y = finishClass(b); if (!x || !y) return null; return x === y ? 'same' : 'far'; }
+const rfCls = v => v === 'far' ? ' class="rfbad"' : v === 'near' ? ' class="rfnear"' : '';
+const pcRFCell = p => '<td' + (p ? ' title="' + esc('What the card is: ' + (p[0] || 'rarity unknown') + ', ' + (p[1] || 'finish unknown') + '. From TCGplayer\'s catalog (the tcg-id PriceCharting carries) or the open Pokemon TCG dataset; the bracket tag names the printing') + '"' : '') + '>' + (p ? esc(rfText(p)) : dash) + '</td>';
+const EF_SRC = {product: "eBay's catalog product", seller: "the seller's item specifics", both: "eBay's product and the seller's specifics"};
+function efCells(ef) {                                   // Raw Data: [eBay Set Name cell, eBay Rarity/Finish cell] for one listing
+  if (ef == null || !ef.length) {
+    const c = '<td><span class="dim" title="' + (ef == null ? 'Not looked up yet: eBay\'s record is read the first time the collector looks a listing up - when it sells, or when it clears the price gate' : 'Looked up: the listing carries no catalog product and the seller left these blank') + '">' + (ef == null ? 'not read' : 'none') + '</span></td>';
+    return [c, c];
+  }
+  const src = 'From ' + (EF_SRC[ef[5]] || 'eBay'), names = [ef[3], ef[4]].filter(Boolean).join(' #');
+  const setCell = '<td' + rfCls(ef[6]) + ' title="' + esc(src + (names ? '. eBay names it ' + names : '') + (ef[6] === 'far' ? '. Its words belong to a different set from the card this listing is filed under' : ef[6] === 'same' ? '. Agrees with the card\'s set' : '')) + '">' + (ef[0] ? esc(ef[0]) : dash) + '</td>';
+  const worst = ef[7] === 'far' || ef[8] === 'far' ? 'far' : ef[7] === 'near' ? 'near' : null;
+  const why = [ef[7] === 'far' ? 'the rarity is two tiers or more from the card\'s - usually another card number' : ef[7] === 'near' ? 'the rarity is one tier from the card\'s (the usual seller imprecision)' : '',
+               ef[8] === 'far' ? 'the finish differs from the catalog row\'s' : ''].filter(Boolean).join('; ');
+  const rf = rfText([ef[1], ef[2]]);
+  const rfCell = '<td' + rfCls(worst) + ' title="' + esc(src + (why ? '. ' + why.charAt(0).toUpperCase() + why.slice(1) : ef[7] === 'same' || ef[8] === 'same' ? '. Agrees with the card' : '')) + '">' + (rf ? esc(rf) : dash) + '</td>';
+  return [setCell, rfCell];
+}
+function efCardCell(f, p) {                              // eBay Catalog: the card's eBay record over its looked-up listings
+  if (!f || !f[2]) return '<td><span class="dim" title="None of this card\'s listings has been looked up yet">not read</span></td>';
+  const r = rarityAgree(f[0], p && p[0]), fi = finishAgree(f[1], p && p[1]);
+  const worst = r === 'far' || fi === 'far' ? 'far' : r === 'near' || f[3] ? 'near' : null;
+  const tip = 'The rarity and finish most of this card\'s ' + f[2] + ' looked-up listing' + (f[2] === 1 ? '' : 's') + ' carry in eBay\'s records' + (f[3] ? '; ' + f[3] + ' of them disagree with the card on set, rarity or finish' : '') + (r === 'far' || fi === 'far' ? '. Disagrees with the PriceCharting side: check the matches' : '');
+  return '<td' + rfCls(worst) + ' title="' + esc(tip) + '">' + (rfText([f[0], f[1]]) ? esc(rfText([f[0], f[1]])) : dash) + ' <span class="dim">' + f[2] + '</span></td>';
+}
+const rfBad = r => !!(r[48] && r[48].length && (r[48][6] === 'far' || r[48][7] === 'far' || r[48][8] === 'far'));
 const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // filled by loadLive(); prevT = the previous data's stamp; sets = printed set sizes
 
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
-       inserted: [{v: 3, at: 0, n: 1}],
-       hay: r => r[1] + ' ' + r[2],
-       row: r => cells4(r) +
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}],   // v4: PC Rarity/Finish after Set / Card
+       hay: r => r[1] + ' ' + r[2] + ' ' + (r[14] || '') + ' ' + (r[15] || ''),
+       row: r => cells4(r, pcRFCell(pcRF(r))) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
       '<td class="num">' + fmtMoney(r[6]) + '</td>' +
       '<td class="num">' + fmtPct(r[7]) + '</td>' +
@@ -60,14 +106,15 @@ const TABLES = {
   //   Decisions: 20 A 21 L 22 sell 23 probT 24 edays 25 maxbuy 26 hot 27 liquid 28 confirm 29 checks |
   //   Trends: 30 spm 31 d7 32 d30 33 pos 34 vdp 35 vd 36 vol 37 ts | 38 net 39 A_n | 40 ord |
   //   41 PC sales/month 42 PC ungraded $ 43 vs PC % 44 hits 30d 45 "match:mismatch"
+  //   46 PC rarity/finish text 47 eBay card facts [rarity, finish, n, disagree] 48 eBay rarity/finish text (sort key)
   //   (6 D, 8-10 p1-p3 and 30 spm stay in the row for the Book and the chart; the table no longer shows them - 2026-10-08)
   ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 41, 16, 7, 18, 12, 14, 15, 20, 43, 22, 25, 38, 44, 32, 37],
-       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}],   // v4: the column set was rebuilt, saved eyes / order / widths start over
-       compact: [9, 10, 11, 12, 14, 15, 16, 17, 21, 24],   // hidden in the Compact view: the diagnostics behind the decision numbers
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}, {v: 5, at: 4, n: 2}],   // v4: the column set was rebuilt; v5: PC / eBay Rarity/Finish after Set / Card
+       compact: [11, 12, 13, 14, 16, 17, 18, 19, 23, 26],   // hidden in the Compact view: the diagnostics behind the decision numbers
        labels: {17: 'Price $', 5: 'eBay sales', 41: 'PC sales', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 43: 'vs PC %', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 44: 'Hits 30d', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 500]},
-       hay: r => r[1] + ' ' + r[2],
-       row: r => cells4(r) +
+       hay: r => r[1] + ' ' + r[2] + ' ' + (r[46] || ''),
+       row: r => cells4(r, pcRFCell(r[46] ? r[46].split(RF_SEP) : null) + efCardCell(r[47], r[46] ? r[46].split(RF_SEP) : null)) +
       '<td class="num">' + mmRatio(r[45]) + '</td>' +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
       '<td class="num">' + (r[41] == null ? dash : fmtNum(r[41], r[41] < 10 ? 1 : 0)) + '</td>' +
@@ -104,6 +151,7 @@ const TABLES = {
   // 27 time (h: to outcome, or open so far) 28 note (LP discount applied) 29 tier 30 risk rank 31 score 32 photos 33 signals
   // 34 first seen (ISO) 35 PriceCharting ungraded $ 36 vs PC % 37 mismatch flag ('low' / 'high')
   // 38 item-specifics check ('ok' / 'conflict' / 'none') 39 what that check found 40 ord
+  // 47 PC rarity/finish text 48 eBay facts (live row 34) 49 eBay set name 50 eBay rarity/finish text (49-50: sort keys)
   rv: {rows: () => LIVE.rv || [], noun: 'cards', ranges: [], labels: {}, defaults: {},
        extra: r => PERIOD.rv ? PERIOD.rv.test(r[7] || r[4]) : true,
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[18] || '') + ' ' + (r[20] || ''),
@@ -120,11 +168,11 @@ const TABLES = {
   er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5],
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable)
-       extra: r => statOk(r[19]) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish
+       extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
-       hay: r => r[1] + ' ' + r[2] + ' ' + r[6],
-       row: r => r.au ? auRow(r) : umCell(r) + cells4(r) +
+       hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
+       row: r => r.au ? auRow(r) : umCell(r) + cells4(r, pcRFCell(r[47] ? r[47].split(RF_SEP) : null) + efCells(r[48])[1], efCells(r[48])[0]) +
       '<td class="num">' + mmRatio(r[46]) + '</td>' +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
@@ -182,6 +230,7 @@ function auRows(live) {
       pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[5] == null ? null : r1(base[5] / 12), cs.k != null ? cs.k : null,
       bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
     row[46] = mtOf(cid);
+    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
     row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um;
     return row;
   });
@@ -194,7 +243,8 @@ function auRow(r) {
                'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.',
                'closed too cheap': 'It closed under ' + pcPct('pcLow', 0.4) + '% of the card\'s PriceCharting price. Other bidders do not let the real card go for that: treated as a wrong match (another card, a damaged copy, a fake), not a hit.',
                'mismatch: marked by you': 'You marked this auction as not the card it was matched to. It is left out of the hit total. Untick Mismatch to undo.'}[x.res] || '';
-  return umCell(r) + (r[0] ? cells4(r) : '<td>' + esc(r[1]) + '</td><td></td><td class="num"></td><td>' + dash + '</td>') + '<td class="num">' + mmRatio(r[46]) + '</td>' +
+  const ec = efCells(r[48]), mid = pcRFCell(r[47] ? r[47].split(RF_SEP) : null) + ec[1];
+  return umCell(r) + (r[0] ? cells4(r, mid, ec[0]) : '<td>' + esc(r[1]) + '</td><td></td>' + ec[0] + '<td class="num"></td>' + mid + '<td>' + dash + '</td>') + '<td class="num">' + mmRatio(r[46]) + '</td>' +
     '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
     '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
     '<td class="num auc"' + (x.old ? ' title="An alert from before October 6: worked back from the total the alert recorded"' : '') + '>' + (r[42] != null ? fmtMoney(r[42]) + (x.nb != null ? ' <span class="dim">' + x.nb + ' bid' + (x.nb === 1 ? '' : 's') + '</span>' : '') : x.tot0 != null ? fmtMoney(x.tot0) + ' <span class="dim">with shipping</span>' : dash) + '</td>' +
@@ -608,6 +658,8 @@ function makeTable(id, cfg) {
   if (mm) mm.addEventListener('input', () => { $('mmchip').classList.toggle('on', mm.checked); t.apply(); });
   const ld = document.querySelector('#ranges-' + id + ' #lead-' + id);
   if (ld) ld.addEventListener('input', () => { $('leadchip').classList.toggle('on', ld.checked); t.apply(); });
+  const ds = document.querySelector('#ranges-' + id + ' #dis-' + id);
+  if (ds) ds.addEventListener('input', () => { $('dischip').classList.toggle('on', ds.checked); t.apply(); });
   if (conds.length) {
     try { const sv = JSON.parse(localStorage.getItem('cond-' + id) || 'null'); if (sv) conds.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
     conds.forEach(c => c.addEventListener('input', () => {
@@ -785,6 +837,7 @@ function hhRows(live) {
       pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs.k != null ? cs.k : null,
       null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
     row[46] = mtOf(cid);
+    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
     row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null;
     return row;
   });
@@ -990,9 +1043,11 @@ function rebuildLive() {
                   c.pc == null ? base[6] : c.pc,                                                  // 42 PriceCharting ungraded $
                   (c.pc || base[6]) && d.A ? Math.round((d.A / (c.pc || base[6]) - 1) * 1000) / 10 : null,   // 43 anchor vs PriceCharting
                   (live.hits30 || {})[String(cid)] || 0,                                          // 44 alerts on the card, 30 days
-                  mtOf(cid)]);                                                                    // 45 "match:mismatch"
+                  mtOf(cid),                                                                      // 45 "match:mismatch"
+                  rfText(pcRF(base)), (live.ef || {})[String(cid)] || null,                       // 46-47 PC rarity/finish, eBay's record of the card
+                  rfText((live.ef || {})[String(cid)] || null)]);                                 // 48 eBay rarity/finish, for sorting
   }
-  let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0, leads = 0;
+  let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0, leads = 0, disagree = 0;
   live.live.forEach(x => {
     const base = idRow.get(x[1]); if (!base) return;
     const cs = LIVE.dec[String(x[1])];
@@ -1015,10 +1070,13 @@ function rebuildLive() {
                   base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
                   null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
     erow[46] = mtOf(x[1]);
+    erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34];
+    erow[49] = erow[48] && erow[48].length ? erow[48][0] || '' : ''; erow[50] = erow[48] && erow[48].length ? rfText([erow[48][1], erow[48][2]]) : '';
+    if (rfBad(erow)) disagree++;
     erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
     LIVE.er.push(erow);
   });
-  $('nsus').textContent = hiddenSus; $('ncheap').textContent = tooCheap; $('nlead').textContent = leads;
+  $('nsus').textContent = hiddenSus; $('ncheap').textContent = tooCheap; $('nlead').textContent = leads; $('ndis').textContent = disagree;
   alRender();
   applyHelp(live.help);                                 // descriptions and READMEs he rewrote with the pencil
   const markT = (live.alert && live.alert.mark_t) || 0;  // the collector has taken every mark up to this time
