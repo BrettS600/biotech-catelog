@@ -27,6 +27,7 @@
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="14">PC Rarity/Finish<span class="s">⇅</span><button class="help" data-h="rf_pc">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="sales">?</button></th>
     <th data-k="6" class="num">Ungraded $<span class="s">⇅</span><button class="help" data-h="ungraded">?</button></th>
@@ -61,7 +62,7 @@
 <table class="wide">
   <thead>
   <tr class="grp">
-    <th colspan="6">Card</th>
+    <th colspan="8">Card</th>
     <th colspan="8" class="g-obs">Observed on eBay — independent inputs</th>
     <th colspan="4" class="g-rate">Rates — computed from Observed</th>
     <th colspan="11" class="g-dec">Decisions — depend on the anchor, the credible floor, Confidence, Window and Margin</th>
@@ -73,6 +74,8 @@
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="46">PC Rarity/Finish<span class="s">⇅</span><button class="help" data-h="rf_pc">?</button></th>
+    <th data-k="48">eBay Rarity/Finish<span class="s">⇅</span><button class="help" data-h="rf_ebay">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="45" class="num">Match:mismatch<span class="s">⇅</span><button class="help" data-h="mm_ratio">?</button></th>
     <th data-k="5" class="num g-obs">eBay sales<span class="s">⇅</span><button class="help" data-h="ec_k">?</button></th>
@@ -145,6 +148,7 @@
   <div class="range condchip" id="suschip"><label><input type="checkbox" id="showsus-er"> Show suspects (<span id="nsus">0</span>)</label></div>
   <div class="range condchip" id="mmchip" title="Only listings priced under 40% of the card's PriceCharting price: treated as wrong matches, never hits - the list to check by hand for a real steal"><label><input type="checkbox" id="mm-er"> Too cheap only (<span id="ncheap">0</span>)</label></div>
   <div class="range condchip" id="leadchip" title="Only leads: listings on cards eBay cannot judge yet (fewer than 5 sales), that clear the gate when PriceCharting's price is used instead, capped by the cheapest other copy listed. Check photos and condition - a lead is not a hit"><label><input type="checkbox" id="lead-er"> Leads only (<span id="nlead">0</span>)</label></div>
+  <div class="range condchip" id="dischip" title="Only listings whose eBay record (the catalog product behind the listing, or the seller's item specifics) names a different set, rarity or finish from the card they are filed under - the matches to check"><label><input type="checkbox" id="dis-er"> Disagrees only (<span id="ndis">0</span>)</label></div>
   <div class="range condchip" id="auchip" title="Show only the auctions that were sent to your phone, with the bid at that moment and what each one closed at. Every other listing is hidden while this is on"><label><input type="checkbox" id="au-er"> Auctions sent to my phone (<span id="nau">0</span>)</label></div>
   <button class="reset" id="reset-er">Reset filters</button>
 </div>
@@ -154,8 +158,11 @@
     <th class="rn" title="Row number in the current sort and filters">Row</th>
     <th class="mmk">Reviewer<button class="help" data-h="er_mm">?</button></th>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
-    <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
+    <th data-k="2">PC Set Name<span class="s">⇅</span><button class="help" data-h="er_pcset">?</button></th>
+    <th data-k="49">eBay Set Name<span class="s">⇅</span><button class="help" data-h="er_eset">?</button></th>
     <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
+    <th data-k="47">PC Rarity/Finish<span class="s">⇅</span><button class="help" data-h="rf_pc">?</button></th>
+    <th data-k="50">eBay Rarity/Finish<span class="s">⇅</span><button class="help" data-h="rf_ebay">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="46" class="num">Match:mismatch<span class="s">⇅</span><button class="help" data-h="mm_ratio">?</button></th>
     <th data-k="5" class="num">Listed within (h)<span class="s">⇅</span><button class="help" data-h="er_listed">?</button></th>
