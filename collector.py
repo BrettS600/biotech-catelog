@@ -1037,6 +1037,35 @@ PC_IMG = re.compile(r"https://storage\.googleapis\.com/images\.pricecharting\.co
 PC_LAST_READ = {}                # what the last page read looked like: status code, seconds, error - for the log
 PC_COOKIE = os.environ.get("PC_COOKIE", "").strip().strip('"').strip("'")   # Brett's PriceCharting sign-in (/etc/pokemon-collector.env):
                                  # their chart's volume bars are served to signed-in subscribers only (2026-10-12)
+PC_SIGNIN_CLUES = {}             # once per kind (page with / without the volume series): what the page said about the sign-in
+
+
+def pc_cookies():
+    """PC_COOKIE ("name=value; name2=value2", the rows of Chrome's cookie table) as a jar bound to pricecharting.com.
+    It goes to requests as cookies= rather than a Cookie header written by hand: /game/<id> redirects to the card's
+    named address, and requests drops a hand-written Cookie header on a redirect (the jar is re-applied)."""
+    import requests
+    jar = requests.cookies.RequestsCookieJar()
+    for part in PC_COOKIE.split(";"):
+        if "=" in part:
+            k, val = part.strip().split("=", 1)
+            jar.set(k.strip(), val.strip(), domain=".pricecharting.com", path="/")
+    return jar
+
+
+def pc_signin_clues(r):
+    """For the log, once per kind of page: did the page come back signed in? (VGPC.user_id, the words on the page,
+    the redirects, the cookies the server set - names only, never values)."""
+    html = r.text
+    uid = re.search(r"VGPC\.user_id\s*=\s*([^;\n]{0,40})", html)
+    words = {w: len(re.findall(w, html, re.I)) for w in ("logout", "log out", "sign out", "log in", "sign in", "volume_data", "pricecharting-pro", "subscri")}
+    try:
+        setc = sorted(set(c.split("=", 1)[0].strip() for c in r.raw.headers.getlist("Set-Cookie")))
+    except Exception:
+        setc = ["?"]
+    sent = [p.split("=", 1)[0].strip() for p in PC_COOKIE.split(";") if "=" in p]
+    return (f"{len(r.history)} redirect(s) to {r.url}; VGPC.user_id = {uid.group(1).strip() if uid else '?'}; words {words}; "
+            f"server set cookies {setc or 'none'}; sent {sent}")
 
 
 def pc_read_page(pid):
@@ -1046,11 +1075,10 @@ def pc_read_page(pid):
     None when the page carries none."""
     t0 = time.time()
     headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"}
-    if PC_COOKIE:
-        headers["Cookie"] = PC_COOKIE                        # read as Brett: the page then carries the volume series
     try:
         import requests
-        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15, headers=headers)
+        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15, headers=headers,
+                         cookies=pc_cookies() if PC_COOKIE else None)   # read as Brett: the page then carries the volume series
     except Exception as e:
         PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
         return "error", None, None, ""
@@ -1064,6 +1092,11 @@ def pc_read_page(pid):
         hist, note = pchist.extract(r.text)
     except Exception as e:
         hist, note = None, f"history parse failed: {str(e)[:80]}"
+    if PC_COOKIE and hist is not None and bool(hist.get("s")) not in PC_SIGNIN_CLUES:
+        try:
+            PC_SIGNIN_CLUES[bool(hist.get("s"))] = pc_signin_clues(r)
+        except Exception as e:
+            PC_SIGNIN_CLUES[bool(hist.get("s"))] = f"clues failed: {str(e)[:80]}"
     return ("ok", f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg", hist, note) if m else ("none", None, hist, note)
 
 
@@ -1340,7 +1373,8 @@ def file_pc_images(state, worker):
                     if v["pch_signin"] != was:
                         log("PriceCharting sign-in: " + ("working - pages carry the volume series" if hist.get("s") else
                             "the page came WITHOUT the volume series: the PC_COOKIE in /etc/pokemon-collector.env has expired "
-                            "or was not accepted. The chart shows prices without volume until it is replaced and the service restarted"))
+                            "or was not accepted. The chart shows prices without volume until it is replaced and the service restarted")
+                            + "; the page: " + PC_SIGNIN_CLUES.get(bool(hist.get("s")), "?"))
                 if len(pchist.SHAPES) and v.get("pch_shape_logged") != 4:   # the first page: what it carried, once
                     v["pch_shape_logged"] = 4
                     sh = pchist.SHAPES[0]
