@@ -36,7 +36,7 @@ PATTERN_WORDS = {"ball", "pokeball", "masterball", "pattern"}            # 151's
 ULTRA_WORDS = {"ex", "gx", "v", "vmax", "vstar", "lvx", "lv", "ultra", "double", "secret", "hyper", "rainbow",
                "illustration", "full", "art", "shiny", "amazing", "radiant", "ace", "spec", "break", "prime",
                "legend", "gold", "star", "prism", "crystal", "gallery", "character", "pikachu", "classic",
-               "special", "mega", "tag", "team", "alternate", "alt", "textured", "shining", "delta"}
+               "special", "mega", "tag", "team", "alternate", "alt", "textured", "shining", "delta", "futuristic"}
 def norm_text(s):
     s = str(s or "").lower().replace("é", "e")
     s = s.replace("1st", "first").replace("-", " ")
@@ -52,7 +52,7 @@ def rarity_tier(text):
     toks = set(t.split())
     if "promo" in toks or "promotional" in toks:
         return "P"
-    if toks & ULTRA_WORDS:
+    if toks & ULTRA_WORDS or "black white rare" in t:       # Black Bolt / White Flare's own top rarity
         return "X"
     if "common" in toks and "uncommon" not in toks:
         return "C"
