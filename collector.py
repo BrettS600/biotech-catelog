@@ -1038,19 +1038,87 @@ PC_LAST_READ = {}                # what the last page read looked like: status c
 PC_COOKIE = os.environ.get("PC_COOKIE", "").strip().strip('"').strip("'")   # Brett's PriceCharting sign-in (/etc/pokemon-collector.env):
                                  # their chart's volume bars are served to signed-in subscribers only (2026-10-12)
 PC_SIGNIN_CLUES = {}             # once per kind (page with / without the volume series): what the page said about the sign-in
+PC_JAR_PATH = os.path.join(DATA, "pc_cookies.txt")   # the PriceCharting sign-in as a browser keeps it (an LWP cookie file)
+_pc_sess = {}                    # {"s": the requests session, "snap": the jar as last saved}
+_pc_lock = threading.Lock()
 
 
-def pc_cookies():
-    """PC_COOKIE ("name=value; name2=value2", the rows of Chrome's cookie table) as a jar bound to pricecharting.com.
-    It goes to requests as cookies= rather than a Cookie header written by hand: /game/<id> redirects to the card's
-    named address, and requests drops a hand-written Cookie header on a redirect (the jar is re-applied)."""
+def pc_session():
+    """One requests session for PriceCharting with a cookie jar that lives on disk like a browser's: seeded from
+    PC_COOKIE (vgpc_daily left out - the site re-issues its daily cookie when it sees none, which is how a browser
+    keeps a sign-in alive), then kept up to date from every Set-Cookie the site sends, so a session the site extends
+    or rotates stays signed in with no hand on the env file (Brett, 2026-10-12: "I don't want to remember resetting
+    cookies"). A new PC_COOKIE (a different vgpc_session) reseeds the jar; the seed's fingerprint is kept beside it."""
+    s = _pc_sess.get("s")
+    if s is not None:
+        return s
     import requests
-    jar = requests.cookies.RequestsCookieJar()
+    from http.cookiejar import LWPCookieJar, Cookie
+    jar = LWPCookieJar(PC_JAR_PATH)
+    try:
+        jar.load(ignore_discard=True, ignore_expires=True)
+    except Exception:
+        pass
+    seed = {}
     for part in PC_COOKIE.split(";"):
         if "=" in part:
             k, val = part.strip().split("=", 1)
-            jar.set(k.strip(), val.strip(), domain=".pricecharting.com", path="/")
-    return jar
+            seed[k.strip()] = val.strip()
+    fp = hashlib.sha256(seed.get("vgpc_session", "").encode()).hexdigest()[:16]
+    try:
+        had = open(PC_JAR_PATH + ".seed").read().strip()
+    except Exception:
+        had = ""
+    fresh = bool(seed) and fp != had
+    if fresh:                                                # a cookie just pasted (or changed): start the jar from it
+        jar.clear()
+        for k, val in seed.items():
+            if k and k != "vgpc_daily":
+                jar.set_cookie(Cookie(0, k, val, None, False, ".pricecharting.com", True, True, "/", True, False, None, False, None, None, {}))
+        try:
+            jar.save(ignore_discard=True, ignore_expires=True)
+            open(PC_JAR_PATH + ".seed", "w").write(fp)
+        except Exception as e:
+            log(f"PriceCharting sign-in: the cookie jar could not be saved ({str(e)[:80]})")
+    s = requests.Session()
+    s.cookies = jar
+    _pc_sess.update(s=s, snap=pc_jar_snapshot(jar), fresh=fresh, n=sum(1 for _ in jar))
+    return s
+
+
+def pc_jar_snapshot(jar):
+    return tuple(sorted((c.name, c.value, c.expires or 0) for c in jar))
+
+
+def pc_jar_keep(s):
+    """After a page read: when the site changed a cookie, keep the jar on disk (names only in the log, never values)."""
+    snap = pc_jar_snapshot(s.cookies)
+    if snap == _pc_sess.get("snap"):
+        return
+    was = {n for n, _, _ in _pc_sess.get("snap") or ()}
+    _pc_sess["snap"] = snap
+    try:
+        s.cookies.save(ignore_discard=True, ignore_expires=True)
+    except Exception as e:
+        log(f"PriceCharting sign-in: the cookie jar could not be saved ({str(e)[:80]})")
+        return
+    names = sorted({n for n, _, _ in snap})
+    changed = sorted({n for n, v, e in snap} - was) or ["(a value or expiry)"]
+    if _pc_sess.get("logged", 0) < 5:                        # the first few changes, for the record
+        _pc_sess["logged"] = _pc_sess.get("logged", 0) + 1
+        log(f"PriceCharting sign-in: the site updated the cookie jar (new or changed: {changed}; jar now {names})")
+
+
+def pc_signin_startup_note():
+    if not PC_COOKIE:
+        return "none (no PC_COOKIE in /etc/pokemon-collector.env): prices without the volume bars"
+    try:
+        pc_session()
+        n, fresh = _pc_sess.get("n", 0), _pc_sess.get("fresh")
+        return (f"set - cookie jar {'seeded from PC_COOKIE just now' if fresh else 'kept from the earlier runs'} ({n} cookies, "
+                f"updated from the site as it goes); the first page read tells whether it works")
+    except Exception as e:
+        return f"set, but the cookie jar failed ({str(e)[:80]})"
 
 
 def pc_signin_clues(r):
@@ -1063,7 +1131,7 @@ def pc_signin_clues(r):
         setc = sorted(set(c.split("=", 1)[0].strip() for c in r.raw.headers.getlist("Set-Cookie")))
     except Exception:
         setc = ["?"]
-    sent = [p.split("=", 1)[0].strip() for p in PC_COOKIE.split(";") if "=" in p]
+    sent = sorted(c.name for c in _pc_sess["s"].cookies) if _pc_sess.get("s") else [p.split("=", 1)[0].strip() for p in PC_COOKIE.split(";") if "=" in p]
     return (f"{len(r.history)} redirect(s) to {r.url}; VGPC.user_id = {uid.group(1).strip() if uid else '?'}; words {words}; "
             f"server set cookies {setc or 'none'}; sent {sent}")
 
@@ -1077,8 +1145,13 @@ def pc_read_page(pid):
     headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"}
     try:
         import requests
-        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15, headers=headers,
-                         cookies=pc_cookies() if PC_COOKIE else None)   # read as Brett: the page then carries the volume series
+        if PC_COOKIE:                                        # read as Brett: the page then carries the volume series
+            with _pc_lock:
+                s = pc_session()
+                r = s.get(f"https://www.pricecharting.com/game/{pid}", timeout=15, headers=headers)
+                pc_jar_keep(s)
+        else:
+            r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15, headers=headers)
     except Exception as e:
         PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
         return "error", None, None, ""
@@ -1373,8 +1446,13 @@ def file_pc_images(state, worker):
                     if v["pch_signin"] != was:
                         log("PriceCharting sign-in: " + ("working - pages carry the volume series" if hist.get("s") else
                             "the page came WITHOUT the volume series: the PC_COOKIE in /etc/pokemon-collector.env has expired "
-                            "or was not accepted. The chart shows prices without volume until it is replaced and the service restarted")
+                            "or was not accepted. The chart keeps the bars it has until it is replaced and the service restarted")
                             + "; the page: " + PC_SIGNIN_CLUES.get(bool(hist.get("s")), "?"))
+                        if not hist.get("s") and was in ("ok", "unknown"):   # tell the phone once, so nobody has to remember to check
+                            push("PriceCharting sign-in expired",
+                                 "The collector's PriceCharting session no longer works, so new months get no volume bars (the bars "
+                                 "already on file stay). When convenient: copy a fresh vgpc_session from Chrome, put it in "
+                                 "PC_COOKIE in /etc/pokemon-collector.env, systemctl restart pokemon-collector.", priority=3, tags=("key",))
                 if len(pchist.SHAPES) and v.get("pch_shape_logged") != 4:   # the first page: what it carried, once
                     v["pch_shape_logged"] = 4
                     sh = pchist.SHAPES[0]
@@ -2544,7 +2622,7 @@ def main():
         pchist.mark_all_dirty()                              # every shard goes out with the first publish (a rebuilt checkout)
         log(f"PriceCharting history: {n_h:,} of {len(cat.cards):,} cards on file ({pchist.count_signed():,} with the volume "
             f"series); the page reader fills in the rest (one page every {PC_PREFETCH_GAP_S:g} s) and refreshes cards weekly "
-            f"(with eBay data) or monthly; PriceCharting sign-in: {'set - the first page read tells whether it works' if PC_COOKIE else 'none (no PC_COOKIE in /etc/pokemon-collector.env): prices without the volume bars'}")
+            f"(with eBay data) or monthly; PriceCharting sign-in: {pc_signin_startup_note()}")
         state["vps"]["pch_signin"] = "unknown" if PC_COOKIE else "none"   # a replaced cookie gets a fresh test
     except Exception as e:
         log(f"PriceCharting history: store failed to open ({e})")
