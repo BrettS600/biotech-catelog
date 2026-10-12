@@ -387,6 +387,54 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   24 h earlier. The line now reads "$T = N hits from Buy It Now ($A) + X hits from auctions ($B, at the final
   price) · M left out as mismatches · Show them", and `openHits()` lists each with where it stands in the table now.
   Auction hits = alerted auctions whose close was at or under Max buy, valued at Profit at final.
+- RARITY AND FINISH, FROM BOTH SIDES (2026-10-12, Brett: "most of the PriceCharting-to-eBay mismatches are finish
+  and rarity mismatches"). PriceCharting states neither. cardfacts.py (new, shared by the build and the collector)
+  fills them in during the daily build: `annotate(pc)` joins every row to TCGplayer's catalog through the tcg-id
+  column (TCGCSV, tcgcsv.com/tcgplayer/3/<group>/products + /prices: Rarity and Number in extendedData, one price
+  row per printing - Normal / Holofoil / Reverse Holofoil ...; ~84% of rows) and to the open Pokemon TCG dataset by
+  set name + card number (the build's set aliases, plus Black Star promos by number prefix / release year; ~85%);
+  the finish of the untagged row comes from TCGplayer's printings, else from the rarity (holo rarities holo,
+  Common / Uncommon plain, a plain Rare plain before Scarlet & Violet and holo from it on), and the bracket tag
+  overrides (tag_finish). New snapshot columns `rarity`, `finish`, `rf-source` (tcgplayer | dataset | tag), page
+  rows DATA[14], DATA[15]. The vocabulary for comparing the two sides is coarse on purpose (rarity_tier C / U / R /
+  H / X / P, rarity_agree same / near / far; finish_class reverse / holo / plain): "near" is seller imprecision,
+  "far" is another card. THE EBAY SIDE: a full getItem carries eBay's catalog product (`product.aspectGroups` -
+  the "About this product" block: Set, Rarity, Finish, Card Number, Card Name) and the seller's `localizedAspects`;
+  es.ebay_facts(it) takes the product's word first -> rec["ef"] = {s, r, f, n, k, src, cmp} (es.learn_facts), kept
+  on the closed record too. It is read at a listing's FIRST lookup: the collector's confirm() asks for the full
+  item instead of COMPACT when the record has no "ef" (same one call, bigger reply - no extra API budget; the
+  budget is fully spent and the confirm queue already starves), and the ID checks already fetch the full item.
+  THE EPID MEMORY: state["epids"][epid] = the product's facts + votes {card id: n} for the catalog card its
+  listings were filed under when the number named the card and nothing was "far"; es.match_title(..., mem=
+  state["epids"]) tries memory_card() first (how = "epid"), checked by epid_match against the title;
+  es.apply_epid_memory() (hourly, with the "Facts:" log line) moves open listings their product contradicts
+  (>= 2 votes for another card, none for theirs, title agrees). CONFLICT RULES (check_identity): the product's
+  aspects feed the number / name / set checks before the seller's; rarity "far" is a hard conflict; a finish
+  "far" from the product record is a hard conflict only when the catalog's finish is TCGplayer-backed or a tag
+  (`rfsrc`), otherwise a note; the product's Finish also drives the printing move (Reverse Holo -> the [Reverse
+  Holo] row). LIVE FILE: listing row 34 = facts_row [set, rarity, finish, name, number, src, set cmp, rarity cmp,
+  finish cmp] (None = not looked up, [] = nothing on it); live["ef"] = card_facts {card: [majority rarity,
+  majority finish, n with facts, n far]}; live["epids"] = memory size. PAGE: cells4(r, mid, afterSet); PC
+  Rarity/Finish after Set / Card on all three tabs (pc data-k 14, inserted {v:4, at:4, n:1}; ec row 46 text / 47
+  facts / 48 sort text, inserted {v:5, at:4, n:2}, Card band colspan 8, Compact indexes +2); Raw Data: "Set" is
+  "PC Set Name" (help er_pcset), "eBay Set Name" beside it (row 49), PC / eBay Rarity/Finish after Set / Card
+  (rows 47 / 48 facts / 50), inserted {v:10, at:4, n:1}, {v:11, at:6, n:2}; cells red (td.rfbad) on "far", amber
+  (td.rfnear) on "near"; "Disagrees only" switch (#dis-er, rfBad(r), count #ndis); auction and hit-history rows
+  copy the facts from the live row of the same listing. Help: rf_pc, rf_ebay, er_pcset, er_eset. The workflow
+  re-uploads the day's snapshot with --clobber when a later run the same day rebuilt it, and the collector's
+  load_catalog() re-reads the newest snapshot whenever its bytes change (sha256 in vps.catalog_sha), not only when
+  the name does. Coverage at the change (Oct 11 snapshot, dataset route only, TCGCSV unreachable from the
+  container): rarity for 37,417 of 43,939 rows; the rest are Topps / Burger King / Dunkin / Artbox cards and old
+  promos. Tests: ut/test_cardfacts.py, ut/test_facts.py, ut/test_confirm.py, t/test_ui5.js.
+- THE DROPLET'S DISK FILLED (found 2026-10-12 while deploying the above; "No space left on device" in save_state
+  from 2026-10-10 02:29 UTC, the collector then ran without saving or publishing for most of two days). Cause:
+  publish() amends the one commit of the live checkout (data/live) 720 times a day with a 2 MB file (plus the 6 MB
+  state backup hourly), and git's reflog kept every amended commit's objects alive, so the `git gc --prune=now`
+  every 300 publishes removed nothing. Fix: sweep_live_repo() (core.logAllRefUpdates off, reflog expire, prune,
+  gc) every 60 publishes; disk_check() before every state save and hourly ("Disk: N GB free" log line): under
+  DISK_MIN_MB (1.5 GB) it sweeps, and if that is not enough removes data/live/.git (publish rebuilds it - the branch
+  is one commit anyway). Recovery on a box that is already full needs a hand: `rm -rf
+  /opt/pokemon-collector/data/live/.git` frees it at once; the next 5-minute pull then brings the new code.
 - MATCH:MISMATCH COUNTS ONLY BRETT'S OWN MARKS (2026-10-09, "I only want to see where I specifically marked it as
   a match"). `match_table()` now returns {card: [confirmed, mismatched, filed by the matcher]}: confirmed = listings
   he answered "Same card" to (v["right"] / v["reviews"] v=1 from the site's Review button, or a phone entry with
