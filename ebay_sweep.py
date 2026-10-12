@@ -1519,8 +1519,11 @@ def compare_facts(cat, c, ef):
     {"s": "same" | "far" | None, "r": "same" | "near" | "far" | None, "f": "same" | "far" | None}."""
     out = {}
     if ef.get("s"):
-        mine, other, _ = cat.set_fit(ef["s"], c["set"])
-        out["s"] = "far" if other > 1.5 * mine else ("same" if mine > 0 else None)
+        if "promo" in c["set"].lower() and "promo" in ef["s"].lower():
+            out["s"] = "same"                                # PriceCharting's one "Pokemon Promo" set vs eBay's "SM Black Star Promos"
+        else:
+            mine, other, _ = cat.set_fit(ef["s"], c["set"])
+            out["s"] = "far" if other > 1.5 * mine else ("same" if mine > 0 else None)
     out["r"] = cardfacts.rarity_agree(ef.get("r"), c.get("rarity")) if ef.get("r") and c.get("rarity") else None
     out["f"] = cardfacts.finish_agree(ef.get("f"), c.get("finish")) if ef.get("f") and c.get("finish") else None
     return out
