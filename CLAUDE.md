@@ -476,7 +476,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   form was NOT probed - the harness refused that fetch (it looked like credential scouting) and Brett was asked
   instead. HE SAID YES (same night): the sign-in is his browser's session cookie, not a password - PC_COOKIE in
   /etc/pokemon-collector.env (the whole "Cookie:" request-header value from Chrome's DevTools, in single quotes;
-  systemd's EnvironmentFile takes it), sent as the Cookie header on every card-page read. A page read signed in
+  systemd's EnvironmentFile takes it; the three site cookies vgpc_session, vgpc_visitor, vgpc_daily are enough -
+  cf_clearance is bound to his Mac's IP), sent on every card-page read as a cookie JAR bound to .pricecharting.com
+  (pc_cookies(), requests' cookies=): the first try wrote a Cookie HEADER by hand and the first signed read came back
+  without the bars - /game/<id> redirects to the card's named address and requests DROPS a hand-written Cookie
+  header on a redirect (the jar is re-applied; proven in a redirect simulation). The verdict log line now carries
+  pc_signin_clues(): redirects and final address, VGPC.user_id, counts of logout/log in/volume_data words, the
+  cookie NAMES the server set and the names sent - never values. A page read signed in
   carries VGPC.volume_data, and pchist.monthly() marks such a record "s": 1; the index keeps (day read, signed).
   pc_plan() re-reads every record without "s" while the sign-in works (want_signed = PC_COOKIE set and
   v["pch_signin"] != "expired"); v["pch_signin"] is "unknown" at every start (a replaced cookie gets a fresh test),
