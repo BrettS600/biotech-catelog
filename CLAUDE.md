@@ -428,6 +428,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the name does. Coverage at the change (Oct 11 snapshot, dataset route only, TCGCSV unreachable from the
   container): rarity for 37,417 of 43,939 rows; the rest are Topps / Burger King / Dunkin / Artbox cards and old
   promos. Tests: ut/test_cardfacts.py, ut/test_facts.py, ut/test_confirm.py, t/test_ui5.js.
+  LESSONS FROM THE FIRST LIVE HOURS (same day): (1) the stored verdict (ef["cmp"]) is written when the listing is
+  looked up and never changed by itself, so a vocabulary fix showed on the page only for NEW lookups -
+  es.refresh_facts(state, cat) now re-reads every record's verdict at startup, hourly (before apply_epid_memory;
+  "... N verdicts re-read" on the Facts line) and whenever load_catalog() finds other bytes; the page's own
+  rarityAgree / finishAgree are used only for the eBay Catalog's per-card cell, the Raw Data cells show the
+  collector's verdict. (2) A bare "Rare" from a seller is the generic word for anything above Uncommon (a seller's
+  "Rare" on a Special Illustration Rare is not another card): rarity_agree is never "far" when either side is tier
+  R (cardfacts.py and app.js alike). (3) PriceCharting's one "Pokemon Promo" set has no counterpart in eBay's set
+  words ("SM Black Star Promos", "Sun & Moon", just "SM"): for a promo card the set verdict is "same" when eBay's
+  set says promo and None otherwise - the card number decides, never the set words. (4) "Futuristic Rare" and
+  "Black White Rare" (Mega Evolution / Black Bolt - White Flare) are top-tier (X) rarities. The 13 "disagrees" of
+  the first hour became 8, all real questions (a 151 card filed under 30th Celebration, a Triumphant original vs
+  the Classic Collection reprint, "XY" on a Pitch Black card, a prerelease stamp the seller calls a Holo Rare).
 - THE DROPLET'S DISK FILLED (found 2026-10-12 while deploying the above; "No space left on device" in save_state
   from 2026-10-10 02:29 UTC, the collector then ran without saving or publishing for most of two days). Cause:
   publish() amends the one commit of the live checkout (data/live) 720 times a day with a 2 MB file (plus the 6 MB
