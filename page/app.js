@@ -910,6 +910,21 @@ function pcAsk(cid) {
   const t = Date.now(); PCIMG_ASKED[cid] = t;
   alSend({type: 'pcimg', t, c: cid}, '-pc').then(() => pcWait(cid, t)).catch(() => { delete PCIMG_ASKED[cid]; });
 }
+// the chart popup: a card whose PriceCharting history is missing or older than a day is read again now (the collector
+// publishes the shard at once); the popup looks for the new record every 45 s while it stays open on that card
+const PCHIST_ASKED = {};
+function pcHistAsk(cid, i) {
+  if (cid == null || !LIVE.data || PCHIST_ASKED[cid] > Date.now() - 600000) return;
+  const t = Date.now(); PCHIST_ASKED[cid] = t;
+  alSend({type: 'pchist', t, c: cid}, '-pc').then(async () => {
+    for (let k = 0; k < 8; k++) {
+      await new Promise(r => setTimeout(r, 45000));
+      if (!$('ov').classList.contains('open') || !pcGateCard || pcGateCard[0] !== cid) return;
+      const h = await loadPcHist(cid, true).catch(() => null);
+      if (h && (!pcCur || pcCur.h.t !== h.t || pcCur.h.p.length !== h.p.length)) { pcCur = {h, card: DATA[i]}; drawPcChart(); renderPcTable(); return; }
+    }
+  }).catch(() => { delete PCHIST_ASKED[cid]; });
+}
 // the collector answers on the channel's reply topic the moment it has read the card's page (the live file takes
 // minutes to reach the browser): look every 4 seconds for two and a half minutes, while the popup is still on that card
 async function pcWait(cid, t0) {
@@ -1326,9 +1341,8 @@ window.loadShard = async function (n) {
 };
 
 const COLORS = {loose: '#3b82f6', sell: '#22c55e', buy: '#f59e0b', vol: '#9ca3af', ref: '#a78bfa'};
-const LABEL_PC = {loose: 'Ungraded', sell: 'Retail sell', buy: 'Retail buy', vol: 'Sales/yr', ref: '90d high/low + conservative sell'};
 const LABEL_EB = {loose: 'Sold median (7d)', sell: 'Cheapest ask', buy: '', vol: 'Sales/day', ref: '90d high/low + Sell'};
-let LABEL = LABEL_PC;
+let LABEL = LABEL_EB;                                    // the shared chart draws the eBay history; PriceCharting's chart is drawPcChart()
 let cur = null;               // {dates, vol, loose, sell, buy, st, anchor, refs, labels}
 let pts = [];
 function setChartLabels(lab) {
@@ -1342,6 +1356,7 @@ function setChartLabels(lab) {
 function openTrendEbay(cid) {
   const c = LIVE.dec && LIVE.dec[String(cid)], base = idRow.get(cid);
   if (!c || !base) return;
+  pcMode(false); pcCur = null;
   setChartLabels(LABEL_EB);
   $('mtitle').textContent = base[1];
   $('msub').textContent = base[2] + ' · #' + base[3] + ' · eBay raw sales';
@@ -1372,28 +1387,174 @@ function renderStatsEbay() {
   $('gate').innerHTML = '<p class="why">Price line = median of raw sale totals over a trailing 7-day window (blank when fewer than 3 sales in the window). Bars = sales that day. History starts the day the collector was switched on; the trend columns fill in at 7 / 30 / 60 days like the PriceCharting tab.</p>';
 }
 
+/* ---------------- PriceCharting's own chart (Brett, 2026-10-12: "the exact graph that shows the ungraded price and total
+   volume per month on PriceCharting since the card was released") ----------------
+   The collector reads the data behind the chart on each card's PriceCharting page (pchist.py) and publishes it in
+   200 shards on the live branch (pc/<card id % 200>.bin, the live key): {card id: {m0: first month as months since
+   2000-01, p: [cents or null per month], v: [sales per month], t: date read}}. The popup draws the same picture:
+   monthly volume bars on the left axis, the ungraded line on the right axis, Zoom 6m / 1y / 5y / All, a hover
+   readout per month; under it the month-by-month table with a CSV download, the stats from this site's own daily
+   points, and the buy gate. */
+const pchCache = new Map();                              // shard -> {b: time bucket, data}
+let pcCur = null;                                        // {h, card} while the PriceCharting popup is open
+async function loadPcHist(pid, fresh) {
+  const shards = (LIVE.data && LIVE.data.pch && LIVE.data.pch.shards) || 200, sh = pid % shards;
+  const b = fresh ? Date.now() : Math.floor(Date.now() / 600000);   // the raw CDN holds a file for up to five minutes
+  const hit = pchCache.get(sh);
+  if (hit && hit.b === b) return hit.data[String(pid)] || null;
+  if (!LIVE_URL || !HKEY) return null;
+  const res = await fetch(LIVE_URL.replace(/[^/]+$/, 'pc/' + sh + '.bin') + '?t=' + b, {cache: 'no-store'});
+  if (res.status === 404) { pchCache.set(sh, {b, data: {}}); return null; }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+  pchCache.set(sh, {b, data});
+  return data[String(pid)] || null;
+}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthOf = m => ({y: 2000 + Math.floor(m / 12), m: m % 12});                 // months since 2000-01
+const monthShort = m => { const d = monthOf(m); return MONTHS[d.m] + ' ' + d.y; };
+const monthLong = m => { const d = monthOf(m); return MONTHS_LONG[d.m] + ' ' + d.y; };
+const monthIso = m => { const d = monthOf(m); return d.y + '-' + String(d.m + 1).padStart(2, '0'); };
+function pcMode(on) {                                    // the popup's controls: PriceCharting's zoom bar and table, or the eBay chart's bars
+  $('ebbar1').style.display = on ? 'none' : ''; $('ebbar2').style.display = on ? 'none' : '';
+  $('pczoom').style.display = on ? '' : 'none'; $('pctable').style.display = on ? '' : 'none';
+  if (!on) $('pctable').innerHTML = '';
+}
+function pcZoom() { try { return localStorage.getItem('pc-zoom') || 'all'; } catch (e) { return 'all'; } }
 async function openTrend(i) {
   const r = DATA[i];
-  setChartLabels(LABEL_PC);
+  cur = null; pcCur = null;
+  pcMode(true);
   $('mtitle').textContent = r[1];
   $('msub').textContent = r[2] + ' · #' + r[3] + (r[4] ? ' · released ' + r[4] : '');
-  $('note').textContent = ''; $('stats').innerHTML = ''; $('gate').innerHTML = '';
+  $('note').textContent = 'Loading PriceCharting\u2019s history\u2026'; $('stats').innerHTML = ''; $('gate').innerHTML = ''; $('pctable').innerHTML = '';
   $('chart').innerHTML = '';
   $('ov').classList.add('open');
-  try {
-    const sh = await window.loadShard(Math.floor(i / SHARD_SIZE));
-    const c = sh.c[String(r[0])];
-    if (!c) throw new Error('No history for this card yet.');
-    const nul = v => v < 0 ? null : v, cents = v => v < 0 ? null : v / 100;
-    cur = {dates: sh.d, vol: c[0][0].map(nul), loose: c[0][1].map(cents), buy: c[0][2].map(cents), sell: c[0][3].map(cents), st: c[1], anchor: r[6],
-           refs: [['90d high', c[1].hi], ['90d low', c[1].lo], ['conservative sell', c[1].csell]]};
-    drawChart(); renderStats();
-  } catch (e) {
-    cur = null;
-    $('note').textContent = e.message + ' The site adds one point per card every morning.';
+  renderGate(r);                                         // the gate needs no history: it shows at once
+  const [hist, sh] = await Promise.all([loadPcHist(r[0]).catch(e => ({err: e.message})),
+                                        window.loadShard(Math.floor(i / SHARD_SIZE)).catch(() => null)]);
+  if ($('mtitle').textContent !== r[1]) return;          // another card was opened meanwhile
+  const pch = (LIVE.data && LIVE.data.pch) || null;
+  const sofar = pch ? ' (' + fmtInt(pch.n) + ' of ' + fmtInt(pch.total) + ' cards read so far)' : '';
+  if (hist && !hist.err && hist.p && hist.p.length) {
+    pcCur = {h: hist, card: r};
+    drawPcChart(); renderPcTable();
+    if (!hist.t || Date.now() - Date.parse(hist.t + 'T00:00:00Z') > 86400000) pcHistAsk(r[0], i);   // a day old: refresh it now
+  } else if (hist && hist.err) {
+    $('note').textContent = 'PriceCharting\u2019s history could not be loaded (' + hist.err + ') \u2014 try again in a minute.';
+  } else {
+    $('note').textContent = 'PriceCharting\u2019s history for this card has not been read yet' + sofar + ' \u2014 asked the collector to read it now; it appears here within a few minutes. Every card\u2019s page is read once (about a day for the whole catalog), then refreshed weekly (cards with eBay activity) or monthly.';
+    pcHistAsk(r[0], i);
   }
+  const c = sh && sh.c && sh.c[String(r[0])];
+  renderStats(c ? c[1] : null);
 }
 function closeTrend() { $('ov').classList.remove('open'); $('tip').style.display = 'none'; }
+
+function drawPcChart() {
+  const svg = $('chart');
+  svg.innerHTML = '';
+  if (!pcCur) return;
+  const h = pcCur.h, zoom = pcZoom();
+  document.querySelectorAll('#pczoom .zb').forEach(b => b.classList.toggle('on', b.dataset.z === zoom));
+  const all = h.p.map((p, k) => ({m: h.m0 + k, p: p == null ? null : p / 100, v: (h.v && h.v[k]) || 0}));
+  const hasVol = all.some(q => q.v > 0);
+  const span = {'6': 6, '12': 12, '60': 60}[zoom];
+  const pts = span ? all.slice(Math.max(0, all.length - span)) : all;
+  const n = pts.length;
+  const W = svg.clientWidth || 900, H = 380, L = 56, R = 64, T = 34, B = 42;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  const iw = W - L - R, ih = H - T - B;
+  const x = k => L + iw * (k + 0.5) / n;
+  let pmax = 0, vmax = 0;
+  pts.forEach(q => { if (q.p != null) pmax = Math.max(pmax, q.p); vmax = Math.max(vmax, q.v); });
+  pmax = pmax > 0 ? pmax * 1.1 : 1; vmax = vmax > 0 ? vmax * 1.25 : 1;
+  const yP = v => T + ih - ih * v / pmax, yV = v => T + ih - ih * v / vmax;
+  const el = (tag, at, txt) => { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in at) e.setAttribute(k, at[k]); if (txt != null) e.textContent = txt; svg.appendChild(e); return e; };
+  const nice = m => { const raw = m / 4, s = Math.pow(10, Math.floor(Math.log10(raw))); return ([1, 2, 2.5, 5, 10].find(c => c * s >= raw) || 10) * s; };   // about four divisions, as their axes
+  const pstep = nice(pmax), vstep = nice(vmax);
+  for (let v = 0; v <= pmax; v += pstep) {
+    el('line', {x1: L, x2: W - R, y1: yP(v), y2: yP(v), stroke: 'currentColor', 'stroke-opacity': .12});
+    el('text', {x: W - R + 8, y: yP(v) + 4, 'font-size': 12, fill: 'currentColor', opacity: .75}, '$' + (pstep < 1 ? v.toFixed(2) : v.toLocaleString('en-US')));
+  }
+  if (hasVol) for (let v = 0; v <= vmax; v += vstep) el('text', {x: L - 8, y: yV(v) + 4, 'font-size': 12, fill: 'currentColor', opacity: .75, 'text-anchor': 'end'}, Math.round(v).toLocaleString('en-US'));
+  el('line', {x1: L, x2: W - R, y1: T + ih, y2: T + ih, stroke: 'currentColor', 'stroke-opacity': .35});
+  const step = n <= 8 ? 1 : n <= 26 ? 3 : n <= 80 ? 6 : 12;   // month labels: every month, quarter, half year or year
+  pts.forEach((q, k) => { if (step === 1 || monthOf(q.m).m % step === 0) {
+    el('line', {x1: x(k), x2: x(k), y1: T + ih, y2: T + ih + 5, stroke: 'currentColor', 'stroke-opacity': .35});
+    el('text', {x: x(k), y: H - 14, 'font-size': 12, fill: 'currentColor', opacity: .8, 'text-anchor': 'middle'}, monthShort(q.m)); } });
+  // legend, as on PriceCharting: a blue line for Ungraded, a grey dot for Volume
+  el('line', {x1: W - R - 230, x2: W - R - 206, y1: 12, y2: 12, stroke: COLORS.loose, 'stroke-width': 3});
+  el('text', {x: W - R - 200, y: 16, 'font-size': 13, fill: 'currentColor'}, 'Ungraded');
+  if (hasVol) { el('circle', {cx: W - R - 110, cy: 12, r: 6, fill: COLORS.vol}); el('text', {x: W - R - 98, y: 16, 'font-size': 13, fill: 'currentColor'}, 'Volume'); }
+  const bw = Math.max(2, Math.min(26, iw / n * 0.62));
+  pts.forEach((q, k) => { if (q.v > 0) el('rect', {x: x(k) - bw / 2, y: yV(q.v), width: bw, height: T + ih - yV(q.v), fill: COLORS.vol, opacity: .55}); });
+  // the ungraded line: a smooth curve through the monthly points (Catmull-Rom as cubic Beziers), broken where a month has no price
+  const runs = [];
+  let run = [];
+  pts.forEach((q, k) => { if (q.p == null) { if (run.length) runs.push(run); run = []; } else run.push([x(k), yP(q.p)]); });
+  if (run.length) runs.push(run);
+  runs.forEach(ps => {
+    if (ps.length === 1) { el('circle', {cx: ps[0][0], cy: ps[0][1], r: 3, fill: COLORS.loose}); return; }
+    let d = 'M' + ps[0][0] + ' ' + ps[0][1];
+    for (let k = 0; k < ps.length - 1; k++) {
+      const p0 = ps[Math.max(0, k - 1)], p1 = ps[k], p2 = ps[k + 1], p3 = ps[Math.min(ps.length - 1, k + 2)];
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += ' C' + c1[0].toFixed(1) + ' ' + c1[1].toFixed(1) + ' ' + c2[0].toFixed(1) + ' ' + c2[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+    }
+    el('path', {d, fill: 'none', stroke: COLORS.loose, 'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round'});
+  });
+  const cross = el('line', {x1: 0, x2: 0, y1: T, y2: T + ih, stroke: 'currentColor', 'stroke-opacity': .45, 'stroke-dasharray': '4 3', visibility: 'hidden'});
+  const dot = el('circle', {cx: 0, cy: 0, r: 5, fill: COLORS.loose, stroke: '#fff', 'stroke-width': 2, visibility: 'hidden'});
+  const hit = el('rect', {x: L, y: T, width: iw, height: ih, fill: 'transparent'});
+  const tip = $('tip');
+  const move = ev => {
+    const box = svg.getBoundingClientRect();
+    const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - box.left;
+    const px = cx * W / box.width;
+    const k = Math.max(0, Math.min(n - 1, Math.floor((px - L) / iw * n)));
+    const q = pts[k];
+    cross.setAttribute('x1', x(k)); cross.setAttribute('x2', x(k)); cross.setAttribute('visibility', 'visible');
+    if (q.p != null) { dot.setAttribute('cx', x(k)); dot.setAttribute('cy', yP(q.p)); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
+    tip.innerHTML = '<b>' + monthLong(q.m) + '</b>' + (hasVol ? '<br><span class="sw" style="background:' + COLORS.vol + ';border-radius:50%"></span>Volume: <b>' + q.v.toLocaleString('en-US') + '</b> (total volume)' : '') +
+      '<br><span class="sw" style="background:' + COLORS.loose + ';border-radius:50%"></span>Ungraded: <b>' + (q.p == null ? 'no price that month' : fmtMoneyPlain(q.p)) + '</b>';
+    const left = x(k) * box.width / W;
+    tip.style.display = 'block';
+    tip.style.left = (left + 14 + tip.offsetWidth > box.width ? left - tip.offsetWidth - 14 : left + 14) + 'px';
+    tip.style.top = Math.max(0, ((ev.touches ? ev.touches[0].clientY : ev.clientY) - box.top - 30)) + 'px';
+  };
+  hit.addEventListener('mousemove', move); hit.addEventListener('touchmove', ev => { move(ev); ev.preventDefault(); }, {passive: false}); hit.addEventListener('touchstart', move, {passive: true});
+  hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
+  const first = all[0].m, last = all[all.length - 1].m;
+  $('note').textContent = 'PriceCharting\u2019s own history: ' + all.length + ' months, ' + monthShort(first) + ' \u2013 ' + monthShort(last) + (h.t ? ' \u00b7 read ' + h.t : '') +
+    (hasVol ? ' \u00b7 the ungraded price and the total sales volume per month, as the chart on their page shows them' : ' \u00b7 the ungraded price per month as the chart on their page shows it; PriceCharting shows the volume bars to signed-in subscribers only, and the collector reads the pages without signing in') +
+    (span && n < all.length ? ' \u00b7 showing the last ' + n + ' months' : '');
+}
+function renderPcTable() {
+  if (!pcCur) return;
+  const h = pcCur.h, r = pcCur.card;
+  const rows = h.p.map((p, k) => ({m: h.m0 + k, p: p == null ? null : p / 100, v: h.v[k] || 0}));
+  const hasVol = rows.some(q => q.v > 0);
+  let html = '<div class="pcth"><b>Month by month</b><span class="dim"> \u00b7 PriceCharting\u2019s record, newest first</span><button class="reset" id="pccsv">Download CSV</button></div>';
+  html += '<div class="pctbox"><table><thead><tr><th>Month</th><th class="num">Ungraded</th><th class="num">Change</th>' + (hasVol ? '<th class="num">Volume</th>' : '') + '</tr></thead><tbody>';
+  for (let k = rows.length - 1; k >= 0; k--) {
+    const q = rows[k], prev = k > 0 ? rows[k - 1].p : null;
+    const ch = q.p != null && prev != null && prev > 0 ? (q.p - prev) / prev * 100 : null;
+    html += '<tr><td>' + monthLong(q.m) + '</td><td class="num">' + (q.p == null ? '<span class="dim">\u2014</span>' : fmtMoneyPlain(q.p)) + '</td><td class="num">' + (ch == null ? '<span class="dim">\u2014</span>' : fmtPct(ch)) + '</td>' + (hasVol ? '<td class="num">' + q.v.toLocaleString('en-US') + '</td>' : '') + '</tr>';
+  }
+  html += '</tbody></table></div>';
+  $('pctable').innerHTML = html;
+  $('pccsv').addEventListener('click', () => {
+    const lines = ['month,ungraded_usd' + (hasVol ? ',volume' : '')].concat(rows.map(q => monthIso(q.m) + ',' + (q.p == null ? '' : q.p.toFixed(2)) + (hasVol ? ',' + q.v : '')));
+    downloadText((r[1] + ' ' + String(r[2] || '').replace(/^Pokemon /, '') + ' pricecharting history.csv').replace(/[\\/:*?"<>|]+/g, ' '), lines.join('\n'));
+  });
+}
+function downloadText(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/csv'})); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
 
 function rangePoints() {
   const all = cur.dates.map((d, k) => ({d, t: Date.parse(d + 'T00:00:00Z'), vol: cur.vol[k], loose: cur.loose[k], sell: cur.sell[k], buy: cur.buy[k]}));
@@ -1476,8 +1637,8 @@ function drawChart() {
 const fmtMoneyPlain = v => v == null ? '—' : '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const pctPlain = (v, nd = 1, signed = true) => v == null ? '—' : (signed && v > 0 ? '+' : '') + v.toFixed(nd) + '%';
 
-function renderStats() {
-  const s = cur.st, A = cur.anchor;
+function renderStats(s) {                               // this site's own daily points (one per morning): the short-range stats
+  if (!s) { $('stats').innerHTML = ''; return; }
   const cell = (k, v, d) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
   let h = '';
   h += cell('Δ 7d', fmtPct(s.d7), 'vs 7 days ago');
@@ -1490,29 +1651,68 @@ function renderStats() {
   h += cell('Volume drift 30d', s.vd == null ? '—' : (s.vd > 0 ? '+' : '') + s.vd + ' (' + pctPlain(s.vdp) + ')', 'last 30 days vs same 30 days a year ago');
   h += cell('Slope 30d', pctPlain(s.ts), s.ts != null ? 'Theil–Sen · middle half ' + pctPlain(s.tsq1) + ' to ' + pctPlain(s.tsq3) + ' /mo' : 'needs 10 points');
   $('stats').innerHTML = h;
-
-  // gate math
-  if (A == null || s.csell == null) { $('gate').innerHTML = '<h3>Buy gate</h3><p class="why">No ungraded price for this card, so there is nothing to anchor to.</p>'; return; }
-  const assumed = [];
-  if (s.gap == null) assumed.push('days between raw sales = ' + GATE.gapFallback + ' (no history yet)');
-  if (s.vol == null) assumed.push('volatility = ' + GATE.volFallback + '% (no history yet)');
-  if (s.ts == null) assumed.push('slope = 0 (no history yet)');
+}
+/* The buy gate (2026-10-12, Brett: the old one was the Actions-era rule - 15% margin, 6.25% tax, hold x drift x cushion):
+   the same arithmetic the collector applies to a listing today (ebay_sweep.gate / sell_price, mirrored in decide()),
+   with the margin, the buy tax and the seller's shipping as inputs Brett can click and change. The margin and tax
+   are the Raw Data tab's own boxes (one set of numbers for every tab); the shipping assumption is remembered here. */
+function pcShipIn() { try { const v = parseFloat(localStorage.getItem('pc-shipin')); return isNaN(v) ? GATE.shipIn : v; } catch (e) { return GATE.shipIn; } }
+let pcGateCard = null;
+function renderGate(r) {
+  pcGateCard = r;
+  const S = settings(), G = GATE_LIVE(), cid = r[0], pc = r[6];
+  const c = LIVE.dec && LIVE.dec[String(cid)];
+  const shipIn = pcShipIn();
+  const live = LIVE.data && LIVE.data.gate;
   const row = (label, val, why, big) => '<tr' + (big ? ' class="big"' : '') + '><td>' + label + '</td><td class="n">' + val + '</td><td class="why">' + (why || '') + '</td></tr>';
-  let g = '<h3>Buy gate for this card</h3><table>';
-  g += row('Anchor (ungraded)', fmtMoneyPlain(A), 'PriceCharting ungraded price today');
-  g += row('Expected hold', s.hold.toFixed(0) + ' days', GATE.holdMult + ' × ' + s.gap_used + ' days between raw sales');
-  g += row('Drift over the hold', '× ' + s.drift.toFixed(4), 'e^(slope × days), slope ' + (s.slope_used * 100).toFixed(3) + '%/day — only a falling trend counts');
-  g += row('Volatility cushion', '× ' + s.cushion.toFixed(4), '1 − 2 × ' + s.vol_used.toFixed(2) + '% (two typical moves against you)');
-  g += row('Conservative sell', fmtMoneyPlain(s.csell), fmtMoneyPlain(A) + ' × ' + s.drift.toFixed(4) + ' × ' + s.cushion.toFixed(4), true);
-  g += row('eBay fee', '− ' + fmtMoneyPlain(s.csell * GATE.fee + GATE.fixed), pct(GATE.fee) + ' + $' + GATE.fixed.toFixed(2));
-  g += row('Shipping out', '− ' + fmtMoneyPlain(GATE.shipOut), 'tracked');
-  g += row('Net proceeds', fmtMoneyPlain(s.net), '', true);
-  g += row('Max buy, all-in', fmtMoneyPlain(s.maxbuy), 'net ÷ (1 + ' + pct(GATE.margin) + ' margin) — item + shipping + tax must be at or below this', true);
-  g += row('≈ max item price', s.maxitem > 0 ? fmtMoneyPlain(s.maxitem) : '—', 'if the seller charges $' + GATE.shipIn.toFixed(2) + ' shipping and tax is ' + pct(GATE.tax));
-  g += '</table>';
-  if (s.maxitem != null && s.maxitem <= 0) g += '<p class="why">Fees, shipping and tax eat everything this card can net at your margin — there is no listing price that makes it a trade. This is why cheap cards rarely pass.</p>';
-  if (assumed.length) g += '<p class="why">Assumed until the history fills in: ' + assumed.join('; ') + '.</p>';
-  $('gate').innerHTML = g;
+  if (!$('g-margin')) {                                  // the inputs are built once and keep the focus while Brett types; the table below re-renders
+    $('gate').innerHTML = '<h3>Buy gate for this card</h3>' +
+      '<div class="bar gin"><label>Margin <input type="number" id="g-margin" min="0" max="50" step="1" value="' + (S.margin * 100).toFixed(0) + '">%</label>' +
+      '<label>Buy tax <input type="number" id="g-tax" min="0" max="15" step="0.25" value="' + (S.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '">%</label>' +
+      '<label>Seller shipping $<input type="number" id="g-ship" min="0" max="50" step="0.25" value="' + shipIn.toFixed(2) + '"></label>' +
+      '<span class="dim" id="g-live"></span></div><div id="g-body"></div>';
+    wireGate();
+  }
+  $('g-live').textContent = live ? 'the collector is set to ' + (live.margin * 100).toFixed(0) + '% margin and ' + (live.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '% buy tax' : '';
+  let g = '';
+  let sell = null, how = '', anchorRow = '';
+  if (c && c.A != null) {
+    const d = decide(c, S);
+    sell = d.sell;
+    anchorRow = row('Anchor', fmtMoneyPlain(c.A), 'eBay sold median' + (c.k != null ? ' from ' + c.k + ' sales in ' + c.D + ' days' : '') + ' \u00b7 PriceCharting ungraded ' + fmtMoneyPlain(pc));
+    how = d.L != null ? '$' + S.undercut.toFixed(2) + ' under the cheapest believable eBay copy (' + fmtMoneyPlain(d.L) + '), never above ' + Math.round(S.sellUnderA * 100) + '% of the anchor' : Math.round(S.sellNoFloor * 100) + '% of the anchor \u2014 no other believable copy is listed';
+    if (c.A_fast != null && sell <= c.A_fast + 0.011 && sell >= c.A_fast - 1) how += ' \u00b7 capped by the fast-sale median ' + fmtMoneyPlain(c.A_fast);
+  } else if (pc) {
+    const f = (c && c.cred || [])[0];
+    sell = round99(f ? Math.min(f[1] - S.undercut, (G.leadSellPc || 0.95) * pc) : (G.leadSellNoFloor || 0.93) * pc);
+    anchorRow = row('Anchor', fmtMoneyPlain(pc), 'PriceCharting ungraded price today \u00b7 eBay has no sales record for this card yet');
+    how = f ? '$' + S.undercut.toFixed(2) + ' under the cheapest believable eBay copy (' + fmtMoneyPlain(f[1]) + '), never above ' + Math.round((G.leadSellPc || 0.95) * 100) + '% of PriceCharting' : Math.round((G.leadSellNoFloor || 0.93) * 100) + '% of the PriceCharting price (the lead rule: no eBay copy to go under)';
+  }
+  if (sell == null) {
+    $('g-body').innerHTML = '<p class="why">No price to anchor to: PriceCharting has no ungraded price for this card and eBay has no sales record.</p>';
+    return;
+  }
+  const fee = sell * S.fee + S.fixed, net = sell * (1 - S.fee) - S.fixed - S.shipOut - S.supplies;
+  const maxbuy = net / (1 + S.margin), maxitem = (maxbuy - shipIn) / (1 + S.tax);
+  g += '<table>' + anchorRow +
+    row('Sell price', fmtMoneyPlain(sell), how, true) +
+    row('eBay fee', '\u2212 ' + fmtMoneyPlain(fee), (S.fee * 100).toFixed(2) + '% of the sale (' + (G.fee ? (G.fee * 100).toFixed(2) : '13.25') + '% on the buyer\u2019s total incl. their ' + (G.buyerTax ? (G.buyerTax * 100).toFixed(1) : '6.5') + '% sales tax) + $' + S.fixed.toFixed(2)) +
+    row('Shipping out', '\u2212 ' + fmtMoneyPlain(S.shipOut), 'tracked label') +
+    row('Supplies', '\u2212 ' + fmtMoneyPlain(S.supplies), 'sleeve, top loader, mailer') +
+    row('Net proceeds', fmtMoneyPlain(net), '', true) +
+    row('Max buy, all-in', fmtMoneyPlain(maxbuy), 'net \u00f7 (1 + ' + (S.margin * 100).toFixed(0) + '% margin) \u2014 item + shipping + tax must be at or below this', true) +
+    row('\u2248 max item price', maxitem > 0 ? fmtMoneyPlain(maxitem) : '\u2014', 'if the seller charges $' + shipIn.toFixed(2) + ' shipping and your buy tax is ' + (S.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '%') + '</table>';
+  if (maxitem <= 0) g += '<p class="why">Fees, shipping and tax eat everything this card can net at your margin \u2014 there is no listing price that makes it a trade. This is why cheap cards rarely pass.</p>';
+  if (c && c.lam != null) {
+    const probT = (1 - Math.exp(-c.lam * S.window / 24)) * 100;
+    g += '<p class="why">eBay: ' + c.lam.toFixed(2) + ' raw sales a day on average \u2014 a buyer inside your ' + S.window + ' h window with ' + probT.toFixed(0) + '% probability, ' + (isLiquid(c.lam, c.st, S) ? 'liquid' : 'not liquid') + ' at your ' + Math.round(S.conf * 100) + '% confidence. The eBay Catalog row has the full decision.</p>';
+  } else g += '<p class="why">The collector has no eBay sales record for this card yet, so liquidity is unknown: on the eBay Catalog this card can only be a lead.</p>';
+  $('g-body').innerHTML = g;
+}
+function wireGate() {                                    // the popup's margin and tax ARE the Raw Data tab's boxes; the shipping is remembered here
+  const sync = (id, target) => $(id).addEventListener('input', () => { if ($(id).value === '') return; $(target).value = $(id).value; $(target).dispatchEvent(new Event('input', {bubbles: true})); if (pcGateCard) renderGate(pcGateCard); });
+  sync('g-margin', 'margin'); sync('g-tax', 'buytax');
+  $('g-ship').addEventListener('input', () => { const v = parseFloat($('g-ship').value); if (isNaN(v)) return; try { localStorage.setItem('pc-shipin', String(v)); } catch (e) {} if (pcGateCard) renderGate(pcGateCard); });
 }
 $('rows-pc').addEventListener('click', e => { const b = e.target.closest('.tbtn'); if (b) openTrend(+b.dataset.i); });
 $('close').addEventListener('click', closeTrend);
@@ -1520,7 +1720,8 @@ $('ov').addEventListener('click', e => { if (e.target === $('ov')) closeTrend();
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTrend(); $('hov').classList.remove('open'); $('bov').classList.remove('open'); $('rov').classList.remove('open'); } });
 ['c-loose', 'c-sell', 'c-buy', 'c-vol', 'c-ref', 'rn', 'ru'].forEach(id => $(id).addEventListener('input', drawChart));
 document.querySelectorAll('input[name=rng]').forEach(r => r.addEventListener('change', drawChart));
-window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) drawChart(); });
+window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) { if (pcCur) drawPcChart(); else drawChart(); } });
+document.querySelectorAll('#pczoom .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('pc-zoom', b.dataset.z); } catch (e) {} if (pcCur) drawPcChart(); }));
 paintLp();
 loadLive();
 
