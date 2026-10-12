@@ -73,6 +73,7 @@
   a:hover { text-decoration:underline; }
   .dim { color:var(--muted); }
   .up { color:var(--up); } .down { color:var(--down); }
+  td.rfbad { color:var(--down); font-weight:600; } td.rfnear { color:#e3b341; }   /* eBay's record against the PriceCharting side */
   .more { display:block; margin:14px auto 30px; padding:9px 18px; font:inherit; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
   .more[hidden] { display:none; }   /* display:block above would otherwise show "Show more (0 left)" */
   footer { padding:0 18px 24px; color:var(--muted); font-size:12px; }
