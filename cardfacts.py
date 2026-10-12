@@ -70,8 +70,8 @@ RANK = {"C": 0, "U": 1, "R": 2, "H": 3, "X": 4}
 
 def rarity_agree(a, b):
     """How two rarity texts compare: 'same' | 'near' (one step apart: Rare vs Holo Rare, Holo Rare vs Ultra Rare -
-    the usual seller imprecision) | 'far' (two steps or more, or promo against non-promo: another card) |
-    None (one side unknown)."""
+    the usual seller imprecision - and anything against a bare "Rare") | 'far' (two steps or more, or promo
+    against non-promo: another card) | None (one side unknown)."""
     ta, tb = rarity_tier(a), rarity_tier(b)
     if ta is None or tb is None:
         return None
@@ -79,6 +79,8 @@ def rarity_agree(a, b):
         return "same"
     if "P" in (ta, tb):
         return "far"
+    if "R" in (ta, tb):                                      # a bare "Rare" is the generic word for anything above
+        return "near"                                        # uncommon: never a sign of another card on its own
     return "near" if abs(RANK[ta] - RANK[tb]) == 1 else "far"
 
 
