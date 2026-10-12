@@ -1329,8 +1329,8 @@ def file_pc_images(state, worker):
         if status != "error":                                # the page was read: file the history it carried
             try:
                 pchist.file(cid, hist)
-                if len(pchist.SHAPES) and v.get("pch_shape_logged") != 3:   # the first page: what it carried, once
-                    v["pch_shape_logged"] = 3
+                if len(pchist.SHAPES) and v.get("pch_shape_logged") != 4:   # the first page: what it carried, once
+                    v["pch_shape_logged"] = 4
                     sh = pchist.SHAPES[0]
                     log(f"PriceCharting history: first page read for card {cid}: series {json.dumps(sh['shape'])}; "
                         f"first points {json.dumps(sh['first'])[:400]}; {sh['how']}; months {sh['months']}")
