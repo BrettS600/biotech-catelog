@@ -146,8 +146,11 @@ def extract(html):
     if len(SHAPES) < 3:
         if vol is None:                                      # where does the page keep the volume bars? show the clues
             names = sorted(set(VGPC.findall(html)))
-            ctx = [html[max(0, m.start() - 120):m.start() + 160].replace("\n", " ") for m in re.finditer(r"volume", html, re.I)][:4]
-            how += f"; no volume series - VGPC names {names}; 'volume' appears {len(re.findall('volume', html, re.I))}x: " + " || ".join(ctx)
+            scripts = re.findall(r"<script[^>]*src=[\"']([^\"']+)", html)
+            ctx = [re.sub(r"\s+", " ", html[max(0, m.start() - 70):m.start() + 90]) for m in re.finditer(r"volume", html, re.I)]
+            calls = [re.sub(r"\s+", " ", html[max(0, m.start() - 80):m.start() + 120]) for m in re.finditer(r"(?:\$\.(?:get|ajax|getJSON)|fetch\(|XMLHttpRequest|/api/|chart-data|volume_data|sales-volume)", html)][:6]
+            how += (f"; no volume series - VGPC names {names}; scripts {scripts}; 'volume' {len(ctx)}x: " + " || ".join(ctx[4:12])
+                    + "; calls: " + " || ".join(calls))
         SHAPES.append({"shape": shape, "first": first, "how": how,
                        "months": None if rec is None else f"{month_label(rec['m0'])}..{month_label(rec['m0'] + len(rec['p']) - 1)}"})
     if rec is None:
