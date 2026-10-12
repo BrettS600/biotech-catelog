@@ -375,4 +375,8 @@ def annotate(pc, log=print, tcg=None, dataset=None, sets=None):
     log(f"Rarity / finish: {n_tcg:,} rows from TCGplayer (tcg-id), {n_ds:,} from the open dataset (set + number), "
         f"{n - n_tcg - n_ds:,} with neither ({sum(1 for x in rarity if x):,} of {n:,} rows have a rarity; "
         f"{n_num_off} tcg-ids pointed at another card number and were ignored)")
+    new_words = sorted({x for x in rarity if x and rarity_tier(x) is None})   # a rarity the tier vocabulary cannot place
+    if new_words:                                            # ("Futuristic Rare" on 2026-10-12): add its word to ULTRA_WORDS
+        log(f"Rarity words the vocabulary does not know ({len(new_words)}): " + ", ".join(new_words[:12])
+            + (" ..." if len(new_words) > 12 else "") + " - they compare as unknown until cardfacts.py learns them")
     return rarity, finish, source
