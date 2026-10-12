@@ -1519,9 +1519,9 @@ def compare_facts(cat, c, ef):
     {"s": "same" | "far" | None, "r": "same" | "near" | "far" | None, "f": "same" | "far" | None}."""
     out = {}
     if ef.get("s"):
-        if "promo" in c["set"].lower() and "promo" in ef["s"].lower():
-            out["s"] = "same"                                # PriceCharting's one "Pokemon Promo" set vs eBay's "SM Black Star Promos"
-        else:
+        if "promo" in c["set"].lower():                      # PriceCharting's one "Pokemon Promo" set: eBay files the same
+            out["s"] = "same" if "promo" in ef["s"].lower() else None   # card under "SM Black Star Promos", "Sun & Moon" or
+        else:                                                # just "SM" - its set words say nothing; the number does
             mine, other, _ = cat.set_fit(ef["s"], c["set"])
             out["s"] = "far" if other > 1.5 * mine else ("same" if mine > 0 else None)
     out["r"] = cardfacts.rarity_agree(ef.get("r"), c.get("rarity")) if ef.get("r") and c.get("rarity") else None
@@ -1551,6 +1551,23 @@ def learn_facts(state, cat, rec, it):
     cmp = ef.get("cmp") or {}
     if c and "far" not in cmp.values() and number_agrees(ef.get("k"), c):
         m["v"][str(c["id"])] = m["v"].get(str(c["id"]), 0) + 1
+
+
+def refresh_facts(state, cat):
+    """Re-read every stored record's eBay facts against the card it is filed under NOW, with the vocabulary as it is
+    now - the verdict on the record (ef["cmp"]) was written the day the listing was looked up, and goes stale when
+    cardfacts.py learns a word, a listing is refiled, or a new catalog carries other rarity / finish words.
+    Run at startup, hourly, and when the catalog changes. -> how many verdicts changed."""
+    changed = 0
+    for r in list(state["open"].values()) + state["closed"]:
+        ef = r.get("ef")
+        c = cat.by_id.get(r.get("card")) if ef else None
+        if not c:
+            continue
+        cmp = compare_facts(cat, c, ef)
+        if cmp != ef.get("cmp"):
+            ef["cmp"], changed = cmp, changed + 1
+    return changed
 
 
 def apply_epid_memory(state, cat):
