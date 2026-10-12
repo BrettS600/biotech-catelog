@@ -1035,6 +1035,8 @@ PC_IMG = re.compile(r"https://storage\.googleapis\.com/images\.pricecharting\.co
 
 
 PC_LAST_READ = {}                # what the last page read looked like: status code, seconds, error - for the log
+PC_COOKIE = os.environ.get("PC_COOKIE", "").strip().strip('"').strip("'")   # Brett's PriceCharting sign-in (/etc/pokemon-collector.env):
+                                 # their chart's volume bars are served to signed-in subscribers only (2026-10-12)
 
 
 def pc_read_page(pid):
@@ -1043,10 +1045,12 @@ def pc_read_page(pid):
     then backs off). The history (pchist.extract: the data behind the chart on the page) comes with the same read;
     None when the page carries none."""
     t0 = time.time()
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"}
+    if PC_COOKIE:
+        headers["Cookie"] = PC_COOKIE                        # read as Brett: the page then carries the volume series
     try:
         import requests
-        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15,
-                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"})
+        r = requests.get(f"https://www.pricecharting.com/game/{pid}", timeout=15, headers=headers)
     except Exception as e:
         PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
         return "error", None, None, ""
@@ -1291,20 +1295,21 @@ def pc_plan(state, cards, cat=None):
     active = {int(c) for c in cards}
     rest = []
     if cat is not None:
-        if PC_REST_ORDER.get("id") != id(cat):
+        if PC_REST_ORDER.get("cat") is not cat:              # holds the catalog object, so a new one is never mistaken for it
             PC_REST_ORDER.clear()
-            PC_REST_ORDER["id"] = id(cat)
+            PC_REST_ORDER["cat"] = cat
             PC_REST_ORDER["ids"] = [c["id"] for c in sorted(cat.cards, key=lambda c: -(c.get("pc") or 0))]
         rest = PC_REST_ORDER["ids"]
     out, seen = [], set()
     today_i = pchist.day_index()
+    want_signed = bool(PC_COOKIE) and v.get("pch_signin") != "expired"   # a sign-in that works (or is untested): re-read for the bars
     for group, ids in enumerate(([r["card"] for r in recent], list(active), rest)):
         for cid in ids:
             k = str(cid)
             if cid in seen:
                 continue
             want_img = group < 2 and k not in cache and not fresh_miss(k)
-            if want_img or pchist.stale(cid, active=cid in active, today=today_i):
+            if want_img or pchist.stale(cid, active=cid in active, today=today_i, want_signed=want_signed):
                 seen.add(cid)
                 out.append((cid, want_img))
     return out
@@ -1329,6 +1334,13 @@ def file_pc_images(state, worker):
         if status != "error":                                # the page was read: file the history it carried
             try:
                 pchist.file(cid, hist)
+                if PC_COOKIE and hist is not None:           # does the sign-in work? the page carries the volume series when it does
+                    was = v.get("pch_signin")
+                    v["pch_signin"] = "ok" if hist.get("s") else "expired"
+                    if v["pch_signin"] != was:
+                        log("PriceCharting sign-in: " + ("working - pages carry the volume series" if hist.get("s") else
+                            "the page came WITHOUT the volume series: the PC_COOKIE in /etc/pokemon-collector.env has expired "
+                            "or was not accepted. The chart shows prices without volume until it is replaced and the service restarted"))
                 if len(pchist.SHAPES) and v.get("pch_shape_logged") != 4:   # the first page: what it carried, once
                     v["pch_shape_logged"] = 4
                     sh = pchist.SHAPES[0]
@@ -2314,9 +2326,10 @@ def cycle(state, cat, sched, counters):
     if pc is not None and pc.backlog() and due("pictures", 600):   # while the backlog lasts: a line every ten minutes
         log(f"Pictures: {len(v.get('pc_img', {}))} on file, {pc.read} pages read since the start, {pc.backlog()} to go, "
             f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s; "
-            f"history: {pchist.count():,} of {len(cat.cards):,} cards on file")
+            f"history: {pchist.count():,} of {len(cat.cards):,} cards on file, {pchist.count_signed():,} with the volume series")
     live["pcimg"] = pc_image_table(state)
-    live["pch"] = {"n": pchist.count(), "total": len(cat.cards), "shards": pchist.SHARDS}   # the page's "history for N cards so far"
+    live["pch"] = {"n": pchist.count(), "total": len(cat.cards), "shards": pchist.SHARDS,   # the page's "history for N cards so far"
+                   "signed": pchist.count_signed(), "signin": v.get("pch_signin", "none") if PC_COOKIE else "none"}
     live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
                                 "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
     if not v.get("au_backfilled"):
@@ -2495,8 +2508,10 @@ def main():
     try:
         n_h = pchist.init(os.path.join(DATA, "pc_hist"))     # PriceCharting's monthly history, read off each card's page
         pchist.mark_all_dirty()                              # every shard goes out with the first publish (a rebuilt checkout)
-        log(f"PriceCharting history: {n_h:,} of {len(cat.cards):,} cards on file; the page reader fills in the rest "
-            f"(one page every {PC_PREFETCH_GAP_S:g} s) and refreshes cards weekly (with eBay data) or monthly")
+        log(f"PriceCharting history: {n_h:,} of {len(cat.cards):,} cards on file ({pchist.count_signed():,} with the volume "
+            f"series); the page reader fills in the rest (one page every {PC_PREFETCH_GAP_S:g} s) and refreshes cards weekly "
+            f"(with eBay data) or monthly; PriceCharting sign-in: {'set - the first page read tells whether it works' if PC_COOKIE else 'none (no PC_COOKIE in /etc/pokemon-collector.env): prices without the volume bars'}")
+        state["vps"]["pch_signin"] = "unknown" if PC_COOKIE else "none"   # a replaced cookie gets a fresh test
     except Exception as e:
         log(f"PriceCharting history: store failed to open ({e})")
     pc_worker(state)                                         # PriceCharting pictures for the Review button, in the background
