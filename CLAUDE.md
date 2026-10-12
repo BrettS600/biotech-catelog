@@ -458,6 +458,52 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   at 13.5px, everything else at 16px. t/test_review.js opens the modal in jsdom. The build log now names rarity
   words the tier vocabulary cannot place ("Rarity words the vocabulary does not know"), so a new era's rarity is
   caught the day it appears.
+- PRICECHARTING'S OWN CHART, PER CARD (2026-10-12 evening, Brett: "I want the exact graph that shows the ungraded
+  price and total volume per month on PriceCharting since the card was released. There must be a way"). THE WAY: the
+  chart on a card's PriceCharting page is drawn by their /js/market_ae.js from data written into the page -
+  `VGPC.chart_data = {used, cib, new, graded, boxonly, manualonly}` (one point per month, [ms timestamp at the
+  Pacific month start, cents]; "used" = ungraded; the record starts when PriceCharting began tracking the card, e.g.
+  2021-01 for a 2013 Plasma Blast card, the release month for 2025 sets) and `VGPC.volume_data.volume` for the
+  "Volume ... (total volume)" bars. The collector already opens every card's page for the picture, so pchist.py reads
+  the arrays in the same read: page_series() keeps every `VGPC.<name> = <json>` series, pick() takes chart_data
+  ["used"] and any *volume*/*sales* series (a bare list, or a dict of grades summed), monthly() makes one row per
+  calendar month (last price, summed volume; whole numbers are cents, fractions dollars). THE CATCH: the public page
+  carries chart_data only - VGPC names on an anonymous read are category, chart_data, console_uid, forex_rates,
+  pop_data, product, user_id, www_url - so volume_data is served to signed-in (Pro) users; Brett sees the bars
+  because he is signed in. The collector reads anonymously, so the record has prices and no volume (v all 0), and
+  the page draws the line without bars and says why. Getting the bars means reading the pages as Brett (his
+  PriceCharting sign-in on the droplet, typed into /etc/pokemon-collector.env by him, never in chat); the login
+  form was NOT probed - the harness refused that fetch (it looked like credential scouting) and Brett was asked
+  instead. STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
+  t: date read, n: raw points}}), a card index in memory; published as pc/<shard>.bin on the live branch (gzip
+  under the live key, like ebay_live.bin), changed shards every PC_HIST_PUBLISH_S = 600 s (or at once for a card
+  the site asked for); publish() now creates the pc/ folder. READER: PcImageWorker's plan is [(card id, picture
+  wanted)] (pc_plan with the catalog: newest listings' cards, cards with eBay data, then the whole catalog by price;
+  a card is in when its picture is wanted - first two groups - or pchist.stale(): never read, or older than 7 days
+  with eBay data / 30 without; a history-only read never fills the 12,000-entry picture cache, which would otherwise
+  churn); pc_read_page() returns (status, picture, history, note); file_pc_images files both. A card page read for
+  the picture from the alert path (pc_image) files its history too. The whole catalog takes ~1.5 days at one page
+  every 2 s (190 pages per 10 min measured). The first pages' shapes are logged once ("PriceCharting history: first
+  page read ..."; v["pch_shape_logged"] gates it, bump the number to log again) and "card N: <note>" at most 3x a
+  day when a page carries nothing, so a layout change shows up. The site can ask for a card now: {type: "pchist",
+  c} on the -pc topic -> worker.want_hist() -> read next, "rush" -> urgent publish; the page asks when the record is
+  missing or older than a day (pcHistAsk) and polls the shard every 45 s for 6 min. PAGE: openTrend() is
+  PriceCharting's chart now (drawPcChart: monthly volume bars left axis, the ungraded line right axis as a
+  Catmull-Rom spline, Zoom 6m/1y/5y/All remembered as pc-zoom, hover readout "<Month Year> / Volume: n (total
+  volume) / Ungraded: $"; without volume no bars, no left axis, no Volume legend), then the month-by-month table
+  (newest first, change vs the previous month, Download CSV) in #pctable, then this site's own daily stats row
+  (renderStats(s), may be empty), then the BUY GATE rebuilt on the collector's rule (renderGate: sell = decide()
+  when the card has an eBay anchor - $0.50 under the cheapest credible copy, <= 95% of A, A_fast cap - else the lead
+  rule 93% of PriceCharting / 95% capped by a credible copy; fee x (1 + buyer tax) + $0.40 + ship out + supplies;
+  max buy = net / (1 + margin); max item = (max buy - seller shipping) / (1 + tax)); its Margin and Buy tax inputs
+  ARE the Raw Data tab's #margin / #buytax boxes (synced both ways via the input event, one set of numbers), the
+  seller shipping is localStorage pc-shipin (default GATE.shipIn $4); the inputs are built once so typing keeps the
+  focus, #g-body re-renders. Retail sell / Retail buy are gone (LABEL_PC deleted; the shared drawChart() serves
+  the eBay history only, its bars have ids ebbar1 / ebbar2; pcMode() switches the popup). The old daily-shard chart
+  for PriceCharting is no longer drawn (the shards still carry it for the stats). Tests: ut/test_pchist.py (parser,
+  store, plan, filing), t/pcpop/test_pcpop.py (Playwright: chart, hover, zoom, gate inputs, CSV download, the
+  no-history and no-volume cases), t/test_review.js. mkedits.py now merges hunks closer than 6 lines (overlapping
+  anchors made the app.js edit impossible otherwise).
 - THE DROPLET'S DISK FILLED (found 2026-10-12 while deploying the above; "No space left on device" in save_state
   from 2026-10-10 02:29 UTC, the collector then ran without saving or publishing for most of two days). Cause:
   publish() amends the one commit of the live checkout (data/live) 720 times a day with a 2 MB file (plus the 6 MB
