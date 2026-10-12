@@ -474,7 +474,18 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the page draws the line without bars and says why. Getting the bars means reading the pages as Brett (his
   PriceCharting sign-in on the droplet, typed into /etc/pokemon-collector.env by him, never in chat); the login
   form was NOT probed - the harness refused that fetch (it looked like credential scouting) and Brett was asked
-  instead. STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
+  instead. HE SAID YES (same night): the sign-in is his browser's session cookie, not a password - PC_COOKIE in
+  /etc/pokemon-collector.env (the whole "Cookie:" request-header value from Chrome's DevTools, in single quotes;
+  systemd's EnvironmentFile takes it), sent as the Cookie header on every card-page read. A page read signed in
+  carries VGPC.volume_data, and pchist.monthly() marks such a record "s": 1; the index keeps (day read, signed).
+  pc_plan() re-reads every record without "s" while the sign-in works (want_signed = PC_COOKIE set and
+  v["pch_signin"] != "expired"); v["pch_signin"] is "unknown" at every start (a replaced cookie gets a fresh test),
+  then "ok" or "expired" from the first page read (a page without the volume series while a cookie is set = the
+  cookie no longer works; logged once per change: "PriceCharting sign-in: ..."), and an expired cookie never
+  loops over the catalog. live["pch"] = {n, total, shards, signed, signin}; the chart note reads it ("the volume
+  bars come once this card's page is read again" / "sign-in has expired: replace PC_COOKIE and restart") and a
+  record read before the sign-in is asked for again (pcHistAsk) while the popup is open. To replace the cookie:
+  edit the env line, `systemctl restart pokemon-collector`. STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
   t: date read, n: raw points}}), a card index in memory; published as pc/<shard>.bin on the live branch (gzip
   under the live key, like ebay_live.bin), changed shards every PC_HIST_PUBLISH_S = 600 s (or at once for a card
   the site asked for); publish() now creates the pc/ folder. READER: PcImageWorker's plan is [(card id, picture
