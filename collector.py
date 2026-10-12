@@ -50,6 +50,7 @@ import requests
 
 import ebay_sweep as es
 import account
+import pchist                                                # PriceCharting's own monthly history, off each card's page
 
 # ---------------- layout ----------------
 BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")
@@ -1036,9 +1037,11 @@ PC_IMG = re.compile(r"https://storage\.googleapis\.com/images\.pricecharting\.co
 PC_LAST_READ = {}                # what the last page read looked like: status code, seconds, error - for the log
 
 
-def pc_read_image(pid):
-    """One PriceCharting card page -> ("ok", picture address), ("none", None) when the page has no picture or does
-    not exist, ("error", None) when it could not be read just now (the background reader then backs off)."""
+def pc_read_page(pid):
+    """One PriceCharting card page -> (status, picture address, monthly history, note). status: "ok" (a picture),
+    "none" (the page has no picture, or does not exist), "error" (could not be read just now; the background reader
+    then backs off). The history (pchist.extract: the data behind the chart on the page) comes with the same read;
+    None when the page carries none."""
     t0 = time.time()
     try:
         import requests
@@ -1046,14 +1049,29 @@ def pc_read_image(pid):
                          headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, one page per card"})
     except Exception as e:
         PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
-        return "error", None
+        return "error", None, None, ""
     PC_LAST_READ.update(code=r.status_code, s=time.time() - t0, err=None)
     if r.status_code == 404:
-        return "none", None
+        return "none", None, None, "no such page"
     if r.status_code != 200:
-        return "error", None
+        return "error", None, None, ""
     m = PC_IMG.search(r.text)
-    return ("ok", f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg") if m else ("none", None)
+    try:
+        hist, note = pchist.extract(r.text)
+    except Exception as e:
+        hist, note = None, f"history parse failed: {str(e)[:80]}"
+    return ("ok", f"https://storage.googleapis.com/images.pricecharting.com/{m.group(1)}/1600.jpg", hist, note) if m else ("none", None, hist, note)
+
+
+def pc_read_image(pid):
+    """(status, picture address) - the page read without the history."""
+    status, url, hist, _ = pc_read_page(pid)
+    if status != "error":
+        try:
+            pchist.file(pid, hist)                           # never waste a page read
+        except Exception:
+            pass
+    return status, url
 
 
 def pc_image(state, pid):
@@ -1076,6 +1094,7 @@ def pc_image(state, pid):
 
 
 PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
+PC_HIST_PUBLISH_S = 600          # changed history shards go to the live branch this often
 PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
 
 
@@ -1099,6 +1118,7 @@ class PcImageWorker(threading.Thread):
         self.req_since, self.polled, self.tries = None, 0.0, {}
 
     def set_plan(self, cards):
+        """cards: [(card id, picture wanted)] - a card read for its history alone does not fill the picture cache."""
         with self.lock:
             self.plan, self.done = deque(cards), set()
 
@@ -1155,7 +1175,7 @@ class PcImageWorker(threading.Thread):
 
     def next_card(self):
         cache = self.state["vps"].get("pc_img", {})
-        cid, urgent, ready = None, False, []
+        cid, urgent, want_img, ready = None, False, True, []
         with self.lock:
             while self.wanted:
                 c = self.wanted.popleft()
@@ -1166,22 +1186,22 @@ class PcImageWorker(threading.Thread):
                 break
             if cid is None:
                 while self.plan:
-                    c = self.plan.popleft()
-                    if str(c) not in cache and c not in self.done:   # read once per plan, even if filed later
+                    c, want_img = self.plan.popleft()
+                    if c not in self.done:                   # read once per plan, even if filed later
                         cid = c
                         break
             if cid is not None:
                 self.done.add(cid)
         for c in ready:                                      # so tell the page now, from what is on file
             self.answer(c, cache.get(str(c)))
-        return cid, urgent
+        return cid, urgent, want_img
 
     def step(self):
-        cid, urgent = self.next_card()
+        cid, urgent, want_img = self.next_card()
         if cid is None:
             return False
-        status, url = pc_read_image(cid)
-        self.results.put((cid, status, url, urgent))
+        status, url, hist, note = pc_read_page(cid)
+        self.results.put((cid, status, url, hist, note, urgent, want_img))
         if urgent:                                           # the site is waiting: answer now, or try again shortly
             if status != "error":
                 self.answer(cid, url)
@@ -1239,10 +1259,15 @@ def pc_worker(state=None):
     return PC_WORKER
 
 
-def pc_plan(state, cards):
+PC_REST_ORDER = {}               # catalog id -> the rest of the catalog by price, computed once per catalog
+
+
+def pc_plan(state, cards, cat=None):
     """The order the background reader takes cards in: the newest listings' cards first (the top of the Raw Data
-    tab), then every card with eBay data. Cards with a picture on file, or whose page gave none this week, are left
-    out."""
+    tab), then every card with eBay data, then the rest of the catalog by price. A card is in the plan when its
+    picture is wanted (the first two groups, no picture on file and no miss this week) or its PriceCharting history
+    is due (pchist.stale: never read, or older than a week for cards with eBay data, a month otherwise).
+    -> [(card id, picture wanted)]."""
     v = state["vps"]
     cache, miss = v.get("pc_img", {}), v.get("pc_miss", {})
     today = datetime.strptime(es.TODAY, "%Y-%m-%d")
@@ -1253,13 +1278,25 @@ def pc_plan(state, cards):
     cut = es.ts(es.NOW - timedelta(hours=24))
     recent = sorted((rec for rec in state["open"].values() if rec["first"] >= cut and rec.get("card") is not None),
                     key=lambda r: r["first"], reverse=True)
+    active = {int(c) for c in cards}
+    rest = []
+    if cat is not None:
+        if PC_REST_ORDER.get("id") != id(cat):
+            PC_REST_ORDER.clear()
+            PC_REST_ORDER["id"] = id(cat)
+            PC_REST_ORDER["ids"] = [c["id"] for c in sorted(cat.cards, key=lambda c: -(c.get("pc") or 0))]
+        rest = PC_REST_ORDER["ids"]
     out, seen = [], set()
-    for cid in [r["card"] for r in recent] + [int(c) for c in cards]:
-        k = str(cid)
-        if cid in seen or k in cache or fresh_miss(k):
-            continue
-        seen.add(cid)
-        out.append(cid)
+    today_i = pchist.day_index()
+    for group, ids in enumerate(([r["card"] for r in recent], list(active), rest)):
+        for cid in ids:
+            k = str(cid)
+            if cid in seen:
+                continue
+            want_img = group < 2 and k not in cache and not fresh_miss(k)
+            if want_img or pchist.stale(cid, active=cid in active, today=today_i):
+                seen.add(cid)
+                out.append((cid, want_img))
     return out
 
 
@@ -1274,22 +1311,44 @@ def file_pc_images(state, worker):
         return 0, 0
     while True:
         try:
-            cid, status, url, urg = worker.results.get_nowait()
+            cid, status, url, hist, note, urg, want_img = worker.results.get_nowait()
         except queue.Empty:
             break
         k = str(cid)
         n += 1
+        if status != "error":                                # the page was read: file the history it carried
+            try:
+                pchist.file(cid, hist)
+                if len(pchist.SHAPES) and not v.get("pch_shape_logged"):   # the first page: what it carried, once
+                    v["pch_shape_logged"] = 1
+                    sh = pchist.SHAPES[0]
+                    log(f"PriceCharting history: first page read for card {cid}: series {json.dumps(sh['shape'])}; "
+                        f"first points {json.dumps(sh['first'])[:400]}; {sh['how']}; months {sh['months']}")
+                if hist is None and note and counters_note(v, note):
+                    log(f"PriceCharting history: card {cid}: {note[:200]}")
+            except Exception as e:
+                log(f"PriceCharting history: could not file card {cid} ({str(e)[:120]})")
         if status == "ok":
-            cache[k] = url
+            if want_img or urg:
+                cache[k] = url
             miss.pop(k, None)
             urgent += 1 if urg else 0
-        elif status == "none":
+        elif status == "none" and (want_img or urg):
             miss[k] = es.TODAY
     for k in list(cache)[:-12000]:
         del cache[k]
     for k in list(miss)[:-5000]:
         del miss[k]
     return n, urgent
+
+
+def counters_note(v, note):
+    """Log a 'page carried no history' reason at most a few times a day, so a changed page layout shows up."""
+    key = "pch_notes_" + es.TODAY
+    v[key] = v.get(key, 0) + 1
+    for k in [k for k in v if k.startswith("pch_notes_") and k != key]:
+        del v[k]
+    return v[key] <= 3
 
 
 def pc_image_table(state):
@@ -1944,7 +2003,9 @@ def publish(files):
         git("config", "user.email", "collector@users.noreply.github.com")
         git("remote", "add", "origin", PUSH_REMOTE)
     for name, data in files.items():
-        with open(os.path.join(LIVE_DIR, name), "wb") as f:
+        path = os.path.join(LIVE_DIR, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)   # pc/<shard>.bin lives in a folder
+        with open(path, "wb") as f:
             f.write(data)
     git("add", "-A")
     has_commit = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], cwd=LIVE_DIR, capture_output=True).returncode == 0
@@ -2235,15 +2296,17 @@ def cycle(state, cat, sched, counters):
     counters["pc_img"] += got
     if pc is not None:
         try:
-            pc.set_plan(pc_plan(state, cards))
+            pc.set_plan(pc_plan(state, cards, cat))
         except Exception as e:
             log(f"PriceCharting pictures: plan failed this minute ({str(e)[:100]})")
     if urgent:                                               # a picture Brett is waiting for on the site: publish now
         sched["publish"] = 0
     if pc is not None and pc.backlog() and due("pictures", 600):   # while the backlog lasts: a line every ten minutes
         log(f"Pictures: {len(v.get('pc_img', {}))} on file, {pc.read} pages read since the start, {pc.backlog()} to go, "
-            f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s")
+            f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s; "
+            f"history: {pchist.count():,} of {len(cat.cards):,} cards on file")
     live["pcimg"] = pc_image_table(state)
+    live["pch"] = {"n": pchist.count(), "total": len(cat.cards), "shards": pchist.SHARDS}   # the page's "history for N cards so far"
     live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
                                 "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
     if not v.get("au_backfilled"):
@@ -2280,6 +2343,11 @@ def cycle(state, cat, sched, counters):
             pass
         if due("backup", STATE_BACKUP_EVERY_S):
             files[es.STATE_NAME] = es.encrypt_file_blob(state_raw, es.PASSWORD) if es.PASSWORD else state_raw
+        if pchist.dirty_count() and due("pchist", PC_HIST_PUBLISH_S):   # PriceCharting history shards that changed
+            try:
+                files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
+            except Exception as e:
+                log(f"PriceCharting history: publish failed ({str(e)[:120]})")
         try:
             publish(files)
             counters["published"] += 1
@@ -2414,6 +2482,13 @@ def main():
         log(f"Inherited flags: {kept} kept for confirmation, {cleared} cleared as too old")
     state["vps"]["catalog"] = cat_name
     log(f"Catalog {cat_name}; state: {len(state['open'])} open, {len(state['closed'])} closed")
+    try:
+        n_h = pchist.init(os.path.join(DATA, "pc_hist"))     # PriceCharting's monthly history, read off each card's page
+        pchist.mark_all_dirty()                              # every shard goes out with the first publish (a rebuilt checkout)
+        log(f"PriceCharting history: {n_h:,} of {len(cat.cards):,} cards on file; the page reader fills in the rest "
+            f"(one page every {PC_PREFETCH_GAP_S:g} s) and refreshes cards weekly (with eBay data) or monthly")
+    except Exception as e:
+        log(f"PriceCharting history: store failed to open ({e})")
     pc_worker(state)                                         # PriceCharting pictures for the Review button, in the background
     log(f"PriceCharting pictures: {len(state['vps'].get('pc_img', {}))} on file; the background reader takes one page every "
         f"{PC_PREFETCH_GAP_S:g} s until every card has one")
