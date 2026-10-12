@@ -1,0 +1,611 @@
+uy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 00:01:04 Archive: cards/2026-10-17.json.gz.enc (192 KB) added to the archive branch
+2026-10-17 00:01:04 Hour: discovery read 8446 summaries, 488 new, 380 matched, 108 unmatched | re-reads 15 windows / 28 pages, 146 flagged, 50 repriced | confirmed: 24 sold, 8 ended, 1 gone, 14 still open | book checks: 6 sold, 1 ended/gone, 9 open | kw checks 0 sold / 0 open | 88 outlived 2 days (stale), 10 lost sight of, 93 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 25 publishes | median indexing lag 4.1 min
+2026-10-17 00:01:04 Now: 25619 open, 43797 closed, 6573 cards with data, 7811 listings in 24 h, 5 pass the gate; budget 1520 left, 2.5 optional calls/min, 0 tokens; 3 calls today
+2026-10-17 00:01:05 Waiting: 3570 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 141 suspects due a last look; 68 dropped unconfirmed after 3 days; kept past 2 days: 7331 cheapest copies, 308 suspects
+2026-10-17 00:01:05 Verdicts: fewer than 2 photos 1679, no sales yet 1432, mismatch: too high 1136, not liquid 1082, over max buy 910, too few sales (1) 617, too few sales (2) 309, too few sales (3) 256, suspect 134, too few sales (4) 127, mismatch: too cheap 53, LEAD 27, seller < 98% 14, seller < 95% 13, ID conflict 10, reprint? 5, PASS 5, condition MP 1, review 1
+2026-10-17 00:01:05 Cards: 342 with 5+ sales behind the anchor, 72 liquid at the collector's defaults, 71 both
+2026-10-17 00:01:05 Liquidity: 189 cards sell often enough for the window; their 48-hour sell-through is measured on 188 (median 21.7%), 71 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 102 / 71 / 43 / 19)
+2026-10-17 00:01:05 Identity: 255 open listings under 40% of the PriceCharting price, 3736 over 300% (kept out of the statistics); item specifics read on 788 open listings (637 agree, 112 conflict, 39 blank), 10 read this hour; printed totals for 151 sets
+2026-10-17 00:01:05 Pictures: 9402 cards with a PriceCharting picture on file, 6 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.5 s); 1 Review answers on the site
+2026-10-17 00:01:05 Printing: 110 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 1 printing lookups today
+2026-10-17 00:01:17 Facts: eBay's record on 12810 open listings (789 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2798 products in the ePID memory, 2512 tied to a card; 31 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4489 lookups so far, 1647 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 00:01:17 Disk: 20.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 00:01:17 Unmatched this hour: rejected 40, no card number 37, no set/name agreement 20, printing not in catalog 5, ambiguous variant 4, no card # 1, ambiguous set 1
+2026-10-17 00:01:17 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 00:01:17 Auction trial: 529 being watched; 289 finished with bids so far (116 on judged cards, 173 on PriceCharting-lead cards), 59 closed at or under max buy (20%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x8, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 00:01:17 Scam screen: 21185 clean, 3839 watch, 595 suspect among open listings; signals: est 8236, slow 4793, img 4407, fb0 4098, p65 611, p75 550, top 423, p50 423, burst 56, qty 1
+2026-10-17 00:01:17 ID check: printing unclear - The Pokémon Company Shaymin EX 77a/108 XY 2017 Holo Ultra Rare Basic E -> conflict: set XY
+2026-10-17 00:03:30 Settled: 84 listings outlived 2 days (stale; 27 keep a full record), 5 lost sight of; kept in the book: 7292 cheapest copies, 303 suspects
+2026-10-17 00:07:43 Pictures: 9402 on file, 215 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.5 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 00:20:44 Pictures: 9405 on file, 218 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 00:20:47 PriceCharting sign-in: the site updated the cookie jar (new or changed: ['(a value or expiry)']; jar now ['vgpc_daily', 'vgpc_session', 'vgpc_visitor'])
+2026-10-17 00:34:46 Pictures: 9406 on file, 219 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 2.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 00:53:28 Auction trial: closed UNDER max buy - The Pokémon Company Pikachu 241/236 Secret Rare Holo SM Cosmic Eclipse | final $102.50 + $5.58 shipping, 12 bids, max buy $134.25, reference $187.69 (ebay) | https://www.ebay.com/itm/128125625538?hash=item1dd4e1e4c2:g:dUEAAeSwbt9qyYus
+2026-10-17 01:00:38 Rate limit: 1310 of 5000 calls left (buy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 01:01:07 Hour: discovery read 8771 summaries, 605 new, 436 matched, 169 unmatched | re-reads 14 windows / 24 pages, 160 flagged, 31 repriced | confirmed: 25 sold, 9 ended, 0 gone, 19 still open | book checks: 0 sold, 2 ended/gone, 10 open | kw checks 0 sold / 0 open | 84 outlived 2 days (stale), 5 lost sight of, 98 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.2 min
+2026-10-17 01:01:07 Now: 25761 open, 43874 closed, 6573 cards with data, 7768 listings in 24 h, 4 pass the gate; budget 1310 left, 2.46 optional calls/min, 0 tokens; 215 calls today
+2026-10-17 01:01:08 Waiting: 3610 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 136 suspects due a last look; 58 dropped unconfirmed after 3 days; kept past 2 days: 7292 cheapest copies, 303 suspects
+2026-10-17 01:01:08 Verdicts: fewer than 2 photos 1691, no sales yet 1399, mismatch: too high 1116, not liquid 1097, over max buy 905, too few sales (1) 612, too few sales (2) 294, too few sales (3) 262, suspect 144, too few sales (4) 122, mismatch: too cheap 54, LEAD 26, seller < 95% 14, seller < 98% 11, ID conflict 10, reprint? 5, PASS 4, condition MP 2
+2026-10-17 01:01:08 Cards: 342 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 71 both
+2026-10-17 01:01:08 Liquidity: 187 cards sell often enough for the window; their 48-hour sell-through is measured on 187 (median 21.5%), 71 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 101 / 71 / 43 / 19)
+2026-10-17 01:01:08 Identity: 258 open listings under 40% of the PriceCharting price, 3745 over 300% (kept out of the statistics); item specifics read on 792 open listings (639 agree, 114 conflict, 39 blank), 9 read this hour; printed totals for 151 sets
+2026-10-17 01:01:08 Pictures: 9410 cards with a PriceCharting picture on file, 8 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 2.0 s); 1 Review answers on the site
+2026-10-17 01:01:08 Printing: 110 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 6 printing lookups today
+2026-10-17 01:01:18 Facts: eBay's record on 13002 open listings (792 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2815 products in the ePID memory, 2526 tied to a card; 28 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4540 lookups so far, 1614 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 01:01:18 Disk: 20.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 01:01:18 Unmatched this hour: no card number 84, rejected 47, no set/name agreement 35, ambiguous variant 1, printing not in catalog 1, anniversary reprint, not the original 1
+2026-10-17 01:01:18 Alerts: 0 hit alerts and 2 auction alerts sent this hour to the phone
+2026-10-17 01:01:18 Auction trial: 591 being watched; 290 finished with bids so far (117 on judged cards, 173 on PriceCharting-lead cards), 60 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x8, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 01:01:18 Scam screen: 21283 clean, 3873 watch, 605 suspect among open listings; signals: est 8293, slow 4792, img 4407, fb0 4142, p65 608, p75 554, p50 425, top 422, burst 69, qty 1
+2026-10-17 01:01:18 ID check: conflict - Dark Alakazam 1/82 Holo Rare NM 2000 Pokemon Team Rocket WOTC Unlimite -> Dark Alakazam #1 (Pokemon Team Rocket): printing: the title says unlimited, the item specifics say 1st edition
+2026-10-17 01:01:45 Pictures: 9410 on file, 223 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 01:03:29 Settled: 145 listings outlived 2 days (stale; 53 keep a full record), 16 lost sight of; kept in the book: 7251 cheapest copies, 299 suspects
+2026-10-17 01:03:55 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 01:17:45 Pictures: 9411 on file, 224 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 01:31:28 Auction trial: closed UNDER max buy - 1999 Pokemon Base Set Unlimited Charizard Holo 4/102 Single | final $167.50 + $7.95 shipping, 12 bids, max buy $226.38, reference $311.78 (ebay) | https://www.ebay.com/itm/800776449331?hash=itemba71feed33:g:LEIAAeSwSWNqxtLQ
+2026-10-17 01:32:47 Pictures: 9413 on file, 226 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 01:33:26 Auction trial: closed UNDER max buy - Charizard Base Set 2 04/130 unlimited Holo @video in gallery@ | final $185.50 + $5.72 shipping, 15 bids, max buy $195.93, reference $271.36 (ebay) | https://www.ebay.com/itm/336839561747?hash=item4e6d33d213:g:RFwAAeSwuV5qy4mN
+2026-10-17 01:47:44 Pictures: 9414 on file, 227 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.5 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 02:01:26 Rate limit: 1100 of 5000 calls left (buy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 02:01:48 Pictures: 9416 on file, 229 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 02:01:55 Hour: discovery read 8923 summaries, 586 new, 394 matched, 192 unmatched | re-reads 12 windows / 22 pages, 126 flagged, 27 repriced | confirmed: 24 sold, 13 ended, 0 gone, 17 still open | book checks: 1 sold, 1 ended/gone, 6 open | kw checks 0 sold / 0 open | 145 outlived 2 days (stale), 16 lost sight of, 115 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 22 publishes | median indexing lag 4.1 min
+2026-10-17 02:01:55 Now: 25780 open, 43980 closed, 6542 cards with data, 7637 listings in 24 h, 4 pass the gate; budget 1100 left, 2.42 optional calls/min, 0 tokens; 426 calls today
+2026-10-17 02:01:56 Waiting: 3615 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 1 book copies due, 134 suspects due a last look; 51 dropped unconfirmed after 3 days; kept past 2 days: 7251 cheapest copies, 299 suspects
+2026-10-17 02:01:56 Verdicts: fewer than 2 photos 1652, no sales yet 1363, mismatch: too high 1096, not liquid 1079, over max buy 914, too few sales (1) 609, too few sales (2) 281, too few sales (3) 254, suspect 147, too few sales (4) 124, mismatch: too cheap 49, LEAD 24, seller < 95% 14, ID conflict 10, seller < 98% 10, reprint? 5, PASS 4, condition MP 2
+2026-10-17 02:01:56 Cards: 342 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 71 both
+2026-10-17 02:01:56 Liquidity: 186 cards sell often enough for the window; their 48-hour sell-through is measured on 186 (median 21.7%), 71 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 101 / 71 / 43 / 19)
+2026-10-17 02:01:56 Identity: 251 open listings under 40% of the PriceCharting price, 3734 over 300% (kept out of the statistics); item specifics read on 791 open listings (635 agree, 117 conflict, 39 blank), 12 read this hour; printed totals for 151 sets
+2026-10-17 02:01:56 Pictures: 9416 cards with a PriceCharting picture on file, 6 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.2 s); 1 Review answers on the site
+2026-10-17 02:01:56 Printing: 110 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 12 printing lookups today
+2026-10-17 02:02:08 Facts: eBay's record on 13111 open listings (786 disagree with the card on set, rarity or finish; 7 just inherited from their product this hour); 2831 products in the ePID memory, 2541 tied to a card; 27 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4592 lookups so far, 1565 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 02:02:08 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 02:02:08 Unmatched this hour: rejected 70, no set/name agreement 68, no card number 46, ambiguous variant 5, printing not in catalog 3
+2026-10-17 02:02:08 Alerts: 0 hit alerts and 3 auction alerts sent this hour to the phone
+2026-10-17 02:02:08 Auction trial: 659 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 02:02:08 Scam screen: 21297 clean, 3881 watch, 602 suspect among open listings; signals: est 8335, slow 4807, img 4361, fb0 4153, p65 611, p75 563, top 426, p50 419, burst 66, qty 1
+2026-10-17 02:02:08 ID check: printing unclear - Pikachu & Zekrom GX 33/181 30th Anniversary english NM  -> still unclear
+2026-10-17 02:03:28 Settled: 128 listings outlived 2 days (stale; 45 keep a full record), 7 lost sight of; kept in the book: 7204 cheapest copies, 296 suspects
+2026-10-17 02:11:44 Pictures: 9417 on file, 230 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 1.2 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 02:23:45 Pictures: 9420 on file, 233 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.7 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 02:35:48 Pictures: 9425 on file, 238 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 02:45:45 Pictures: 9428 on file, 241 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.5 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 02:56:44 Pictures: 9430 on file, 243 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.3 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 03:01:26 Rate limit: 890 of 5000 calls left (buy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 03:01:53 Hour: discovery read 8270 summaries, 511 new, 411 matched, 100 unmatched | re-reads 16 windows / 32 pages, 154 flagged, 56 repriced | confirmed: 17 sold, 10 ended, 0 gone, 17 still open | book checks: 3 sold, 1 ended/gone, 9 open | kw checks 0 sold / 0 open | 128 outlived 2 days (stale), 7 lost sight of, 95 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.2 min
+2026-10-17 03:01:53 Now: 25865 open, 44063 closed, 6539 cards with data, 7596 listings in 24 h, 3 pass the gate; budget 890 left, 2.34 optional calls/min, 0 tokens; 632 calls today
+2026-10-17 03:01:54 Waiting: 3636 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 133 suspects due a last look; 58 dropped unconfirmed after 3 days; kept past 2 days: 7204 cheapest copies, 296 suspects
+2026-10-17 03:01:54 Verdicts: fewer than 2 photos 1657, no sales yet 1376, mismatch: too high 1094, not liquid 1085, over max buy 908, too few sales (1) 596, too few sales (2) 267, too few sales (3) 254, suspect 121, too few sales (4) 120, mismatch: too cheap 49, LEAD 23, seller < 95% 14, seller < 98% 11, ID conflict 9, reprint? 6, PASS 3, condition MP 2, condition HP 1
+2026-10-17 03:01:54 Cards: 342 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 71 both
+2026-10-17 03:01:54 Liquidity: 186 cards sell often enough for the window; their 48-hour sell-through is measured on 186 (median 22.0%), 71 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 101 / 71 / 43 / 19)
+2026-10-17 03:01:54 Identity: 254 open listings under 40% of the PriceCharting price, 3756 over 300% (kept out of the statistics); item specifics read on 791 open listings (634 agree, 118 conflict, 39 blank), 8 read this hour; printed totals for 151 sets
+2026-10-17 03:01:54 Pictures: 9432 cards with a PriceCharting picture on file, 16 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 2.3 s); 1 Review answers on the site
+2026-10-17 03:01:54 Printing: 109 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 18 printing lookups today
+2026-10-17 03:02:06 Facts: eBay's record on 13228 open listings (798 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2847 products in the ePID memory, 2553 tied to a card; 27 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4638 lookups so far, 1550 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 03:02:06 Disk: 20.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 03:02:06 Unmatched this hour: rejected 42, no card number 29, no set/name agreement 20, ambiguous variant 6, printing not in catalog 5
+2026-10-17 03:02:06 Alerts: 0 hit alerts and 2 auction alerts sent this hour to the phone
+2026-10-17 03:02:06 Auction trial: 748 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 03:02:06 Scam screen: 21351 clean, 3939 watch, 575 suspect among open listings; signals: est 8337, slow 4812, img 4339, fb0 4182, p65 609, p75 567, top 427, p50 419, burst 41, qty 1
+2026-10-17 03:02:06 ID check: printing unclear - Delinquent 98b/122 XY Ultra Rare Full Art Holo Trainer Supporter Engli -> conflict: set XY, rarity Ultra Rare (the card is Uncommon)
+2026-10-17 03:03:31 Settled: 108 listings outlived 2 days (stale; 38 keep a full record), 12 lost sight of; kept in the book: 7191 cheapest copies, 294 suspects
+2026-10-17 03:09:45 Pictures: 9432 on file, 245 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.3 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 03:33:47 Pictures: 9433 on file, 246 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 03:47:44 Pictures: 9435 on file, 248 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.7 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 04:02:26 Rate limit: 690 of 5000 calls left (buy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 04:02:56 Hour: discovery read 8761 summaries, 393 new, 312 matched, 81 unmatched | re-reads 14 windows / 25 pages, 158 flagged, 37 repriced | confirmed: 28 sold, 7 ended, 0 gone, 10 still open | book checks: 6 sold, 1 ended/gone, 7 open | kw checks 0 sold / 0 open | 108 outlived 2 days (stale), 12 lost sight of, 82 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 25 publishes | median indexing lag 4.2 min
+2026-10-17 04:02:56 Now: 25863 open, 44153 closed, 6509 cards with data, 7604 listings in 24 h, 3 pass the gate; budget 690 left, 2.27 optional calls/min, 0 tokens; 831 calls today
+2026-10-17 04:02:57 Waiting: 3654 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 1 book copies due, 133 suspects due a last look; 62 dropped unconfirmed after 3 days; kept past 2 days: 7191 cheapest copies, 294 suspects
+2026-10-17 04:02:57 Verdicts: fewer than 2 photos 1646, no sales yet 1379, mismatch: too high 1093, not liquid 1091, over max buy 931, too few sales (1) 595, too few sales (2) 254, too few sales (3) 251, too few sales (4) 125, suspect 121, mismatch: too cheap 49, LEAD 23, seller < 95% 15, seller < 98% 11, ID conflict 9, reprint? 6, PASS 3, condition MP 2
+2026-10-17 04:02:57 Cards: 342 with 5+ sales behind the anchor, 71 liquid at the collector's defaults, 71 both
+2026-10-17 04:02:57 Liquidity: 185 cards sell often enough for the window; their 48-hour sell-through is measured on 185 (median 22.0%), 71 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 101 / 71 / 43 / 19)
+2026-10-17 04:02:57 Identity: 253 open listings under 40% of the PriceCharting price, 3755 over 300% (kept out of the statistics); item specifics read on 796 open listings (636 agree, 120 conflict, 40 blank), 8 read this hour; printed totals for 151 sets
+2026-10-17 04:02:57 Pictures: 9438 cards with a PriceCharting picture on file, 6 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 2.0 s); 1 Review answers on the site
+2026-10-17 04:02:57 Printing: 109 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 23 printing lookups today
+2026-10-17 04:03:09 Facts: eBay's record on 13309 open listings (803 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2861 products in the ePID memory, 2564 tied to a card; 27 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4688 lookups so far, 1511 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 04:03:09 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 04:03:09 Unmatched this hour: rejected 45, no card number 21, no set/name agreement 7, printing not in catalog 5, ambiguous variant 2, ambiguous set 1
+2026-10-17 04:03:09 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 04:03:09 Auction trial: 803 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 04:03:09 Scam screen: 21369 clean, 3923 watch, 571 suspect among open listings; signals: est 8324, slow 4813, img 4303, fb0 4166, p65 610, p75 568, top 421, p50 419, burst 39, qty 1
+2026-10-17 04:03:09 ID check: ok - Pokemon M Gardevoir EX 112/114 Steam Siege Full Art Holo Creased -> M Gardevoir EX #112 (Pokemon Steam Siege)
+2026-10-17 04:03:30 Settled: 117 listings outlived 2 days (stale; 57 keep a full record), 13 lost sight of; kept in the book: 7168 cheapest copies, 294 suspects
+2026-10-17 04:07:47 Pictures: 9438 on file, 251 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 04:22:46 Pictures: 9444 on file, 257 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 1.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 04:34:47 Pictures: 9447 on file, 260 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.2 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 04:54:44 Pictures: 9448 on file, 261 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.7 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 05:02:26 Rate limit: 500 of 5000 calls left (buy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 05:02:53 Hour: discovery read 8458 summaries, 571 new, 367 matched, 204 unmatched | re-reads 13 windows / 22 pages, 113 flagged, 30 repriced | confirmed: 21 sold, 4 ended, 0 gone, 13 still open | book checks: 2 sold, 0 ended/gone, 9 open | kw checks 0 sold / 0 open | 117 outlived 2 days (stale), 13 lost sight of, 74 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 4.0 min
+2026-10-17 05:02:53 Now: 25940 open, 44250 closed, 6509 cards with data, 7689 listings in 24 h, 3 pass the gate; budget 500 left, 2.21 optional calls/min, 2 tokens; 1023 calls today
+2026-10-17 05:02:54 Waiting: 3667 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 0 book copies due, 133 suspects due a last look; 46 dropped unconfirmed after 3 days; kept past 2 days: 7168 cheapest copies, 294 suspects
+2026-10-17 05:02:54 Verdicts: fewer than 2 photos 1654, no sales yet 1427, mismatch: too high 1120, not liquid 1083, over max buy 938, too few sales (1) 610, too few sales (3) 251, too few sales (2) 251, too few sales (4) 121, suspect 115, mismatch: too cheap 50, LEAD 22, seller < 95% 16, seller < 98% 13, ID conflict 7, reprint? 6, PASS 3, condition MP 2
+2026-10-17 05:02:54 Cards: 342 with 5+ sales behind the anchor, 70 liquid at the collector's defaults, 70 both
+2026-10-17 05:02:54 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 22.0%), 70 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 100 / 70 / 42 / 18)
+2026-10-17 05:02:54 Identity: 253 open listings under 40% of the PriceCharting price, 3771 over 300% (kept out of the statistics); item specifics read on 797 open listings (637 agree, 120 conflict, 40 blank), 10 read this hour; printed totals for 151 sets
+2026-10-17 05:02:54 Pictures: 9457 cards with a PriceCharting picture on file, 19 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.3 s); 1 Review answers on the site
+2026-10-17 05:02:54 Printing: 109 open listings filed under a printing their item specifics named; 5 unmatched 'ambiguous variant' listings waiting for a lookup; 29 printing lookups today
+2026-10-17 05:03:05 Facts: eBay's record on 13395 open listings (811 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2885 products in the ePID memory, 2585 tied to a card; 27 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4738 lookups so far, 1490 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 05:03:05 Disk: 20.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 05:03:05 Unmatched this hour: no card number 77, rejected 75, no set/name agreement 41, ambiguous variant 9, no card # 2, printing not in catalog 1
+2026-10-17 05:03:05 Alerts: 0 hit alerts and 2 auction alerts sent this hour to the phone
+2026-10-17 05:03:05 Auction trial: 751 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 05:03:05 Scam screen: 21461 clean, 3906 watch, 573 suspect among open listings; signals: est 8398, slow 4807, img 4266, fb0 4148, p65 611, p75 566, p50 425, top 418, burst 39, qty 1
+2026-10-17 05:03:05 ID check: ok - Wizards of the Coast Clefable 1/64 Jungle Holo Rare 1999 EN Pokemon TC -> Clefable #1 (Pokemon Jungle)
+2026-10-17 05:03:32 Settled: 90 listings outlived 2 days (stale; 44 keep a full record), 4 lost sight of; kept in the book: 7140 cheapest copies, 289 suspects
+2026-10-17 05:06:46 Pictures: 9457 on file, 270 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.3 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 05:19:45 Pictures: 9460 on file, 273 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 1.1 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 05:37:47 Pictures: 9462 on file, 275 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 05:48:44 Pictures: 9465 on file, 278 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 05:58:44 Pictures: 9467 on file, 280 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 06:02:26 Rate limit: 310 of 5000 calls left (buy.browse), resets 2026-10-17T07:00:00.000Z, window 86400 s
+2026-10-17 06:02:58 Hour: discovery read 8757 summaries, 279 new, 208 matched, 71 unmatched | re-reads 15 windows / 29 pages, 107 flagged, 44 repriced | confirmed: 10 sold, 8 ended, 0 gone, 15 still open | book checks: 1 sold, 0 ended/gone, 15 open | kw checks 0 sold / 0 open | 90 outlived 2 days (stale), 4 lost sight of, 38 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.0 min
+2026-10-17 06:02:58 Now: 25940 open, 44323 closed, 6520 cards with data, 7726 listings in 24 h, 3 pass the gate; budget 310 left, 2.01 optional calls/min, 0 tokens; 1208 calls today
+2026-10-17 06:02:59 Waiting: 3675 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 2 book copies due, 128 suspects due a last look; 49 dropped unconfirmed after 3 days; kept past 2 days: 7140 cheapest copies, 289 suspects
+2026-10-17 06:02:59 Verdicts: fewer than 2 photos 1662, no sales yet 1423, mismatch: too high 1137, not liquid 1094, over max buy 941, too few sales (1) 622, too few sales (3) 250, too few sales (2) 243, too few sales (4) 120, suspect 112, mismatch: too cheap 50, LEAD 22, seller < 95% 16, seller < 98% 15, ID conflict 8, reprint? 6, PASS 3, condition MP 2
+2026-10-17 06:02:59 Cards: 342 with 5+ sales behind the anchor, 70 liquid at the collector's defaults, 70 both
+2026-10-17 06:02:59 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 22.0%), 70 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 100 / 70 / 42 / 18)
+2026-10-17 06:02:59 Identity: 250 open listings under 40% of the PriceCharting price, 3774 over 300% (kept out of the statistics); item specifics read on 792 open listings (632 agree, 120 conflict, 40 blank), 7 read this hour; printed totals for 151 sets
+2026-10-17 06:02:59 Pictures: 9468 cards with a PriceCharting picture on file, 11 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.7 s); 1 Review answers on the site
+2026-10-17 06:02:59 Printing: 111 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 35 printing lookups today
+2026-10-17 06:03:10 Facts: eBay's record on 13459 open listings (815 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2902 products in the ePID memory, 2601 tied to a card; 26 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4786 lookups so far, 1459 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 06:03:10 Disk: 20.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 06:03:10 Unmatched this hour: rejected 36, no card number 14, no set/name agreement 13, printing not in catalog 5, ambiguous variant 2, ambiguous set 1
+2026-10-17 06:03:10 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 06:03:10 Auction trial: 768 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 06:03:10 Scam screen: 21476 clean, 3897 watch, 567 suspect among open listings; signals: est 8386, slow 4800, img 4268, fb0 4138, p65 607, p75 562, p50 418, top 416, burst 39, qty 1
+2026-10-17 06:03:10 ID check: conflict - Psyduck (Delta Species) 81/110 EX Holon Phantoms Regular Mint Conditio -> Psyduck #81 (Pokemon Holon Phantoms): rarity Reverse Holo (the card is Common)
+2026-10-17 06:03:32 Settled: 106 listings outlived 2 days (stale; 46 keep a full record), 12 lost sight of; kept in the book: 7157 cheapest copies, 283 suspects
+2026-10-17 06:12:48 Pictures: 9468 on file, 281 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 0.7 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 06:25:48 Pictures: 9471 on file, 284 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 06:42:46 Pictures: 9473 on file, 286 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.2 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 07:02:26 Rate limit: 150 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 07:02:55 Hour: discovery read 8352 summaries, 218 new, 166 matched, 52 unmatched | re-reads 14 windows / 26 pages, 107 flagged, 24 repriced | confirmed: 10 sold, 1 ended, 0 gone, 10 still open | book checks: 3 sold, 1 ended/gone, 12 open | kw checks 0 sold / 0 open | 106 outlived 2 days (stale), 12 lost sight of, 38 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.1 min
+2026-10-17 07:02:55 Now: 25881 open, 44392 closed, 6505 cards with data, 7778 listings in 24 h, 3 pass the gate; budget 150 left, 0.0 optional calls/min, 0 tokens; 1367 calls today
+2026-10-17 07:02:56 Waiting: 3696 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 126 suspects due a last look; 46 dropped unconfirmed after 3 days; kept past 2 days: 7157 cheapest copies, 283 suspects
+2026-10-17 07:02:56 Verdicts: fewer than 2 photos 1664, no sales yet 1429, mismatch: too high 1140, not liquid 1088, over max buy 955, too few sales (1) 636, too few sales (3) 254, too few sales (2) 249, too few sales (4) 130, suspect 111, mismatch: too cheap 50, LEAD 22, seller < 98% 16, seller < 95% 15, ID conflict 8, reprint? 6, PASS 3, condition MP 2
+2026-10-17 07:02:56 Cards: 342 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 07:02:56 Liquidity: 183 cards sell often enough for the window; their 48-hour sell-through is measured on 183 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 07:02:56 Identity: 247 open listings under 40% of the PriceCharting price, 3730 over 300% (kept out of the statistics); item specifics read on 784 open listings (628 agree, 118 conflict, 38 blank), 7 read this hour; printed totals for 151 sets
+2026-10-17 07:02:56 Pictures: 9475 cards with a PriceCharting picture on file, 7 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.8 s); 1 Review answers on the site
+2026-10-17 07:02:56 Printing: 111 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 40 printing lookups today
+2026-10-17 07:03:09 Facts: eBay's record on 13525 open listings (819 disagree with the card on set, rarity or finish; 5 just inherited from their product this hour); 2915 products in the ePID memory, 2612 tied to a card; 26 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4831 lookups so far, 1421 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 07:03:09 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 07:03:09 Unmatched this hour: no card number 24, rejected 17, no set/name agreement 7, ambiguous variant 3, ambiguous set 1
+2026-10-17 07:03:09 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 07:03:09 Auction trial: 768 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 07:03:09 Scam screen: 21447 clean, 3870 watch, 564 suspect among open listings; signals: est 8374, slow 4760, img 4241, fb0 4113, p65 604, p75 565, top 415, p50 414, burst 39, qty 1
+2026-10-17 07:03:09 ID check: ok - 2002 POKEMON LEGENDARY COLLECTION CHALLENGE! 106/110 UC NM A105188 FRE -> Challenge #106 (Pokemon Legendary Collection)
+2026-10-17 07:04:29 Settled: 157 listings outlived 2 days (stale; 65 keep a full record), 13 lost sight of; kept in the book: 7228 cheapest copies, 280 suspects
+2026-10-17 07:10:46 Pictures: 9475 on file, 288 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 07:11:58 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 08:03:26 Rate limit: 4980 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 08:03:54 Hour: discovery read 6475 summaries, 190 new, 129 matched, 61 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 157 outlived 2 days (stale), 13 lost sight of, 22 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.4 min
+2026-10-17 08:03:54 Now: 25811 open, 44457 closed, 6488 cards with data, 7778 listings in 24 h, 2 pass the gate; budget 4980 left, 2.74 optional calls/min, 0 tokens; 1403 calls today
+2026-10-17 08:03:55 Waiting: 3689 listings that vanished inside their first 2 days to confirm, 13 windows due for a re-read, 4 book copies due, 123 suspects due a last look; 7 dropped unconfirmed after 3 days; kept past 2 days: 7228 cheapest copies, 280 suspects
+2026-10-17 08:03:55 Verdicts: fewer than 2 photos 1660, no sales yet 1431, mismatch: too high 1137, not liquid 1092, over max buy 959, too few sales (1) 631, too few sales (3) 256, too few sales (2) 251, too few sales (4) 128, suspect 112, mismatch: too cheap 52, LEAD 22, seller < 98% 16, seller < 95% 13, ID conflict 8, reprint? 6, condition MP 2, PASS 2
+2026-10-17 08:03:55 Cards: 342 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 08:03:55 Liquidity: 183 cards sell often enough for the window; their 48-hour sell-through is measured on 183 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 08:03:55 Identity: 248 open listings under 40% of the PriceCharting price, 3678 over 300% (kept out of the statistics); item specifics read on 780 open listings (624 agree, 119 conflict, 37 blank), 2 read this hour; printed totals for 151 sets
+2026-10-17 08:03:55 Pictures: 9479 cards with a PriceCharting picture on file, 4 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 2.1 s); 1 Review answers on the site
+2026-10-17 08:03:55 Printing: 111 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 41 printing lookups today
+2026-10-17 08:04:07 Facts: eBay's record on 13528 open listings (818 disagree with the card on set, rarity or finish; 84 just inherited from their product this hour); 2915 products in the ePID memory, 2612 tied to a card; 25 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4831 lookups so far, 1406 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 08:04:07 Disk: 20.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 08:04:07 Unmatched this hour: rejected 52, no card number 5, no set/name agreement 3, ambiguous variant 1
+2026-10-17 08:04:07 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 08:04:07 Auction trial: 769 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 08:04:07 Scam screen: 21385 clean, 3860 watch, 566 suspect among open listings; signals: est 8352, slow 4715, img 4187, fb0 4106, p65 603, p75 565, top 417, p50 414, burst 44, qty 1
+2026-10-17 08:04:07 ID check: printing unclear - Pokemon N (Supporter) 105a/124 Alternate Art Promos Holofoil Promo NM -> conflict: set Alternate Art Promos, rarity Promo (the card is Uncommon)
+2026-10-17 08:04:32 Settled: 122 listings outlived 2 days (stale; 77 keep a full record), 10 lost sight of; kept in the book: 7261 cheapest copies, 281 suspects
+2026-10-17 08:16:46 Pictures: 9479 on file, 292 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.1 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 08:34:47 Pictures: 9480 on file, 293 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 09:01:48 Pictures: 9481 on file, 294 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.9 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 09:03:26 Rate limit: 4760 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 09:03:52 Hour: discovery read 8712 summaries, 102 new, 84 matched, 18 unmatched | re-reads 28 windows / 53 pages, 142 flagged, 49 repriced | confirmed: 22 sold, 5 ended, 0 gone, 16 still open | book checks: 2 sold, 1 ended/gone, 19 open | kw checks 0 sold / 0 open | 122 outlived 2 days (stale), 10 lost sight of, 18 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 22 publishes | median indexing lag 4.3 min
+2026-10-17 09:03:52 Now: 25677 open, 44571 closed, 6476 cards with data, 7716 listings in 24 h, 2 pass the gate; budget 4760 left, 2.73 optional calls/min, 0 tokens; 1624 calls today
+2026-10-17 09:03:53 Waiting: 3728 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 123 suspects due a last look; 31 dropped unconfirmed after 3 days; kept past 2 days: 7261 cheapest copies, 281 suspects
+2026-10-17 09:03:53 Verdicts: fewer than 2 photos 1615, no sales yet 1420, mismatch: too high 1142, not liquid 1095, over max buy 949, too few sales (1) 629, too few sales (3) 253, too few sales (2) 251, too few sales (4) 129, suspect 113, mismatch: too cheap 52, LEAD 22, seller < 98% 16, seller < 95% 13, ID conflict 8, reprint? 5, condition MP 2, PASS 2
+2026-10-17 09:03:53 Cards: 342 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 09:03:53 Liquidity: 183 cards sell often enough for the window; their 48-hour sell-through is measured on 183 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 09:03:53 Identity: 248 open listings under 40% of the PriceCharting price, 3655 over 300% (kept out of the statistics); item specifics read on 782 open listings (627 agree, 119 conflict, 36 blank), 6 read this hour; printed totals for 151 sets
+2026-10-17 09:03:53 Pictures: 9482 cards with a PriceCharting picture on file, 3 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.7 s); 1 Review answers on the site
+2026-10-17 09:03:53 Printing: 111 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 46 printing lookups today
+2026-10-17 09:04:04 Facts: eBay's record on 13497 open listings (826 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2928 products in the ePID memory, 2623 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4872 lookups so far, 1376 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 09:04:04 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 09:04:04 Unmatched this hour: rejected 9, ambiguous set 3, no set/name agreement 3, no card number 2, ambiguous variant 1
+2026-10-17 09:04:04 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 09:04:04 Auction trial: 773 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 09:04:04 Scam screen: 21268 clean, 3843 watch, 566 suspect among open listings; signals: est 8322, slow 4707, img 4162, fb0 4091, p65 605, p75 556, top 415, p50 413, burst 44, qty 1
+2026-10-17 09:04:04 ID check: ok - 2002 POKEMON LEGENDARY COLLECTION CHALLENGE! 106/110 UC NM A105189 FRE -> Challenge #106 (Pokemon Legendary Collection)
+2026-10-17 09:04:31 Settled: 148 listings outlived 2 days (stale; 97 keep a full record), 10 lost sight of; kept in the book: 7308 cheapest copies, 283 suspects
+2026-10-17 09:34:46 Pictures: 9482 on file, 295 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.7 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 09:49:45 Pictures: 9485 on file, 298 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.4 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 10:03:26 Rate limit: 4540 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 10:03:52 Hour: discovery read 8820 summaries, 184 new, 142 matched, 42 unmatched | re-reads 14 windows / 25 pages, 41 flagged, 41 repriced | confirmed: 32 sold, 9 ended, 1 gone, 18 still open | book checks: 3 sold, 0 ended/gone, 14 open | kw checks 0 sold / 0 open | 148 outlived 2 days (stale), 10 lost sight of, 30 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.2 min
+2026-10-17 10:03:52 Now: 25556 open, 44730 closed, 6460 cards with data, 7805 listings in 24 h, 3 pass the gate; budget 4540 left, 2.73 optional calls/min, 0 tokens; 1844 calls today
+2026-10-17 10:03:53 Waiting: 3660 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 125 suspects due a last look; 15 dropped unconfirmed after 3 days; kept past 2 days: 7308 cheapest copies, 283 suspects
+2026-10-17 10:03:53 Verdicts: fewer than 2 photos 1645, no sales yet 1436, mismatch: too high 1157, not liquid 1109, over max buy 950, too few sales (1) 630, too few sales (3) 255, too few sales (2) 255, too few sales (4) 130, suspect 116, mismatch: too cheap 52, LEAD 21, seller < 98% 17, seller < 95% 13, ID conflict 9, reprint? 5, PASS 3, condition MP 2
+2026-10-17 10:03:53 Cards: 343 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 10:03:53 Liquidity: 183 cards sell often enough for the window; their 48-hour sell-through is measured on 183 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 10:03:53 Identity: 248 open listings under 40% of the PriceCharting price, 3626 over 300% (kept out of the statistics); item specifics read on 783 open listings (628 agree, 119 conflict, 36 blank), 8 read this hour; printed totals for 151 sets
+2026-10-17 10:03:53 Pictures: 9486 cards with a PriceCharting picture on file, 4 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.6 s); 1 Review answers on the site
+2026-10-17 10:03:53 Printing: 113 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 52 printing lookups today
+2026-10-17 10:04:04 Facts: eBay's record on 13471 open listings (825 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2937 products in the ePID memory, 2630 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4925 lookups so far, 1346 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 10:04:04 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 10:04:04 Unmatched this hour: rejected 22, no set/name agreement 11, no card number 6, printing not in catalog 2, no card # 1
+2026-10-17 10:04:04 Alerts: 1 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 10:04:04 Auction trial: 775 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 10:04:04 Scam screen: 21175 clean, 3814 watch, 567 suspect among open listings; signals: est 8293, slow 4699, img 4141, fb0 4069, p65 608, p75 554, top 412, p50 409, burst 44, qty 1
+2026-10-17 10:04:04 ID check: ok - The Pokémon Company Cubone 103/165 Expedition Base Set 40 HP Regular C -> Cubone #103 (Pokemon Expedition)
+2026-10-17 10:04:32 Settled: 101 listings outlived 2 days (stale; 60 keep a full record), 18 lost sight of; kept in the book: 7328 cheapest copies, 285 suspects
+2026-10-17 10:16:46 Pictures: 9486 on file, 299 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 10:37:46 Pictures: 9487 on file, 300 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.9 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 11:03:26 Rate limit: 4320 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 11:03:57 Hour: discovery read 8616 summaries, 102 new, 49 matched, 53 unmatched | re-reads 6 windows / 8 pages, 29 flagged, 15 repriced | confirmed: 40 sold, 14 ended, 0 gone, 15 still open | book checks: 6 sold, 1 ended/gone, 16 open | kw checks 0 sold / 0 open | 101 outlived 2 days (stale), 18 lost sight of, 26 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.2 min
+2026-10-17 11:03:57 Now: 25374 open, 44866 closed, 6437 cards with data, 7788 listings in 24 h, 3 pass the gate; budget 4320 left, 2.72 optional calls/min, 0 tokens; 2065 calls today
+2026-10-17 11:03:58 Waiting: 3576 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 2 book copies due, 124 suspects due a last look; 12 dropped unconfirmed after 3 days; kept past 2 days: 7328 cheapest copies, 285 suspects
+2026-10-17 11:03:58 Verdicts: fewer than 2 photos 1637, no sales yet 1431, mismatch: too high 1155, not liquid 1106, over max buy 947, too few sales (1) 635, too few sales (2) 254, too few sales (3) 248, too few sales (4) 133, suspect 122, mismatch: too cheap 50, LEAD 21, seller < 98% 17, seller < 95% 13, ID conflict 9, reprint? 5, PASS 3, condition MP 2
+2026-10-17 11:03:58 Cards: 344 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 11:03:58 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 11:03:58 Identity: 249 open listings under 40% of the PriceCharting price, 3582 over 300% (kept out of the statistics); item specifics read on 782 open listings (626 agree, 120 conflict, 36 blank), 6 read this hour; printed totals for 151 sets
+2026-10-17 11:03:58 Pictures: 9489 cards with a PriceCharting picture on file, 3 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.8 s); 1 Review answers on the site
+2026-10-17 11:03:58 Printing: 114 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 57 printing lookups today
+2026-10-17 11:04:10 Facts: eBay's record on 13431 open listings (832 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2954 products in the ePID memory, 2642 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 4983 lookups so far, 1299 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 11:04:10 Disk: 20.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 11:04:10 Unmatched this hour: rejected 45, no card number 5, no set/name agreement 3
+2026-10-17 11:04:10 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 11:04:10 Auction trial: 779 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 11:04:10 Scam screen: 21010 clean, 3791 watch, 573 suspect among open listings; signals: est 8215, slow 4667, img 4102, fb0 4054, p65 609, p75 556, p50 411, top 403, burst 48, qty 1
+2026-10-17 11:04:10 ID check: conflict - Snorlax 051 Sv: Scarlet & Violet Promo Cards Holo Sealed -> Snorlax #51 (Pokemon Promo): set Sv: Scarlet & Violet Promo Cards
+2026-10-17 11:04:32 Settled: 136 listings outlived 2 days (stale; 88 keep a full record), 15 lost sight of; kept in the book: 7392 cheapest copies, 288 suspects
+2026-10-17 11:04:49 Pictures: 9489 on file, 302 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 12:03:26 Rate limit: 4100 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 12:03:57 Hour: discovery read 8511 summaries, 175 new, 68 matched, 107 unmatched | re-reads 22 windows / 41 pages, 63 flagged, 27 repriced | confirmed: 26 sold, 5 ended, 0 gone, 19 still open | book checks: 4 sold, 3 ended/gone, 10 open | kw checks 0 sold / 0 open | 136 outlived 2 days (stale), 15 lost sight of, 17 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 4.2 min
+2026-10-17 12:03:57 Now: 25209 open, 45003 closed, 6432 cards with data, 7763 listings in 24 h, 4 pass the gate; budget 4100 left, 2.71 optional calls/min, 0 tokens; 2284 calls today
+2026-10-17 12:03:58 Waiting: 3550 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 124 suspects due a last look; 16 dropped unconfirmed after 3 days; kept past 2 days: 7392 cheapest copies, 288 suspects
+2026-10-17 12:03:58 Verdicts: fewer than 2 photos 1620, no sales yet 1434, mismatch: too high 1136, not liquid 1108, over max buy 950, too few sales (1) 633, too few sales (2) 255, too few sales (3) 250, too few sales (4) 132, suspect 124, mismatch: too cheap 50, LEAD 21, seller < 98% 17, seller < 95% 13, ID conflict 9, reprint? 5, PASS 4, condition MP 2
+2026-10-17 12:03:58 Cards: 344 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 12:03:58 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 12:03:58 Identity: 247 open listings under 40% of the PriceCharting price, 3552 over 300% (kept out of the statistics); item specifics read on 783 open listings (628 agree, 120 conflict, 35 blank), 7 read this hour; printed totals for 151 sets
+2026-10-17 12:03:58 Pictures: 9490 cards with a PriceCharting picture on file, 1 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.1 s); 1 Review answers on the site
+2026-10-17 12:03:58 Printing: 114 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 63 printing lookups today
+2026-10-17 12:04:10 Facts: eBay's record on 13395 open listings (835 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2966 products in the ePID memory, 2654 tied to a card; 23 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5031 lookups so far, 1272 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 12:04:10 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 12:04:10 Unmatched this hour: rejected 64, no card number 34, no set/name agreement 9, printing not in catalog 2, no card # 1, ambiguous variant 1
+2026-10-17 12:04:10 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 12:04:10 Auction trial: 797 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 12:04:10 Scam screen: 20886 clean, 3748 watch, 575 suspect among open listings; signals: est 8163, slow 4643, img 4076, fb0 4015, p65 609, p75 554, p50 409, top 399, burst 49, qty 1
+2026-10-17 12:04:10 ID check: ok - Wizards of the Coast Pokemon TCG Charmeleon Base Set 24/102 Uncommon 1 -> Charmeleon #24 (Pokemon Base Set)
+2026-10-17 12:04:46 Pictures: 9490 on file, 303 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.1 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 12:05:32 Settled: 169 listings outlived 2 days (stale; 121 keep a full record), 14 lost sight of; kept in the book: 7455 cheapest copies, 289 suspects
+2026-10-17 12:20:49 Pictures: 9491 on file, 304 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.2 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 12:31:48 Pictures: 9492 on file, 305 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.6 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 13:01:48 Pictures: 9493 on file, 306 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 13:03:26 Rate limit: 3880 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 13:04:01 Hour: discovery read 8695 summaries, 163 new, 83 matched, 80 unmatched | re-reads 14 windows / 24 pages, 47 flagged, 16 repriced | confirmed: 24 sold, 22 ended, 0 gone, 16 still open | book checks: 2 sold, 2 ended/gone, 13 open | kw checks 0 sold / 0 open | 169 outlived 2 days (stale), 14 lost sight of, 23 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.1 min
+2026-10-17 13:04:01 Now: 25011 open, 45183 closed, 6427 cards with data, 7724 listings in 24 h, 4 pass the gate; budget 3880 left, 2.7 optional calls/min, 0 tokens; 2503 calls today
+2026-10-17 13:04:02 Waiting: 3502 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 3 book copies due, 124 suspects due a last look; 16 dropped unconfirmed after 3 days; kept past 2 days: 7455 cheapest copies, 289 suspects
+2026-10-17 13:04:02 Verdicts: fewer than 2 photos 1628, no sales yet 1426, not liquid 1112, mismatch: too high 1110, over max buy 954, too few sales (1) 631, too few sales (3) 251, too few sales (2) 243, too few sales (4) 129, suspect 123, mismatch: too cheap 48, LEAD 21, seller < 98% 15, seller < 95% 13, ID conflict 9, reprint? 5, PASS 4, condition MP 2
+2026-10-17 13:04:02 Cards: 345 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 13:04:02 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 13:04:02 Identity: 245 open listings under 40% of the PriceCharting price, 3527 over 300% (kept out of the statistics); item specifics read on 781 open listings (621 agree, 124 conflict, 36 blank), 6 read this hour; printed totals for 151 sets
+2026-10-17 13:04:02 Pictures: 9494 cards with a PriceCharting picture on file, 4 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 2.1 s); 1 Review answers on the site
+2026-10-17 13:04:02 Printing: 113 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 69 printing lookups today
+2026-10-17 13:04:15 Facts: eBay's record on 13342 open listings (843 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2976 products in the ePID memory, 2664 tied to a card; 23 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5084 lookups so far, 1235 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 13:04:15 Disk: 20.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 13:04:15 Unmatched this hour: rejected 61, no card number 13, no set/name agreement 6
+2026-10-17 13:04:15 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 13:04:15 Auction trial: 809 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 13:04:15 Scam screen: 20726 clean, 3707 watch, 578 suspect among open listings; signals: est 8100, slow 4621, img 4051, fb0 3980, p65 602, p75 556, p50 406, top 400, burst 50, qty 1
+2026-10-17 13:04:15 ID check: none - Haunter Holo 1st Ed. Pokemon Fossil #6 1999 -> Haunter #6 (Pokemon Fossil)
+2026-10-17 13:05:30 Settled: 165 listings outlived 2 days (stale; 99 keep a full record), 16 lost sight of; kept in the book: 7531 cheapest copies, 294 suspects
+2026-10-17 13:16:59 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 13:23:45 Pictures: 9495 on file, 308 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.9 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 13:37:47 Pictures: 9496 on file, 309 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.9 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 14:04:00 Rate limit: 3660 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 14:04:30 Hour: discovery read 8707 summaries, 158 new, 117 matched, 41 unmatched | re-reads 2 windows / 2 pages, 21 flagged, 23 repriced | confirmed: 41 sold, 13 ended, 0 gone, 20 still open | book checks: 8 sold, 1 ended/gone, 8 open | kw checks 0 sold / 0 open | 165 outlived 2 days (stale), 16 lost sight of, 36 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.1 min
+2026-10-17 14:04:30 Now: 24831 open, 45353 closed, 6413 cards with data, 7673 listings in 24 h, 3 pass the gate; budget 3660 left, 2.69 optional calls/min, 0 tokens; 2723 calls today
+2026-10-17 14:04:31 Waiting: 3427 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 127 suspects due a last look; 9 dropped unconfirmed after 3 days; kept past 2 days: 7531 cheapest copies, 294 suspects
+2026-10-17 14:04:31 Verdicts: fewer than 2 photos 1618, no sales yet 1407, not liquid 1109, mismatch: too high 1088, over max buy 965, too few sales (1) 624, too few sales (3) 257, too few sales (2) 238, too few sales (4) 127, suspect 122, mismatch: too cheap 51, LEAD 20, seller < 98% 15, seller < 95% 13, ID conflict 9, reprint? 5, PASS 3, condition MP 2
+2026-10-17 14:04:31 Cards: 347 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 14:04:31 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 14:04:31 Identity: 250 open listings under 40% of the PriceCharting price, 3485 over 300% (kept out of the statistics); item specifics read on 781 open listings (623 agree, 122 conflict, 36 blank), 10 read this hour; printed totals for 151 sets
+2026-10-17 14:04:31 Pictures: 9498 cards with a PriceCharting picture on file, 4 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.0 s); 1 Review answers on the site
+2026-10-17 14:04:31 Printing: 113 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 75 printing lookups today
+2026-10-17 14:04:43 Facts: eBay's record on 13326 open listings (845 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 2998 products in the ePID memory, 2685 tied to a card; 23 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5143 lookups so far, 1190 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 14:04:43 Disk: 20.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 14:04:43 Unmatched this hour: rejected 21, no set/name agreement 8, no card number 8, ambiguous variant 2, printing not in catalog 2
+2026-10-17 14:04:43 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 14:04:43 Auction trial: 834 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 14:04:43 Scam screen: 20557 clean, 3697 watch, 577 suspect among open listings; signals: est 8045, slow 4597, img 4014, fb0 3964, p65 599, p75 549, p50 410, top 397, burst 49, qty 1
+2026-10-17 14:04:43 ID check: ok - Pokemon TCG Charmander 46/102 Base Set Unlimited Common 1999 English 5 -> Charmander #46 (Pokemon Base Set)
+2026-10-17 14:06:05 Settled: 186 listings outlived 2 days (stale; 100 keep a full record), 20 lost sight of; kept in the book: 7575 cheapest copies, 294 suspects
+2026-10-17 14:06:22 Pictures: 9498 on file, 311 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 14:18:23 Pictures: 9500 on file, 313 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.0 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 14:41:27 Pictures: 9501 on file, 314 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.5 s; history: 43,924 of 43,961 cards on file, 43,924 with the volume series
+2026-10-17 14:47:44 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 14:50:13 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 14:52:47 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 14:55:19 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 14:56:11 Collector starting (/opt/pokemon-collector); pid 427522; buying tax 6.25%
+2026-10-17 14:56:11 Disk: 20.5 GB free on the data disk
+2026-10-17 14:56:25 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24821 open, 45477 closed
+2026-10-17 14:56:27 PriceCharting history: 43,924 of 43,963 cards on file (43,924 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 14:56:27 PriceCharting pictures: 9512 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 14:56:27 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 14:56:27 PriceCharting pictures for the check screen: reachable
+2026-10-17 14:56:37 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 14:56:38 Rate limit: 3490 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 14:56:57 Pictures: 9512 on file, 0 pages read since the start, 39 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,924 of 43,963 cards on file, 43,924 with the volume series
+2026-10-17 14:58:57 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 15:00:58 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:00:58 Hour: discovery read 200 summaries, 20 new, 11 matched, 9 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 1 sold, 1 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 24 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 0 publishes | median indexing lag 4.2 min
+2026-10-17 15:00:58 Now: 24761 open, 45479 closed, 6417 cards with data, 7661 listings in 24 h, 3 pass the gate; budget 3490 left, 2.7 optional calls/min, 0 tokens; 2888 calls today
+2026-10-17 15:00:59 Waiting: 3464 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 13 book copies due, 125 suspects due a last look; 45 dropped unconfirmed after 3 days; kept past 2 days: 7575 cheapest copies, 294 suspects
+2026-10-17 15:00:59 Verdicts: fewer than 2 photos 1624, no sales yet 1402, not liquid 1114, mismatch: too high 1048, over max buy 962, too few sales (1) 625, too few sales (3) 259, too few sales (2) 255, too few sales (4) 127, suspect 126, mismatch: too cheap 54, LEAD 19, seller < 95% 14, seller < 98% 14, ID conflict 8, reprint? 5, PASS 3, condition MP 2
+2026-10-17 15:00:59 Cards: 347 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 15:00:59 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 15:00:59 Identity: 257 open listings under 40% of the PriceCharting price, 3440 over 300% (kept out of the statistics); item specifics read on 773 open listings (621 agree, 117 conflict, 35 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 15:00:59 Pictures: 9512 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.8 s); 1 Review answers on the site
+2026-10-17 15:00:59 Printing: 113 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 79 printing lookups today
+2026-10-17 15:01:12 Facts: eBay's record on 13277 open listings (835 disagree with the card on set, rarity or finish; 6 just inherited from their product this hour); 3004 products in the ePID memory, 2691 tied to a card; 23 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5169 lookups so far, 1191 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 15:01:12 Disk: 20.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 15:01:12 Unmatched this hour: no card number 19, rejected 18, no set/name agreement 8, printing not in catalog 3
+2026-10-17 15:01:12 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 15:01:12 Auction trial: 863 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 15:01:12 Scam screen: 20497 clean, 3683 watch, 581 suspect among open listings; signals: est 8036, slow 4575, img 4003, fb0 3951, p65 597, p75 542, p50 413, top 398, burst 56, qty 2
+2026-10-17 15:01:19 Settled: 200 listings outlived 2 days (stale; 108 keep a full record), 25 lost sight of; kept in the book: 7610 cheapest copies, 296 suspects
+2026-10-17 15:01:35 PriceCharting history: card 14695689: no VGPC series in the page
+2026-10-17 15:01:35 PriceCharting history: card 14602657: no VGPC series in the page
+2026-10-17 15:01:35 PriceCharting history: card 14855204: no VGPC series in the page
+2026-10-17 15:03:44 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:06:16 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:08:49 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:11:26 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:13:58 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:16:25 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:16:49 Pictures: 9513 on file, 40 pages read since the start, 9 to go, one page every 2 s, last read HTTP 200 in 0.6 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 15:16:52 PriceCharting sign-in: the site updated the cookie jar (new or changed: ['(a value or expiry)']; jar now ['vgpc_daily', 'vgpc_session', 'vgpc_visitor'])
+2026-10-17 15:22:01 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 15:28:26 Pictures: 9522 on file, 49 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.7 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 15:39:25 Pictures: 9524 on file, 51 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.3 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 15:41:43 Code updated 072584e -> 14336c1: forecast.py, forecast_calib.json
+2026-10-17 15:41:49 Restarting on the new code.
+2026-10-17 15:42:09 Collector starting (/opt/pokemon-collector); pid 428768; buying tax 6.25%
+2026-10-17 15:42:09 Disk: 20.5 GB free on the data disk
+2026-10-17 15:42:24 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24736 open, 45602 closed
+2026-10-17 15:42:26 PriceCharting history: 43,930 of 43,963 cards on file (43,930 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 15:42:26 PriceCharting pictures: 9525 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 15:42:26 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 15:42:26 PriceCharting pictures for the check screen: reachable
+2026-10-17 15:42:40 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 15:42:41 Rate limit: 3390 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 15:43:03 Pictures: 9525 on file, 0 pages read since the start, 33 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 15:45:29 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 15:45:34 Hour: discovery read 200 summaries, 7 new, 5 matched, 2 unmatched | re-reads 2 windows / 2 pages, 7 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 60 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 1 publishes | median indexing lag 4.5 min
+2026-10-17 15:45:34 Now: 24654 open, 45602 closed, 6417 cards with data, 7617 listings in 24 h, 3 pass the gate; budget 3390 left, 2.77 optional calls/min, 0 tokens; 2996 calls today
+2026-10-17 15:45:35 Waiting: 3496 listings that vanished inside their first 2 days to confirm, 4 windows due for a re-read, 6 book copies due, 126 suspects due a last look; 27 dropped unconfirmed after 3 days; kept past 2 days: 7610 cheapest copies, 296 suspects
+2026-10-17 15:45:35 Verdicts: fewer than 2 photos 1601, no sales yet 1387, not liquid 1115, mismatch: too high 1047, over max buy 961, too few sales (1) 618, too few sales (2) 267, too few sales (3) 259, too few sales (4) 125, suspect 119, mismatch: too cheap 56, LEAD 17, seller < 98% 14, seller < 95% 12, ID conflict 9, reprint? 5, PASS 3, condition MP 2
+2026-10-17 15:45:35 Cards: 347 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 15:45:35 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 15:45:35 Identity: 256 open listings under 40% of the PriceCharting price, 3416 over 300% (kept out of the statistics); item specifics read on 773 open listings (618 agree, 119 conflict, 36 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 15:45:35 Pictures: 9525 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.0 s); 1 Review answers on the site
+2026-10-17 15:45:35 Printing: 112 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 83 printing lookups today
+2026-10-17 15:45:49 Facts: eBay's record on 13248 open listings (835 disagree with the card on set, rarity or finish; 9 just inherited from their product this hour); 3014 products in the ePID memory, 2700 tied to a card; 22 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5192 lookups so far, 1221 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 15:45:49 Disk: 20.4 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 15:45:49 Unmatched this hour: rejected 112, no card number 36, no set/name agreement 18, ambiguous variant 2, printing not in catalog 1
+2026-10-17 15:45:49 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 15:45:49 Auction trial: 880 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 15:45:49 Scam screen: 20430 clean, 3647 watch, 577 suspect among open listings; signals: est 8019, slow 4553, img 3978, fb0 3909, p65 600, p75 544, p50 418, top 398, burst 49, qty 2
+2026-10-17 15:45:50 Code updated 14336c1 -> af8c00c: .github/workflows/update_catalog.yml, collector.py, requirements.txt
+2026-10-17 15:46:20 Restarting on the new code.
+2026-10-17 15:46:42 Collector starting (/opt/pokemon-collector); pid 428913; buying tax 6.25%
+2026-10-17 15:46:42 Disk: 20.2 GB free on the data disk
+2026-10-17 15:46:57 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24654 open, 45602 closed
+2026-10-17 15:46:59 PriceCharting history: 43,930 of 43,963 cards on file (43,930 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 15:46:59 PriceCharting pictures: 9525 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 15:46:59 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 15:46:59 PriceCharting pictures for the check screen: reachable
+2026-10-17 15:47:12 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 15:47:13 Rate limit: 3380 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 15:47:35 Pictures: 9525 on file, 0 pages read since the start, 35 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 15:49:44 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 15:49:49 Hour: discovery read 200 summaries, 15 new, 13 matched, 2 unmatched | re-reads 2 windows / 3 pages, 8 flagged, 4 repriced | confirmed: 0 sold, 0 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 1 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 1 publishes | median indexing lag 4.5 min
+2026-10-17 15:49:49 Now: 24665 open, 45602 closed, 6418 cards with data, 7603 listings in 24 h, 3 pass the gate; budget 3380 left, 2.77 optional calls/min, 0 tokens; 3000 calls today
+2026-10-17 15:49:50 Waiting: 3503 listings that vanished inside their first 2 days to confirm, 2 windows due for a re-read, 9 book copies due, 126 suspects due a last look; 1 dropped unconfirmed after 3 days; kept past 2 days: 7610 cheapest copies, 296 suspects
+2026-10-17 15:49:50 Verdicts: fewer than 2 photos 1600, no sales yet 1389, not liquid 1114, mismatch: too high 1042, over max buy 958, too few sales (1) 616, too few sales (2) 267, too few sales (3) 259, too few sales (4) 124, suspect 119, mismatch: too cheap 56, LEAD 16, seller < 98% 14, seller < 95% 11, ID conflict 8, reprint? 5, PASS 3, condition MP 2
+2026-10-17 15:49:50 Cards: 347 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 15:49:50 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 15:49:50 Identity: 256 open listings under 40% of the PriceCharting price, 3418 over 300% (kept out of the statistics); item specifics read on 773 open listings (618 agree, 119 conflict, 36 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 15:49:50 Pictures: 9525 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.2 s); 1 Review answers on the site
+2026-10-17 15:49:50 Printing: 112 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 83 printing lookups today
+2026-10-17 15:50:01 Facts: eBay's record on 13255 open listings (835 disagree with the card on set, rarity or finish; 8 just inherited from their product this hour); 3014 products in the ePID memory, 2700 tied to a card; 22 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5192 lookups so far, 1221 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 15:50:01 Disk: 20.1 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 15:50:01 Unmatched this hour: rejected 112, no card number 35, no set/name agreement 19, ambiguous variant 2, printing not in catalog 1
+2026-10-17 15:50:01 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 15:50:01 Auction trial: 880 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 15:50:01 Scam screen: 20440 clean, 3648 watch, 577 suspect among open listings; signals: est 8024, slow 4553, img 3979, fb0 3910, p65 600, p75 545, p50 418, top 399, burst 49, qty 2
+2026-10-17 15:50:02 Code updated af8c00c -> b5f7e3a: page/app.js
+2026-10-17 15:50:09 Settled: 166 listings outlived 2 days (stale; 76 keep a full record), 15 lost sight of; kept in the book: 7652 cheapest copies, 298 suspects
+2026-10-17 15:52:53 Code updated b5f7e3a -> 47be8ec: page/body.html, page/help.js
+2026-10-17 15:59:16 Code updated 47be8ec -> 92e199c: CLAUDE.md, page/style.css
+2026-10-17 16:04:03 Pictures: 9528 on file, 36 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 16:05:19 Code updated 92e199c -> e8790ae: CLAUDE.md, forecast.py
+2026-10-17 16:05:26 Restarting on the new code.
+2026-10-17 16:05:48 Collector starting (/opt/pokemon-collector); pid 429252; buying tax 6.25%
+2026-10-17 16:05:48 Disk: 20.1 GB free on the data disk
+2026-10-17 16:05:53 Catalog: pc_catalog_2026-10-17.csv.gz.enc was replaced on the release; reading the new copy
+2026-10-17 16:06:05 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24549 open, 45689 closed
+2026-10-17 16:06:08 PriceCharting history: 43,930 of 43,963 cards on file (43,930 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 16:06:08 PriceCharting pictures: 9529 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 16:06:08 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 16:06:08 PriceCharting pictures for the check screen: reachable
+2026-10-17 16:06:21 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 16:06:22 Rate limit: 3320 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 16:06:46 Pictures: 9529 on file, 0 pages read since the start, 33 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 16:09:07 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 16:09:11 Hour: discovery read 200 summaries, 7 new, 5 matched, 2 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 1 sold, 2 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 20 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 1 publishes | median indexing lag 4.5 min
+2026-10-17 16:09:11 Now: 24531 open, 45692 closed, 6404 cards with data, 7592 listings in 24 h, 4 pass the gate; budget 3320 left, 2.78 optional calls/min, 0 tokens; 3058 calls today
+2026-10-17 16:09:12 Waiting: 3494 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 3 book copies due, 128 suspects due a last look; 0 dropped unconfirmed after 3 days; kept past 2 days: 7652 cheapest copies, 298 suspects
+2026-10-17 16:09:12 Verdicts: fewer than 2 photos 1598, no sales yet 1385, not liquid 1115, mismatch: too high 1034, over max buy 966, too few sales (1) 615, too few sales (2) 264, too few sales (3) 259, too few sales (4) 124, suspect 117, mismatch: too cheap 57, LEAD 15, seller < 98% 14, seller < 95% 10, ID conflict 8, reprint? 5, PASS 4, condition MP 2
+2026-10-17 16:09:12 Cards: 347 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 16:09:12 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 16:09:12 Identity: 257 open listings under 40% of the PriceCharting price, 3401 over 300% (kept out of the statistics); item specifics read on 776 open listings (620 agree, 119 conflict, 37 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 16:09:12 Pictures: 9529 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.7 s); 1 Review answers on the site
+2026-10-17 16:09:12 Printing: 113 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 85 printing lookups today
+2026-10-17 16:09:23 Facts: eBay's record on 13233 open listings (834 disagree with the card on set, rarity or finish; 4 just inherited from their product this hour); 3021 products in the ePID memory, 2706 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5205 lookups so far, 1216 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 16:09:23 Disk: 20.1 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 16:09:23 Unmatched this hour: rejected 112, no card number 31, no set/name agreement 17, ambiguous variant 3, printing not in catalog 3
+2026-10-17 16:09:23 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 16:09:23 Auction trial: 900 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 16:09:23 Scam screen: 20358 clean, 3594 watch, 579 suspect among open listings; signals: est 8002, slow 4516, img 3942, fb0 3860, p65 597, p75 548, p50 417, top 399, burst 49, qty 2
+2026-10-17 16:09:31 Settled: 66 listings outlived 2 days (stale; 48 keep a full record), 10 lost sight of; kept in the book: 7657 cheapest copies, 299 suspects
+2026-10-17 16:16:56 Code updated e8790ae -> 1621eba: page/app.js
+2026-10-17 16:19:46 Pictures: 9533 on file, 37 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.5 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 16:23:43 Code updated 1621eba -> 7cc72c5: page/app.js
+2026-10-17 16:28:36 Code updated 7cc72c5 -> 5fbf82d: CLAUDE.md, page/help.js
+2026-10-17 16:37:29 Pictures: 9537 on file, 41 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 16:39:35 Code updated 5fbf82d -> 9185840: page/app.js, page/help.js
+2026-10-17 16:45:46 Code updated 9185840 -> 2e02540: CLAUDE.md, collector.py
+2026-10-17 16:45:53 Restarting on the new code.
+2026-10-17 16:46:15 Collector starting (/opt/pokemon-collector); pid 429649; buying tax 6.25%
+2026-10-17 16:46:15 Disk: 20.0 GB free on the data disk
+2026-10-17 16:46:19 Catalog: pc_catalog_2026-10-17.csv.gz.enc was replaced on the release; reading the new copy
+2026-10-17 16:46:32 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24776 open, 45775 closed
+2026-10-17 16:46:34 PriceCharting history: 43,930 of 43,963 cards on file (43,930 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 16:46:34 PriceCharting pictures: 9538 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 16:46:34 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 16:46:34 PriceCharting pictures for the check screen: reachable
+2026-10-17 16:46:49 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 16:46:50 Rate limit: 3180 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 16:47:17 Pictures: 9538 on file, 0 pages read since the start, 33 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 16:49:31 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 16:49:35 Hour: discovery read 200 summaries, 71 new, 66 matched, 5 unmatched | re-reads 0 windows / 0 pages, 0 flagged, 0 repriced | confirmed: 1 sold, 0 ended, 0 gone, 2 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 76 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 1 publishes | median indexing lag 4.2 min
+2026-10-17 16:49:35 Now: 24744 open, 45776 closed, 6439 cards with data, 7670 listings in 24 h, 5 pass the gate; budget 3180 left, 2.78 optional calls/min, 0 tokens; 3199 calls today
+2026-10-17 16:49:36 Waiting: 3473 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 1 book copies due, 127 suspects due a last look; 21 dropped unconfirmed after 3 days; kept past 2 days: 7657 cheapest copies, 299 suspects
+2026-10-17 16:49:36 Verdicts: fewer than 2 photos 1579, no sales yet 1412, not liquid 1138, mismatch: too high 1073, over max buy 978, too few sales (1) 618, too few sales (2) 264, too few sales (3) 254, too few sales (4) 122, suspect 118, mismatch: too cheap 54, LEAD 15, seller < 98% 14, seller < 95% 10, ID conflict 8, PASS 5, reprint? 5, condition MP 2, review 1
+2026-10-17 16:49:36 Cards: 348 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 16:49:36 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 16:49:36 Identity: 258 open listings under 40% of the PriceCharting price, 3496 over 300% (kept out of the statistics); item specifics read on 779 open listings (621 agree, 120 conflict, 38 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 16:49:36 Pictures: 9538 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.8 s); 1 Review answers on the site
+2026-10-17 16:49:36 Printing: 114 open listings filed under a printing their item specifics named; 3 unmatched 'ambiguous variant' listings waiting for a lookup; 89 printing lookups today
+2026-10-17 16:49:48 Facts: eBay's record on 13318 open listings (844 disagree with the card on set, rarity or finish; 1 just inherited from their product this hour); 3029 products in the ePID memory, 2713 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5240 lookups so far, 1256 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 16:49:48 Disk: 20.0 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 16:49:48 Unmatched this hour: rejected 134, no card number 36, no set/name agreement 27, ambiguous variant 7, printing not in catalog 3, ambiguous set 1
+2026-10-17 16:49:48 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 16:49:48 Auction trial: 222 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 16:49:48 Scam screen: 20567 clean, 3598 watch, 579 suspect among open listings; signals: est 8111, slow 4586, img 4005, fb0 3862, p65 599, p75 540, p50 420, top 397, burst 49, qty 2
+2026-10-17 16:49:55 Settled: 135 listings outlived 2 days (stale; 89 keep a full record), 11 lost sight of; kept in the book: 7670 cheapest copies, 299 suspects
+2026-10-17 16:52:15 Code updated 2e02540 -> 1626ac8: CLAUDE.md, page/app.js, page/help.js
+2026-10-17 17:02:20 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:04:43 Pictures: 9538 on file, 33 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.8 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 17:07:51 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:13:24 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:17:56 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:18:20 Pictures: 9540 on file, 35 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.7 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 17:20:29 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:28:59 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:29:22 Pictures: 9541 on file, 36 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 1.4 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 17:31:31 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:34:01 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:36:31 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:39:04 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:39:06 Code updated 1626ac8 -> cf3d550: collector.py, ebay_sweep.py, page/app.js
+2026-10-17 17:39:11 Restarting on the new code.
+2026-10-17 17:39:32 Collector starting (/opt/pokemon-collector); pid 430066; buying tax 6.25%
+2026-10-17 17:39:32 Disk: 19.9 GB free on the data disk
+2026-10-17 17:39:36 Catalog: pc_catalog_2026-10-17.csv.gz.enc was replaced on the release; reading the new copy
+2026-10-17 17:39:48 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24817 open, 45889 closed
+2026-10-17 17:39:50 PriceCharting history: 43,930 of 43,963 cards on file (43,930 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 17:39:50 PriceCharting pictures: 9544 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 17:39:50 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 17:39:50 PriceCharting pictures for the check screen: reachable
+2026-10-17 17:40:02 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 17:40:03 Rate limit: 3050 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 17:40:26 Pictures: 9544 on file, 0 pages read since the start, 35 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 17:42:43 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 17:43:58 Hour: discovery read 200 summaries, 31 new, 27 matched, 4 unmatched | re-reads 1 windows / 2 pages, 7 flagged, 0 repriced | confirmed: 0 sold, 0 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 49 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 1 publishes | median indexing lag 4.6 min
+2026-10-17 17:43:58 Now: 24750 open, 45889 closed, 6438 cards with data, 7351 listings in 24 h, 4 pass the gate; budget 3050 left, 2.86 optional calls/min, 1 tokens; 3336 calls today
+2026-10-17 17:43:59 Waiting: 3501 listings that vanished inside their first 2 days to confirm, 5 windows due for a re-read, 2 book copies due, 128 suspects due a last look; 45 dropped unconfirmed after 3 days; kept past 2 days: 7670 cheapest copies, 299 suspects
+2026-10-17 17:43:59 Verdicts: no sales yet 1393, fewer than 2 photos 1387, not liquid 1139, over max buy 994, mismatch: too high 994, too few sales (1) 594, too few sales (2) 251, too few sales (3) 247, too few sales (4) 127, suspect 112, mismatch: too cheap 57, LEAD 16, seller < 98% 12, seller < 95% 9, ID conflict 7, reprint? 5, PASS 4, condition MP 2, review 1
+2026-10-17 17:43:59 Cards: 348 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 17:43:59 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 17:43:59 Identity: 264 open listings under 40% of the PriceCharting price, 3489 over 300% (kept out of the statistics); item specifics read on 784 open listings (627 agree, 119 conflict, 38 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 17:43:59 Conditions: eBay's condition field read on 13488 open listings (0 name a grade, 0 say something else, 13488 carry none); the condition pass made 0 of its 400 looks today, 1775 in its queue; 4550 listings of the last 24 h still n/s
+2026-10-17 17:43:59 Pictures: 9544 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.7 s); 1 Review answers on the site
+2026-10-17 17:43:59 Printing: 115 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 94 printing lookups today
+2026-10-17 17:44:11 Facts: eBay's record on 13354 open listings (849 disagree with the card on set, rarity or finish; 28 just inherited from their product this hour); 3036 products in the ePID memory, 2719 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5266 lookups so far, 1240 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 17:44:11 Disk: 19.9 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 17:44:11 Unmatched this hour: rejected 52, no card number 25, no set/name agreement 17, ambiguous variant 6, printing not in catalog 3
+2026-10-17 17:44:11 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 17:44:11 Auction trial: 255 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 17:44:11 Scam screen: 20575 clean, 3596 watch, 579 suspect among open listings; signals: est 8109, slow 4581, img 3994, fb0 3858, p65 604, p75 543, p50 425, top 401, burst 47, qty 3
+2026-10-17 17:44:12 Code updated fb80da9 -> 4a1be69: CLAUDE.md, page/style.css
+2026-10-17 17:44:26 Settled: 194 listings outlived 2 days (stale; 106 keep a full record), 16 lost sight of; kept in the book: 7689 cheapest copies, 297 suspects
+2026-10-17 17:50:48 Code updated 4a1be69 -> 7526095: collector.py
+2026-10-17 17:50:53 Restarting on the new code.
+2026-10-17 17:51:13 Collector starting (/opt/pokemon-collector); pid 430167; buying tax 6.25%
+2026-10-17 17:51:13 Disk: 19.9 GB free on the data disk
+2026-10-17 17:51:16 Catalog: pc_catalog_2026-10-17.csv.gz.enc was replaced on the release; reading the new copy
+2026-10-17 17:51:26 Catalog pc_catalog_2026-10-17.csv.gz.enc; state: 24590 open, 45995 closed
+2026-10-17 17:51:28 PriceCharting history: 43,930 of 43,963 cards on file (43,930 with the volume series); the page reader fills in the rest (one page every 2 s) and refreshes cards weekly (with eBay data) or monthly; PriceCharting sign-in: set - cookie jar kept from the earlier runs (3 cookies, updated from the site as it goes); the first page read tells whether it works
+2026-10-17 17:51:28 PriceCharting pictures: 9547 on file; the background reader takes one page every 2 s until every card has one
+2026-10-17 17:51:28 eBay account: linked - purchases and sales are read every half hour
+2026-10-17 17:51:28 PriceCharting pictures for the check screen: reachable
+2026-10-17 17:51:40 Settings: margin 10%, buying tax 0%, sells within 48 h with 70% confidence; alerts: hits on, leads off, profit from $0, price $25-$500, scam-watch included, suspects blocked, auctions on, quiet hours off
+2026-10-17 17:51:40 Rate limit: 3020 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 17:51:59 Pictures: 9547 on file, 0 pages read since the start, 33 to go, one page every 2 s, last read HTTP None in 0.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 17:54:05 PC sales: last month's bar on file for 43,893 cards (169 KB published)
+2026-10-17 17:56:06 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 17:56:06 Hour: discovery read 200 summaries, 2 new, 1 matched, 1 unmatched | re-reads 1 windows / 1 pages, 2 flagged, 2 repriced | confirmed: 0 sold, 0 ended, 0 gone, 0 still open | book checks: 0 sold, 0 ended/gone, 0 open | kw checks 0 sold / 0 open | 0 outlived 2 days (stale), 0 lost sight of, 10 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 0 publishes | median indexing lag 4.5 min
+2026-10-17 17:56:06 Now: 24576 open, 45995 closed, 6419 cards with data, 7294 listings in 24 h, 3 pass the gate; budget 3020 left, 2.87 optional calls/min, 0 tokens; 3365 calls today
+2026-10-17 17:56:08 Waiting: 3507 listings that vanished inside their first 2 days to confirm, 5 windows due for a re-read, 3 book copies due, 124 suspects due a last look; 5 dropped unconfirmed after 3 days; kept past 2 days: 7689 cheapest copies, 297 suspects
+2026-10-17 17:56:08 Verdicts: no sales yet 1396, fewer than 2 photos 1343, not liquid 1131, over max buy 992, mismatch: too high 984, too few sales (1) 600, too few sales (2) 251, too few sales (3) 248, too few sales (4) 126, suspect 111, mismatch: too cheap 55, LEAD 17, seller < 98% 12, seller < 95% 9, ID conflict 7, reprint? 6, PASS 3, condition MP 2, review 1
+2026-10-17 17:56:08 Cards: 348 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 17:56:08 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 17:56:08 Identity: 262 open listings under 40% of the PriceCharting price, 3442 over 300% (kept out of the statistics); item specifics read on 779 open listings (623 agree, 118 conflict, 38 blank), 0 read this hour; printed totals for 151 sets
+2026-10-17 17:56:08 Conditions: eBay's condition field read on 13414 open listings (1 name a grade, 0 say something else, 13413 carry none); the condition pass made 0 of its 400 looks today, 1774 in its queue; 4543 listings of the last 24 h still n/s
+2026-10-17 17:56:08 Pictures: 9547 cards with a PriceCharting picture on file, 0 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 1.1 s); 1 Review answers on the site
+2026-10-17 17:56:08 Printing: 115 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 95 printing lookups today
+2026-10-17 17:56:20 Facts: eBay's record on 13276 open listings (840 disagree with the card on set, rarity or finish; 24 just inherited from their product this hour); 3036 products in the ePID memory, 2719 tied to a card; 24 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5266 lookups so far, 1251 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 17:56:20 Disk: 19.8 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 17:56:20 Unmatched this hour: rejected 51, no card number 26, no set/name agreement 17, ambiguous variant 4, printing not in catalog 2
+2026-10-17 17:56:20 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 17:56:20 Auction trial: 283 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 17:56:20 Scam screen: 20431 clean, 3570 watch, 575 suspect among open listings; signals: est 8058, slow 4554, img 3982, fb0 3829, p65 604, p75 545, p50 423, top 398, burst 47, qty 3
+2026-10-17 17:56:26 Settled: 33 listings outlived 2 days (stale; 12 keep a full record), 2 lost sight of; kept in the book: 7683 cheapest copies, 296 suspects
+2026-10-17 17:58:48 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:01:16 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:03:48 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:04:10 Pictures: 9549 on file, 35 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 1.0 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 18:06:20 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:08:51 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:11:19 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:13:51 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:16:25 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:20:57 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 120 seconds
+2026-10-17 18:23:02 Publish failed: git push -q --force origin live: To github.com:BrettS600/biotech-catelog.git
+ ! [remote rejected] live -> live (cannot lock ref 'refs/heads/live': is at 868a7f4b913c896ecd468b5c1ef034e83edb7c80 but expected b5776768f6175604b6d6c13fec2507c758b5eafe)
+error: failed to push some refs to 'github.com:BrettS600/biotech-catelog.git'
+2026-10-17 18:23:25 Pictures: 9553 on file, 39 pages read since the start, 2 to go, one page every 2 s, last read HTTP 200 in 0.7 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 18:35:57 Pictures: 9557 on file, 43 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.3 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 18:52:28 Rate limit: 2860 of 5000 calls left (buy.browse), resets 2026-10-18T07:00:00.000Z, window 86400 s
+2026-10-17 18:52:56 Hour: discovery read 5544 summaries, 572 new, 395 matched, 177 unmatched | re-reads 19 windows / 30 pages, 144 flagged, 37 repriced | confirmed: 22 sold, 3 ended, 0 gone, 4 still open | book checks: 2 sold, 1 ended/gone, 8 open | kw checks 0 sold / 0 open | 33 outlived 2 days (stale), 2 lost sight of, 77 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 13 publishes | median indexing lag 4.7 min
+2026-10-17 18:52:56 Now: 24782 open, 46040 closed, 6440 cards with data, 6935 listings in 24 h, 3 pass the gate; budget 2860 left, 2.96 optional calls/min, 0 tokens; 3519 calls today
+2026-10-17 18:52:57 Waiting: 3572 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 125 suspects due a last look; 44 dropped unconfirmed after 3 days; kept past 2 days: 7683 cheapest copies, 296 suspects
+2026-10-17 18:52:57 Verdicts: no sales yet 1392, not liquid 1134, fewer than 2 photos 988, over max buy 988, mismatch: too high 965, too few sales (1) 617, too few sales (2) 251, too few sales (3) 246, too few sales (4) 131, suspect 110, mismatch: too cheap 58, LEAD 16, seller < 98% 11, seller < 95% 9, ID conflict 7, reprint? 5, condition MP 3, PASS 3, review 1
+2026-10-17 18:52:57 Cards: 348 with 5+ sales behind the anchor, 69 liquid at the collector's defaults, 69 both
+2026-10-17 18:52:57 Liquidity: 184 cards sell often enough for the window; their 48-hour sell-through is measured on 184 (median 21.7%), 69 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 99 / 69 / 42 / 18)
+2026-10-17 18:52:57 Identity: 267 open listings under 40% of the PriceCharting price, 3466 over 300% (kept out of the statistics); item specifics read on 787 open listings (630 agree, 119 conflict, 38 blank), 13 read this hour; printed totals for 151 sets
+2026-10-17 18:52:57 Conditions: eBay's condition field read on 13606 open listings (39 name a grade, 0 say something else, 13567 carry none); the condition pass made 0 of its 400 looks today, 1775 in its queue; 4493 listings of the last 24 h still n/s
+2026-10-17 18:52:57 Pictures: 9558 cards with a PriceCharting picture on file, 44 pages read this hour, 7 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 2.1 s); 1 Review answers on the site
+2026-10-17 18:52:57 Printing: 115 open listings filed under a printing their item specifics named; 2 unmatched 'ambiguous variant' listings waiting for a lookup; 101 printing lookups today
+2026-10-17 18:53:08 Facts: eBay's record on 13444 open listings (843 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 3044 products in the ePID memory, 2726 tied to a card; 22 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 5296 lookups so far, 1261 cards still without eBay's record (discovery sits out every third cycle)
+2026-10-17 18:53:08 Disk: 19.8 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-10-17 18:53:08 Unmatched this hour: rejected 102, no card number 34, no set/name agreement 31, ambiguous variant 6, ambiguous set 3, printing not in catalog 1
+2026-10-17 18:53:08 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-10-17 18:53:08 Auction trial: 356 being watched; 292 finished with bids so far (119 on judged cards, 173 on PriceCharting-lead cards), 62 closed at or under max buy (21%); median final price is 83% of the reference; under-max-buy closings by UTC hour: 01h x10, 22h x7, 14h x5; trial ends 2026-10-09
+2026-10-17 18:53:08 Scam screen: 20576 clean, 3627 watch, 579 suspect among open listings; signals: est 8067, slow 4576, img 3980, fb0 3879, p65 613, p75 555, p50 433, top 404, burst 46, qty 3
+2026-10-17 18:53:08 ID check: ok - Bulbasaur 95/165 Expedition Base Set Reverse Holo 2002 Basic -> Bulbasaur #95 (Pokemon Expedition)
+2026-10-17 18:57:07 Settled: 152 listings outlived 2 days (stale; 88 keep a full record), 23 lost sight of; kept in the book: 7695 cheapest copies, 297 suspects
+2026-10-17 18:58:17 Pictures: 9558 on file, 44 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 2.1 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
+2026-10-17 19:13:00 Pictures: 9564 on file, 50 pages read since the start, 1 to go, one page every 2 s, last read HTTP 200 in 0.5 s; history: 43,930 of 43,963 cards on file, 43,930 with the volume series
