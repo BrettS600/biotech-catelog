@@ -441,6 +441,23 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   "Black White Rare" (Mega Evolution / Black Bolt - White Flare) are top-tier (X) rarities. The 13 "disagrees" of
   the first hour became 8, all real questions (a 151 card filed under 30th Celebration, a Triumphant original vs
   the Classic Collection reprint, "XY" on a Pitch Black card, a prerelease stamp the seller calls a Holo Rare).
+- CHECK SCREEN ROWS (same evening, Brett: "three more lines - Set Name, Rarity, Finish - in each column for the
+  eBay listing and the PriceCharting listing, so I can compare the two"): hit.html and the laptop's Review modal
+  (openReview) show them right under "Set / card number". Left = the card's own words (hit_payload "rf" = [rarity,
+  finish]; the set name with its "Pokemon " dropped, as the title line already did; "unknown" when the build has
+  none). Right = eBay's record of the listing (hit_payload "ef" = es.facts_row(rec): None -> "not read", [] ->
+  "not stated"), red (b.bad) when the collector's verdict is "far", amber on "near" - the same verdicts as the Raw
+  Data cells, never recomputed on the page. So that the record is there when the alert goes out, every getItem
+  before an alert now asks for fieldgroups=PRODUCT and calls learn_facts: the suspect path in alert_hits and the
+  auction lookup in auction_alerts (the hit path already went through verify_hits). ONE LINE EACH (Brett: "if the
+  set name is too long, decrease the font so it fits on its own line"): fitRows() shrinks b.fit cells from 16px to
+  12px; if the name still overflows it drops eBay's era prefix up to the first ": " ("Scarlet & Violet: Obsidian
+  Flames" -> "Obsidian Flames", "SWSH: Sword & Shield Promo Cards" -> "Sword & Shield Promo Cards") and shrinks
+  again to 9px; a name no shrink fits (the Topps sets, 1.6% of cards) wraps at 11px rather than being clipped.
+  Measured at 360px wide (Playwright, t/hit/test_hit.py): the column is 155px, "Special Illustration Rare" sits
+  at 13.5px, everything else at 16px. t/test_review.js opens the modal in jsdom. The build log now names rarity
+  words the tier vocabulary cannot place ("Rarity words the vocabulary does not know"), so a new era's rarity is
+  caught the day it appears.
 - THE DROPLET'S DISK FILLED (found 2026-10-12 while deploying the above; "No space left on device" in save_state
   from 2026-10-10 02:29 UTC, the collector then ran without saving or publishing for most of two days). Cause:
   publish() amends the one commit of the live checkout (data/live) 720 times a day with a 2 MB file (plus the 6 MB
