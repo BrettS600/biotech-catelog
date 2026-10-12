@@ -2327,13 +2327,14 @@ def cycle(state, cat, sched, counters):
         log(f"Printing: {by_spec} open listings filed under a printing their item specifics named; "
             f"{len(state.get('pending', {}))} unmatched 'ambiguous variant' listings waiting for a lookup; "
             f"{state.get('printchecks', {}).get(es.TODAY, 0)} printing lookups today")
+        refreshed = es.refresh_facts(state, cat)             # verdicts follow the vocabulary and the card as they are now
         moved = es.apply_epid_memory(state, cat)
         mem = state.get("epids") or {}
         with_facts = sum(1 for r in state["open"].values() if r.get("ef"))
         far = sum(1 for r in state["open"].values() if "far" in ((r.get("ef") or {}).get("cmp") or {}).values())
         log(f"Facts: eBay's record read on {with_facts} open listings ({far} disagree with the card on set, rarity or finish); "
             f"{len(mem)} products in the ePID memory, {sum(1 for m in mem.values() if m.get('v'))} tied to a card; "
-            f"{moved} listings moved to their product's card this hour")
+            f"{moved} listings moved to their product's card this hour, {refreshed} verdicts re-read")
         free = disk_check()
         if free is not None:
             log(f"Disk: {free / 1000:.1f} GB free on the data disk (the live checkout is swept below {DISK_MIN_MB / 1000:.1f} GB)")
@@ -2425,6 +2426,9 @@ def main():
         log(f"Re-matched every stored listing with the current matcher in {time.time() - t0:.0f} s: {moved} moved to "
             f"another card, {dropped} dropped as no longer matching, {cond} conditions re-read; now "
             f"{len(state['open'])} open, {len(state['closed'])} closed")
+    n = es.refresh_facts(state, cat)                         # the vocabulary (cardfacts.py) or a card's row may have
+    if n:                                                    # changed since a listing's eBay record was last compared
+        log(f"Facts: {n} stored verdicts re-read against the card the listing is filed under")
     sched = {"catalog": time.time()}
     counters = defaultdict(int)
     while True:
@@ -2432,10 +2436,15 @@ def main():
         try:
             if time.time() - sched.get("catalog", 0) >= CATALOG_EVERY_S:
                 sched["catalog"] = time.time()
+                sha = state["vps"].get("catalog_sha")
                 cat, name = load_catalog(state)
                 if name != state["vps"].get("catalog"):
                     state["vps"]["catalog"] = name
                     log(f"Catalog refreshed: {name}")
+                if state["vps"].get("catalog_sha") != sha:  # other rows, maybe other rarity / finish words
+                    n = es.refresh_facts(state, cat)
+                    if n:
+                        log(f"Facts: {n} stored verdicts re-read against the new catalog")
             cycle(state, cat, sched, counters)
             counters["cycles"] += 1
         except SystemExit:
