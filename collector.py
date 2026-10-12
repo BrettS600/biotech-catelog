@@ -225,12 +225,16 @@ def load_catalog(state):
         name = latest_catalog_name()
     except Exception as e:
         log(f"Catalog: could not check the release ({e})")
-    if name and (name != cached or not os.path.exists(CATALOG_CACHE)):
-        blob = fetch_asset(name)
+    if name:                                                 # the day's file can be replaced by a later build (new
+        blob = fetch_asset(name)                             # columns), so the bytes decide, not the name: 1.6 MB, 4x a day
         if blob is None:
             raise RuntimeError(f"catalog {name} vanished from the release")
-        blob = es.decrypt_file_blob(blob, es.PASSWORD)
-        open(CATALOG_CACHE, "wb").write(blob)
+        digest = hashlib.sha256(blob).hexdigest()
+        if digest != state.get("vps", {}).get("catalog_sha") or not os.path.exists(CATALOG_CACHE):
+            open(CATALOG_CACHE, "wb").write(es.decrypt_file_blob(blob, es.PASSWORD))
+            state.setdefault("vps", {})["catalog_sha"] = digest
+            if name == cached:
+                log(f"Catalog: {name} was replaced on the release; reading the new copy")
     elif os.path.exists(CATALOG_CACHE):
         name = cached or "cached"
     else:
@@ -441,16 +445,25 @@ def reread_window(state, key, n_expected):
     return pages, len(present), flagged, repriced
 
 
-def confirm(state, iid, rec, why):
-    """One getItem: close the listing as sold / ended / gone, or note a false alarm."""
+def confirm(state, iid, rec, why, cat=None):
+    """One getItem: close the listing as sold / ended / gone, or note a false alarm. The first look at a listing
+    is the full item (same one call, bigger reply): it carries eBay's catalog product and the seller's item
+    specifics, which teach the record and the ePID memory what the card is (es.learn_facts) - the only way to read
+    them for every listing that sells without spending a call of its own (Brett, 2026-10-12)."""
+    full = cat is not None and "ef" not in rec
     if DRY_RUN:
         it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
     else:
         try:
-            it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "COMPACT"}, ok_404=True)
+            it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {} if full else {"fieldgroups": "COMPACT"}, ok_404=True)
         except RuntimeError as e:
             log(f"Confirm: lookup failed for {iid} ({e})")
             return "error"
+    if full and it is not None:
+        try:
+            es.learn_facts(state, cat, rec, it)
+        except Exception as e:                        # a surprise in the payload must not cost the confirmation
+            log(f"Facts: could not read eBay's facts for {iid} ({e})")
     rec["checked"] = es.ts(es.NOW)
     rec["checked_age"] = es.hours_between(es.parse_ts(rec["first"]), es.NOW) / 24
     if it is None:
@@ -2102,23 +2115,23 @@ def cycle(state, cat, sched, counters):
         for iid in book_queue(state, cards)[:BOOK_MAX_PER_CYCLE]:
             if not spend(state, COST_BOOK):
                 break
-            out = confirm(state, iid, state["open"][iid], "book")
+            out = confirm(state, iid, state["open"][iid], "book", cat)
             counters["book_" + out] += 1
         for iid in confirm_queue(state, cat)[:CONFIRM_MAX_PER_CYCLE]:
             if not spend(state, COST_CONFIRM):
                 break
-            out = confirm(state, iid, state["open"][iid], "vanished")
+            out = confirm(state, iid, state["open"][iid], "vanished", cat)
             counters["confirm_" + out] += 1
         for iid in kw_queue(state)[:KW_MAX_PER_CYCLE]:
             if not spend(state, COST_KW):
                 break
-            out = confirm(state, iid, state["open"][iid], "kw")
+            out = confirm(state, iid, state["open"][iid], "kw", cat)
             counters["kw_" + out] += 1
         for iid in suspect_queue(state)[:SUSPECT_MAX_PER_CYCLE]:
             if not spend(state, COST_CONFIRM):
                 break
             rec = state["open"][iid]
-            out = confirm(state, iid, rec, "suspect")        # sold / ended / gone close it here
+            out = confirm(state, iid, rec, "suspect", cat)   # sold / ended / gone close it here
             counters["sus_" + out] += 1
             if out == "open":
                 rec["fin"] = es.ts(es.NOW)
@@ -2281,6 +2294,13 @@ def cycle(state, cat, sched, counters):
         log(f"Printing: {by_spec} open listings filed under a printing their item specifics named; "
             f"{len(state.get('pending', {}))} unmatched 'ambiguous variant' listings waiting for a lookup; "
             f"{state.get('printchecks', {}).get(es.TODAY, 0)} printing lookups today")
+        moved = es.apply_epid_memory(state, cat)
+        mem = state.get("epids") or {}
+        with_facts = sum(1 for r in state["open"].values() if r.get("ef"))
+        far = sum(1 for r in state["open"].values() if "far" in ((r.get("ef") or {}).get("cmp") or {}).values())
+        log(f"Facts: eBay's record read on {with_facts} open listings ({far} disagree with the card on set, rarity or finish); "
+            f"{len(mem)} products in the ePID memory, {sum(1 for m in mem.values() if m.get('v'))} tied to a card; "
+            f"{moved} listings moved to their product's card this hour")
         hour_ago = es.ts(now - timedelta(hours=1))
         why = Counter("no card #" if u[5].startswith("no card #") else u[5].split(":")[0]
                       for u in state["unmatched"] if u[0] >= hour_ago)
