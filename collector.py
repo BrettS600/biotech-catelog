@@ -2374,6 +2374,9 @@ def main():
     log(f"Collector starting ({'dry run' if DRY_RUN else BASE}); pid {os.getpid()}; buying tax {es.TAX * 100:.2f}%")
     while True:
         try:
+            free = disk_check()                              # a full disk (2026-10-10) must not stop the start: the
+            if free is not None:                             # live checkout is swept or rebuilt before anything is written
+                log(f"Disk: {free / 1000:.1f} GB free on the data disk")
             state = load_state()
             state.setdefault("vps", {})
             cat, cat_name = load_catalog(state)
