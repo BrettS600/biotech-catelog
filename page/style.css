@@ -257,6 +257,9 @@ button.rvb.diff { color:#d1242f; border-color:#d1242f; }
 .rrow b { font-size:16px; }
 .rrow small { display:block; font-size:12px; color:var(--muted); margin-top:1px; }
 .rrow b.amber { color:#e3b341; }
+.rrow b.fit { display:block; white-space:nowrap; overflow:hidden; font-size:16px; }   /* set name, rarity, finish: one line each, shrunk to fit */
+.rrow b.bad { color:var(--down); }
+.rrow b.mute { color:var(--muted); font-weight:400; }
 .rrow .tag { display:inline-block; background:#30363d; color:#fff; border-radius:5px; padding:1px 6px; margin:2px 3px 0 0; font-size:12px; }
 .rrow .tag.warn { background:#9e6a03; } .rrow .tag.bad { background:#da3633; }
 .rvbtns { display:flex; gap:10px; margin-top:14px; }
