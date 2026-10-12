@@ -74,6 +74,7 @@ KW_EVERY_S = 600
 PUBLISH_EVERY_S = 120
 CODE_CHECK_EVERY_S = 300
 STATE_BACKUP_EVERY_S = 3600
+DISK_MIN_MB = 1500               # below this much free space the live checkout is swept (see sweep_live_repo)
 CATALOG_EVERY_S = 6 * 3600
 RATELIMIT_EVERY_S = 3600
 ENRICH_EVERY_S = 300
@@ -268,6 +269,7 @@ def save_state(state):
     if DRY_RUN:
         return raw
     os.makedirs(DATA, exist_ok=True)
+    disk_check()
     tmp = STATE_PATH + ".tmp"
     with open(tmp, "wb") as f:
         f.write(es.encrypt_file_blob(raw, es.PASSWORD))
@@ -1937,8 +1939,38 @@ def publish(files):
     git("commit", "-q", *(["--amend"] if has_commit else []), "-m", f"live {es.ts(es.NOW)}")
     git("push", "-q", "--force", "origin", "live")
     _publishes += 1
-    if _publishes % 300 == 0:                                # amended commits leave garbage behind; sweep it up
-        subprocess.run(["git", "gc", "-q", "--prune=now"], cwd=LIVE_DIR, capture_output=True)
+    if _publishes % 60 == 0:                                 # amended commits leave garbage behind; sweep it up
+        sweep_live_repo()
+
+
+def sweep_live_repo():
+    """Every amended commit leaves the previous one's objects behind (2 MB a publish, 720 publishes a day, plus the
+    hourly 6 MB state backup), and the reflog keeps them all alive, so `git gc --prune=now` on its own removed
+    nothing: the disk filled on 2026-10-10 and the collector could not save its state for two days. Now the reflog
+    is switched off and expired first, loose objects are pruned (that works on a full disk), then gc repacks."""
+    if DRY_RUN or not os.path.isdir(os.path.join(LIVE_DIR, ".git")):
+        return
+    for args in (["config", "core.logAllRefUpdates", "false"], ["reflog", "expire", "--expire=now", "--all"],
+                 ["prune", "--expire=now"], ["gc", "-q", "--prune=now"]):
+        subprocess.run(["git", *args], cwd=LIVE_DIR, capture_output=True, timeout=600)
+
+
+def disk_check(force=False):
+    """Free space on the data disk; below DISK_MIN_MB the live checkout is swept, and if that is not enough its
+    .git is thrown away (publish() rebuilds it: the branch is one commit anyway). -> free MB."""
+    import shutil
+    try:
+        free = shutil.disk_usage(DATA).free / 1e6
+    except Exception:
+        return None
+    if free < DISK_MIN_MB or force:
+        sweep_live_repo()
+        free = shutil.disk_usage(DATA).free / 1e6
+        if free < DISK_MIN_MB and os.path.isdir(os.path.join(LIVE_DIR, ".git")):
+            shutil.rmtree(os.path.join(LIVE_DIR, ".git"), ignore_errors=True)
+            free = shutil.disk_usage(DATA).free / 1e6
+            log(f"Disk: only {free:.0f} MB free after the sweep; the live checkout's .git was removed and will be rebuilt")
+    return free
 
 
 def archive_put(files):
@@ -2301,6 +2333,9 @@ def cycle(state, cat, sched, counters):
         log(f"Facts: eBay's record read on {with_facts} open listings ({far} disagree with the card on set, rarity or finish); "
             f"{len(mem)} products in the ePID memory, {sum(1 for m in mem.values() if m.get('v'))} tied to a card; "
             f"{moved} listings moved to their product's card this hour")
+        free = disk_check()
+        if free is not None:
+            log(f"Disk: {free / 1000:.1f} GB free on the data disk (the live checkout is swept below {DISK_MIN_MB / 1000:.1f} GB)")
         hour_ago = es.ts(now - timedelta(hours=1))
         why = Counter("no card #" if u[5].startswith("no card #") else u[5].split(":")[0]
                       for u in state["unmatched"] if u[0] >= hour_ago)
