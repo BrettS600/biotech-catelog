@@ -491,7 +491,10 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   loops over the catalog. live["pch"] = {n, total, shards, signed, signin}; the chart note reads it ("the volume
   bars come once this card's page is read again" / "sign-in has expired: replace PC_COOKIE and restart") and a
   record read before the sign-in is asked for again (pcHistAsk) while the popup is open. To replace the cookie:
-  edit the env line, `systemctl restart pokemon-collector`. STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
+  edit the env line, `systemctl restart pokemon-collector`. A LAPSED SIGN-IN NEVER WIPES THE BARS: pchist.file()
+  merges a read without "s" over a record that had it (keep_volume: new prices, the old volume for the months it
+  covered, "sv" = the day that volume was read, no "s" so a working cookie re-reads it); the chart note then says
+  "volume bars as of <sv> ... sign-in has lapsed". STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
   t: date read, n: raw points}}), a card index in memory; published as pc/<shard>.bin on the live branch (gzip
   under the live key, like ebay_live.bin), changed shards every PC_HIST_PUBLISH_S = 600 s (or at once for a card
   the site asked for); publish() now creates the pc/ folder. READER: PcImageWorker's plan is [(card id, picture
