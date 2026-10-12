@@ -1468,14 +1468,15 @@ def specifics(it):
 
 def product_aspects(it):
     """The eBay catalog product the seller attached the listing to (the "About this product" block: Set, Rarity,
-    Finish, Card Number, Card Name, Language ...) -> {aspect name (lower case): [values]}. Empty when there is
-    none - about half of the listings have one. Unlike the seller's own specifics it is eBay's record of the
+    Finish, Card Number, Card Name, Language ...) -> {aspect name (lower case): [values]}. Only in a getItem made
+    with fieldgroups=PRODUCT. Empty when there is none - about half of the listings have one. Unlike the seller's own specifics it is eBay's record of the
     product, the same for every listing of that ePID."""
     asp = defaultdict(list)
     for g in ((it or {}).get("product") or {}).get("aspectGroups") or []:
         for a in g.get("aspects") or []:
-            name = str(a.get("localizedName", "")).strip().lower()
-            for v in a.get("localizedValues") or []:
+            name = str(a.get("localizedName") or a.get("name") or "").strip().lower()
+            vals = a.get("localizedValues") or a.get("values") or ([a["value"]] if a.get("value") else [])
+            for v in vals:
                 if name and v not in (None, ""):
                     asp[name].append(str(v).strip())
     return asp
@@ -1777,7 +1778,7 @@ def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
             it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
         else:
             try:
-                it = api_get(state, f"/buy/browse/v1/item/{iid}", {}, ok_404=True)
+                it = api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "PRODUCT"}, ok_404=True)   # PRODUCT: eBay's catalog product rides along
             except RuntimeError as e:
                 log(f"ID check: lookup failed for {iid} ({e})")
                 continue
