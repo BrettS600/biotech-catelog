@@ -144,6 +144,10 @@ def extract(html):
     shape = {n: {k: len(v) for k, v in s.items()} for n, s in series.items()}
     first = {n: {k: v[:2] for k, v in s.items()} for n, s in series.items()}
     if len(SHAPES) < 3:
+        if vol is None:                                      # where does the page keep the volume bars? show the clues
+            names = sorted(set(VGPC.findall(html)))
+            ctx = [html[max(0, m.start() - 120):m.start() + 160].replace("\n", " ") for m in re.finditer(r"volume", html, re.I)][:4]
+            how += f"; no volume series - VGPC names {names}; 'volume' appears {len(re.findall('volume', html, re.I))}x: " + " || ".join(ctx)
         SHAPES.append({"shape": shape, "first": first, "how": how,
                        "months": None if rec is None else f"{month_label(rec['m0'])}..{month_label(rec['m0'] + len(rec['p']) - 1)}"})
     if rec is None:
