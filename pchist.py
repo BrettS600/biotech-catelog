@@ -131,7 +131,10 @@ def monthly(price_pts, vol_pts, cents=None):
     m0, m1 = min(list(P) + list(V)), max(list(P) + list(V))
     p = [None if P.get(m0 + i) is None else int(round(P[m0 + i] if cents else P[m0 + i] * 100)) for i in range(m1 - m0 + 1)]
     v = [int(round(V.get(m0 + i, 0))) for i in range(m1 - m0 + 1)]
-    return {"m0": m0, "p": p, "v": v, "n": len(price_pts or []) + len(vol_pts or [])}
+    rec = {"m0": m0, "p": p, "v": v, "n": len(price_pts or []) + len(vol_pts or [])}
+    if vol_pts is not None:
+        rec["s"] = 1                                         # the page carried the volume series: read signed in
+    return rec
 
 
 def extract(html):
@@ -188,7 +191,7 @@ def init(store):
     idx, n = {}, 0
     for sh in range(SHARDS):
         for cid, rec in _load(sh).items():
-            idx[int(cid)] = day_of(rec.get("t"))
+            idx[int(cid)] = (day_of(rec.get("t")), bool(rec.get("s")))
             n += 1
     with _lock:
         _index = idx
@@ -243,7 +246,7 @@ def file(cid, rec, today=None):
         d = _load(sh)
         d[str(cid)] = dict(rec, t=today)
         _save(sh, d)
-        _index[int(cid)] = day_index()
+        _index[int(cid)] = (day_index(), bool(rec.get("s")))
         _miss.pop(int(cid), None)
         _dirty.add(sh)
 
@@ -253,19 +256,27 @@ def get(cid):
         return _load(shard_of(cid)).get(str(cid))
 
 
-def stale(cid, active=False, today=None):
-    """Does this card need its page read for the history? Never read, or read longer ago than its refresh."""
+def stale(cid, active=False, today=None, want_signed=False):
+    """Does this card need its page read for the history? Never read, read longer ago than its refresh, or (with a
+    working sign-in) read without the volume series."""
     today = day_index() if today is None else today
     cid = int(cid)
     last = _index.get(cid)
     if last is None:
         m = _miss.get(cid)
         return m is None or today - m >= MISS_RETRY_D
-    return today - last >= (REFRESH_ACTIVE_D if active else REFRESH_OTHER_D)
+    day, signed = last
+    if want_signed and not signed:
+        return True
+    return today - day >= (REFRESH_ACTIVE_D if active else REFRESH_OTHER_D)
 
 
 def count():
     return len(_index)
+
+
+def count_signed():
+    return sum(1 for _, signed in _index.values() if signed)
 
 
 def publish_files(encrypt):
