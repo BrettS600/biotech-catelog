@@ -150,12 +150,33 @@ def extract(html):
             ctx = [re.sub(r"\s+", " ", html[max(0, m.start() - 70):m.start() + 90]) for m in re.finditer(r"volume", html, re.I)]
             calls = [re.sub(r"\s+", " ", html[max(0, m.start() - 80):m.start() + 120]) for m in re.finditer(r"(?:\$\.(?:get|ajax|getJSON)|fetch\(|XMLHttpRequest|/api/|chart-data|volume_data|sales-volume)", html)][:6]
             how += (f"; no volume series - VGPC names {names}; scripts {scripts}; 'volume' {len(ctx)}x: " + " || ".join(ctx[4:12])
-                    + "; calls: " + " || ".join(calls))
+                    + "; calls: " + " || ".join(calls) + "; " + probe_js())
         SHAPES.append({"shape": shape, "first": first, "how": how,
                        "months": None if rec is None else f"{month_label(rec['m0'])}..{month_label(rec['m0'] + len(rec['p']) - 1)}"})
     if rec is None:
         return None, f"series {json.dumps(shape)} carried no usable points"
     return rec, how
+
+
+PROBED = []
+
+
+def probe_js():
+    """Once: read PriceCharting's chart script and show where it gets the volume bars from (a one-time clue for the
+    log, while the page itself carries no volume series)."""
+    if PROBED:
+        return PROBED[0]
+    try:
+        import requests
+        r = requests.get("https://www.pricecharting.com/js/market_ae.js", timeout=15,
+                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check"})
+        js = r.text
+        ctx = [re.sub(r"\s+", " ", js[max(0, m.start() - 160):m.start() + 200]) for m in re.finditer(r"volume", js, re.I)][:8]
+        urls = sorted(set(re.findall(r"[\"'](/[a-z0-9_\-/]*(?:chart|volume|sales|history|price)[a-z0-9_\-/.]*)[\"'?]", js, re.I)))[:20]
+        PROBED.append(f"market_ae.js ({r.status_code}, {len(js)} chars): 'volume' {len(re.findall('volume', js, re.I))}x: " + " || ".join(ctx) + f"; urls {urls}")
+    except Exception as e:
+        PROBED.append(f"market_ae.js could not be read ({str(e)[:80]})")
+    return PROBED[0]
 
 
 # ---------------- the store ----------------
