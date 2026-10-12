@@ -1,0 +1,684 @@
+icts re-read; backlog pass: 26195 lookups so far, 9 cards still without eBay's record
+2026-11-14 03:52:39 Disk: 14.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 03:52:39 Unmatched this hour: rejected 53, no card number 31, no set/name agreement 25, printing not in catalog 5, ambiguous variant 4
+2026-11-14 03:52:39 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 03:52:39 Auction trial: 1999 being watched; 466 finished with bids so far (293 on judged cards, 173 on PriceCharting-lead cards), 150 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 03:52:39 Scam screen: 23314 clean, 4004 watch, 2598 suspect among open listings; signals: est 9506, slow 6874, fb0 4724, img 1996, p75 1019, p65 899, p50 668, top 368, burst 81, dup 3, qty 2
+2026-11-14 03:52:39 ID check: printing unclear - Pokémon Flying Pikachu #25 WOTC Black Star Promo LP -> still unclear
+2026-11-14 03:52:39 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 03:53:07 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 03:54:07 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 03:56:09 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 03:58:08 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 03:58:47 Settled: 85 listings outlived 2 days (stale; 43 keep a full record), 5 lost sight of; kept in the book: 8805 cheapest copies, 1322 suspects
+2026-11-14 03:59:09 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:01:13 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:03:08 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:04:09 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:06:07 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:06:08 Pictures: 12000 on file, 612 pages read since the start, 1 to go, 290 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 1.0 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,364 graded sales new today on 151 cards (PSA 10 511, PSA 9 294, CGC 10 84, PSA 8 73, PSA 6 71, CGC 9 59), 0 waiting to be written out
+2026-11-14 04:10:18 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 04:13:15 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:13:19 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 04:19:18 Pictures: 12000 on file, 615 pages read since the start, 1 to go, 293 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,366 graded sales new today on 152 cards (PSA 10 511, PSA 9 294, CGC 10 84, PSA 8 73, PSA 6 71, CGC 9 60), 0 waiting to be written out
+2026-11-14 04:23:17 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:24:22 PriceCharting graded: 4 sales written to pcg/ for the data archive
+2026-11-14 04:27:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:28:16 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:31:16 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:32:16 Pictures: 12000 on file, 620 pages read since the start, 1 to go, 298 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,371 graded sales new today on 155 cards (PSA 10 513, PSA 9 295, CGC 10 84, PSA 8 73, PSA 6 71, CGC 9 60), 1 waiting to be written out
+2026-11-14 04:34:15 Flags: 3 listings filed (5000 in the archive)
+2026-11-14 04:35:22 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 04:44:17 Pictures: 12000 on file, 626 pages read since the start, 1 to go, 304 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,373 graded sales new today on 157 cards (PSA 10 513, PSA 9 297, CGC 10 84, PSA 8 73, PSA 6 71, CGC 9 60), 2 waiting to be written out
+2026-11-14 04:45:21 PriceCharting graded: 13 sales written to pcg/ for the data archive
+2026-11-14 04:47:16 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:48:17 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:49:17 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 04:51:49 Rate limit: 670 of 5000 calls left (buy.browse), resets 2026-11-14T08:00:00.000Z, window 86400 s
+2026-11-14 04:51:51 Auction trial: closed UNDER max buy - Mewtwo EX (Full Art) 103/108 Evolutions Holo | final $7.40 + $1.36 shipping, 1 bids, max buy $30.40, reference $50.8 (ebay) | https://www.ebay.com/itm/307270829096?hash=item478ac4c428:g:RIYAAeSw045qybUm
+2026-11-14 04:52:19 PriceCharting graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,384 graded sales new today on 158 cards (PSA 10 513, PSA 9 297, CGC 10 84, PSA 6 75, PSA 8 73, CGC 9 60), 0 waiting to be written out
+2026-11-14 04:52:22 Hour: discovery read 12345 summaries, 434 new, 345 matched, 89 unmatched | re-reads 19 windows / 33 pages, 133 flagged, 54 repriced | confirmed: 0 sold, 0 ended, 0 gone, 1 still open | book checks: 1 sold, 0 ended/gone, 5 open | kw checks 0 sold / 0 open | 85 outlived 2 days (stale), 5 lost sight of, 80 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 4.3 min
+2026-11-14 04:52:22 Now: 29986 open, 78262 closed, 7245 cards with data, 7199 listings in 24 h, 0 pass the gate; budget 670 left, 1.66 optional calls/min, 2 tokens; 963 calls today
+2026-11-14 04:52:24 Waiting: 5439 listings that vanished inside their first 2 days to confirm, 3 windows due for a re-read, 12 book copies due, 602 suspects due a last look; 103 dropped unconfirmed after 3 days; kept past 2 days: 8805 cheapest copies, 1322 suspects
+2026-11-14 04:52:24 Verdicts: no sales yet 2002, not liquid 1470, over max buy 848, too few sales (1) 761, mismatch: too high 587, too few sales (2) 392, fewer than 2 photos 328, too few sales (3) 229, PC gap 209, suspect 195, too few sales (4) 93, mismatch: too cheap 35, reprint? 26, condition HP 7, seller < 98% 5, seller < 95% 5, LEAD 5, condition MP 1, ID conflict 1
+2026-11-14 04:52:24 Cards: 358 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 04:52:24 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.5%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 75 / 52 / 30 / 15)
+2026-11-14 04:52:24 Identity: 206 open listings under 40% of the PriceCharting price, 2150 over 300% (kept out of the statistics); item specifics read on 788 open listings (595 agree, 165 conflict, 28 blank), 12 read this hour; printed totals for 152 sets
+2026-11-14 04:52:24 Conditions: eBay's condition field read on 4794 open listings (4792 name a grade, 0 say something else, 2 carry none); the condition pass made 120 of its 600 looks today, 13569 in its queue; 3714 listings of the last 24 h still n/s
+2026-11-14 04:52:24 Pictures: 12000 cards with a PriceCharting picture on file, 15 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.3 s); 4 Review answers on the site
+2026-11-14 04:52:24 Printing: 87 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 28 printing lookups today
+2026-11-14 04:53:20 Facts: eBay's record on 20947 open listings (1504 disagree with the card on set, rarity or finish; 8 just inherited from their product this hour); 6718 products in the ePID memory, 6023 tied to a card; 130 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26218 lookups so far, 1 cards still without eBay's record
+2026-11-14 04:53:20 Disk: 14.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 04:53:20 Unmatched this hour: rejected 38, no card number 22, no set/name agreement 18, printing not in catalog 7, ambiguous variant 3, ambiguous set 1
+2026-11-14 04:53:20 Alerts: 0 hit alerts and 1 auction alerts sent this hour to the phone
+2026-11-14 04:53:20 Auction trial: 1945 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 04:53:20 Scam screen: 23385 clean, 3988 watch, 2613 suspect among open listings; signals: est 9545, slow 6823, fb0 4727, img 1995, p75 1016, p65 893, p50 667, top 380, burst 100, dup 3, qty 2
+2026-11-14 04:53:20 ID check: printing unclear - Wizards of the Coast Pokemon TCG Machamp 8/102 Base Set Holo Rare 1999 -> still unclear
+2026-11-14 04:53:20 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 04:59:27 Settled: 77 listings outlived 2 days (stale; 43 keep a full record), 6 lost sight of; kept in the book: 8798 cheapest copies, 1315 suspects
+2026-11-14 05:00:49 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:01:55 Pictures: 12000 on file, 627 pages read since the start, 1 to go, 305 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,384 graded sales new today on 158 cards (PSA 10 513, PSA 9 297, CGC 10 84, PSA 6 75, PSA 8 73, CGC 9 60), 0 waiting to be written out
+2026-11-14 05:05:48 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:06:48 Flags: 3 listings filed (5000 in the archive)
+2026-11-14 05:09:16 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 05:09:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:11:58 Pictures: 12000 on file, 632 pages read since the start, 1 to go, 310 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,405 graded sales new today on 160 cards (PSA 10 522, PSA 9 300, CGC 10 85, PSA 6 78, PSA 8 75, CGC 9 60), 19 waiting to be written out
+2026-11-14 05:19:13 PriceCharting graded: 19 sales written to pcg/ for the data archive
+2026-11-14 05:20:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:22:59 Pictures: 12000 on file, 633 pages read since the start, 1 to go, 311 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.6 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,405 graded sales new today on 160 cards (PSA 10 522, PSA 9 300, CGC 10 85, PSA 6 78, PSA 8 75, CGC 9 60), 0 waiting to be written out
+2026-11-14 05:24:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:31:03 PriceCharting graded: 6 sales written to pcg/ for the data archive
+2026-11-14 05:35:58 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 05:40:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:40:59 Pictures: 12000 on file, 635 pages read since the start, 1 to go, 313 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,411 graded sales new today on 161 cards (PSA 10 522, PSA 9 301, CGC 10 85, PSA 6 81, PSA 8 76, CGC 9 60), 0 waiting to be written out
+2026-11-14 05:44:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:45:03 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 05:46:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:52:31 Rate limit: 480 of 5000 calls left (buy.browse), resets 2026-11-14T08:00:00.000Z, window 86400 s
+2026-11-14 05:53:02 PriceCharting graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,417 graded sales new today on 164 cards (PSA 10 525, PSA 9 301, CGC 10 86, PSA 6 82, PSA 8 76, CGC 9 60), 4 waiting to be written out
+2026-11-14 05:53:06 Hour: discovery read 12263 summaries, 311 new, 218 matched, 93 unmatched | re-reads 13 windows / 21 pages, 92 flagged, 26 repriced | confirmed: 0 sold, 1 ended, 0 gone, 3 still open | book checks: 4 sold, 1 ended/gone, 15 open | kw checks 0 sold / 0 open | 77 outlived 2 days (stale), 6 lost sight of, 71 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 4.5 min
+2026-11-14 05:53:06 Now: 29961 open, 78224 closed, 7236 cards with data, 7054 listings in 24 h, 0 pass the gate; budget 480 left, 1.49 optional calls/min, 1 tokens; 1150 calls today
+2026-11-14 05:53:09 Waiting: 5437 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 1 book copies due, 597 suspects due a last look; 81 dropped unconfirmed after 3 days; kept past 2 days: 8798 cheapest copies, 1315 suspects
+2026-11-14 05:53:09 Verdicts: no sales yet 1958, not liquid 1438, over max buy 845, too few sales (1) 737, mismatch: too high 583, too few sales (2) 397, fewer than 2 photos 320, too few sales (3) 220, PC gap 198, suspect 186, too few sales (4) 87, mismatch: too cheap 34, reprint? 26, condition HP 8, seller < 98% 5, seller < 95% 5, LEAD 5, condition MP 1, ID conflict 1
+2026-11-14 05:53:09 Cards: 358 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 05:53:09 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.5%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 75 / 52 / 30 / 15)
+2026-11-14 05:53:09 Identity: 205 open listings under 40% of the PriceCharting price, 2147 over 300% (kept out of the statistics); item specifics read on 786 open listings (596 agree, 161 conflict, 29 blank), 8 read this hour; printed totals for 152 sets
+2026-11-14 05:53:09 Conditions: eBay's condition field read on 4799 open listings (4797 name a grade, 0 say something else, 2 carry none); the condition pass made 145 of its 600 looks today, 13586 in its queue; 3673 listings of the last 24 h still n/s
+2026-11-14 05:53:09 Pictures: 12000 cards with a PriceCharting picture on file, 12 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.4 s); 4 Review answers on the site
+2026-11-14 05:53:09 Printing: 86 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 33 printing lookups today
+2026-11-14 05:54:02 Facts: eBay's record on 20943 open listings (1508 disagree with the card on set, rarity or finish; 6 just inherited from their product this hour); 6719 products in the ePID memory, 6024 tied to a card; 131 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26237 lookups so far, 1 cards still without eBay's record
+2026-11-14 05:54:02 Disk: 14.8 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 05:54:02 Unmatched this hour: rejected 38, no card number 27, no set/name agreement 24, printing not in catalog 2, ambiguous variant 2
+2026-11-14 05:54:02 Alerts: 0 hit alerts and 1 auction alerts sent this hour to the phone
+2026-11-14 05:54:02 Auction trial: 1972 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 05:54:02 Scam screen: 23373 clean, 3998 watch, 2590 suspect among open listings; signals: est 9516, slow 6798, fb0 4723, img 1988, p75 1017, p65 892, p50 665, top 377, burst 91, dup 3, qty 2
+2026-11-14 05:54:02 ID check: ok - The Pokémon Company Charizard 11/108 Evolutions Holo Rare 150 HP Eng 2 -> Charizard #11 (Pokemon Evolutions)
+2026-11-14 05:54:02 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 05:55:36 PriceCharting graded: 4 sales written to pcg/ for the data archive
+2026-11-14 05:58:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 05:58:31 Pictures: 12000 on file, 639 pages read since the start, 1 to go, 317 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,417 graded sales new today on 164 cards (PSA 10 525, PSA 9 301, CGC 10 86, PSA 6 82, PSA 8 76, CGC 9 60), 0 waiting to be written out
+2026-11-14 05:59:32 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:00:10 Settled: 90 listings outlived 2 days (stale; 45 keep a full record), 2 lost sight of; kept in the book: 8808 cheapest copies, 1309 suspects
+2026-11-14 06:00:36 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:05:32 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:08:34 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:08:34 Pictures: 12000 on file, 642 pages read since the start, 1 to go, 320 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,417 graded sales new today on 164 cards (PSA 10 525, PSA 9 301, CGC 10 86, PSA 6 82, PSA 8 76, CGC 9 60), 0 waiting to be written out
+2026-11-14 06:09:30 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 06:11:00 PriceCharting graded: 6 sales written to pcg/ for the data archive
+2026-11-14 06:11:43 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 06:14:44 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:16:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:26:42 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 06:28:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:28:42 Pictures: 12000 on file, 643 pages read since the start, 2 to go, 321 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,423 graded sales new today on 165 cards (PSA 10 525, PSA 9 301, CGC 10 88, PSA 6 82, PSA 8 76, CGC 9 63), 0 waiting to be written out
+2026-11-14 06:31:03 PriceCharting graded: 6 sales written to pcg/ for the data archive
+2026-11-14 06:32:41 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:39:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:40:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:42:42 Pictures: 12000 on file, 646 pages read since the start, 1 to go, 324 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,429 graded sales new today on 167 cards (PSA 10 525, PSA 9 301, CGC 10 89, PSA 6 84, PSA 8 79, CGC 9 63), 0 waiting to be written out
+2026-11-14 06:44:44 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:53:04 Rate limit: 320 of 5000 calls left (buy.browse), resets 2026-11-14T08:00:00.000Z, window 86400 s
+2026-11-14 06:53:34 PriceCharting graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,429 graded sales new today on 167 cards (PSA 10 525, PSA 9 301, CGC 10 89, PSA 6 84, PSA 8 79, CGC 9 63), 0 waiting to be written out
+2026-11-14 06:53:36 Hour: discovery read 12032 summaries, 316 new, 244 matched, 72 unmatched | re-reads 11 windows / 24 pages, 106 flagged, 52 repriced | confirmed: 7 sold, 2 ended, 0 gone, 1 still open | book checks: 1 sold, 0 ended/gone, 2 open | kw checks 0 sold / 0 open | 90 outlived 2 days (stale), 2 lost sight of, 58 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 4.3 min
+2026-11-14 06:53:36 Now: 29955 open, 78189 closed, 7217 cards with data, 7045 listings in 24 h, 0 pass the gate; budget 320 left, 1.44 optional calls/min, 0 tokens; 1310 calls today
+2026-11-14 06:53:38 Waiting: 5440 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 3 book copies due, 591 suspects due a last look; 88 dropped unconfirmed after 3 days; kept past 2 days: 8808 cheapest copies, 1309 suspects
+2026-11-14 06:53:38 Verdicts: no sales yet 1959, not liquid 1409, over max buy 839, too few sales (1) 733, mismatch: too high 593, too few sales (2) 389, fewer than 2 photos 327, too few sales (3) 223, suspect 199, PC gap 197, too few sales (4) 87, mismatch: too cheap 36, reprint? 27, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 5, condition MP 1, ID conflict 1
+2026-11-14 06:53:38 Cards: 358 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 06:53:38 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.5%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 75 / 52 / 30 / 15)
+2026-11-14 06:53:38 Identity: 205 open listings under 40% of the PriceCharting price, 2141 over 300% (kept out of the statistics); item specifics read on 787 open listings (596 agree, 161 conflict, 30 blank), 8 read this hour; printed totals for 152 sets
+2026-11-14 06:53:38 Conditions: eBay's condition field read on 4795 open listings (4793 name a grade, 0 say something else, 2 carry none); the condition pass made 170 of its 600 looks today, 13577 in its queue; 3688 listings of the last 24 h still n/s
+2026-11-14 06:53:38 Pictures: 12000 cards with a PriceCharting picture on file, 8 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.5 s); 4 Review answers on the site
+2026-11-14 06:53:38 Printing: 85 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 39 printing lookups today
+2026-11-14 06:54:32 Facts: eBay's record on 20952 open listings (1510 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 6721 products in the ePID memory, 6026 tied to a card; 131 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26252 lookups so far, 4 cards still without eBay's record
+2026-11-14 06:54:32 Disk: 14.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 06:54:32 Unmatched this hour: rejected 36, no card number 22, no set/name agreement 14
+2026-11-14 06:54:32 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 06:54:32 Auction trial: 2005 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 06:54:32 Scam screen: 23341 clean, 4004 watch, 2610 suspect among open listings; signals: est 9513, slow 6749, fb0 4754, img 1991, p75 1027, p65 885, p50 669, top 377, burst 104, dup 3, qty 2
+2026-11-14 06:54:32 ID check: conflict - Pokemon Snorlax SVP-051 Scarlet & Violet Black Star Promo SEALED NM -> Snorlax #51 (Pokemon Promo): set Scarlet & Violet
+2026-11-14 06:54:32 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 06:55:01 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:55:01 Pictures: 12000 on file, 647 pages read since the start, 1 to go, 325 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,429 graded sales new today on 167 cards (PSA 10 525, PSA 9 301, CGC 10 89, PSA 6 84, PSA 8 79, CGC 9 63), 0 waiting to be written out
+2026-11-14 06:56:01 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:57:01 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:58:01 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 06:58:06 PriceCharting graded: 4 sales written to pcg/ for the data archive
+2026-11-14 06:58:11 Forecast listings: 7,811 available copies past the 24-hour table on 4,216 cards (1672 KB published)
+2026-11-14 07:00:38 Settled: 150 listings outlived 2 days (stale; 70 keep a full record), 0 lost sight of; kept in the book: 8864 cheapest copies, 1312 suspects
+2026-11-14 07:09:01 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:10:04 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 07:12:40 PC sales: last month's bar on file for 44,155 cards (177 KB published)
+2026-11-14 07:13:13 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:15:11 Pictures: 12000 on file, 650 pages read since the start, 1 to go, 328 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,435 graded sales new today on 170 cards (PSA 10 526, PSA 9 301, CGC 10 91, PSA 6 85, PSA 8 79, CGC 9 63), 0 waiting to be written out
+2026-11-14 07:17:11 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:22:28 PriceCharting graded: 3 sales written to pcg/ for the data archive
+2026-11-14 07:26:12 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:26:13 Pictures: 12000 on file, 651 pages read since the start, 1 to go, 329 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 1.0 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (741 re-read early for busy graded tables); 1,438 graded sales new today on 171 cards (PSA 10 526, PSA 9 301, CGC 10 91, PSA 6 87, PSA 8 79, CGC 9 63), 0 waiting to be written out
+2026-11-14 07:31:09 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 07:34:14 PriceCharting graded: 32 sales written to pcg/ for the data archive
+2026-11-14 07:36:10 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:38:12 Pictures: 12000 on file, 653 pages read since the start, 1 to go, 331 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,470 graded sales new today on 172 cards (PSA 10 535, PSA 9 309, CGC 10 95, PSA 6 87, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 07:39:09 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:43:11 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:45:18 PriceCharting graded: 4 sales written to pcg/ for the data archive
+2026-11-14 07:53:10 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:53:43 Rate limit: 170 of 5000 calls left (buy.browse), resets 2026-11-14T08:00:00.000Z, window 86400 s
+2026-11-14 07:54:14 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,474 graded sales new today on 173 cards (PSA 10 535, PSA 9 310, CGC 10 95, PSA 6 87, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 07:54:26 Hour: discovery read 12286 summaries, 246 new, 155 matched, 91 unmatched | re-reads 19 windows / 32 pages, 85 flagged, 28 repriced | confirmed: 0 sold, 0 ended, 0 gone, 0 still open | book checks: 1 sold, 2 ended/gone, 7 open | kw checks 0 sold / 0 open | 150 outlived 2 days (stale), 0 lost sight of, 39 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 4.0 min
+2026-11-14 07:54:26 Now: 29858 open, 78236 closed, 7191 cards with data, 7048 listings in 24 h, 0 pass the gate; budget 170 left, 2.09 optional calls/min, 1 tokens; 1465 calls today
+2026-11-14 07:54:28 Waiting: 5462 listings that vanished inside their first 2 days to confirm, 2 windows due for a re-read, 14 book copies due, 586 suspects due a last look; 60 dropped unconfirmed after 3 days; kept past 2 days: 8864 cheapest copies, 1312 suspects
+2026-11-14 07:54:28 Verdicts: no sales yet 1949, not liquid 1412, over max buy 850, too few sales (1) 728, mismatch: too high 592, too few sales (2) 387, fewer than 2 photos 327, too few sales (3) 221, suspect 210, PC gap 196, too few sales (4) 89, mismatch: too cheap 35, reprint? 25, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 4, condition MP 2, ID conflict 1
+2026-11-14 07:54:28 Cards: 358 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 07:54:28 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.5%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 75 / 52 / 30 / 15)
+2026-11-14 07:54:28 Identity: 205 open listings under 40% of the PriceCharting price, 2112 over 300% (kept out of the statistics); item specifics read on 786 open listings (597 agree, 162 conflict, 27 blank), 10 read this hour; printed totals for 152 sets
+2026-11-14 07:54:28 Conditions: eBay's condition field read on 4775 open listings (4773 name a grade, 0 say something else, 2 carry none); the condition pass made 198 of its 600 looks today, 13542 in its queue; 3720 listings of the last 24 h still n/s
+2026-11-14 07:54:28 Pictures: 12000 cards with a PriceCharting picture on file, 7 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.5 s); 4 Review answers on the site
+2026-11-14 07:54:29 Printing: 86 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 45 printing lookups today
+2026-11-14 07:55:24 Facts: eBay's record on 20960 open listings (1507 disagree with the card on set, rarity or finish; 37 just inherited from their product this hour); 6722 products in the ePID memory, 6027 tied to a card; 130 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26261 lookups so far, 1 cards still without eBay's record
+2026-11-14 07:55:24 Disk: 14.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 07:55:24 Unmatched this hour: rejected 67, no card number 11, no set/name agreement 8, printing not in catalog 4, ambiguous set 1
+2026-11-14 07:55:24 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 07:55:24 Auction trial: 2005 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 07:55:24 Scam screen: 23237 clean, 4002 watch, 2619 suspect among open listings; signals: est 9481, slow 6715, fb0 4763, img 1989, p75 1033, p65 890, p50 667, top 371, burst 115, dup 3, qty 2
+2026-11-14 07:55:24 ID check: conflict - Pokémon TCG Wailmer 69/92 Regular CN 2006 Nintendo 80 HP Basic -> Wailmer #69 (Pokemon Legend Maker): language Chinese
+2026-11-14 07:55:24 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 07:55:53 Pictures: 12000 on file, 654 pages read since the start, 1 to go, 332 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,474 graded sales new today on 173 cards (PSA 10 535, PSA 9 310, CGC 10 95, PSA 6 87, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 07:57:52 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:58:50 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 07:58:55 PriceCharting graded: 6 sales written to pcg/ for the data archive
+2026-11-14 08:01:27 Settled: 100 listings outlived 2 days (stale; 55 keep a full record), 6 lost sight of; kept in the book: 8907 cheapest copies, 1310 suspects
+2026-11-14 08:08:49 Pictures: 12000 on file, 657 pages read since the start, 1 to go, 335 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,480 graded sales new today on 176 cards (PSA 10 536, PSA 9 311, CGC 10 95, PSA 6 89, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 08:10:51 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 08:12:04 PriceCharting graded: 3 sales written to pcg/ for the data archive
+2026-11-14 08:42:51 Pictures: 12000 on file, 658 pages read since the start, 1 to go, 336 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.8 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,483 graded sales new today on 177 cards (PSA 10 539, PSA 9 311, CGC 10 95, PSA 6 89, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 08:44:55 PriceCharting graded: 15 sales written to pcg/ for the data archive
+2026-11-14 08:54:26 Rate limit: 4980 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 08:54:37 PC spread: 7,863 cards measured (6+ posted sales in 90 days, median $10+; 28,809 cheaper cards not judged); iqr/median p50 0.47, p75 0.66, p90 0.85, p95 0.98; 1,629 at or over the 0.7 bar = automatic PC inaccuracy (12 verdicts changed this pass)
+2026-11-14 08:54:42 Auctions: 516 open auctions on known cards among the 800 ending soonest (until 2026-11-14T13:41:46Z)
+2026-11-14 08:55:11 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 08:55:12 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,498 graded sales new today on 178 cards (PSA 10 548, PSA 9 313, CGC 10 96, PSA 6 89, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 08:55:14 Hour: discovery read 7463 summaries, 154 new, 66 matched, 88 unmatched | re-reads 2 windows / 4 pages, 3 flagged, 12 repriced | confirmed: 0 sold, 0 ended, 0 gone, 1 still open | book checks: 2 sold, 0 ended/gone, 2 open | kw checks 0 sold / 0 open | 100 outlived 2 days (stale), 6 lost sight of, 27 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 22 publishes | median indexing lag 4.0 min
+2026-11-14 08:55:14 Now: 29739 open, 78168 closed, 7181 cards with data, 7018 listings in 24 h, 0 pass the gate; budget 4980 left, 2.39 optional calls/min, 0 tokens; 1524 calls today
+2026-11-14 08:55:16 Waiting: 5414 listings that vanished inside their first 2 days to confirm, 11 windows due for a re-read, 31 book copies due, 584 suspects due a last look; 50 dropped unconfirmed after 3 days; kept past 2 days: 8907 cheapest copies, 1310 suspects
+2026-11-14 08:55:16 Verdicts: no sales yet 1950, not liquid 1399, over max buy 841, too few sales (1) 732, mismatch: too high 584, too few sales (2) 382, fewer than 2 photos 326, too few sales (3) 226, suspect 211, PC gap 195, too few sales (4) 86, mismatch: too cheap 35, reprint? 24, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 4, condition MP 2, ID conflict 1
+2026-11-14 08:55:16 Cards: 358 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 08:55:16 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.6%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 76 / 52 / 30 / 15)
+2026-11-14 08:55:16 Identity: 204 open listings under 40% of the PriceCharting price, 2093 over 300% (kept out of the statistics); item specifics read on 782 open listings (596 agree, 159 conflict, 27 blank), 2 read this hour; printed totals for 152 sets
+2026-11-14 08:55:16 Conditions: eBay's condition field read on 4738 open listings (4736 name a grade, 0 say something else, 2 carry none); the condition pass made 200 of its 600 looks today, 13506 in its queue; 3704 listings of the last 24 h still n/s
+2026-11-14 08:55:16 Pictures: 12000 cards with a PriceCharting picture on file, 5 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.5 s); 4 Review answers on the site
+2026-11-14 08:55:16 Printing: 85 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 46 printing lookups today
+2026-11-14 08:56:14 Facts: eBay's record on 20905 open listings (1496 disagree with the card on set, rarity or finish; 50 just inherited from their product this hour); 6723 products in the ePID memory, 6028 tied to a card; 130 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26263 lookups so far, 9 cards still without eBay's record
+2026-11-14 08:56:14 Disk: 14.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 08:56:14 Unmatched this hour: rejected 73, no card number 7, no set/name agreement 4, printing not in catalog 4
+2026-11-14 08:56:14 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 08:56:14 Auction trial: 2006 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 08:56:14 Scam screen: 23136 clean, 3989 watch, 2614 suspect among open listings; signals: est 9439, slow 6676, fb0 4750, img 1984, p75 1022, p65 889, p50 666, top 370, burst 116, dup 3, qty 2
+2026-11-14 08:56:14 ID check: ok - 2003 Pokemon Aquapolis Ninetales 25/147 Non-Holo NM -> Ninetales #25 (Pokemon Aquapolis)
+2026-11-14 08:56:14 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 08:56:43 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 08:57:40 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 08:57:41 Pictures: 12000 on file, 659 pages read since the start, 2 to go, 337 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,498 graded sales new today on 178 cards (PSA 10 548, PSA 9 313, CGC 10 96, PSA 6 89, PSA 8 82, CGC 9 66), 0 waiting to be written out
+2026-11-14 08:59:48 PriceCharting graded: 13 sales written to pcg/ for the data archive
+2026-11-14 09:02:22 Settled: 163 listings outlived 2 days (stale; 99 keep a full record), 4 lost sight of; kept in the book: 8983 cheapest copies, 1320 suspects
+2026-11-14 09:02:46 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:12:44 Pictures: 12000 on file, 663 pages read since the start, 1 to go, 341 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,511 graded sales new today on 179 cards (PSA 10 548, PSA 9 313, CGC 10 96, PSA 6 91, PSA 8 83, CGC 9 66), 0 waiting to be written out
+2026-11-14 09:13:47 PriceCharting graded: 11 sales written to pcg/ for the data archive
+2026-11-14 09:24:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:25:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:26:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:26:57 Pictures: 12000 on file, 668 pages read since the start, 1 to go, 346 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,522 graded sales new today on 180 cards (PSA 10 555, PSA 9 316, CGC 10 96, PSA 6 91, PSA 8 83, CGC 9 67), 0 waiting to be written out
+2026-11-14 09:29:14 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 09:29:56 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:36:04 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:37:00 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:39:55 Flags: 5 listings filed (5000 in the archive)
+2026-11-14 09:39:56 Pictures: 12000 on file, 670 pages read since the start, 2 to go, 348 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,525 graded sales new today on 182 cards (PSA 10 555, PSA 9 316, CGC 10 96, PSA 6 92, PSA 8 83, CGC 9 67), 2 waiting to be written out
+2026-11-14 09:41:05 PriceCharting graded: 23 sales written to pcg/ for the data archive
+2026-11-14 09:48:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 09:54:30 Rate limit: 4750 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 09:55:00 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,546 graded sales new today on 184 cards (PSA 10 559, PSA 9 316, CGC 10 98, PSA 6 97, PSA 8 83, CGC 9 67), 0 waiting to be written out
+2026-11-14 09:55:02 Hour: discovery read 12150 summaries, 124 new, 101 matched, 23 unmatched | re-reads 21 windows / 41 pages, 92 flagged, 54 repriced | confirmed: 7 sold, 2 ended, 0 gone, 3 still open | book checks: 8 sold, 1 ended/gone, 21 open | kw checks 0 sold / 0 open | 163 outlived 2 days (stale), 4 lost sight of, 11 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 4.0 min
+2026-11-14 09:55:02 Now: 29585 open, 78147 closed, 7186 cards with data, 7072 listings in 24 h, 0 pass the gate; budget 4750 left, 2.37 optional calls/min, 0 tokens; 1747 calls today
+2026-11-14 09:55:04 Waiting: 5433 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 23 book copies due, 582 suspects due a last look; 55 dropped unconfirmed after 3 days; kept past 2 days: 8983 cheapest copies, 1320 suspects
+2026-11-14 09:55:04 Verdicts: no sales yet 1971, not liquid 1411, over max buy 836, too few sales (1) 736, mismatch: too high 588, too few sales (2) 384, fewer than 2 photos 332, too few sales (3) 229, suspect 212, PC gap 195, too few sales (4) 88, mismatch: too cheap 38, reprint? 24, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 4, condition MP 2, review 1, ID conflict 1
+2026-11-14 09:55:04 Cards: 357 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 09:55:04 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.6%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 76 / 52 / 30 / 15)
+2026-11-14 09:55:04 Identity: 208 open listings under 40% of the PriceCharting price, 2080 over 300% (kept out of the statistics); item specifics read on 785 open listings (599 agree, 159 conflict, 27 blank), 8 read this hour; printed totals for 152 sets
+2026-11-14 09:55:05 Conditions: eBay's condition field read on 4746 open listings (4744 name a grade, 0 say something else, 2 carry none); the condition pass made 229 of its 600 looks today, 13403 in its queue; 3692 listings of the last 24 h still n/s
+2026-11-14 09:55:05 Pictures: 12000 cards with a PriceCharting picture on file, 13 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.3 s); 4 Review answers on the site
+2026-11-14 09:55:05 Printing: 86 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 51 printing lookups today
+2026-11-14 09:56:03 Facts: eBay's record on 20905 open listings (1493 disagree with the card on set, rarity or finish; 10 just inherited from their product this hour); 6725 products in the ePID memory, 6030 tied to a card; 130 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26283 lookups so far, 0 cards still without eBay's record
+2026-11-14 09:56:03 Disk: 14.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 09:56:03 Unmatched this hour: rejected 11, no card number 6, no set/name agreement 5, printing not in catalog 1
+2026-11-14 09:56:03 Alerts: 1 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 09:56:03 Auction trial: 2015 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 09:56:03 Scam screen: 22992 clean, 3976 watch, 2617 suspect among open listings; signals: est 9365, slow 6632, fb0 4734, img 1986, p75 1017, p65 883, p50 670, top 372, burst 117, dup 3, qty 2
+2026-11-14 09:56:03 ID check: ok - Pokemon TCG Charizard ex 223/197 Obsidian Flames Full Art Holo 330HP -> Charizard ex #223 (Pokemon Obsidian Flames)
+2026-11-14 09:56:03 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 10:02:32 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:03:10 Settled: 136 listings outlived 2 days (stale; 80 keep a full record), 4 lost sight of; kept in the book: 9026 cheapest copies, 1326 suspects
+2026-11-14 10:04:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:08:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:13:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:21:29 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:21:29 Pictures: 12000 on file, 672 pages read since the start, 1 to go, 350 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,546 graded sales new today on 184 cards (PSA 10 559, PSA 9 316, CGC 10 98, PSA 6 97, PSA 8 83, CGC 9 67), 0 waiting to be written out
+2026-11-14 10:24:37 PriceCharting graded: 10 sales written to pcg/ for the data archive
+2026-11-14 10:25:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:30:32 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:31:32 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:32:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:38:30 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:41:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:52:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 10:55:04 Rate limit: 4520 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 10:55:36 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,556 graded sales new today on 186 cards (PSA 10 559, PSA 9 316, PSA 6 102, CGC 10 98, PSA 8 84, CGC 9 68), 0 waiting to be written out
+2026-11-14 10:55:49 Hour: discovery read 12474 summaries, 172 new, 142 matched, 30 unmatched | re-reads 20 windows / 32 pages, 39 flagged, 23 repriced | confirmed: 21 sold, 6 ended, 0 gone, 3 still open | book checks: 5 sold, 0 ended/gone, 29 open | kw checks 0 sold / 0 open | 136 outlived 2 days (stale), 4 lost sight of, 12 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 25 publishes | median indexing lag 3.9 min
+2026-11-14 10:55:49 Now: 29506 open, 78153 closed, 7178 cards with data, 7169 listings in 24 h, 0 pass the gate; budget 4520 left, 2.35 optional calls/min, 1 tokens; 1977 calls today
+2026-11-14 10:55:50 Waiting: 5404 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 1 book copies due, 578 suspects due a last look; 37 dropped unconfirmed after 3 days; kept past 2 days: 9026 cheapest copies, 1326 suspects
+2026-11-14 10:55:50 Verdicts: no sales yet 1997, not liquid 1434, over max buy 840, too few sales (1) 742, mismatch: too high 597, too few sales (2) 393, fewer than 2 photos 331, too few sales (3) 236, suspect 213, PC gap 200, too few sales (4) 95, mismatch: too cheap 39, reprint? 24, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 4, condition MP 2, review 1, ID conflict 1
+2026-11-14 10:55:50 Cards: 357 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 10:55:50 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.7%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 76 / 52 / 30 / 15)
+2026-11-14 10:55:50 Identity: 207 open listings under 40% of the PriceCharting price, 2058 over 300% (kept out of the statistics); item specifics read on 778 open listings (593 agree, 157 conflict, 28 blank), 8 read this hour; printed totals for 152 sets
+2026-11-14 10:55:51 Conditions: eBay's condition field read on 4755 open listings (4753 name a grade, 0 say something else, 2 carry none); the condition pass made 257 of its 600 looks today, 13354 in its queue; 3719 listings of the last 24 h still n/s
+2026-11-14 10:55:51 Pictures: 12000 cards with a PriceCharting picture on file, 3 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.2 s); 4 Review answers on the site
+2026-11-14 10:55:51 Printing: 82 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 57 printing lookups today
+2026-11-14 10:56:45 Facts: eBay's record on 20893 open listings (1497 disagree with the card on set, rarity or finish; 10 just inherited from their product this hour); 6727 products in the ePID memory, 6031 tied to a card; 131 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26292 lookups so far, 0 cards still without eBay's record
+2026-11-14 10:56:45 Disk: 14.8 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 10:56:45 Unmatched this hour: rejected 16, no set/name agreement 7, no card number 6, printing not in catalog 1
+2026-11-14 10:56:45 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 10:56:45 Auction trial: 2020 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 10:56:45 Scam screen: 22952 clean, 3942 watch, 2612 suspect among open listings; signals: est 9396, slow 6577, fb0 4699, img 1981, p75 1012, p65 883, p50 669, top 373, burst 117, dup 3, qty 2
+2026-11-14 10:56:45 ID check: conflict - Wartortle (W Stamped) Promo Base Set 2 No. 63/130 Pokemon Card - 2000 -> Wartortle #63 (Pokemon Base Set 2): rarity Promo (the card is Uncommon)
+2026-11-14 10:56:45 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 11:03:15 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:03:53 Settled: 108 listings outlived 2 days (stale; 70 keep a full record), 11 lost sight of; kept in the book: 9086 cheapest copies, 1334 suspects
+2026-11-14 11:04:16 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:04:17 Pictures: 12000 on file, 675 pages read since the start, 1 to go, 353 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,556 graded sales new today on 186 cards (PSA 10 559, PSA 9 316, PSA 6 102, CGC 10 98, PSA 8 84, CGC 9 68), 0 waiting to be written out
+2026-11-14 11:07:18 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 11:19:12 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:19:13 Pictures: 12000 on file, 676 pages read since the start, 1 to go, 354 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,557 graded sales new today on 187 cards (PSA 10 559, PSA 9 316, PSA 6 102, CGC 10 98, PSA 8 84, CGC 9 68), 0 waiting to be written out
+2026-11-14 11:21:18 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 11:31:29 PriceCharting graded: 5 sales written to pcg/ for the data archive
+2026-11-14 11:32:14 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 11:34:13 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:36:14 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 11:37:20 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:40:13 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:42:14 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 11:55:46 Rate limit: 4290 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 11:56:19 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,564 graded sales new today on 189 cards (PSA 10 560, PSA 9 316, PSA 6 104, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 11:56:21 Hour: discovery read 12277 summaries, 41 new, 30 matched, 11 unmatched | re-reads 4 windows / 5 pages, 12 flagged, 11 repriced | confirmed: 50 sold, 15 ended, 0 gone, 5 still open | book checks: 2 sold, 0 ended/gone, 22 open | kw checks 0 sold / 0 open | 108 outlived 2 days (stale), 11 lost sight of, 13 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 23 publishes | median indexing lag 3.9 min
+2026-11-14 11:56:21 Now: 29312 open, 78170 closed, 7175 cards with data, 7150 listings in 24 h, 0 pass the gate; budget 4290 left, 2.34 optional calls/min, 0 tokens; 2207 calls today
+2026-11-14 11:56:23 Waiting: 5319 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 0 book copies due, 573 suspects due a last look; 25 dropped unconfirmed after 3 days; kept past 2 days: 9086 cheapest copies, 1334 suspects
+2026-11-14 11:56:23 Verdicts: no sales yet 1997, not liquid 1429, over max buy 830, too few sales (1) 752, mismatch: too high 600, too few sales (2) 379, fewer than 2 photos 328, too few sales (3) 245, suspect 213, PC gap 198, too few sales (4) 88, mismatch: too cheap 39, reprint? 23, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 4, condition MP 3, review 1, ID conflict 1
+2026-11-14 11:56:23 Cards: 357 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 11:56:23 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.7%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 77 / 52 / 30 / 15)
+2026-11-14 11:56:23 Identity: 203 open listings under 40% of the PriceCharting price, 2041 over 300% (kept out of the statistics); item specifics read on 777 open listings (591 agree, 158 conflict, 28 blank), 6 read this hour; printed totals for 152 sets
+2026-11-14 11:56:23 Conditions: eBay's condition field read on 4758 open listings (4756 name a grade, 0 say something else, 2 carry none); the condition pass made 286 of its 600 looks today, 13226 in its queue; 3668 listings of the last 24 h still n/s
+2026-11-14 11:56:23 Pictures: 12000 cards with a PriceCharting picture on file, 5 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.2 s); 4 Review answers on the site
+2026-11-14 11:56:23 Printing: 82 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 62 printing lookups today
+2026-11-14 11:57:18 Facts: eBay's record on 20785 open listings (1496 disagree with the card on set, rarity or finish; 4 just inherited from their product this hour); 6727 products in the ePID memory, 6031 tied to a card; 131 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26300 lookups so far, 0 cards still without eBay's record
+2026-11-14 11:57:18 Disk: 14.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 11:57:18 Unmatched this hour: no card number 5, rejected 3, no set/name agreement 3
+2026-11-14 11:57:18 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 11:57:18 Auction trial: 2031 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 11:57:18 Scam screen: 22800 clean, 3913 watch, 2599 suspect among open listings; signals: est 9333, slow 6513, fb0 4667, img 1972, p75 1003, p65 875, p50 663, top 372, burst 117, dup 3, qty 2
+2026-11-14 11:57:18 ID check: ok - Tangela E READER 112/147 Aquapolis 2002 Pokemon TCG English 60 HP -> Tangela #112 (Pokemon Aquapolis)
+2026-11-14 11:57:18 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 11:59:49 Pictures: 12000 on file, 680 pages read since the start, 1 to go, 358 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,564 graded sales new today on 189 cards (PSA 10 560, PSA 9 316, PSA 6 104, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 12:04:30 Settled: 169 listings outlived 2 days (stale; 98 keep a full record), 5 lost sight of; kept in the book: 9185 cheapest copies, 1346 suspects
+2026-11-14 12:07:47 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 12:08:47 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 12:20:00 Pictures: 12000 on file, 681 pages read since the start, 1 to go, 359 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,564 graded sales new today on 189 cards (PSA 10 560, PSA 9 316, PSA 6 104, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 12:21:04 PriceCharting graded: 3 sales written to pcg/ for the data archive
+2026-11-14 12:40:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 12:43:00 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 12:49:19 Pictures: 12000 on file, 682 pages read since the start, 1 to go, 360 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,567 graded sales new today on 190 cards (PSA 10 562, PSA 9 316, PSA 6 105, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 12:54:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 12:55:50 Rate limit: 4070 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 12:56:23 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,567 graded sales new today on 190 cards (PSA 10 562, PSA 9 316, PSA 6 105, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 12:56:27 Hour: discovery read 12068 summaries, 96 new, 74 matched, 22 unmatched | re-reads 18 windows / 34 pages, 35 flagged, 14 repriced | confirmed: 19 sold, 11 ended, 0 gone, 13 still open | book checks: 2 sold, 0 ended/gone, 10 open | kw checks 0 sold / 0 open | 169 outlived 2 days (stale), 5 lost sight of, 20 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 25 publishes | median indexing lag 3.9 min
+2026-11-14 12:56:27 Now: 29128 open, 78186 closed, 7167 cards with data, 7143 listings in 24 h, 0 pass the gate; budget 4070 left, 2.33 optional calls/min, 0 tokens; 2432 calls today
+2026-11-14 12:56:30 Waiting: 5281 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 10 book copies due, 577 suspects due a last look; 27 dropped unconfirmed after 3 days; kept past 2 days: 9185 cheapest copies, 1346 suspects
+2026-11-14 12:56:30 Verdicts: no sales yet 1998, not liquid 1433, over max buy 830, too few sales (1) 759, mismatch: too high 589, too few sales (2) 351, fewer than 2 photos 326, too few sales (3) 270, suspect 212, PC gap 199, too few sales (4) 86, mismatch: too cheap 39, reprint? 22, condition HP 9, seller < 95% 6, seller < 98% 5, LEAD 4, condition MP 3, review 1, ID conflict 1
+2026-11-14 12:56:31 Cards: 357 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 12:56:31 Liquidity: 101 cards sell often enough for the window; their 48-hour sell-through is measured on 99 (median 25.8%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 77 / 52 / 30 / 15)
+2026-11-14 12:56:31 Identity: 202 open listings under 40% of the PriceCharting price, 2016 over 300% (kept out of the statistics); item specifics read on 774 open listings (587 agree, 158 conflict, 29 blank), 8 read this hour; printed totals for 152 sets
+2026-11-14 12:56:31 Conditions: eBay's condition field read on 4754 open listings (4752 name a grade, 0 say something else, 2 carry none); the condition pass made 315 of its 600 looks today, 13129 in its queue; 3640 listings of the last 24 h still n/s
+2026-11-14 12:56:31 Pictures: 12000 cards with a PriceCharting picture on file, 3 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.4 s); 4 Review answers on the site
+2026-11-14 12:56:31 Printing: 82 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 68 printing lookups today
+2026-11-14 12:57:28 Facts: eBay's record on 20690 open listings (1482 disagree with the card on set, rarity or finish; 1 just inherited from their product this hour); 6729 products in the ePID memory, 6033 tied to a card; 126 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26311 lookups so far, 0 cards still without eBay's record
+2026-11-14 12:57:28 Disk: 14.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 12:57:28 Unmatched this hour: no card number 7, rejected 6, printing not in catalog 6, no set/name agreement 3
+2026-11-14 12:57:28 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 12:57:28 Auction trial: 2067 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 12:57:28 Scam screen: 22665 clean, 3865 watch, 2598 suspect among open listings; signals: est 9270, slow 6452, fb0 4617, img 1970, p75 992, p65 860, p50 665, top 373, burst 118, dup 3, qty 2
+2026-11-14 12:57:28 ID check: ok - Pokemon TCG Primarina 020/084 WYF Stamp Promo Misc Cards & Products Ra -> Primarina #20 (Pokemon Pitch Black)
+2026-11-14 12:57:28 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 12:59:03 Forecast listings: 7,763 available copies past the 24-hour table on 4,215 cards (1663 KB published)
+2026-11-14 13:03:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:04:35 Settled: 134 listings outlived 2 days (stale; 85 keep a full record), 6 lost sight of; kept in the book: 9256 cheapest copies, 1357 suspects
+2026-11-14 13:10:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:19:24 PC sales: last month's bar on file for 44,155 cards (177 KB published)
+2026-11-14 13:21:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:27:56 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:27:57 Pictures: 12000 on file, 683 pages read since the start, 1 to go, 361 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,567 graded sales new today on 190 cards (PSA 10 562, PSA 9 316, PSA 6 105, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 13:29:02 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 13:31:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:41:03 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:41:07 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 13:42:56 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:43:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:46:56 Pictures: 12000 on file, 685 pages read since the start, 1 to go, 363 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,569 graded sales new today on 192 cards (PSA 10 562, PSA 9 317, PSA 6 105, CGC 10 98, PSA 8 85, CGC 9 68), 0 waiting to be written out
+2026-11-14 13:48:55 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:49:56 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:53:11 PriceCharting graded: 19 sales written to pcg/ for the data archive
+2026-11-14 13:53:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 13:56:29 Rate limit: 3840 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 13:57:00 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,588 graded sales new today on 193 cards (PSA 10 565, PSA 9 321, PSA 6 110, CGC 10 100, PSA 8 85, CGC 9 71), 0 waiting to be written out
+2026-11-14 13:57:14 Hour: discovery read 12280 summaries, 137 new, 82 matched, 55 unmatched | re-reads 19 windows / 30 pages, 43 flagged, 10 repriced | confirmed: 14 sold, 6 ended, 1 gone, 6 still open | book checks: 9 sold, 0 ended/gone, 29 open | kw checks 0 sold / 0 open | 134 outlived 2 days (stale), 6 lost sight of, 22 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 3.9 min
+2026-11-14 13:57:14 Now: 28983 open, 78161 closed, 7161 cards with data, 7129 listings in 24 h, 0 pass the gate; budget 3840 left, 2.31 optional calls/min, 1 tokens; 2659 calls today
+2026-11-14 13:57:16 Waiting: 5262 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 0 book copies due, 581 suspects due a last look; 32 dropped unconfirmed after 3 days; kept past 2 days: 9256 cheapest copies, 1357 suspects
+2026-11-14 13:57:16 Verdicts: no sales yet 1995, not liquid 1420, over max buy 825, too few sales (1) 757, mismatch: too high 593, too few sales (2) 347, fewer than 2 photos 327, too few sales (3) 270, suspect 210, PC gap 201, too few sales (4) 93, mismatch: too cheap 39, reprint? 22, condition HP 9, seller < 95% 6, LEAD 5, seller < 98% 5, condition MP 3, review 1, ID conflict 1
+2026-11-14 13:57:16 Cards: 356 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 13:57:16 Liquidity: 100 cards sell often enough for the window; their 48-hour sell-through is measured on 98 (median 25.8%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 77 / 52 / 30 / 15)
+2026-11-14 13:57:16 Identity: 202 open listings under 40% of the PriceCharting price, 2013 over 300% (kept out of the statistics); item specifics read on 774 open listings (589 agree, 156 conflict, 29 blank), 7 read this hour; printed totals for 152 sets
+2026-11-14 13:57:16 Conditions: eBay's condition field read on 4753 open listings (4751 name a grade, 0 say something else, 2 carry none); the condition pass made 344 of its 600 looks today, 13040 in its queue; 3619 listings of the last 24 h still n/s
+2026-11-14 13:57:16 Pictures: 12000 cards with a PriceCharting picture on file, 3 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.5 s); 4 Review answers on the site
+2026-11-14 13:57:16 Printing: 82 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 74 printing lookups today
+2026-11-14 13:58:13 Facts: eBay's record on 20620 open listings (1480 disagree with the card on set, rarity or finish; 6 just inherited from their product this hour); 6730 products in the ePID memory, 6035 tied to a card; 126 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26318 lookups so far, 0 cards still without eBay's record
+2026-11-14 13:58:13 Disk: 14.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 13:58:13 Unmatched this hour: rejected 41, no card number 6, no set/name agreement 6, ambiguous variant 1, ambiguous set 1
+2026-11-14 13:58:13 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 13:58:13 Auction trial: 2095 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 13:58:13 Scam screen: 22548 clean, 3840 watch, 2595 suspect among open listings; signals: est 9230, slow 6400, fb0 4589, img 1972, p75 974, p65 851, p50 661, top 373, burst 118, dup 3, qty 2
+2026-11-14 13:58:13 ID check: ok - Charmander Base Set 46/102 Common Unlimited 1999 Wizards of the Coast  -> Charmander #46 (Pokemon Base Set)
+2026-11-14 13:58:13 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 14:05:20 Settled: 126 listings outlived 2 days (stale; 67 keep a full record), 8 lost sight of; kept in the book: 9323 cheapest copies, 1368 suspects
+2026-11-14 14:09:41 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:13:41 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:13:41 Pictures: 12000 on file, 686 pages read since the start, 1 to go, 364 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,588 graded sales new today on 193 cards (PSA 10 565, PSA 9 321, PSA 6 110, CGC 10 100, PSA 8 85, CGC 9 71), 0 waiting to be written out
+2026-11-14 14:16:41 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 14:18:45 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 14:20:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:23:49 Pictures: 12000 on file, 692 pages read since the start, 1 to go, 370 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,591 graded sales new today on 195 cards (PSA 10 565, PSA 9 321, PSA 6 110, CGC 10 101, PSA 8 86, CGC 9 71), 1 waiting to be written out
+2026-11-14 14:29:52 PriceCharting graded: 4 sales written to pcg/ for the data archive
+2026-11-14 14:36:47 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:36:52 Publish: the previous push is still running after 109 s; this publish is skipped (1 skipped so far)
+2026-11-14 14:39:46 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:40:47 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:42:52 Pictures: 12000 on file, 693 pages read since the start, 1 to go, 371 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,594 graded sales new today on 196 cards (PSA 10 565, PSA 9 321, PSA 6 111, CGC 10 101, PSA 8 88, CGC 9 71), 0 waiting to be written out
+2026-11-14 14:47:50 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:50:48 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:51:46 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:54:51 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 14:55:31 PC spread: 7,863 cards measured (6+ posted sales in 90 days, median $10+; 28,809 cheaper cards not judged); iqr/median p50 0.47, p75 0.66, p90 0.85, p95 0.98; 1,627 at or over the 0.7 bar = automatic PC inaccuracy (7 verdicts changed this pass)
+2026-11-14 14:55:57 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 14:57:21 Rate limit: 3610 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 14:57:51 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,595 graded sales new today on 197 cards (PSA 10 565, PSA 9 321, PSA 6 112, CGC 10 101, PSA 8 88, CGC 9 71), 0 waiting to be written out
+2026-11-14 14:57:53 Hour: discovery read 12277 summaries, 231 new, 170 matched, 61 unmatched | re-reads 3 windows / 4 pages, 16 flagged, 3 repriced | confirmed: 54 sold, 11 ended, 0 gone, 2 still open | book checks: 0 sold, 0 ended/gone, 12 open | kw checks 0 sold / 0 open | 126 outlived 2 days (stale), 8 lost sight of, 43 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 25 publishes | median indexing lag 3.9 min
+2026-11-14 14:57:53 Now: 28866 open, 78137 closed, 7159 cards with data, 7143 listings in 24 h, 0 pass the gate; budget 3610 left, 2.28 optional calls/min, 0 tokens; 2888 calls today
+2026-11-14 14:57:55 Waiting: 5166 listings that vanished inside their first 2 days to confirm, 1 windows due for a re-read, 0 book copies due, 577 suspects due a last look; 41 dropped unconfirmed after 3 days; kept past 2 days: 9323 cheapest copies, 1368 suspects
+2026-11-14 14:57:55 Verdicts: no sales yet 1991, not liquid 1416, over max buy 896, too few sales (1) 766, mismatch: too high 596, too few sales (2) 353, fewer than 2 photos 333, too few sales (3) 270, suspect 207, PC gap 137, too few sales (4) 92, mismatch: too cheap 38, reprint? 19, condition HP 9, seller < 95% 5, seller < 98% 5, condition MP 4, LEAD 4, review 1, ID conflict 1
+2026-11-14 14:57:55 Cards: 355 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 14:57:55 Liquidity: 99 cards sell often enough for the window; their 48-hour sell-through is measured on 97 (median 25.9%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 76 / 52 / 30 / 15)
+2026-11-14 14:57:55 Identity: 201 open listings under 40% of the PriceCharting price, 2007 over 300% (kept out of the statistics); item specifics read on 770 open listings (587 agree, 156 conflict, 27 blank), 7 read this hour; printed totals for 152 sets
+2026-11-14 14:57:55 Conditions: eBay's condition field read on 4746 open listings (4744 name a grade, 0 say something else, 2 carry none); the condition pass made 373 of its 600 looks today, 12980 in its queue; 3641 listings of the last 24 h still n/s
+2026-11-14 14:57:55 Pictures: 12000 cards with a PriceCharting picture on file, 11 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.5 s); 4 Review answers on the site
+2026-11-14 14:57:55 Printing: 82 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 79 printing lookups today
+2026-11-14 14:58:50 Facts: eBay's record on 20580 open listings (1469 disagree with the card on set, rarity or finish; 4 just inherited from their product this hour); 6735 products in the ePID memory, 6041 tied to a card; 126 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26338 lookups so far, 0 cards still without eBay's record
+2026-11-14 14:58:50 Disk: 14.6 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 14:58:50 Unmatched this hour: no card number 24, rejected 20, no set/name agreement 11, printing not in catalog 4, anniversary reprint, not the original 1, no card # 1
+2026-11-14 14:58:50 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 14:58:50 Auction trial: 2173 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 14:58:50 Scam screen: 22441 clean, 3828 watch, 2597 suspect among open listings; signals: est 9200, slow 6333, fb0 4573, img 1978, p75 946, p65 840, p50 661, top 370, burst 118, dup 3, qty 2
+2026-11-14 14:58:50 ID check: conflict - Nintendo Mewtwo 056/172 Pokemon GO Rare Holo English 2022 130 HP -> Mewtwo #56 (Pokemon Brilliant Stars): set Pokémon GO
+2026-11-14 14:58:50 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 14:59:20 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 15:02:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:02:57 Auctions: 578 open auctions on known cards among the 800 ending soonest (until 2026-11-14T16:06:23Z)
+2026-11-14 15:05:59 Settled: 154 listings outlived 2 days (stale; 95 keep a full record), 7 lost sight of; kept in the book: 9353 cheapest copies, 1370 suspects
+2026-11-14 15:15:28 Publish: the previous push is still running after 126 s; this publish is skipped (5 skipped so far)
+2026-11-14 15:17:20 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:17:21 Pictures: 12000 on file, 697 pages read since the start, 1 to go, 375 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,595 graded sales new today on 197 cards (PSA 10 565, PSA 9 321, PSA 6 112, CGC 10 101, PSA 8 88, CGC 9 71), 0 waiting to be written out
+2026-11-14 15:22:18 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:23:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:25:36 PriceCharting graded: 15 sales written to pcg/ for the data archive
+2026-11-14 15:26:21 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:28:18 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:28:18 Pictures: 12000 on file, 699 pages read since the start, 1 to go, 377 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,610 graded sales new today on 198 cards (PSA 10 569, PSA 9 324, PSA 6 112, CGC 10 103, PSA 8 88, CGC 9 72), 0 waiting to be written out
+2026-11-14 15:33:18 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:34:20 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:38:19 Pictures: 12000 on file, 701 pages read since the start, 1 to go, 379 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,617 graded sales new today on 200 cards (PSA 10 569, PSA 9 324, PSA 6 115, CGC 10 103, PSA 8 88, CGC 9 73), 7 waiting to be written out
+2026-11-14 15:38:22 PriceCharting graded: 7 sales written to pcg/ for the data archive
+2026-11-14 15:44:24 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 15:46:21 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:47:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:48:23 PriceCharting graded: 26 sales written to pcg/ for the data archive
+2026-11-14 15:51:22 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 15:51:22 Pictures: 12000 on file, 706 pages read since the start, 2 to go, 384 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,643 graded sales new today on 203 cards (PSA 10 571, PSA 9 328, PSA 6 118, CGC 10 107, PSA 8 89, CGC 9 75), 0 waiting to be written out
+2026-11-14 15:52:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:52:36 Publish: the push took 121 s for 3841 KB (7 slow pushes, 7 publishes skipped while one ran)
+2026-11-14 15:53:16 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 15:55:19 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:56:20 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:57:51 Rate limit: 3390 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 15:58:21 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 15:58:22 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,656 graded sales new today on 207 cards (PSA 10 574, PSA 9 328, PSA 6 122, CGC 10 108, PSA 8 90, CGC 9 75), 13 waiting to be written out
+2026-11-14 15:58:24 Hour: discovery read 12275 summaries, 359 new, 276 matched, 83 unmatched | re-reads 20 windows / 36 pages, 76 flagged, 32 repriced | confirmed: 14 sold, 6 ended, 0 gone, 9 still open | book checks: 2 sold, 0 ended/gone, 12 open | kw checks 0 sold / 0 open | 154 outlived 2 days (stale), 7 lost sight of, 53 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 25 publishes | median indexing lag 3.9 min
+2026-11-14 15:58:24 Now: 28862 open, 78097 closed, 7167 cards with data, 7124 listings in 24 h, 1 pass the gate; budget 3390 left, 2.27 optional calls/min, 0 tokens; 3114 calls today
+2026-11-14 15:58:26 Waiting: 5169 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 0 book copies due, 582 suspects due a last look; 43 dropped unconfirmed after 3 days; kept past 2 days: 9353 cheapest copies, 1370 suspects
+2026-11-14 15:58:26 Verdicts: no sales yet 1974, not liquid 1410, over max buy 902, too few sales (1) 757, mismatch: too high 591, fewer than 2 photos 356, too few sales (2) 341, too few sales (3) 272, suspect 210, PC gap 133, too few sales (4) 89, mismatch: too cheap 37, reprint? 19, condition HP 9, seller < 95% 8, seller < 98% 5, condition MP 4, LEAD 4, review 1, ID conflict 1, PASS 1
+2026-11-14 15:58:26 Cards: 355 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 15:58:26 Liquidity: 99 cards sell often enough for the window; their 48-hour sell-through is measured on 97 (median 26.0%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 76 / 52 / 30 / 15)
+2026-11-14 15:58:26 Identity: 202 open listings under 40% of the PriceCharting price, 2000 over 300% (kept out of the statistics); item specifics read on 777 open listings (592 agree, 159 conflict, 26 blank), 12 read this hour; printed totals for 152 sets
+2026-11-14 15:58:26 Conditions: eBay's condition field read on 4755 open listings (4753 name a grade, 0 say something else, 2 carry none); the condition pass made 401 of its 600 looks today, 12981 in its queue; 3640 listings of the last 24 h still n/s
+2026-11-14 15:58:26 Pictures: 12000 cards with a PriceCharting picture on file, 16 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.6 s); 4 Review answers on the site
+2026-11-14 15:58:26 Printing: 82 open listings filed under a printing their item specifics named; 0 unmatched 'ambiguous variant' listings waiting for a lookup; 85 printing lookups today
+2026-11-14 15:59:20 Facts: eBay's record on 20630 open listings (1476 disagree with the card on set, rarity or finish; 2 just inherited from their product this hour); 6737 products in the ePID memory, 6043 tied to a card; 129 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26356 lookups so far, 0 cards still without eBay's record
+2026-11-14 15:59:20 Disk: 14.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 15:59:20 Unmatched this hour: no card number 43, rejected 22, no set/name agreement 14, printing not in catalog 2, ambiguous set 1, ambiguous variant 1
+2026-11-14 15:59:20 Alerts: 1 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 15:59:20 Auction trial: 2254 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 15:59:20 Scam screen: 22409 clean, 3825 watch, 2628 suspect among open listings; signals: est 9195, slow 6300, fb0 4576, img 2004, p75 944, p65 848, p50 663, top 369, burst 119, qty 3, dup 3
+2026-11-14 15:59:20 ID check: ok - The Pokémon Company Hop's Snorlax 117/159 Sv09 Journey Together Holo R -> Hop's Snorlax #117 (Pokemon Journey Together)
+2026-11-14 15:59:20 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 15:59:54 PriceCharting graded: 13 sales written to pcg/ for the data archive
+2026-11-14 16:01:51 Pictures: 12000 on file, 716 pages read since the start, 1 to go, 394 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,657 graded sales new today on 208 cards (PSA 10 574, PSA 9 328, PSA 6 122, CGC 10 108, PSA 8 91, CGC 9 75), 1 waiting to be written out
+2026-11-14 16:02:51 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:06:32 Settled: 153 listings outlived 2 days (stale; 88 keep a full record), 2 lost sight of; kept in the book: 9400 cheapest copies, 1376 suspects
+2026-11-14 16:06:55 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:09:52 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:09:57 PriceCharting graded: 12 sales written to pcg/ for the data archive
+2026-11-14 16:10:52 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:13:52 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:13:53 Pictures: 12000 on file, 724 pages read since the start, 3 to go, 402 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.5 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,668 graded sales new today on 210 cards (PSA 10 574, PSA 9 328, PSA 6 125, CGC 10 108, PSA 8 93, CGC 9 75), 0 waiting to be written out
+2026-11-14 16:20:52 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 16:21:57 PriceCharting graded: 85 sales written to pcg/ for the data archive
+2026-11-14 16:23:52 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:23:52 Pictures: 12000 on file, 755 pages read since the start, 1 to go, 433 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,753 graded sales new today on 228 cards (PSA 10 582, PSA 9 338, PSA 6 156, CGC 10 111, PSA 8 103, CGC 9 76), 0 waiting to be written out
+2026-11-14 16:24:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:25:52 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:26:51 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:29:00 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:29:05 Publish: the previous push is still running after 95 s; this publish is skipped (9 skipped so far)
+2026-11-14 16:32:04 PriceCharting graded: 10 sales written to pcg/ for the data archive
+2026-11-14 16:33:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:36:57 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 16:37:55 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:39:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:40:59 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 16:40:59 Pictures: 12000 on file, 760 pages read since the start, 1 to go, 438 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,770 graded sales new today on 232 cards (PSA 10 583, PSA 9 339, PSA 6 161, CGC 10 112, PSA 8 103, CGC 9 77), 7 waiting to be written out
+2026-11-14 16:42:01 PriceCharting graded: 7 sales written to pcg/ for the data archive
+2026-11-14 16:42:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:43:54 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:47:02 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 16:49:59 Flags: 4 listings filed (5000 in the archive)
+2026-11-14 16:51:00 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:51:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:52:58 Flags: 4 listings filed (5000 in the archive)
+2026-11-14 16:53:58 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:57:01 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 16:57:59 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 16:58:32 Rate limit: 3160 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 16:59:00 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 16:59:00 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,770 graded sales new today on 232 cards (PSA 10 583, PSA 9 339, PSA 6 161, CGC 10 112, PSA 8 103, CGC 9 77), 0 waiting to be written out
+2026-11-14 16:59:05 Hour: discovery read 12142 summaries, 459 new, 336 matched, 123 unmatched | re-reads 20 windows / 30 pages, 94 flagged, 23 repriced | confirmed: 2 sold, 1 ended, 0 gone, 2 still open | book checks: 3 sold, 1 ended/gone, 17 open | kw checks 0 sold / 0 open | 153 outlived 2 days (stale), 2 lost sight of, 132 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 3.9 min
+2026-11-14 16:59:05 Now: 28842 open, 78056 closed, 7161 cards with data, 7093 listings in 24 h, 1 pass the gate; budget 3160 left, 2.24 optional calls/min, 0 tokens; 3337 calls today
+2026-11-14 16:59:08 Waiting: 5192 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 7 book copies due, 584 suspects due a last look; 61 dropped unconfirmed after 3 days; kept past 2 days: 9400 cheapest copies, 1376 suspects
+2026-11-14 16:59:08 Verdicts: no sales yet 1990, not liquid 1397, over max buy 900, too few sales (1) 765, mismatch: too high 611, fewer than 2 photos 344, too few sales (2) 338, too few sales (3) 264, suspect 175, PC gap 136, too few sales (4) 88, mismatch: too cheap 34, reprint? 19, condition HP 8, seller < 95% 7, condition MP 5, seller < 98% 5, LEAD 4, review 1, ID conflict 1, PASS 1
+2026-11-14 16:59:08 Cards: 356 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 16:59:08 Liquidity: 99 cards sell often enough for the window; their 48-hour sell-through is measured on 97 (median 26.0%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 76 / 52 / 30 / 15)
+2026-11-14 16:59:08 Identity: 204 open listings under 40% of the PriceCharting price, 1980 over 300% (kept out of the statistics); item specifics read on 778 open listings (591 agree, 160 conflict, 27 blank), 10 read this hour; printed totals for 152 sets
+2026-11-14 16:59:08 Conditions: eBay's condition field read on 4735 open listings (4733 name a grade, 0 say something else, 2 carry none); the condition pass made 430 of its 600 looks today, 12997 in its queue; 3630 listings of the last 24 h still n/s
+2026-11-14 16:59:08 Pictures: 12000 cards with a PriceCharting picture on file, 48 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.6 s); 4 Review answers on the site
+2026-11-14 16:59:09 Printing: 83 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 90 printing lookups today
+2026-11-14 17:00:02 Facts: eBay's record on 20669 open listings (1478 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 6737 products in the ePID memory, 6043 tied to a card; 129 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26396 lookups so far, 13 cards still without eBay's record
+2026-11-14 17:00:02 Disk: 14.7 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 17:00:02 Unmatched this hour: rejected 77, no card number 29, no set/name agreement 10, ambiguous variant 4, ambiguous set 1, printing not in catalog 1, no card # 1
+2026-11-14 17:00:02 Alerts: 0 hit alerts and 0 auction alerts sent this hour to the phone
+2026-11-14 17:00:02 Auction trial: 2400 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 17:00:02 Scam screen: 22421 clean, 3822 watch, 2599 suspect among open listings; signals: est 9149, slow 6286, fb0 4544, img 2005, p75 939, p65 848, p50 666, top 364, burst 89, qty 3, dup 3
+2026-11-14 17:00:02 ID check: none - Clefairy Doll Shadowless 1st Ed. Pokemon Base Set #70 1999 -> Clefairy Doll #70 (Pokemon Base Set)
+2026-11-14 17:00:02 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 17:01:34 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:01:38 Publish: the previous push is still running after 153 s; this publish is skipped (11 skipped so far)
+2026-11-14 17:02:32 Pictures: 12000 on file, 761 pages read since the start, 1 to go, 439 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.6 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,770 graded sales new today on 232 cards (PSA 10 583, PSA 9 339, PSA 6 161, CGC 10 112, PSA 8 103, CGC 9 77), 0 waiting to be written out
+2026-11-14 17:03:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:03:36 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 17:05:41 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:06:34 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:07:10 Settled: 206 listings outlived 2 days (stale; 111 keep a full record), 17 lost sight of; kept in the book: 9409 cheapest copies, 1369 suspects
+2026-11-14 17:08:32 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:10:33 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:11:34 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:13:30 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 17:14:33 Pictures: 12000 on file, 769 pages read since the start, 3 to go, 447 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.8 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,798 graded sales new today on 236 cards (PSA 10 595, PSA 9 345, PSA 6 162, CGC 10 115, PSA 8 103, CGC 9 77), 26 waiting to be written out
+2026-11-14 17:15:40 PriceCharting graded: 30 sales written to pcg/ for the data archive
+2026-11-14 17:17:07 Forecast: model of 2026-11 built 2026-11-14T16:20:08Z, 7,281 cards scored, other market
+2026-11-14 17:17:34 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 17:22:32 Flags: 3 listings filed (5000 in the archive)
+2026-11-14 17:26:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:28:45 PriceCharting graded: 31 sales written to pcg/ for the data archive
+2026-11-14 17:29:37 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:32:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:34:36 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:35:50 Publish: the push took 128 s for 4575 KB (19 slow pushes, 13 publishes skipped while one ran)
+2026-11-14 17:37:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:38:36 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:39:37 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:40:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:42:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:42:38 Pictures: 12000 on file, 794 pages read since the start, 1 to go, 472 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,833 graded sales new today on 244 cards (PSA 10 602, PSA 9 349, PSA 6 165, CGC 10 118, PSA 8 105, CGC 9 79), 0 waiting to be written out
+2026-11-14 17:43:37 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 17:43:41 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 17:44:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:48:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:49:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:50:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:51:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:52:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:53:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:53:39 Pictures: 12000 on file, 796 pages read since the start, 1 to go, 474 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.2 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,839 graded sales new today on 246 cards (PSA 10 602, PSA 9 349, PSA 6 168, CGC 10 118, PSA 8 107, CGC 9 79), 4 waiting to be written out
+2026-11-14 17:53:44 PriceCharting graded: 4 sales written to pcg/ for the data archive
+2026-11-14 17:54:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:55:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:56:37 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:57:37 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:58:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:59:10 Rate limit: 2940 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 17:59:43 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 17:59:43 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,839 graded sales new today on 246 cards (PSA 10 602, PSA 9 349, PSA 6 168, CGC 10 118, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 17:59:56 Hour: discovery read 12207 summaries, 568 new, 444 matched, 124 unmatched | re-reads 5 windows / 6 pages, 63 flagged, 17 repriced | confirmed: 14 sold, 1 ended, 0 gone, 2 still open | book checks: 3 sold, 1 ended/gone, 10 open | kw checks 0 sold / 0 open | 206 outlived 2 days (stale), 17 lost sight of, 100 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 3.8 min
+2026-11-14 17:59:56 Now: 28870 open, 78055 closed, 7163 cards with data, 7013 listings in 24 h, 1 pass the gate; budget 2940 left, 2.22 optional calls/min, 0 tokens; 3561 calls today
+2026-11-14 17:59:58 Waiting: 5165 listings that vanished inside their first 2 days to confirm, 2 windows due for a re-read, 1 book copies due, 582 suspects due a last look; 71 dropped unconfirmed after 3 days; kept past 2 days: 9409 cheapest copies, 1369 suspects
+2026-11-14 17:59:58 Verdicts: no sales yet 1960, not liquid 1350, over max buy 903, too few sales (1) 763, mismatch: too high 621, too few sales (2) 331, fewer than 2 photos 325, too few sales (3) 265, suspect 172, PC gap 144, too few sales (4) 93, mismatch: too cheap 31, reprint? 21, condition HP 10, seller < 95% 8, condition MP 5, LEAD 4, seller < 98% 4, review 1, ID conflict 1, PASS 1
+2026-11-14 17:59:58 Cards: 354 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 17:59:58 Liquidity: 98 cards sell often enough for the window; their 48-hour sell-through is measured on 96 (median 26.1%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 75 / 52 / 30 / 15)
+2026-11-14 17:59:58 Identity: 206 open listings under 40% of the PriceCharting price, 1985 over 300% (kept out of the statistics); item specifics read on 780 open listings (592 agree, 160 conflict, 28 blank), 14 read this hour; printed totals for 152 sets
+2026-11-14 17:59:58 Conditions: eBay's condition field read on 4761 open listings (4759 name a grade, 0 say something else, 2 carry none); the condition pass made 457 of its 600 looks today, 13040 in its queue; 3672 listings of the last 24 h still n/s
+2026-11-14 17:59:58 Pictures: 12000 cards with a PriceCharting picture on file, 36 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.7 s); 4 Review answers on the site
+2026-11-14 17:59:58 Printing: 84 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 96 printing lookups today
+2026-11-14 18:00:59 Facts: eBay's record on 20660 open listings (1473 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 6737 products in the ePID memory, 6043 tied to a card; 130 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26452 lookups so far, 12 cards still without eBay's record
+2026-11-14 18:00:59 Disk: 14.5 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 18:00:59 Unmatched this hour: rejected 61, no card number 35, no set/name agreement 21, printing not in catalog 3, ambiguous variant 3, ambiguous set 1
+2026-11-14 18:00:59 Alerts: 0 hit alerts and 1 auction alerts sent this hour to the phone
+2026-11-14 18:00:59 Auction trial: 610 being watched; 467 finished with bids so far (294 on judged cards, 173 on PriceCharting-lead cards), 151 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 18:00:59 Scam screen: 22476 clean, 3818 watch, 2576 suspect among open listings; signals: est 9172, slow 6270, fb0 4534, img 1990, p75 944, p65 841, p50 668, top 353, burst 80, qty 3, dup 3
+2026-11-14 18:00:59 ID check: conflict - Umbreon Delta Species 17/113 2005 Pokemon Card -> Umbreon #17 (Pokemon Delta Species): printing: the item specifics say reverse holo, but the price does not fit that printing (PriceCharting $437.50)
+2026-11-14 18:00:59 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 18:02:29 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:04:02 Auction trial: closed UNDER max buy - 1999 Pokemon Base Set Charizard 4/102 Holo Rare Unlimited WOTC Vintage Crease DM | final $136.40 + $5.65 shipping, 2 bids, max buy $170.95, reference $264.61 (ebay) | https://www.ebay.com/itm/840104685205?hash=itemc39a242e95:g:kxMAAeSwSk1q72m4
+2026-11-14 18:07:34 Pictures: 12000 on file, 797 pages read since the start, 1 to go, 475 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.7 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,839 graded sales new today on 246 cards (PSA 10 602, PSA 9 349, PSA 6 168, CGC 10 118, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 18:07:47 Publish: the previous push is still running after 186 s; this publish is skipped (16 skipped so far)
+2026-11-14 18:08:08 Settled: 163 listings outlived 2 days (stale; 89 keep a full record), 15 lost sight of; kept in the book: 9467 cheapest copies, 1373 suspects
+2026-11-14 18:09:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:11:28 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:16:29 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:18:29 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:19:29 Pictures: 12000 on file, 799 pages read since the start, 1 to go, 477 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.6 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,839 graded sales new today on 246 cards (PSA 10 602, PSA 9 349, PSA 6 168, CGC 10 118, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 18:20:28 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:21:27 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:25:30 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:25:39 Publish failed: Command '['git', 'push', '-q', '--force', 'origin', 'live']' timed out after 600 seconds
+2026-11-14 18:26:27 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:26:43 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 18:27:34 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:28:29 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:30:28 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 18:33:28 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:36:31 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:37:30 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 18:38:33 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:38:33 Pictures: 12000 on file, 801 pages read since the start, 1 to go, 479 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.6 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,840 graded sales new today on 247 cards (PSA 10 602, PSA 9 349, PSA 6 168, CGC 10 119, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 18:39:28 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:40:09 Publish: the push took 395 s for 4553 KB (24 slow pushes, 24 publishes skipped while one ran)
+2026-11-14 18:40:30 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:40:35 PriceCharting graded: 1 sales written to pcg/ for the data archive
+2026-11-14 18:41:29 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:42:18 Catalog refreshed: pc_catalog_2026-11-14.csv.gz.enc
+2026-11-14 18:43:14 Facts: 3 stored verdicts re-read against the new catalog
+2026-11-14 18:43:41 Flags: 31 listings filed (5000 in the archive)
+2026-11-14 18:50:41 Pictures: 12000 on file, 807 pages read since the start, 1 to go, 485 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.8 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,848 graded sales new today on 250 cards (PSA 10 602, PSA 9 350, PSA 6 170, CGC 10 119, PSA 8 107, CGC 9 79), 7 waiting to be written out
+2026-11-14 18:50:55 PriceCharting graded: 7 sales written to pcg/ for the data archive
+2026-11-14 18:51:37 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:53:38 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:56:39 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:58:37 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 18:59:11 Rate limit: 2720 of 5000 calls left (buy.browse), resets 2026-11-15T08:00:00.000Z, window 86400 s
+2026-11-14 18:59:42 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 18:59:42 PriceCharting graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,848 graded sales new today on 250 cards (PSA 10 602, PSA 9 350, PSA 6 170, CGC 10 119, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 18:59:44 Hour: discovery read 11623 summaries, 490 new, 403 matched, 87 unmatched | re-reads 17 windows / 27 pages, 122 flagged, 62 repriced | confirmed: 8 sold, 2 ended, 0 gone, 3 still open | book checks: 4 sold, 1 ended/gone, 7 open | kw checks 0 sold / 0 open | 163 outlived 2 days (stale), 15 lost sight of, 137 cheap dropped | suspects' last look: 0 sold, 0 ended, 0 gone, 0 still up | 24 publishes | median indexing lag 3.8 min
+2026-11-14 18:59:44 Now: 28840 open, 77948 closed, 7143 cards with data, 7012 listings in 24 h, 1 pass the gate; budget 2720 left, 2.19 optional calls/min, 0 tokens; 3778 calls today
+2026-11-14 18:59:46 Waiting: 5169 listings that vanished inside their first 2 days to confirm, 0 windows due for a re-read, 1 book copies due, 579 suspects due a last look; 103 dropped unconfirmed after 3 days; kept past 2 days: 9467 cheapest copies, 1373 suspects
+2026-11-14 18:59:46 Verdicts: no sales yet 1938, not liquid 1345, over max buy 916, too few sales (1) 779, mismatch: too high 633, too few sales (2) 338, fewer than 2 photos 318, too few sales (3) 260, suspect 161, PC gap 137, too few sales (4) 98, mismatch: too cheap 32, reprint? 24, condition HP 10, seller < 95% 7, condition MP 6, seller < 98% 4, LEAD 3, review 1, ID conflict 1, PASS 1
+2026-11-14 18:59:46 Cards: 353 with 5+ sales behind the anchor, 54 liquid at the collector's defaults, 52 both
+2026-11-14 18:59:46 Liquidity: 98 cards sell often enough for the window; their 48-hour sell-through is measured on 96 (median 26.1%), 52 of those at or over the 25% bar (at 20% / 25% / 30% / 35%: 75 / 52 / 31 / 15)
+2026-11-14 18:59:46 Identity: 207 open listings under 40% of the PriceCharting price, 1990 over 300% (kept out of the statistics); item specifics read on 770 open listings (589 agree, 152 conflict, 29 blank), 8 read this hour; printed totals for 152 sets
+2026-11-14 18:59:46 Conditions: eBay's condition field read on 4747 open listings (4745 name a grade, 0 say something else, 2 carry none); the condition pass made 485 of its 600 looks today, 13046 in its queue; 3694 listings of the last 24 h still n/s
+2026-11-14 18:59:46 Pictures: 12000 cards with a PriceCharting picture on file, 12 pages read this hour, 11 cards whose page had none, 0 still to read (one page every 2 s, last read HTTP 200 in 0.4 s); 4 Review answers on the site
+2026-11-14 18:59:46 Printing: 85 open listings filed under a printing their item specifics named; 1 unmatched 'ambiguous variant' listings waiting for a lookup; 101 printing lookups today
+2026-11-14 19:00:44 Facts: eBay's record on 20647 open listings (1466 disagree with the card on set, rarity or finish; 0 just inherited from their product this hour); 6743 products in the ePID memory, 6047 tied to a card; 132 listings moved to their product's card this hour, 0 verdicts re-read; backlog pass: 26490 lookups so far, 1 cards still without eBay's record
+2026-11-14 19:00:44 Disk: 14.4 GB free on the data disk (the live checkout is swept below 1.5 GB)
+2026-11-14 19:00:44 Unmatched this hour: rejected 27, no card number 27, no set/name agreement 24, printing not in catalog 4, ambiguous set 3, ambiguous variant 2, anniversary reprint, not the original 2
+2026-11-14 19:00:44 Alerts: 0 hit alerts and 2 auction alerts sent this hour to the phone
+2026-11-14 19:00:44 Auction trial: 739 being watched; 468 finished with bids so far (295 on judged cards, 173 on PriceCharting-lead cards), 152 closed at or under max buy (32%); median final price is 76% of the reference; under-max-buy closings by UTC hour: 01h x26, 22h x13, 00h x13; trial ends 2026-10-09
+2026-11-14 19:00:44 Scam screen: 22434 clean, 3842 watch, 2564 suspect among open listings; signals: est 9139, slow 6229, fb0 4547, img 1992, p75 943, p65 849, p50 661, top 351, burst 64, qty 3, dup 3
+2026-11-14 19:00:44 ID check: printing unclear - M Lucario EX Mega 55a/111 XY Furious Fists Ultra Rare Holo EN 6+ -> filed as M Lucario EX #55
+2026-11-14 19:00:44 Condition: v1|237180284629|0 descriptors [{"name": "Card Condition", "values": [{"content": "Heavily played (Poor)", "additionalInfo": ["Major creasing", "Moderate discoloration", "Major border wear", "Heavily worn and rounded corners"]}]}] -> HP 'Heavily played (Poor)'
+2026-11-14 19:01:16 Flags: 2 listings filed (5000 in the archive)
+2026-11-14 19:01:16 Pictures: 12000 on file, 809 pages read since the start, 1 to go, 487 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.4 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,848 graded sales new today on 250 cards (PSA 10 602, PSA 9 350, PSA 6 170, CGC 10 119, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 19:05:16 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:08:58 Settled: 201 listings outlived 2 days (stale; 125 keep a full record), 14 lost sight of; kept in the book: 9472 cheapest copies, 1383 suspects
+2026-11-14 19:09:22 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:09:37 PriceCharting graded: 3 sales written to pcg/ for the data archive
+2026-11-14 19:09:41 Forecast listings: 7,774 available copies past the 24-hour table on 4,236 cards (1659 KB published)
+2026-11-14 19:10:16 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:13:15 Pictures: 12000 on file, 811 pages read since the start, 1 to go, 489 planned reads today (cap 2,500), one page every 2 s, last read HTTP 200 in 0.3 s; history: 44,297 of 44,315 cards on file, 44,297 with the volume series; graded: 44,287 cards read with the graded parser (742 re-read early for busy graded tables); 1,851 graded sales new today on 251 cards (PSA 10 603, PSA 9 352, PSA 6 170, CGC 10 119, PSA 8 107, CGC 9 79), 0 waiting to be written out
+2026-11-14 19:13:17 Publish: the previous push is still running after 116 s; this publish is skipped (28 skipped so far)
+2026-11-14 19:18:12 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:20:14 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:21:18 PriceCharting graded: 2 sales written to pcg/ for the data archive
+2026-11-14 19:22:12 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:25:13 Flags: 1 listing filed (5000 in the archive)
+2026-11-14 19:26:14 Flags: 1 listing filed (5000 in the archive)
