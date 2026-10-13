@@ -1091,7 +1091,14 @@ def pc_jar_snapshot(jar):
 
 
 def pc_jar_keep(s):
-    """After a page read: when the site changed a cookie, keep the jar on disk (names only in the log, never values)."""
+    """After a page read: when the site changed a cookie, keep the jar on disk (names only in the log, never values).
+    LastViewedItems (the site's "recently viewed" list, rewritten on every page) is dropped: it is not part of the
+    sign-in and would otherwise rewrite the jar on every read."""
+    for c in [c for c in s.cookies if c.name == "LastViewedItems"]:
+        try:
+            s.cookies.clear(c.domain, c.path, c.name)
+        except KeyError:
+            pass
     snap = pc_jar_snapshot(s.cookies)
     if snap == _pc_sess.get("snap"):
         return
