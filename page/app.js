@@ -1796,6 +1796,62 @@ function renderPcTable() {
     downloadText((r[1] + ' ' + String(r[2] || '').replace(/^Pokemon /, '') + ' pricecharting history.csv').replace(/[\\/:*?"<>|]+/g, ' '), lines.join('\n'));
   });
 }
+/* ---- Download history CSV (Brett, 2026-10-13: "a csv that combines all of the csvs from the pricechart trend chart ...
+   every card, the year the card was released, the pricechart volume per month ... the ungraded price per month ...
+   a small download button" on the PriceCharting tab). The page reads all the history shards (pc/<shard>.bin, the
+   files the Trend popup fetches one at a time), decrypts them here and writes one row per catalog card, months as
+   columns: the card, its release date and year, the first month on PriceCharting's record, how many months are on
+   file and when the page was read, then volume <month> for every month from the earliest month any card has to the
+   newest, then ungraded <month> for the same months. A card not read yet is a row with 0 months and blank cells;
+   volume cells stay blank unless the record was read signed in (s or sv), as the chart draws them. */
+async function downloadPcHistory(btn) {
+  if (btn.disabled) return;
+  const shards = (LIVE.data && LIVE.data.pch && LIVE.data.pch.shards) || 200, label = btn.textContent;
+  btn.disabled = true;
+  try {
+    const recs = new Map(), b = Math.floor(Date.now() / 600000);
+    const one = async sh => {
+      const res = await fetch(LIVE_URL.replace(/[^/]+$/, 'pc/' + sh + '.bin') + '?t=' + b, {cache: 'no-store'});
+      if (res.status === 404) return;
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' on shard ' + sh);
+      const data = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+      for (const k in data) recs.set(+k, data[k]);
+    };
+    for (let sh = 0; sh < shards; sh += 10) {                       // ten shards at a time
+      btn.textContent = 'Reading ' + Math.min(sh + 10, shards) + ' of ' + shards + '…';
+      await Promise.all(Array.from({length: Math.min(10, shards - sh)}, (_, i) => one(sh + i)));
+    }
+    btn.textContent = 'Writing…';
+    let m0 = Infinity, m1 = -Infinity;
+    recs.forEach(h => { if (h.p && h.p.length) { m0 = Math.min(m0, h.m0); m1 = Math.max(m1, h.m0 + h.p.length - 1); } });
+    if (!(m0 <= m1)) throw new Error('no history on file yet');
+    const months = []; for (let m = m0; m <= m1; m++) months.push(monthIso(m));
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const head = ['card_id', 'card', 'set', 'number', 'released', 'release_year', 'first_month_on_record', 'months_on_file', 'read'].concat(months.map(m => 'volume ' + m), months.map(m => 'ungraded ' + m));
+    const parts = [head.join(',') + '\n'];
+    let buf = [], onFile = 0;
+    DATA.forEach(r => {                                               // the catalog's order: set release date, then card number
+      const h = recs.get(r[0]), n = h && h.p ? h.p.length : 0, hasVol = !!(h && h.v && (h.s || h.sv));
+      const vol = new Array(months.length).fill(''), price = new Array(months.length).fill('');
+      if (n) { onFile++; for (let k = 0; k < n; k++) { const i = h.m0 + k - m0; if (i < 0 || i >= months.length) continue; if (hasVol && h.v[k] != null) vol[i] = h.v[k]; if (h.p[k] != null) price[i] = (h.p[k] / 100).toFixed(2); } }
+      buf.push([r[0], q(r[1]), q(r[2]), q(r[3]), r[4] || '', r[4] ? String(r[4]).slice(0, 4) : '', n ? monthIso(h.m0) : '', n, (h && h.t) || ''].concat(vol, price).join(',') + '\n');
+      if (buf.length >= 2000) { parts.push(buf.join('')); buf = []; }
+    });
+    if (buf.length) parts.push(buf.join(''));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(parts, {type: 'text/csv'})); a.download = 'pricecharting history ' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    btn.textContent = 'Downloaded ✓ ' + onFile.toLocaleString('en-US') + ' of ' + DATA.length.toLocaleString('en-US') + ' cards on file';
+  } catch (e) { btn.textContent = 'Could not build it: ' + e.message; }
+  setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 8000);
+}
+(() => {
+  const fb = [...$('ranges-pc').querySelectorAll('button.reset')].find(x => x.textContent === 'Filters…') || $('reset-pc');
+  const db = document.createElement('button'); db.className = 'reset'; db.type = 'button'; db.id = 'pchist-btn'; db.textContent = 'Download history CSV';
+  db.title = 'Every card’s PriceCharting chart as one CSV: a row per card, the volume and the ungraded price for every month on file (reads the history files, a few seconds)';
+  db.addEventListener('click', () => downloadPcHistory(db));
+  fb.insertAdjacentElement('afterend', db);
+})();
 function downloadText(name, text) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type: 'text/csv'})); a.download = name;
