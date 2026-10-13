@@ -243,12 +243,19 @@
       <button class="zb" data-z="6">6m</button><button class="zb" data-z="12">1y</button><button class="zb" data-z="60">5y</button><button class="zb" data-z="all">All</button>
       <span class="dim">PriceCharting&rsquo;s chart for this card: the ungraded price (right axis) and the total sales volume per month (left axis)</span>
     </div>
+    <div class="bar" id="ebpts">
+      <span class="dim">Points:</span>
+      <button class="zb" data-p="d">Day</button><button class="zb" data-p="w">Week</button><button class="zb" data-p="m">Month</button>
+      <span class="dim">eBay&rsquo;s record of this card, from the collector: raw sales per period (left axis) and the sale price (right axis)</span>
+    </div>
     <div class="bar" id="ebbar1">
-      <span class="dim">Right axis:</span>
+      <span class="dim">Series:</span>
+      <label><input type="checkbox" id="c-vol" checked><span class="sw" style="background:#9ca3af"></span><span id="l-vol">Sales/day (left axis)</span></label>
+      <label><input type="checkbox" id="c-new"><span class="sw" style="background:#fbbf24"></span><span id="l-new">New listings (left axis)</span></label>
       <label><input type="checkbox" id="c-loose" checked><span class="sw" style="background:#3b82f6"></span><span id="l-loose">Sold median (7d) $</span></label>
+      <label><input type="checkbox" id="c-dots" checked><span class="sw" style="background:#3b82f6;border-radius:50%;opacity:.45"></span><span id="l-dots">Each sale</span></label>
       <label><input type="checkbox" id="c-sell"><span class="sw" style="background:#22c55e"></span><span id="l-sell">Cheapest ask $</span></label>
       <label style="display:none"><input type="checkbox" id="c-buy"><span class="sw" style="background:#f59e0b"></span><span id="l-buy"></span></label>
-      <label><input type="checkbox" id="c-vol" checked><span class="sw" style="background:#9ca3af"></span><span id="l-vol">Sales/day (left axis)</span></label>
       <label><input type="checkbox" id="c-ref" checked><span class="sw" style="background:transparent;border:1px dashed #a78bfa"></span><span id="l-ref">90d high/low + Sell</span></label>
     </div>
     <div class="bar" id="ebbar2">
@@ -261,6 +268,7 @@
     <div style="position:relative"><svg id="chart"></svg><div id="tip"></div></div>
     <div id="note"></div>
     <div id="pctable" style="display:none"></div>
+    <div id="ebtable"></div>
     <div class="stats" id="stats"></div>
     <div class="gate" id="gate"></div>
   </div>
