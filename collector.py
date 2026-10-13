@@ -1251,6 +1251,7 @@ def pc_image(state, pid):
 
 PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
 PC_HIST_PUBLISH_S = 600          # changed history shards go to the live branch this often
+PCM_PUBLISH_S = 3600             # pcm.bin (every card's last complete month of PriceCharting sales) goes out hourly
 PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
 
 
@@ -1680,6 +1681,20 @@ def hits_30d(state):
         if e.get("t", "") >= cut and e.get("card") is not None:
             out[e["card"]] += 1
     return {str(c): n for c, n in out.items()}
+
+
+def hit_listings_30d(state):
+    """{card id: Buy It Now listings that got a hit in the last 30 days}, each listing once (a price-drop re-alert
+    is the same listing). The Hit % numerator (Brett, 2026-10-13: "if 100 were listed and 30 got a hit, 30%"); the
+    denominator is the card's n30 (comparable listings first seen in 30 days, compute_stats). Auctions are a
+    separate watch and are not among the listings counted, so they stay out of both."""
+    v = state["vps"]
+    cut = es.ts(es.NOW - timedelta(days=30))
+    seen = defaultdict(set)
+    for e in v.get("hit_hist", []):
+        if e.get("t", "") >= cut and e.get("card") is not None and e.get("i"):
+            seen[e["card"]].add(e["i"])
+    return {str(c): len(ids) for c, ids in seen.items()}
 
 
 def alert_extras(state, d, rec):
@@ -2531,6 +2546,8 @@ def cycle(state, cat, sched, counters):
     live["alert"]["mm"] = {str(k): n + [matched.get(k, 0)] for k, n in mm.items()}
     live["mt"] = match_table(state)                          # per card: [confirmed, mismatches, filed by the matcher], both eBay tabs
     live["hits30"] = hits_30d(state)                         # per card: alerts in the last 30 days
+    live["hl30"] = hit_listings_30d(state)                   # per card: listings that got a hit in 30 days (Hit % with each card's n30)
+    live["since"] = es.data_since(state)                     # the first day with data: "last month" shows only for a month that began after it
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
@@ -2555,6 +2572,15 @@ def cycle(state, cat, sched, counters):
                 files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
             except Exception as e:
                 log(f"PriceCharting history: publish failed ({str(e)[:120]})")
+        if due("pcm", PCM_PUBLISH_S):                        # every card's last complete month of PriceCharting sales ("PC sales")
+            try:
+                pcm = pchist.last_month_all()
+                raw_pcm = gzip.compress(json.dumps(pcm, separators=(",", ":")).encode("utf-8"))
+                files["pcm.bin"] = es.encrypt_live(raw_pcm, es.PASSWORD) if es.PASSWORD else raw_pcm
+                if due("pcm_log", 6 * 3600):
+                    log(f"PC sales: last month's bar on file for {len(pcm):,} cards ({len(raw_pcm) // 1024} KB published)")
+            except Exception as e:
+                log(f"PC sales: pcm.bin failed ({str(e)[:120]})")
         try:
             publish(files)
             counters["published"] += 1
