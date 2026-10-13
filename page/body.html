@@ -38,9 +38,13 @@
     <th data-k="10" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="vd">?</button></th>
     <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
     <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
-    <th data-k="16" class="num">eBay sales<span class="s">⇅</span><button class="help" data-h="pc_k">?</button></th>
-    <th data-k="17" class="num">Max buy $<span class="s">⇅</span><button class="help" data-h="pc_maxbuy">?</button></th>
-    <th data-k="18" class="num">vs PC %<span class="s">⇅</span><button class="help" data-h="pc_vspc">?</button></th>
+    <th data-k="16" class="num">PC sales (last mo)<span class="s">⇅</span><button class="help" data-h="pc_pcs">?</button></th>
+    <th data-k="18" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="pc_km">?</button></th>
+    <th data-k="19" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="pc_kt">?</button></th>
+    <th data-k="20" class="num">Anchor $<span class="s">⇅</span><button class="help" data-h="pc_A">?</button></th>
+    <th data-k="21" class="num">vs PC %<span class="s">⇅</span><button class="help" data-h="pc_vspc">?</button></th>
+    <th data-k="22" class="num">Hits 30d<span class="s">⇅</span><button class="help" data-h="pc_hits">?</button></th>
+    <th data-k="23" class="num">Hit %<span class="s">⇅</span><button class="help" data-h="pc_hitpct">?</button></th>
     <th>Trend<button class="help" data-h="trend">?</button></th>
   </tr></thead>
   <tbody id="rows-pc"></tbody>
@@ -69,7 +73,7 @@
        band colour any more. A column can be dragged anywhere inside its own band (app.js bands()). -->
   <tr class="grp">
     <th colspan="8" class="band">Card</th>
-    <th colspan="23"></th>
+    <th colspan="25"></th>
     <th colspan="7" class="band">Trends — from a 7-day median of raw sale totals</th>
     <th></th>
   </tr>
@@ -82,8 +86,9 @@
     <th data-k="48">eBay Rarity/Finish<span class="s">⇅</span><button class="help" data-h="rf_ebay">?</button></th>
     <th data-k="4">Released<span class="s">⇅</span><button class="help" data-h="released">?</button></th>
     <th data-k="45" class="num">Match:mismatch<span class="s">⇅</span><button class="help" data-h="mm_ratio">?</button></th>
-    <th data-k="5" class="num">eBay sales<span class="s">⇅</span><button class="help" data-h="ec_k">?</button></th>
-    <th data-k="41" class="num">PC sales<span class="s">⇅</span><button class="help" data-h="ec_pcs">?</button></th>
+    <th data-k="49" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="ec_k">?</button></th>
+    <th data-k="50" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="ec_kt">?</button></th>
+    <th data-k="41" class="num">PC sales (last mo)<span class="s">⇅</span><button class="help" data-h="ec_pcs">?</button></th>
     <th data-k="7" class="num">Active<span class="s">⇅</span><button class="help" data-h="ec_n">?</button></th>
     <th data-k="11" class="num">New/day<span class="s">⇅</span><button class="help" data-h="ec_mu">?</button></th>
     <th data-k="12" class="num">Sold med $<span class="s">⇅</span><button class="help" data-h="ec_smed">?</button></th>
@@ -105,6 +110,7 @@
     <th data-k="38" class="num">Net $<span class="s">⇅</span><button class="help" data-h="ec_net">?</button></th>
     <th data-k="26">Hot<span class="s">⇅</span><button class="help" data-h="ec_hot">?</button></th>
     <th data-k="44" class="num">Hits 30d<span class="s">⇅</span><button class="help" data-h="ec_hits">?</button></th>
+    <th data-k="52" class="num">Hit %<span class="s">⇅</span><button class="help" data-h="ec_hitpct">?</button></th>
     <th data-k="31" class="num">Δ7d %<span class="s">⇅</span><button class="help" data-h="et_d7">?</button></th>
     <th data-k="32" class="num">Δ30d %<span class="s">⇅</span><button class="help" data-h="et_d30">?</button></th>
     <th data-k="33" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="et_pos">?</button></th>
@@ -179,8 +185,11 @@
     <th data-k="10" class="num">All-in $<span class="s">⇅</span><button class="help" data-h="er_allin">?</button></th>
     <th data-k="35" class="num">PC ungraded $<span class="s">⇅</span><button class="help" data-h="er_pc">?</button></th>
     <th data-k="36" class="num">vs PC %<span class="s">⇅</span><button class="help" data-h="er_vspc">?</button></th>
-    <th data-k="40" class="num">PC sales<span class="s">⇅</span><button class="help" data-h="er_pcsales">?</button></th>
-    <th data-k="41" class="num">eBay sales<span class="s">⇅</span><button class="help" data-h="er_ebsales">?</button></th>
+    <th data-k="40" class="num">PC sales (last mo)<span class="s">⇅</span><button class="help" data-h="er_pcsales">?</button></th>
+    <th data-k="41" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="er_ebsales">?</button></th>
+    <th data-k="51" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="er_kt">?</button></th>
+    <th data-k="52" class="num">Hits 30d<span class="s">⇅</span><button class="help" data-h="er_hits">?</button></th>
+    <th data-k="53" class="num">Hit %<span class="s">⇅</span><button class="help" data-h="er_hitpct">?</button></th>
     <th data-k="11" class="num">Anchor $<span class="s">⇅</span><button class="help" data-h="ec_A">?</button></th>
     <th data-k="12" class="num">vs anchor %<span class="s">⇅</span><button class="help" data-h="er_vs">?</button></th>
     <th data-k="26" class="num">Sell $<span class="s">⇅</span><button class="help" data-h="ec_S">?</button></th>
