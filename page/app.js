@@ -3,11 +3,16 @@ const SETS = __SETS__;
 const SET_TOTALS = __SET_TOTALS__;        // printed set sizes from the Pokemon TCG dataset, matched at build time
 const GATE = __GATE__;
 const PAGE = 300;
-const RANGE_COLS = [5, 6, 7, 8, 9, 10, 12, 13];
-const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 10: 'Vol. drift %', 12: 'Volatility %', 13: 'Slope %/mo'};
+const RANGE_COLS = [5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 18];
+const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 10: 'Vol. drift %', 12: 'Volatility %', 13: 'Slope %/mo', 16: 'eBay sales', 17: 'Max buy $', 18: 'vs PC %'};
 const setIndex = new Map(SETS.map((s, i) => [s, i]));
-const ORD = DATA.length ? DATA[0].length : 0;          // index of the release-order key
-DATA.forEach((r, i) => r.push(i));
+// The catalog rows carry 16 columns (build_catalog.py). The page adds four more from the eBay Catalog's live rows
+// (2026-10-13, Brett: "include the eBay sales, Max buy and vs PC % columns in the PriceCharting tab"): 16 eBay sales
+// (k), 17 Max buy $, 18 vs PC %, 19 the liquid flag behind Max buy - blank until the live data loads, filled by
+// rebuildLive - then the release-order key last.
+const PC_LIVE = {k: 16, maxbuy: 17, vspc: 18, liquid: 19};
+const ORD = DATA.length ? DATA[0].length + 4 : 0;      // index of the release-order key
+DATA.forEach((r, i) => r.push(null, null, null, null, i));
 const $ = id => document.getElementById(id);
 
 const dash = '<span class="dim">—</span>';
@@ -62,10 +67,23 @@ function finishAgree(a, b) { const x = finishClass(a), y = finishClass(b); if (!
 const rfCls = v => v === 'far' ? ' class="rfbad"' : v === 'near' ? ' class="rfnear"' : '';
 const pcRFCell = p => '<td' + (p ? ' title="' + esc('What the card is: ' + (p[0] || 'rarity unknown') + ', ' + (p[1] || 'finish unknown') + '. From TCGplayer\'s catalog (the tcg-id PriceCharting carries) or the open Pokemon TCG dataset; the bracket tag names the printing') + '"' : '') + '>' + (p ? esc(rfText(p)) : dash) + '</td>';
 const EF_SRC = {product: "eBay's catalog product", seller: "the seller's item specifics", both: "eBay's product and the seller's specifics"};
-function efCells(ef, p) {                                // Raw Data: [eBay Set Name cell, eBay Rarity/Finish cell] for one listing (p = the card's own rarity / finish)
+// the card's eBay record over all its looked-up listings (live.ef): [rarity most carry, finish likewise, listings looked up, listings that disagree]
+const cardFacts = cid => (LIVE.data && LIVE.data.ef && LIVE.data.ef[String(cid)]) || null;
+// Raw Data (2026-10-13, Brett: "include that number in the eBay Raw Data tab"): the dim count after a listing's eBay
+// Rarity/Finish is the same count the eBay Catalog shows - how many of the card's listings have been looked up; the
+// tooltip says what most of them carry and whether this listing agrees
+function efCount(ef, f) {
+  if (!f || !f[2]) return '';
+  const most = rfText([f[0], f[1]]), mine = ef && ef.length ? rfText([ef[1], ef[2]]) : '';
+  const same = mine && most && normRF(mine) === normRF(most);
+  const tip = f[2] + ' of this card\'s listings ' + (f[2] === 1 ? 'has' : 'have') + ' been looked up' + (most ? '; most carry ' + most : '') + (f[3] ? '; ' + f[3] + ' of them disagree with the card on set, rarity or finish' : '') +
+    (mine ? '. This listing ' + (same ? 'agrees with that majority' : 'reads ' + mine + ', not the majority\'s words') : '. This listing is not among them yet');
+  return ' <span class="dim efn" title="' + esc(tip) + '">' + f[2] + '</span>';
+}
+function efCells(ef, p, f) {                             // Raw Data: [eBay Set Name cell, eBay Rarity/Finish cell] for one listing (p = the card's own rarity / finish, f = the card's record, cardFacts)
   if (ef == null || !ef.length) {
-    const c = '<td><span class="dim" title="' + (ef == null ? 'Not looked up yet: eBay\'s record is read the first time the collector looks a listing up - when it sells, or when it clears the price gate' : 'Looked up: the listing carries no catalog product and the seller left these blank') + '">' + (ef == null ? 'not read' : 'none') + '</span></td>';
-    return [c, c];
+    const c = '<span class="dim" title="' + (ef == null ? 'Not looked up yet: eBay\'s record is read the first time the collector looks a listing up - when it sells, or when it clears the price gate' : 'Looked up: the listing carries no catalog product and the seller left these blank') + '">' + (ef == null ? 'not read' : 'none') + '</span>';
+    return ['<td>' + c + '</td>', '<td>' + c + efCount(ef, f) + '</td>'];
   }
   const src = 'From ' + (EF_SRC[ef[5]] || 'eBay'), names = [ef[3], ef[4]].filter(Boolean).join(' #');
   const setCell = '<td' + rfCls(ef[6]) + ' title="' + esc(src + (names ? '. eBay names it ' + names : '') + (ef[6] === 'far' ? '. Its words belong to a different set from the card this listing is filed under' : ef[6] === 'same' ? '. Agrees with the card\'s set' : '')) + '">' + (ef[0] ? esc(ef[0]) : dash) + '</td>';
@@ -74,7 +92,7 @@ function efCells(ef, p) {                                // Raw Data: [eBay Set 
   const why = [ef[7] === 'far' ? 'the rarity is two tiers or more from the card\'s - usually another card number' : ef[7] === 'near' ? (classic ? 'Classic Collection against the original card\'s rarity word: a reprint keeps its original number and sellers reuse its original rarity; the printed total tells them apart (the set\'s own cards carry the set total)' : 'the rarity is one tier from the card\'s (the usual seller imprecision)') : '',
                ef[8] === 'far' ? 'the finish differs from the catalog row\'s' : ''].filter(Boolean).join('; ');
   const rf = rfText([ef[1], ef[2]]);
-  const rfCell = '<td' + rfCls(worst) + ' title="' + esc(src + (why ? '. ' + why.charAt(0).toUpperCase() + why.slice(1) : ef[7] === 'same' || ef[8] === 'same' ? '. Agrees with the card' : '')) + '">' + (rf ? esc(rf) : dash) + '</td>';
+  const rfCell = '<td' + rfCls(worst) + ' title="' + esc(src + (why ? '. ' + why.charAt(0).toUpperCase() + why.slice(1) : ef[7] === 'same' || ef[8] === 'same' ? '. Agrees with the card' : '')) + '">' + (rf ? esc(rf) : dash) + efCount(ef, f) + '</td>';
   return [setCell, rfCell];
 }
 function efCardCell(f, p) {                              // eBay Catalog: the card's eBay record over its looked-up listings
@@ -85,6 +103,8 @@ function efCardCell(f, p) {                              // eBay Catalog: the ca
   return '<td' + rfCls(worst) + ' title="' + esc(tip) + '">' + (rfText([f[0], f[1]]) ? esc(rfText([f[0], f[1]])) : dash) + ' <span class="dim">' + f[2] + '</span></td>';
 }
 const rfBad = r => !!(r[48] && r[48].length && (r[48][6] === 'far' || r[48][7] === 'far' || r[48][8] === 'far'));
+// Raw Data: the Mismatch tick and the identity cells (Card, PC Set Name, eBay Set Name, Set / Card, PC and eBay Rarity/Finish, Released)
+const erHead = r => { const p = r[47] ? r[47].split(RF_SEP) : null, ec = efCells(r[48], p, cardFacts(r[0])); return umCell(r) + cells4(r, pcRFCell(p) + ec[1], ec[0], p ? p[0] : ''); };
 function fitRows(root) {                                 // one-line cells (b.fit): shrink the font to 9px; then drop eBay's era prefix
   for (const b of (root || document).querySelectorAll('b.fit')) {   // ("Scarlet & Violet: 151" -> "151"); a name that still overflows
     if (!b.dataset.full) b.dataset.full = b.textContent;            // (a Topps set) wraps rather than clips
@@ -101,7 +121,7 @@ const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // fill
 
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
-       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}],   // v4: PC Rarity/Finish after Set / Card
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}, {v: 5, at: 14, n: 3}],   // v4: PC Rarity/Finish after Set / Card; v5: eBay sales, Max buy $, vs PC % before Trend
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[14] || '') + ' ' + (r[15] || ''),
        row: r => cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
@@ -112,6 +132,10 @@ const TABLES = {
       '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[12], false, 2) + '</td>' +
       '<td class="num">' + fmtPct(r[13]) + '</td>' +
+      // the eBay Catalog's figures for the card (blank until the live data loads, or when eBay has nothing on it yet)
+      '<td class="num">' + (r[16] == null ? dash : fmtInt(r[16])) + '</td>' +
+      '<td class="num">' + (r[17] == null ? dash : '<b>' + fmtMoney(r[17]) + '</b>' + (r[19] ? '' : ' <span class="dim" title="too slow for the window at this confidence">illiquid</span>')) + '</td>' +
+      '<td class="num">' + (r[18] == null ? dash : '<span class="' + (r[18] < -40 || r[18] > 200 ? 'down' : '') + '">' + fmtPct(r[18], true, 0) + '</span>') + '</td>' +
       '<td><button class="tbtn" data-i="' + ordOf(r) + '">Trend</button></td>'},
   // eBay Catalog row (four bands): 0 id 1 card 2 set 3 # 4 released |
   //   Observed: 5 k 6 D 7 N 8 p1 9 p2 10 p3 11 mu 12 smed 13 s80 14 hrs 15 st |
@@ -178,14 +202,14 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtMoney(r[12]) + '</td>' +
       '<td class="num">' + (r[13] == null ? dash : '<b class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] < 0 ? '−' : '') + fmtMoney(Math.abs(r[13])) + '</b>') + '</td>' +
       '<td class="num">' + fmtPct(r[14]) + '</td><td>' + esc(r[15] || '') + '</td><td class="num">' + fmtMoney(r[16]) + '</td>'},
-  er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5],
+  er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5], chips: [24, 5, 25],   // chip order: Profit $, Listed within, ROI % (2026-10-13, Brett)
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
        inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish
        extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
-       row: r => r.au ? auRow(r) : umCell(r) + cells4(r, pcRFCell(r[47] ? r[47].split(RF_SEP) : null) + efCells(r[48], r[47] ? r[47].split(RF_SEP) : null)[1], efCells(r[48], r[47] ? r[47].split(RF_SEP) : null)[0], r[47] ? r[47].split(RF_SEP)[0] : '') +
+       row: r => r.au ? auRow(r) : erHead(r) +
       '<td class="num">' + mmRatio(r[46]) + '</td>' +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
@@ -256,7 +280,7 @@ function auRow(r) {
                'not finished': 'The result is read a few minutes after the auction ends.', 'no result': 'eBay gave no final price for this auction.',
                'closed too cheap': 'It closed under ' + pcPct('pcLow', 0.4) + '% of the card\'s PriceCharting price. Other bidders do not let the real card go for that: treated as a wrong match (another card, a damaged copy, a fake), not a hit.',
                'mismatch: marked by you': 'You marked this auction as not the card it was matched to. It is left out of the hit total. Untick Mismatch to undo.'}[x.res] || '';
-  const ec = efCells(r[48]), mid = pcRFCell(r[47] ? r[47].split(RF_SEP) : null) + ec[1];
+  const p = r[47] ? r[47].split(RF_SEP) : null, ec = efCells(r[48], p, r[0] ? cardFacts(r[0]) : null), mid = pcRFCell(p) + ec[1];
   return umCell(r) + (r[0] ? cells4(r, mid, ec[0]) : '<td>' + esc(r[1]) + '</td><td></td>' + ec[0] + '<td class="num"></td>' + mid + '<td>' + dash + '</td>') + '<td class="num">' + mmRatio(r[46]) + '</td>' +
     '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
     '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
@@ -335,18 +359,22 @@ function condOk(c) {
 /* ---------------- Period picker (Revenue, and "every hit" on Raw Data) ----------------
    Brett's design: a year, then either a range of months (1-12) or, for one month, a range of days. */
 const PERIOD = {};
-function periodBar(key, onChange) {
-  const host = $('per-' + key), now = new Date(), opt = (a, b, sel) => { let h = ''; for (let i = a; i <= b; i++) h += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return h; };
+// unit: the starting choice - 'm' = months 1 to 12 of this year (the Transaction Report), 'd' = today alone (Raw Data,
+// 2026-10-13, Brett: "rather have it default to the current day"). A bar nobody has touched follows the calendar: when
+// the date changes under an open page, roll() moves "today" along.
+function periodBar(key, onChange, unit0) {
+  const host = $('per-' + key), now = new Date(), byDay = unit0 === 'd', opt = (a, b, sel) => { let h = ''; for (let i = a; i <= b; i++) h += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return h; };
   host.innerHTML = '<label>Year <select class="py">' + opt(2026, Math.max(2026, now.getFullYear()), now.getFullYear()) + '</select></label>' +
-    '<label><input type="radio" name="pu-' + key + '" value="m" checked> by month</label><label><input type="radio" name="pu-' + key + '" value="d"> by day</label>' +
-    '<label class="pmon" hidden>in month <select class="pm">' + opt(1, 12, now.getMonth() + 1) + '</select></label>' +
-    '<label>from <input type="number" class="pa" min="1" max="12" value="1"></label><label>to <input type="number" class="pb" min="1" max="12" value="12"></label>' +
+    '<label><input type="radio" name="pu-' + key + '" value="m"' + (byDay ? '' : ' checked') + '> by month</label><label><input type="radio" name="pu-' + key + '" value="d"' + (byDay ? ' checked' : '') + '> by day</label>' +
+    '<label class="pmon"' + (byDay ? '' : ' hidden') + '>in month <select class="pm">' + opt(1, 12, now.getMonth() + 1) + '</select></label>' +
+    '<label>from <input type="number" class="pa" min="1" max="' + (byDay ? 31 : 12) + '" value="' + (byDay ? now.getDate() : 1) + '"></label><label>to <input type="number" class="pb" min="1" max="' + (byDay ? 31 : 12) + '" value="' + (byDay ? now.getDate() : 12) + '"></label>' +
     '<button class="help" data-h="period">?</button>';
   const q = c => host.querySelector(c), unit = () => host.querySelector('input[type=radio]:checked').value;
+  let touched = false, day0 = now.toDateString();
   host.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', () => {
-    const d = unit() === 'd'; q('.pmon').hidden = !d; q('.pa').max = q('.pb').max = d ? 31 : 12; q('.pa').value = 1; q('.pb').value = d ? 31 : 12; onChange();
+    const d = unit() === 'd'; q('.pmon').hidden = !d; q('.pa').max = q('.pb').max = d ? 31 : 12; q('.pa').value = 1; q('.pb').value = d ? 31 : 12; touched = true; onChange();
   }));
-  ['.py', '.pm', '.pa', '.pb'].forEach(c => q(c).addEventListener('input', onChange));
+  ['.py', '.pm', '.pa', '.pb'].forEach(c => q(c).addEventListener('input', () => { touched = true; onChange(); }));
   return PERIOD[key] = {
     test(iso) {
       if (!iso) return false;
@@ -355,7 +383,13 @@ function periodBar(key, onChange) {
       if (unit() === 'm') return t.getMonth() + 1 >= a && t.getMonth() + 1 <= b;
       return t.getMonth() + 1 === +q('.pm').value && t.getDate() >= a && t.getDate() <= b;
     },
-    label() { const a = q('.pa').value, b = q('.pb').value; return unit() === 'm' ? (a === b ? 'month ' + a : 'months ' + a + ' to ' + b) + ' of ' + q('.py').value : 'days ' + a + ' to ' + b + ' of month ' + q('.pm').value + ', ' + q('.py').value; }
+    now() { return this.test(new Date().toISOString()); },   // does the period reach into the present?
+    label() { const a = q('.pa').value, b = q('.pb').value; return unit() === 'm' ? (a === b ? 'month ' + a : 'months ' + a + ' to ' + b) + ' of ' + q('.py').value : (a === b ? 'day ' + a : 'days ' + a + ' to ' + b) + ' of month ' + q('.pm').value + ', ' + q('.py').value; },
+    roll() {                                               // a new calendar day under an untouched "today" bar: move along (true when it did)
+      const d = new Date(); if (touched || !byDay || d.toDateString() === day0) return false;
+      day0 = d.toDateString(); if (![...q('.py').options].some(o => +o.value === d.getFullYear())) q('.py').insertAdjacentHTML('beforeend', '<option>' + d.getFullYear() + '</option>');
+      q('.py').value = d.getFullYear(); q('.pm').value = d.getMonth() + 1; q('.pa').value = q('.pb').value = d.getDate(); onChange(); return true;
+    }
   };
 }
 const rvWhen = iso => iso ? new Date(iso).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) : dash;
@@ -410,20 +444,19 @@ function makeTable(id, cfg) {
   const sel = el('set');
   SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
   const maxes = cfg.maxes || [];
-  cfg.ranges.forEach(k => {                             // min–max chips
+  (cfg.chips || cfg.ranges.concat(maxes)).forEach(k => {   // the filter chips, in cfg.chips order (else the ranges, then the maxes)
     const div = document.createElement('div'); div.className = 'range';
-    const d = cfg.defaults[k] || ['', ''];
-    div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="min' + k + '-' + id + '" placeholder="min" value="' + d[0] + '"><span class="to">–</span><input type="number" id="max' + k + '-' + id + '" placeholder="max" value="' + d[1] + '">';
-    el('ranges').insertBefore(div, el('reset'));
-  });
-  maxes.forEach(k => {                                  // single "at most" chips (e.g. Listed within N h)
-    const div = document.createElement('div'); div.className = 'range';
-    div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="max' + k + '-' + id + '" placeholder="any">' + (cfg.units && cfg.units[k] ? '<span class="unit">' + cfg.units[k] + '</span>' : '');
+    if (maxes.includes(k))                              // a single "at most" chip (e.g. Listed within N h)
+      div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="max' + k + '-' + id + '" placeholder="any">' + (cfg.units && cfg.units[k] ? '<span class="unit">' + cfg.units[k] + '</span>' : '');
+    else {                                              // a min–max chip
+      const d = cfg.defaults[k] || ['', ''];
+      div.innerHTML = '<span class="lbl">' + cfg.labels[k] + '</span><input type="number" id="min' + k + '-' + id + '" placeholder="min" value="' + d[0] + '"><span class="to">–</span><input type="number" id="max' + k + '-' + id + '" placeholder="max" value="' + d[1] + '">';
+    }
     el('ranges').insertBefore(div, el('reset'));
   });
   const paintChips = () => el('ranges').querySelectorAll('.range:not(.condchip)').forEach(div => div.classList.toggle('on', [...div.querySelectorAll('input')].some(i => i.value !== '')));
-  t.apply = () => {
-    const rows = cfg.rows();
+  t.apply = keep => {                                   // keep === true (a live refresh): the rows already on view through Show more stay on view
+    const rows = cfg.rows(), want = keep === true ? Math.max(PAGE, t.shown) : PAGE;
     const q = el('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const set = sel.value;
     const ranges = cfg.ranges.map(k => {
@@ -456,13 +489,13 @@ function makeTable(id, cfg) {
         return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || ordOf(a) - ordOf(b);
       });
     }
-    el('rows').innerHTML = ''; t.shown = 0; t.renderMore();
+    el('rows').innerHTML = ''; t.shown = 0; t.renderMore(want);
     el('count').textContent = t.view.length.toLocaleString('en-US') + ' of ' + rows.length.toLocaleString('en-US') + ' ' + cfg.noun;
     if (cfg.after) cfg.after(t);
   };
-  t.renderMore = () => {
+  t.renderMore = n => {                                 // n rows more (a number; the Show more button's click event means PAGE)
     const frag = document.createDocumentFragment();
-    const end = Math.min(t.shown + PAGE, t.view.length);
+    const end = Math.min(t.shown + (typeof n === 'number' ? n : PAGE), t.view.length);
     for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
@@ -587,24 +620,81 @@ function makeTable(id, cfg) {
     const all = div.id === 'condchip' || div.id === 'statchip';
     div.querySelectorAll('input[type=checkbox]').forEach(i => { if (i.checked !== all) { i.checked = all; i.dispatchEvent(new Event('input', {bubbles: true})); } });
   };
-  const paintChipsVis = () => chipAll().forEach(div => { const off = hiddenChips.has(chipId(div)); if (off) neutralize(div); div.hidden = off; });
+  const paintChipsVis = () => chipAll().forEach(div => { const off = hiddenChips.has(chipId(div)); if (off) neutralize(div); div.hidden = off; });   // a hidden chip leaves the row (style: .range[hidden]) and the others close up
   t.paintChipsVis = paintChipsVis;
+  /* Chip order (2026-10-13, Brett: "swap the positions of filter bubbles with a hold click and drag"): press a chip
+     and hold it still for a moment - it lifts - then drag it along the row and let go where it should sit. Any part of
+     the chip but its boxes is a handle. Remembered per tab as chiporder-<tab> (the chip ids in order); "Default order"
+     in the Filters picker forgets it. A chip that arrives later (a new filter) takes its natural place. */
+  const natural = chipAll().map(chipId);
+  const placeChips = ids => { const by = new Map(chipAll().map(d => [chipId(d), d])); ids.forEach(k => { const d = by.get(k); if (d) el('ranges').insertBefore(d, el('reset')); }); };
+  const loadChipOrder = () => {
+    let sv = null; try { sv = JSON.parse(localStorage.getItem('chiporder-' + id) || 'null'); } catch (e) {}
+    if (!Array.isArray(sv)) return;
+    const want = sv.filter(k => natural.includes(k));
+    natural.forEach((k, i) => { if (!want.includes(k)) want.splice(i ? want.indexOf(natural[i - 1]) + 1 : 0, 0, k); });   // a chip the saved order never saw goes after its natural neighbour
+    placeChips(want);
+  };
+  const saveChipOrder = () => { const cur = chipAll().map(chipId); try { if (cur.every((k, i) => k === natural[i])) localStorage.removeItem('chiporder-' + id); else localStorage.setItem('chiporder-' + id, JSON.stringify(cur)); } catch (e) {} };
+  t.resetChipOrder = () => { placeChips(natural); saveChipOrder(); };
+  loadChipOrder();
+  let lift = null;                                         // the press in progress: {div, x, y, timer, on (lifted), ghost, dx, dy, to: [div, before]}
+  const CHIP_HOLD = 300, chipsVisible = () => chipAll().filter(d => !d.hidden);
+  const endLift = () => { if (!lift) return; clearTimeout(lift.timer); if (lift.ghost) lift.ghost.remove(); lift.div.classList.remove('lifted'); chipAll().forEach(d => d.classList.remove('drop-l', 'drop-r')); document.body.classList.remove('chip-drag'); lift = null; };
+  const dropAt = (x, y) => {                               // where the lifted chip would land: [chip, before?] by the pointer's row and position, or null
+    const others = chipsVisible().filter(d => d !== lift.div); if (!others.length) return null;
+    const rows = []; others.forEach(d => { const r = d.getBoundingClientRect(); const row = rows.find(w => Math.abs(w.y - (r.top + r.bottom) / 2) < r.height / 2); if (row) row.chips.push([d, r]); else rows.push({y: (r.top + r.bottom) / 2, chips: [[d, r]]}); });
+    const row = rows.reduce((best, w) => Math.abs(w.y - y) < Math.abs(best.y - y) ? w : best);
+    const first = row.chips.find(([, r]) => x < (r.left + r.right) / 2);
+    return first ? [first[0], true] : [row.chips[row.chips.length - 1][0], false];
+  };
+  el('ranges').addEventListener('pointerdown', e => {
+    const div = e.target.closest('.range'); if (!div || e.button !== 0 || e.target.closest('input, select, button, a')) return;
+    endLift(); lift = {div, x: e.clientX, y: e.clientY, on: false, id: e.pointerId};
+    lift.timer = setTimeout(() => {                        // held still long enough: lift it
+      if (!lift) return; lift.on = true; div.classList.add('lifted'); document.body.classList.add('chip-drag');
+      const r = div.getBoundingClientRect(); lift.dx = lift.x - r.left; lift.dy = lift.y - r.top;
+      const g = div.cloneNode(true); g.classList.add('ghost'); g.removeAttribute('id'); g.querySelectorAll('[id]').forEach(n => n.removeAttribute('id')); g.style.width = r.width + 'px'; g.style.left = r.left + 'px'; g.style.top = r.top + 'px'; document.body.appendChild(g); lift.ghost = g;
+      if (window.getSelection) try { window.getSelection().removeAllRanges(); } catch (x) {}
+    }, CHIP_HOLD);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!lift || e.pointerId !== lift.id) return;
+    if (!lift.on) { if (Math.hypot(e.clientX - lift.x, e.clientY - lift.y) > 8) endLift(); return; }   // moved before it lifted: a scroll or a text selection, not a drag
+    e.preventDefault();
+    lift.ghost.style.left = (e.clientX - lift.dx) + 'px'; lift.ghost.style.top = (e.clientY - lift.dy) + 'px';
+    chipAll().forEach(d => d.classList.remove('drop-l', 'drop-r'));
+    lift.to = dropAt(e.clientX, e.clientY); if (lift.to) lift.to[0].classList.add(lift.to[1] ? 'drop-l' : 'drop-r');
+  }, {passive: false});
+  const chipDrop = e => {
+    if (!lift || (e && e.pointerId !== lift.id)) return;
+    if (lift.on) {
+      t.justLifted = Date.now();
+      if (lift.to) { const [at, before] = lift.to; if (before) el('ranges').insertBefore(lift.div, at); else at.insertAdjacentElement('afterend', lift.div); saveChipOrder(); }
+    }
+    endLift();
+  };
+  document.addEventListener('pointerup', chipDrop); document.addEventListener('pointercancel', chipDrop);
+  el('ranges').addEventListener('contextmenu', e => { if (lift && lift.on) e.preventDefault(); });   // a long press on a touch screen is the lift, not the menu
+  el('ranges').addEventListener('click', e => { if (t.justLifted && Date.now() - t.justLifted < 400) { e.stopPropagation(); e.preventDefault(); } }, true);   // letting a lifted chip go is not a click on it
   t.openFilters = () => {
     const chips = chipAll();
     $('btitle').textContent = 'Filters \u00b7 ' + tabName();
-    $('bsub').textContent = 'Tick the filters to keep above the table. A hidden filter is switched off, so nothing filters out of sight. Remembered in this browser.';
+    $('bsub').textContent = 'Tick the filters to keep above the table. A hidden filter is switched off, so nothing filters out of sight. To move a filter, press it, hold still until it lifts, then drag it along the row. Both are remembered in this browser.';
     $('bbody').innerHTML = '<div class="colpick">' + chips.map(div => '<label><input type="checkbox" data-id="' + esc(chipId(div)) + '"' + (hiddenChips.has(chipId(div)) ? '' : ' checked') + '> ' + esc(chipLabel(div)) + '</label>').join('') + '</div>' +
-      '<div class="pickbtns"><button class="reset" id="fp-all">All filters</button><button class="reset" id="fp-done">Done</button></div>';
+      '<div class="pickbtns"><button class="reset" id="fp-all">All filters</button><button class="reset" id="fp-order" title="Put the filters back in their original order">Default order</button><button class="reset" id="fp-done">Done</button></div>';
     const save = () => { try { if (hiddenChips.size) localStorage.setItem('chips-' + id, JSON.stringify([...hiddenChips])); else localStorage.removeItem('chips-' + id); } catch (e) {} paintChipsVis(); };
     $('bbody').querySelector('.colpick').addEventListener('input', e => { const i = e.target; if (!i || !i.dataset.id) return; if (i.checked) hiddenChips.delete(i.dataset.id); else hiddenChips.add(i.dataset.id); save(); });
     $('fp-all').addEventListener('click', () => { hiddenChips = new Set(); save(); $('bbody').querySelectorAll('.colpick input').forEach(i => { i.checked = true; }); });
+    $('fp-order').addEventListener('click', () => { t.resetChipOrder(); t.openFilters(); });
     $('fp-done').addEventListener('click', () => $('bov').classList.remove('open'));
     $('bov').classList.add('open');
   };
   /* Column order (2026-10-08, Brett): click, hold and drag a header to move its column; the order is remembered per
      tab. Cells keep their ORIGINAL index underneath (data-ci), so the eyes, sorts and row builders are untouched: a row
-     is built in the original order and its cells are then placed by the saved order. On the eBay Catalog the band
-     row (Observed / Rates / ...) spans fixed runs of columns, so a column moves only inside its own band. */
+     is built in the original order and its cells are then placed by the saved order. A band row above the headers
+     (tr.grp, colspans over runs of columns) would confine a column to its own band; the eBay Catalog's band row went
+     on 2026-10-13 (Brett), so today every column moves freely and the colours on the headers alone name the bands. */
   const nCols = headRow.children.length;
   const bands = (() => {                                   // [from, to) column runs under each band header, if any
     const grp = document.querySelector('#p-' + id + ' thead tr.grp'); if (!grp) return null;
@@ -715,7 +805,7 @@ function makeTable(id, cfg) {
 const tables = {};
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 periodBar('rv', () => tables.rv.apply());
-periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); });   // the period chooses the table's rows too
+periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); }, 'd');   // the period chooses the table's rows too; starts on today
 tables.rv.apply();
 
 // Only the row of column names stays in view (Brett: the tabs, boxes and filters staying put was too much). The page
@@ -858,13 +948,17 @@ function hhRows(live) {
 function erRows() {
   const P = PERIOD.er, all = LIVE.er || [], note = $('per-note');
   if (!P) return all;
+  // The table's own window is the last 24 hours. A period that reaches into the present (today, this month, the year)
+  // shows that whole window - with "today" the default since 2026-10-13, last evening's listings must not vanish at
+  // midnight; a period in the past keeps only the listings first seen inside it.
+  const live = P.now(), inP = r => live || P.test(r[34]);
   let rows;
   if ($('hits').checked) {
     const mine = (LIVE.hh || []).filter(r => P.test(r.hh.t)), ids = new Set(mine.map(r => r[22]));
-    rows = mine.concat(all.filter(r => (r[14] === 'PASS' || r.um) && !ids.has(r[22]) && P.test(r[34])));   // a row he marked stays in view
+    rows = mine.concat(all.filter(r => (r[14] === 'PASS' || r.um) && !ids.has(r[22]) && inP(r)));   // a row he marked stays in view
     if (note) { note.hidden = false; note.textContent = 'Showing every Buy It Now hit alerted in ' + P.label() + ', with the numbers each had when it alerted; the Verdict column says where it stands now. Hits are kept for 60 days.'; }
   } else {
-    rows = all.filter(r => P.test(r[34]));
+    rows = all.filter(inP);
     if (note) { note.hidden = rows.length === all.length; note.textContent = 'Showing listings first seen in ' + P.label() + ': ' + rows.length.toLocaleString() + ' of the ' + all.length.toLocaleString() + ' from the last 24 hours. Listings that were not hits are only kept for 24 hours; tick "Only show hits" to see the hits of an earlier day.'; }
   }
   return rows;
@@ -1062,14 +1156,16 @@ function sellerBar(fb, pct) {
 function rebuildLive() {
   const live = LIVE.data; if (!live) return;
   const S = settings();
-  const hadSets = !!LIVE.sets; LIVE.sets = live.sets || {};
-  if (!hadSets) tables.pc.apply();                      // the PriceCharting tab can now show number/size too
+  LIVE.sets = live.sets || {};
   LIVE.ec = []; LIVE.er = []; LIVE.dec = {};
+  DATA.forEach(r => { r[PC_LIVE.k] = r[PC_LIVE.maxbuy] = r[PC_LIVE.vspc] = r[PC_LIVE.liquid] = null; });   // the PriceCharting tab's eBay columns, refilled below
   for (const [cid, c] of Object.entries(live.cards)) {
     const base = idRow.get(+cid); if (!base) continue;
     const d = decide(c, S); LIVE.dec[cid] = Object.assign({}, c, d);
     const hot = c.hot === 2 ? 'confirmed' : c.hot === 1 ? 'candidate' : '';
     const t = c.tr || {};
+    const vspc = (c.pc || base[6]) && d.A ? Math.round((d.A / (c.pc || base[6]) - 1) * 1000) / 10 : null;   // anchor vs PriceCharting
+    base[PC_LIVE.k] = c.k == null ? null : c.k; base[PC_LIVE.maxbuy] = d.maxbuy == null ? null : d.maxbuy; base[PC_LIVE.vspc] = vspc; base[PC_LIVE.liquid] = d.liquid ? 1 : 0;
     LIVE.ec.push([base[0], base[1], base[2], base[3], base[4],
                   c.k, c.D, c.N, c.p1, c.p2, c.p3, c.mu, c.smed, c.s80, c.hrs, c.st,
                   c.lam, c.price, c.dos, c.io,
@@ -1079,7 +1175,7 @@ function rebuildLive() {
                   d.net, c.A_n || 0, LIVE.ec.length,
                   c.pcv == null ? null : Math.round(c.pcv / 12 * 10) / 10,                       // 41 PriceCharting sales a month
                   c.pc == null ? base[6] : c.pc,                                                  // 42 PriceCharting ungraded $
-                  (c.pc || base[6]) && d.A ? Math.round((d.A / (c.pc || base[6]) - 1) * 1000) / 10 : null,   // 43 anchor vs PriceCharting
+                  vspc,                                                                           // 43 anchor vs PriceCharting
                   (live.hits30 || {})[String(cid)] || 0,                                          // 44 alerts on the card, 30 days
                   mtOf(cid),                                                                      // 45 "match:mismatch"
                   rfText(pcRF(base)), (live.ef || {})[String(cid)] || null,                       // 46-47 PC rarity/finish, eBay's record of the card
@@ -1143,7 +1239,7 @@ function rebuildLive() {
   $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · ' + tooCheap + ' too cheap vs PriceCharting · ' + leads + ' leads · as of ' + ageText(live.t);
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   paintPcPill();
-  tables.ec.apply(); tables.er.apply();
+  tables.pc.apply(true); tables.ec.apply(true); tables.er.apply(true);   // true: a refresh keeps the rows already shown (Show more) on view
 }
 // the small pill in the header: is the collector reading PriceCharting signed in (the charts' volume bars depend on it)?
 function paintPcPill() {
@@ -1188,6 +1284,7 @@ async function refreshLive() {
   } catch (e) { /* keep showing what we have; the next minute retries */ }
 }
 function tickAge() {
+  if (PERIOD.er) PERIOD.er.roll();                       // past midnight, an untouched Raw Data period follows the calendar
   if (!LIVE.data) return;
   const a = ageText(LIVE.data.t);
   $('meta-ec').textContent = $('meta-ec').textContent.replace(/\(\d+(\.\d+)? (min|h) ago\)/, '(' + a + ')');
