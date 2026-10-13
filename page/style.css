@@ -25,12 +25,16 @@
   .pcpill.bad { color:#b91c1c; background:#fef2f2; border-color:#fca5a5; }
   .readme:hover { background:var(--hover); }
   /* the eBay Catalog's bands (Observed / Rates / Decisions / Trends): a coloured top edge on each header, named by the legend
-     under the tab line; the row of band titles above the headers went on 2026-10-13 (Brett). The PriceCharting tab's
-     three eBay columns wear the same colours. */
+     under the tab line. The row of band titles above the headers keeps only Card and Trends (Brett, 2026-10-13); the
+     Observed / Rates / Decisions columns sit under one blank cell. */
+  tr.grp th { position:static; text-align:center; font-size:11px; letter-spacing:.04em; text-transform:uppercase; padding:4px 6px; cursor:default; }
+  tr.grp th:hover { text-decoration:none; }
+  tr.grp + tr th { top:0; }
   th.g-obs { box-shadow: inset 0 3px 0 #3b82f6; }
   th.g-rate { box-shadow: inset 0 3px 0 #22c55e; }
   th.g-dec { box-shadow: inset 0 3px 0 #f59e0b; }
-  th.g-tr { box-shadow: inset 0 3px 0 #a855f7; }
+  th.g-tr, tr.grp th.g-tr { box-shadow: inset 0 3px 0 #a855f7; }
+  tr.grp th.g-tr { background:rgba(168,85,247,.14); }
   .legend .l-tr::before { background:#a855f7; }
   .legend { display:inline-flex; gap:14px; margin-left:6px; }
   .legend span::before { content:""; display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:middle; border-radius:2px; }
