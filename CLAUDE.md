@@ -591,7 +591,29 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   "Columns..." button (checklist of all columns, Compact where defined, All; `t.setHidden`, same hide-<tab> memory
   as the eyes) and a "Filters..." button (which chips show above the table; a hidden chip is neutralised -
   numbers cleared, condition/status ticks all on, switches off - so nothing filters unseen; `chips-<tab>`;
-  Reset filters keeps hidden chips neutral). HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
+  Reset filters keeps hidden chips neutral). THE 2026-10-13 BATCH (Brett, "build"): a hidden chip now LEAVES the
+  row (`.range[hidden]{display:none}` - `.range` is inline-flex, which used to beat the hidden attribute) and the
+  rest close up; CHIP DRAG on every tab: press a chip anywhere but its boxes, hold still 300 ms (CHIP_HOLD) until
+  it lifts (class lifted, a fixed-position clone `.ghost` rides with the pointer, body.chip-drag), drag, let go -
+  `dropAt()` picks the nearest row of chips and the first chip whose centre is right of the pointer (drop-l) else
+  the row's last (drop-r); the order is saved as `chiporder-<tab>` (chip ids, chipId(); removed when natural),
+  `loadChipOrder()` puts an unknown chip after its natural neighbour, "Default order" in the Filters picker
+  (`t.resetChipOrder`); a lifted chip's release is not a click (capture-phase click guard, `t.justLifted`), a
+  press that moves before it lifts is left alone (selection, scroll). Raw Data's chip order is `chips: [24, 5,
+  25]` (Profit $, Listed within, ROI %) - cfg.chips orders the generated chips, ranges and maxes mixed. The
+  PriceCharting tab has three eBay columns before Trend (eBay sales, Max buy $, vs PC %; header data-k 16/17/18,
+  `PC_LIVE` indexes 16-19 on the DATA rows - 19 = the liquid flag - filled by rebuildLive from the same c.k /
+  d.maxbuy / anchor-vs-PC the eBay Catalog row gets, cleared and refilled on every live refresh, the
+  release-order key moved to index 20; `inserted {v: 5, at: 14, n: 3}`; help keys pc_k / pc_maxbuy / pc_vspc;
+  range chips 16-18). `t.apply(true)` (what rebuildLive calls) keeps the rows already shown through "Show more"
+  on view instead of cutting back to 300. Raw Data's period starts on TODAY (`periodBar(key, onChange, 'd')`:
+  by day, from = to = today, label "day 13 of month 10, 2026"; `roll()` from tickAge moves an untouched bar
+  along at midnight) and `erRows()` shows the whole 24-hour window whenever the period reaches the present
+  (`P.now()`), so last evening's listings do not vanish at midnight; a past period still filters by first-seen.
+  Raw Data's eBay Rarity/Finish cell carries the eBay Catalog's dim count (`efCount`: live.ef[card][2] listings
+  looked up; the tooltip names the majority and whether this listing agrees; `cardFacts(cid)`). The eBay
+  Catalog's band-title row (`tr.grp`) is gone: the coloured top edges and the legend name the bands, and
+  `bands()` returning null lets every column move anywhere. HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
   the name is stored with the description (`h:<key>.n`, collector `help_edit` keeps n up to 60 chars) and
   `applyNames()` (help.js) writes it into every header sharing that key, on every live refresh; the original is
   kept in th.dataset.on; an empty name restores it. THE ARCHIVE: `archive_tick()` (collector.py), after the publish
