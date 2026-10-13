@@ -2630,7 +2630,10 @@ def main():
         log(f"PriceCharting history: {n_h:,} of {len(cat.cards):,} cards on file ({pchist.count_signed():,} with the volume "
             f"series); the page reader fills in the rest (one page every {PC_PREFETCH_GAP_S:g} s) and refreshes cards weekly "
             f"(with eBay data) or monthly; PriceCharting sign-in: {pc_signin_startup_note()}")
-        state["vps"]["pch_signin"] = "unknown" if PC_COOKIE else "none"   # a replaced cookie gets a fresh test
+        if not PC_COOKIE:                                    # the verdict survives a restart; a replaced cookie gets a fresh test
+            state["vps"]["pch_signin"] = "none"
+        elif _pc_sess.get("fresh") or state["vps"].get("pch_signin") not in ("ok", "expired"):
+            state["vps"]["pch_signin"] = "unknown"
     except Exception as e:
         log(f"PriceCharting history: store failed to open ({e})")
     pc_worker(state)                                         # PriceCharting pictures for the Review button, in the background
