@@ -526,12 +526,17 @@ function makeTable(id, cfg) {
   }
   const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
   const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6c1.6 0 3 .3 4.3.9l-1.6 1.6A6 6 0 0 0 12 8c-4.4 0-7.2 3.2-8.1 4 .5.5 1.6 1.7 3.2 2.6l-1.5 1.5C3.4 14.7 2 12 2 12zm20 0s-3.5 6-10 6c-1.6 0-3-.3-4.3-.9l1.6-1.6c.8.3 1.7.5 2.7.5 4.4 0 7.2-3.2 8.1-4-.5-.5-1.6-1.7-3.2-2.6l1.5-1.5C20.6 9.3 22 12 22 12zM4 20 20 4l1.4 1.4L5.4 21.4z" fill="currentColor"/></svg>';
-  const paintHeads = () => [...headRow.children].forEach((th, pos) => {
+  // a hidden column is gone altogether, eye included (2026-10-13, Brett), so a band title above the headers (tr.grp,
+  // eBay Catalog) must span only the columns still showing: its original span is kept in data-span
+  const grpRow = document.querySelector('#p-' + id + ' thead tr.grp');
+  if (grpRow) [...grpRow.children].forEach(th => { th.dataset.span = th.getAttribute('colspan') || '1'; });
+  const paintBands = () => { if (!grpRow) return; let at = 0; for (const th of grpRow.children) { const n = +th.dataset.span; let vis = 0; for (let ci = at; ci < at + n; ci++) if (!hiddenCols.has(ci)) vis++; at += n; th.colSpan = Math.max(1, vis); th.style.display = vis ? '' : 'none'; } };
+  const paintHeads = () => { [...headRow.children].forEach((th, pos) => {
     const ci = th.dataset.ci != null ? +th.dataset.ci : pos;
     const on = hiddenCols.has(ci);
     th.classList.toggle('col-hidden', on);
     const b = th.querySelector('.eye'); if (b) { b.innerHTML = on ? EYE_SHUT : EYE_OPEN; b.title = on ? 'Show column' : 'Hide column'; }
-  });
+  }); paintBands(); };
   const cellOf = (tr, ci) => tr.querySelector('[data-ci="' + ci + '"]') || tr.children[ci];
   const paintRow = tr => { if (hiddenCols.size) hiddenCols.forEach(ci => { const td = cellOf(tr, ci); if (td) td.classList.add('col-hidden'); }); };
   const toggleCol = ci => {
@@ -696,10 +701,10 @@ function makeTable(id, cfg) {
      (tr.grp, colspans over runs of columns) would confine a column to its own band; the eBay Catalog's band row went
      on 2026-10-13 (Brett), so today every column moves freely and the colours on the headers alone name the bands. */
   const nCols = headRow.children.length;
-  const bands = (() => {                                   // [from, to) column runs under each band header, if any
-    const grp = document.querySelector('#p-' + id + ' thead tr.grp'); if (!grp) return null;
+  const bands = (() => {                                   // [from, to) column runs under each band header, if any (data-span: the span before hidden columns shrank it)
+    if (!grpRow) return null;
     const out = []; let at = 0;
-    for (const th of grp.children) { const n = +(th.getAttribute('colspan') || 1); out.push([at, at + n]); at += n; }
+    for (const th of grpRow.children) { const n = +(th.dataset.span || th.getAttribute('colspan') || 1); out.push([at, at + n]); at += n; }
     return out;
   });
   const bandOf = ci => { const b = bands(); if (!b) return [0, nCols]; return b.find(([a, z]) => ci >= a && ci < z) || [0, nCols]; };
