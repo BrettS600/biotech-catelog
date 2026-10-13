@@ -123,6 +123,31 @@ def redacted(u):
     return f"{urlunsplit((p.scheme, p.netloc, p.path, shown, ''))}   [token length: {tlen}]"
 
 
+def newest_snapshot_csv():
+    """The newest archived snapshot as a CSV string (its one added column dropped), or None. The fallback when
+    PriceCharting's download is down (HTTP 500 on 2026-10-13, 503 the day before): the site still rebuilds, with
+    prices a day old, and the page changes still ship."""
+    files = sorted(glob.glob(os.path.join(SNAPSHOT_DIR, "pc_catalog_*.csv.gz*")))
+    pw = os.environ.get("SITE_PASSWORD", "")
+    for path in reversed(files):
+        blob = open(path, "rb").read()
+        if path.endswith(".enc"):
+            if not pw:
+                return None, None
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            key = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), blob[:16], 600_000)
+            try:
+                blob = AESGCM(key).decrypt(blob[16:28], blob[28:], None)
+            except Exception:
+                continue
+        import io
+        df = pd.read_csv(io.BytesIO(gzip.decompress(blob)), dtype=str).fillna("")
+        if "product-name" in df.columns:
+            return df.drop(columns=["card-number"], errors="ignore").to_csv(index=False), os.path.basename(path)
+    return None, None
+
+
+FALLBACK = False                 # True when the day's table comes from the newest snapshot, not a fresh download
 url = os.environ.get("PC_DOWNLOAD_URL", "").strip()
 if not url and os.path.exists(URL_FILE):
     url = open(URL_FILE, encoding="utf-8").read().strip()
@@ -130,23 +155,41 @@ if url:
     url = tidy_url(url)
     print("Downloading a fresh Pokemon CSV from PriceCharting ...")
     print("Link in use:", redacted(url))
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=300, allow_redirects=True)
-    except requests.RequestException as e:
-        raise SystemExit(f"Download failed: {type(e).__name__}")
-    ctype = r.headers.get("Content-Type", "")
-    print(f"Response: HTTP {r.status_code}, {ctype or 'no content-type'}, {len(r.content) / 1e6:.1f} MB")
-    if r.status_code != 200:
-        raise SystemExit("PriceCharting rejected that link. It should look like\n"
-                         "  https://www.pricecharting.com/price-guide/download-custom?t=<40-char token>&category=pokemon-cards\n"
-                         "Copy it from Subscriptions -> API/Download (right-click the Pokemon Cards link -> Copy Link Address). "
-                         "Note: one CSV download per 10 minutes.")
-    if "product-name" not in r.text[:1000]:
-        raise SystemExit("That link returned a web page, not a CSV. Re-copy the Pokemon Cards "
-                         "download link from Subscriptions -> API/Download.")
-    with open(PC_CSV, "w", encoding="utf-8", newline="") as f:
-        f.write(r.text)
-    print(f"Saved to {PC_CSV}")
+    text = None
+    for attempt in (1, 2):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=300, allow_redirects=True)
+        except requests.RequestException as e:
+            print(f"Download failed: {type(e).__name__}")
+            r = None
+        if r is not None:
+            ctype = r.headers.get("Content-Type", "")
+            print(f"Response: HTTP {r.status_code}, {ctype or 'no content-type'}, {len(r.content) / 1e6:.1f} MB")
+            if r.status_code == 200 and "product-name" in r.text[:1000]:
+                text = r.text
+                break
+            print("PriceCharting rejected that link. It should look like\n"
+                  "  https://www.pricecharting.com/price-guide/download-custom?t=<40-char token>&category=pokemon-cards\n"
+                  "Copy it from Subscriptions -> API/Download (right-click the Pokemon Cards link -> Copy Link Address). "
+                  "Note: one CSV download per 10 minutes." if r.status_code != 200 else
+                  "That link returned a web page, not a CSV. Re-copy the Pokemon Cards download link from Subscriptions -> API/Download.")
+        if attempt == 1:
+            print("Waiting 90 s and trying once more ...")
+            import time
+            time.sleep(90)
+    if text is not None:
+        with open(PC_CSV, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        print(f"Saved to {PC_CSV}")
+    else:
+        text, name = newest_snapshot_csv()
+        if text is None:
+            raise SystemExit("PriceCharting's download failed twice and no archived snapshot can stand in.")
+        with open(PC_CSV, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        FALLBACK = True
+        print(f"PriceCharting's download is unavailable right now: building from the newest snapshot ({name}) instead. "
+              "The prices are a day old; tomorrow's run catches up. No new snapshot is archived for today.")
 
 if not os.path.exists(PC_CSV):
     raise SystemExit(f"{PC_CSV} not found. On GitHub, add the PC_DOWNLOAD_URL secret. "
@@ -221,10 +264,13 @@ if ENCRYPT_SNAPSHOTS and password:
 else:
     blob = raw
     snap = os.path.join(SNAPSHOT_DIR, f"pc_catalog_{today}.csv.gz")
-with open(snap, "wb") as f:
-    f.write(blob)
-print(f"Snapshot archived: {snap} ({len(blob) / 1e6:.1f} MB, "
-      f"{len(snapshot.columns)} columns x {len(snapshot):,} rows)")
+if FALLBACK:
+    print("Snapshot not archived: today's table is a copy of the newest snapshot, not a fresh download.")
+else:
+    with open(snap, "wb") as f:
+        f.write(blob)
+    print(f"Snapshot archived: {snap} ({len(blob) / 1e6:.1f} MB, "
+          f"{len(snapshot.columns)} columns x {len(snapshot):,} rows)")
 
 
 # ---------- 6. History: one point per day, from every snapshot on disk ----------
