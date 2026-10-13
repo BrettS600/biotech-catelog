@@ -652,6 +652,30 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   "archive" branch (`archive_put`: an ordinary, append-only branch; checkout in data/archive, cloned or started on
   first use), encrypted like the state (es.encrypt_file_blob). Failures back off an hour. This is the long-run
   dataset for later analysis: the live branch is overwritten and the state forgets closed listings after 60 days.
+  THE EBAY TREND CHART (2026-10-13 evening, Brett: "have the ebay catalog trend chart resemble the price chart trend
+  chart ... built on ebay data ... switch to daily time points or weekly timepoints", plus his yes to a dot per sale
+  and a bar of new listings): the eBay Catalog's Trend button opens the same popup as PriceCharting's chart
+  (`openTrendEbay`, `drawChart`, `renderEbTable`, `ebBuckets`, `ebLabel`, `rangePoints` in app.js) drawn only from
+  `live.cards[cid].hist`, which `trend_stats` (ebay_sweep.py) now ships with two more series: `sp` = every sale total
+  in day order (the page splits it with `sales`) and `new` = listings that appeared each day (the rollup's third
+  cell). POINTS: Day / Week / Month (`#ebpts` .zb buttons, remembered in localStorage `eb-pts`, default Day); the
+  page folds the daily series itself - Week = Monday-to-Sunday (UTC), Month = calendar month. One slot per period as
+  PriceCharting's chart (x = L + iw(k+.5)/n), bars = sales in the period (`rect.bar-s`), New listings (`#c-new`, off
+  by default) = a paler amber bar beside it (`rect.bar-n`, COLORS.fresh), the price line = `hist.price` (the 7-day
+  median) with Day points or the median of the period's own sales with Week / Month (EB_MED_MIN 3 or blank), Each
+  sale (`#c-dots`, on by default, Day points only - disabled otherwise) = a faint dot per sale spread inside the
+  slot (`circle.dot-s`), the cheapest ask = the period's last reading. A period still running (end >= today UTC:
+  `open`) or that the history starts inside (`from`) is faded with a dashed edge (`data-part`) and says "to date" /
+  "from <day>" in the hover readout (sales, new listings, median, low - high, cheapest ask) and in the table.
+  `#ebtable` under the chart (the periods newest first, `tr.part` italic for open/from, Download CSV `#ebcsv`:
+  period_start, period_end, sales, median_usd, low_usd, high_usd, cheapest_ask_usd, new_listings) is the eBay
+  counterpart of `#pctable`; `pcMode(on)` swaps the two sets of controls (`ebpts`, `ebbar1`, `ebbar2`, `ebtable` vs
+  `pczoom`, `pctable`). Show: Last N days/weeks/months keeps the periods whose last day is inside the window. An old
+  payload without `sp`/`new` still draws (no dots, no week/month medians, note says the next publish fills them).
+  This rewrite also removed a ReferenceError (`LABEL_PC`, deleted earlier but still read in drawChart's note) that
+  had been stopping renderStatsEbay after the chart drew. Help: `et_trend` (the Trend header's "?") explains every
+  control, caveat and the PriceCharting comparison; README ec section 2; the pc `trend` entry now describes
+  PriceCharting's chart. Tests: ut/test_hist.py (sp/new), t/pcpop/test_ui7.py (the popup end to end).
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
