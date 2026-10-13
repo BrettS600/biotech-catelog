@@ -143,6 +143,8 @@ def extract(html):
     if not series:
         return None, "no VGPC series in the page"
     price, vol, how = pick(series)
+    if vol is None and re.search(r"VGPC\.volume_data\s*=", html):   # the variable is there but holds no points: a card
+        vol, how = [], how + "; volume_data present but empty"      # with no sales, read signed in (not a lost sign-in)
     rec = monthly(price, vol)
     shape = {n: {k: len(v) for k, v in s.items()} for n, s in series.items()}
     first = {n: {k: v[:2] for k, v in s.items()} for n, s in series.items()}
