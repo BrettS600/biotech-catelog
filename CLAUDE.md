@@ -612,8 +612,11 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (`P.now()`), so last evening's listings do not vanish at midnight; a past period still filters by first-seen.
   Raw Data's eBay Rarity/Finish cell carries the eBay Catalog's dim count (`efCount`: live.ef[card][2] listings
   looked up; the tooltip names the majority and whether this listing agrees; `cardFacts(cid)`). The eBay
-  Catalog's band-title row (`tr.grp`) is gone: the coloured top edges and the legend name the bands, and
-  `bands()` returning null lets every column move anywhere. HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
+  Catalog's band-title row (`tr.grp`) keeps only the Card and Trends titles (Brett, later the same day: "keep the
+  card header and the trends header"); the Observed / Rates / Decisions titles are gone and their 23 columns sit
+  under one blank cell, so `bands()` lets a column move anywhere among those 23 but not into Card or Trends; the
+  coloured top edges on the headers and the legend still name the three bands. The PriceCharting tab's three
+  eBay columns carry no band colour (he asked for it off). HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
   the name is stored with the description (`h:<key>.n`, collector `help_edit` keeps n up to 60 chars) and
   `applyNames()` (help.js) writes it into every header sharing that key, on every live refresh; the original is
   kept in th.dataset.on; an empty name restores it. THE ARCHIVE: `archive_tick()` (collector.py), after the publish
