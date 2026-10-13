@@ -144,7 +144,8 @@
   .gate .gin input[type=number] { width:70px; }
   .zb { font:inherit; font-size:13px; padding:4px 11px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }   /* PriceCharting's Zoom buttons */
   .zb.on { background:var(--link); border-color:var(--link); color:#fff; }
-  #pctable { margin-top:10px; }
+  #pctable, #ebtable { margin-top:10px; }
+  .pctbox tr.part td:first-child { font-style:italic; }
   .pcth { display:flex; align-items:center; gap:8px; margin:0 0 6px; font-size:13px; }
   .pcth .reset { margin-left:auto; }
   .pctbox { max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
