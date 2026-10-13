@@ -2323,7 +2323,11 @@ def trend_stats(days):
         vdp = round((spm / prev30 - 1) * 100, 1) if prev30 else None
     tr = {"d7": d7, "d30": d30, "pos": pos, "hi": hi, "lo": lo, "vol": vol, "ts": ts, "tsq1": tsq1, "tsq3": tsq3,
           "spm": spm, "vd": vd, "vdp": vdp, "days": hist_days}
-    hist = {"start": idx[0], "sales": sales, "price": price, "ask": asks}
+    # the chart's series (Brett, 2026-10-13: Day / Week / Month points, a dot per sale, a bar of new listings):
+    # sp = every sale total in day order (the page splits it with `sales`), new = listings that appeared each day
+    hist = {"start": idx[0], "sales": sales, "price": price, "ask": asks,
+            "sp": [t for d in idx if d in days for t in days[d][0]],
+            "new": [days[d][2] if d in days else 0 for d in idx]}
     return tr, hist
 
 
