@@ -24,10 +24,10 @@ const ordOf = r => r[r.length - 1];
 // card numbers print as number/size ("36/123"): the size comes from the Pokemon TCG dataset (SET_TOTALS, matched at
 // build time); a set that did not match uses the size the collector learned from eBay titles, which arrives with the
 // live data; prefixed numbers (TG05, SV001) are shown as printed
-const numCell = (num, set) => { const t = SET_TOTALS[set] || (LIVE.sets && LIVE.sets[set]); return esc(num) + (t && /^\d+[a-z]?$/.test(String(num)) ? '<span class="dim">/' + t + '</span>' : ''); };
-const cells4 = (r, mid = '', afterSet = '') =>                 // Card, Set, [afterSet], Set / Card, [mid], Released
+const numCell = (num, set, rar) => { const t = SET_TOTALS[set] || (LIVE.sets && LIVE.sets[set]); if (/classic collection/i.test(rar || '')) return esc(num) + '<span class="dim" title="Classic Collection: an old card reprinted with the anniversary stamp, numbered as it originally was (not /' + (t || '?') + ')"> cc</span>'; return esc(num) + (t && /^\d+[a-z]?$/.test(String(num)) ? '<span class="dim">/' + t + '</span>' : ''); };
+const cells4 = (r, mid = '', afterSet = '', rar = '') =>       // Card, Set, [afterSet], Set / Card, [mid], Released (rar = the card's rarity, for the number cell)
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
-  '<td>' + esc(r[2]) + '</td>' + afterSet + '<td class="num">' + numCell(r[3], r[2]) + '</td>' + mid + '<td>' + (r[4] || dash) + '</td>';
+  '<td>' + esc(r[2]) + '</td>' + afterSet + '<td class="num">' + numCell(r[3], r[2], rar) + '</td>' + mid + '<td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
 const mtOf = cid => { const t = LIVE.data && LIVE.data.mt; const m = t && t[String(cid)]; return m ? m[0] + ':' + m[1] + (m[2] ? '|' + m[2] : '') : null; };   // "confirmed:mismatch|filed by the matcher" for a card
 const mmRatio = v => {                                        // the cell shows only what Brett marked; the matcher's own count is the tooltip
@@ -54,15 +54,15 @@ const ULTRA_W = new Set('ex gx v vmax vstar lvx lv ultra double secret hyper rai
 const HOLO_W = new Set('holo holofoil foil cosmos cracked rainbow textured sparkle galaxy confetti spectra tekno shiny shining gold silver prism crystal etched'.split(' '));
 const PLAIN_W = new Set('regular nonholo non normal standard none matte plain'.split(' '));
 const PATTERN_W = new Set('ball pokeball masterball pattern'.split(' '));
-function rarityTier(s) { const t = normRF(s); if (!t) return null; const k = t.split(/\s+/); if (k.includes('promo') || k.includes('promotional')) return 'P'; if (k.some(w => ULTRA_W.has(w)) || t.includes('black white rare')) return 'X'; if (k.includes('common') && !k.includes('uncommon')) return 'C'; if (k.includes('uncommon')) return 'U'; if (k.includes('holo') || k.includes('holofoil') || k.includes('foil')) return 'H'; if (k.includes('rare')) return 'R'; return null; }
+function rarityTier(s) { const t = normRF(s); if (!t) return null; const k = t.split(/\s+/); if (k.includes('promo') || k.includes('promotional')) return 'P'; if (k.includes('classic') && k.includes('collection')) return 'K'; if (k.some(w => ULTRA_W.has(w)) || t.includes('black white rare')) return 'X'; if (k.includes('common') && !k.includes('uncommon')) return 'C'; if (k.includes('uncommon')) return 'U'; if (k.includes('holo') || k.includes('holofoil') || k.includes('foil')) return 'H'; if (k.includes('rare')) return 'R'; return null; }
 const RF_RANK = {C: 0, U: 1, R: 2, H: 3, X: 4};
-function rarityAgree(a, b) { const x = rarityTier(a), y = rarityTier(b); if (!x || !y) return null; if (x === y) return 'same'; if (x === 'P' || y === 'P') return 'far'; if (x === 'R' || y === 'R') return 'near'; return Math.abs(RF_RANK[x] - RF_RANK[y]) === 1 ? 'near' : 'far'; }   // a bare "Rare" is the generic word: never "far" on its own
+function rarityAgree(a, b) { const x = rarityTier(a), y = rarityTier(b); if (!x || !y) return null; if (x === y) return 'same'; if (x === 'P' || y === 'P') return 'far'; if (x === 'K' || y === 'K') return ['K', 'X', 'H', 'R'].includes(x) && ['K', 'X', 'H', 'R'].includes(y) ? 'near' : 'far'; if (x === 'R' || y === 'R') return 'near'; return Math.abs(RF_RANK[x] - RF_RANK[y]) === 1 ? 'near' : 'far'; }   // a bare "Rare" is the generic word: never "far" on its own
 function finishClass(s) { const t = normRF(s); if (!t) return null; const k = t.split(/\s+/); if (k.includes('reverse') || k.some(w => PATTERN_W.has(w))) return 'reverse'; if ((k.includes('non') && k.includes('holo')) || k.some(w => PLAIN_W.has(w)) || t === 'no' || t === 'n a') return 'plain'; if (k.some(w => HOLO_W.has(w))) return 'holo'; return null; }
 function finishAgree(a, b) { const x = finishClass(a), y = finishClass(b); if (!x || !y) return null; return x === y ? 'same' : 'far'; }
 const rfCls = v => v === 'far' ? ' class="rfbad"' : v === 'near' ? ' class="rfnear"' : '';
 const pcRFCell = p => '<td' + (p ? ' title="' + esc('What the card is: ' + (p[0] || 'rarity unknown') + ', ' + (p[1] || 'finish unknown') + '. From TCGplayer\'s catalog (the tcg-id PriceCharting carries) or the open Pokemon TCG dataset; the bracket tag names the printing') + '"' : '') + '>' + (p ? esc(rfText(p)) : dash) + '</td>';
 const EF_SRC = {product: "eBay's catalog product", seller: "the seller's item specifics", both: "eBay's product and the seller's specifics"};
-function efCells(ef) {                                   // Raw Data: [eBay Set Name cell, eBay Rarity/Finish cell] for one listing
+function efCells(ef, p) {                                // Raw Data: [eBay Set Name cell, eBay Rarity/Finish cell] for one listing (p = the card's own rarity / finish)
   if (ef == null || !ef.length) {
     const c = '<td><span class="dim" title="' + (ef == null ? 'Not looked up yet: eBay\'s record is read the first time the collector looks a listing up - when it sells, or when it clears the price gate' : 'Looked up: the listing carries no catalog product and the seller left these blank') + '">' + (ef == null ? 'not read' : 'none') + '</span></td>';
     return [c, c];
@@ -70,7 +70,8 @@ function efCells(ef) {                                   // Raw Data: [eBay Set 
   const src = 'From ' + (EF_SRC[ef[5]] || 'eBay'), names = [ef[3], ef[4]].filter(Boolean).join(' #');
   const setCell = '<td' + rfCls(ef[6]) + ' title="' + esc(src + (names ? '. eBay names it ' + names : '') + (ef[6] === 'far' ? '. Its words belong to a different set from the card this listing is filed under' : ef[6] === 'same' ? '. Agrees with the card\'s set' : '')) + '">' + (ef[0] ? esc(ef[0]) : dash) + '</td>';
   const worst = ef[7] === 'far' || ef[8] === 'far' ? 'far' : ef[7] === 'near' ? 'near' : null;
-  const why = [ef[7] === 'far' ? 'the rarity is two tiers or more from the card\'s - usually another card number' : ef[7] === 'near' ? 'the rarity is one tier from the card\'s (the usual seller imprecision)' : '',
+  const classic = /classic collection/i.test(ef[1] || '') !== /classic collection/i.test((p && p[0]) || '');
+  const why = [ef[7] === 'far' ? 'the rarity is two tiers or more from the card\'s - usually another card number' : ef[7] === 'near' ? (classic ? 'Classic Collection against the original card\'s rarity word: a reprint keeps its original number and sellers reuse its original rarity; the printed total tells them apart (the set\'s own cards carry the set total)' : 'the rarity is one tier from the card\'s (the usual seller imprecision)') : '',
                ef[8] === 'far' ? 'the finish differs from the catalog row\'s' : ''].filter(Boolean).join('; ');
   const rf = rfText([ef[1], ef[2]]);
   const rfCell = '<td' + rfCls(worst) + ' title="' + esc(src + (why ? '. ' + why.charAt(0).toUpperCase() + why.slice(1) : ef[7] === 'same' || ef[8] === 'same' ? '. Agrees with the card' : '')) + '">' + (rf ? esc(rf) : dash) + '</td>';
@@ -102,7 +103,7 @@ const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
        inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}],   // v4: PC Rarity/Finish after Set / Card
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[14] || '') + ' ' + (r[15] || ''),
-       row: r => cells4(r, pcRFCell(pcRF(r))) +
+       row: r => cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
       '<td class="num">' + fmtMoney(r[6]) + '</td>' +
       '<td class="num">' + fmtPct(r[7]) + '</td>' +
@@ -126,7 +127,7 @@ const TABLES = {
        labels: {17: 'Price $', 5: 'eBay sales', 41: 'PC sales', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 43: 'vs PC %', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 44: 'Hits 30d', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 500]},
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[46] || ''),
-       row: r => cells4(r, pcRFCell(r[46] ? r[46].split(RF_SEP) : null) + efCardCell(r[47], r[46] ? r[46].split(RF_SEP) : null)) +
+       row: r => cells4(r, pcRFCell(r[46] ? r[46].split(RF_SEP) : null) + efCardCell(r[47], r[46] ? r[46].split(RF_SEP) : null), '', r[46] ? r[46].split(RF_SEP)[0] : '') +
       '<td class="num">' + mmRatio(r[45]) + '</td>' +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
       '<td class="num">' + (r[41] == null ? dash : fmtNum(r[41], r[41] < 10 ? 1 : 0)) + '</td>' +
@@ -184,7 +185,7 @@ const TABLES = {
        extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
-       row: r => r.au ? auRow(r) : umCell(r) + cells4(r, pcRFCell(r[47] ? r[47].split(RF_SEP) : null) + efCells(r[48])[1], efCells(r[48])[0]) +
+       row: r => r.au ? auRow(r) : umCell(r) + cells4(r, pcRFCell(r[47] ? r[47].split(RF_SEP) : null) + efCells(r[48], r[47] ? r[47].split(RF_SEP) : null)[1], efCells(r[48], r[47] ? r[47].split(RF_SEP) : null)[0], r[47] ? r[47].split(RF_SEP)[0] : '') +
       '<td class="num">' + mmRatio(r[46]) + '</td>' +
       '<td class="num">' + fmtNum(r[5], 1) + '</td>' +
       '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6]) + '">' + esc(r[6]) + '</a></td>' +
