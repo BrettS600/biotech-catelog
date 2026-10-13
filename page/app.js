@@ -3,16 +3,16 @@ const SETS = __SETS__;
 const SET_TOTALS = __SET_TOTALS__;        // printed set sizes from the Pokemon TCG dataset, matched at build time
 const GATE = __GATE__;
 const PAGE = 300;
-const RANGE_COLS = [5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 18];
-const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 10: 'Vol. drift %', 12: 'Volatility %', 13: 'Slope %/mo', 16: 'eBay sales', 17: 'Max buy $', 18: 'vs PC %'};
+const RANGE_COLS = [5, 6, 7, 8, 9, 10, 12, 13, 16, 18, 19, 20, 21, 22, 23];
+const RANGE_LABEL = {5: 'Sales/yr', 6: 'Ungraded $', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 10: 'Vol. drift %', 12: 'Volatility %', 13: 'Slope %/mo', 16: 'PC sales', 18: 'eBay last mo', 19: 'eBay this mo', 20: 'Anchor $', 21: 'vs PC %', 22: 'Hits 30d', 23: 'Hit %'};
 const setIndex = new Map(SETS.map((s, i) => [s, i]));
-// The catalog rows carry 16 columns (build_catalog.py). The page adds four more from the eBay Catalog's live rows
-// (2026-10-13, Brett: "include the eBay sales, Max buy and vs PC % columns in the PriceCharting tab"): 16 eBay sales
-// (k), 17 Max buy $, 18 vs PC %, 19 the liquid flag behind Max buy - blank until the live data loads, filled by
-// rebuildLive - then the release-order key last.
-const PC_LIVE = {k: 16, maxbuy: 17, vspc: 18, liquid: 19};
-const ORD = DATA.length ? DATA[0].length + 4 : 0;      // index of the release-order key
-DATA.forEach((r, i) => r.push(null, null, null, null, i));
+// The catalog rows carry 16 columns (build_catalog.py). The page adds eight more (2026-10-13, Brett): 16 PC sales -
+// PriceCharting's bar for the last complete month, from pcm.bin, every card - 17 the month that bar is for, and from
+// the eBay Catalog's live rows 18 eBay sales last month, 19 eBay sales this month, 20 Anchor $, 21 vs PC %, 22 Hits
+// 30d, 23 Hit %; blank until the data loads (fillPcm, rebuildLive); then the release-order key last.
+const PC_LIVE = {pcm: 16, pcmm: 17, km: 18, kt: 19, A: 20, vspc: 21, hits: 22, hitpct: 23};
+const ORD = DATA.length ? DATA[0].length + 8 : 0;      // index of the release-order key
+DATA.forEach((r, i) => r.push(null, null, null, null, null, null, null, null, i));
 const $ = id => document.getElementById(id);
 
 const dash = '<span class="dim">—</span>';
@@ -34,6 +34,28 @@ const cells4 = (r, mid = '', afterSet = '', rar = '') =>       // Card, Set, [af
   '<td><a href="https://www.pricecharting.com/game/' + r[0] + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></td>' +
   '<td>' + esc(r[2]) + '</td>' + afterSet + '<td class="num">' + numCell(r[3], r[2], rar) + '</td>' + mid + '<td>' + (r[4] || dash) + '</td>';
 const fmtNum = (v, nd = 1) => v == null ? dash : v.toLocaleString('en-US', {minimumFractionDigits: nd, maximumFractionDigits: nd});
+/* ---------------- the month columns (2026-10-13, Brett: "pc sales for last month, ebay sales for last month, and a
+   column that records the number of ebay sales that have accrued since the start of this month") ----------------
+   PC sales = PriceCharting's volume bar (every grade) for the last complete month on the card's page, from pcm.bin
+   (the collector, hourly); when the page was last read before last month ended, the bar is an older month's and the
+   cell says which. eBay sales last month = the collector's own sales (raw NM/LP copies caught selling inside their
+   2-day follow) in the previous calendar month - shown only when the collector was running for that whole month
+   (live.since) - and this month = the same count since the 1st. The trailing-30-day count the model runs on (k)
+   is no longer a column. Months are UTC, like the collector's. */
+const MONTHS_S = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const prevMonth = () => { const d = new Date(); return (d.getUTCFullYear() - 2000) * 12 + d.getUTCMonth() - 1; };   // months since 2000-01
+const monthName = m => MONTHS_S[((m % 12) + 12) % 12] + ' ' + (2000 + Math.floor(m / 12));
+const prevMonthStart = () => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1)).toISOString().slice(0, 10); };
+const sinceNote = () => 'The collector has only been recording since ' + ((LIVE.data && LIVE.data.since) || 'late September') + ': ' + monthName(prevMonth() + 1) + ' is its first whole month, so last month\'s count appears on the 1st of ' + monthName(prevMonth() + 2).split(' ')[0];
+function pcSalesCell(v, m) {
+  if (v == null) return '<td class="num"><span class="dim" title="PriceCharting\'s monthly bars for this card have not been read yet (the collector reads every card\'s page in turn)">\u2014</span></td>';
+  const late = m != null && m !== prevMonth();
+  const tip = 'Sold in ' + monthName(m) + ' by PriceCharting\'s count, every grade: the last complete month on the card\'s page' + (late ? '. The page was last read before ' + monthName(prevMonth()) + ' ended, so this is an older month; cards with eBay data are re-read within days of the 1st' : '');
+  return '<td class="num" title="' + esc(tip) + '">' + fmtInt(v) + (late ? ' <span class="dim">' + MONTHS_S[((m % 12) + 12) % 12] + '</span>' : '') + '</td>';
+}
+const kmCell = v => v == null ? '<td class="num"><span class="dim" title="' + esc(sinceNote()) + '">\u2014</span></td>' : '<td class="num">' + fmtInt(v) + '</td>';
+const hitsCell = v => '<td class="num">' + (v ? '<b>' + fmtInt(v) + '</b>' : v === 0 ? '0' : dash) + '</td>';
+const hitPctCell = (v, n) => '<td class="num"' + (n ? ' title="' + esc(n + ' listing' + (n === 1 ? '' : 's') + ' of this card seen in 30 days') + '"' : '') + '>' + (v == null ? '<span class="dim" title="no listings of this card seen in 30 days">\u2014</span>' : fmtPct(v, false, 0)) + '</td>';
 const mtOf = cid => { const t = LIVE.data && LIVE.data.mt; const m = t && t[String(cid)]; return m ? m[0] + ':' + m[1] + (m[2] ? '|' + m[2] : '') : null; };   // "confirmed:mismatch|filed by the matcher" for a card
 const mmRatio = v => {                                        // the cell shows only what Brett marked; the matcher's own count is the tooltip
   if (v == null) return dash;
@@ -121,7 +143,7 @@ const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // fill
 
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
-       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}, {v: 5, at: 14, n: 3}],   // v4: PC Rarity/Finish after Set / Card; v5: eBay sales, Max buy $, vs PC % before Trend
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}, {v: 5, at: 14, n: 3}, {v: 6, at: 14, n: 1}, {v: 7, at: 16, n: 1}, {v: 8, at: 19, n: 2}],   // v4: PC Rarity/Finish after Set / Card; v5: eBay sales, Max buy $, vs PC % before Trend; v6-v8: PC sales, eBay this month, Hits 30d + Hit % (Anchor $ took Max buy's place)
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[14] || '') + ' ' + (r[15] || ''),
        row: r => cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
@@ -132,10 +154,12 @@ const TABLES = {
       '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
       '<td class="num">' + fmtPct(r[12], false, 2) + '</td>' +
       '<td class="num">' + fmtPct(r[13]) + '</td>' +
-      // the eBay Catalog's figures for the card (blank until the live data loads, or when eBay has nothing on it yet)
-      '<td class="num">' + (r[16] == null ? dash : fmtInt(r[16])) + '</td>' +
-      '<td class="num">' + (r[17] == null ? dash : '<b>' + fmtMoney(r[17]) + '</b>' + (r[19] ? '' : ' <span class="dim" title="too slow for the window at this confidence">illiquid</span>')) + '</td>' +
-      '<td class="num">' + (r[18] == null ? dash : '<span class="' + (r[18] < -40 || r[18] > 200 ? 'down' : '') + '">' + fmtPct(r[18], true, 0) + '</span>') + '</td>' +
+      // the month columns and the eBay Catalog's figures for the card (blank until the data loads, or when eBay has nothing on it)
+      pcSalesCell(r[16], r[17]) + kmCell(r[18]) +
+      '<td class="num">' + fmtInt(r[19]) + '</td>' +
+      '<td class="num">' + fmtMoney(r[20]) + '</td>' +
+      '<td class="num">' + (r[21] == null ? dash : '<span class="' + (r[21] < -40 || r[21] > 200 ? 'down' : '') + '">' + fmtPct(r[21], true, 0) + '</span>') + '</td>' +
+      hitsCell(r[22]) + hitPctCell(r[23], r.n30) +
       '<td><button class="tbtn" data-i="' + ordOf(r) + '">Trend</button></td>'},
   // eBay Catalog row (four bands): 0 id 1 card 2 set 3 # 4 released |
   //   Observed: 5 k 6 D 7 N 8 p1 9 p2 10 p3 11 mu 12 smed 13 s80 14 hrs 15 st |
@@ -145,16 +169,17 @@ const TABLES = {
   //   41 PC sales/month 42 PC ungraded $ 43 vs PC % 44 hits 30d 45 "match:mismatch"
   //   46 PC rarity/finish text 47 eBay card facts [rarity, finish, n, disagree] 48 eBay rarity/finish text (sort key)
   //   (6 D, 8-10 p1-p3 and 30 spm stay in the row for the Book and the chart; the table no longer shows them - 2026-10-08)
-  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 5, 41, 16, 7, 18, 12, 14, 15, 20, 43, 22, 25, 38, 44, 32, 37],
-       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}, {v: 5, at: 4, n: 2}],   // v4: the column set was rebuilt; v5: PC / eBay Rarity/Finish after Set / Card
-       compact: [11, 12, 13, 14, 16, 17, 18, 19, 23, 26],   // hidden in the Compact view: the diagnostics behind the decision numbers
-       labels: {17: 'Price $', 5: 'eBay sales', 41: 'PC sales', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 43: 'vs PC %', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 44: 'Hits 30d', 32: 'Δ30d %', 37: 'Slope %/mo'},
+  //   49 eBay sales last month 50 eBay sales this month 51 listings seen in 30 d 52 Hit % 53 the month of 41 (2026-10-13; 41 = PriceCharting's bar for the last complete month)
+  ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 49, 50, 41, 16, 7, 18, 12, 14, 15, 20, 43, 22, 25, 38, 44, 52, 32, 37],
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}, {v: 5, at: 4, n: 2}, {v: 6, at: 9, n: 1}, {v: 7, at: 32, n: 1}],   // v4: the column set was rebuilt; v5: PC / eBay Rarity/Finish after Set / Card; v6: eBay sales this month; v7: Hit %
+       compact: [12, 13, 14, 15, 17, 18, 19, 20, 24, 27],   // hidden in the Compact view: the diagnostics behind the decision numbers
+       labels: {17: 'Price $', 49: 'eBay last mo', 50: 'eBay this mo', 41: 'PC sales', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 43: 'vs PC %', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 44: 'Hits 30d', 52: 'Hit %', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 500]},
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[46] || ''),
        row: r => cells4(r, pcRFCell(r[46] ? r[46].split(RF_SEP) : null) + efCardCell(r[47], r[46] ? r[46].split(RF_SEP) : null), '', r[46] ? r[46].split(RF_SEP)[0] : '') +
       '<td class="num">' + mmRatio(r[45]) + '</td>' +
-      '<td class="num">' + fmtInt(r[5]) + '</td>' +
-      '<td class="num">' + (r[41] == null ? dash : fmtNum(r[41], r[41] < 10 ? 1 : 0)) + '</td>' +
+      kmCell(r[49]) + '<td class="num">' + fmtInt(r[50]) + '</td>' +
+      pcSalesCell(r[41], r[53]) +
       '<td class="num">' + fmtInt(r[7]) + '</td>' +
       '<td class="num">' + fmtNum(r[11], 2) + '</td>' +
       '<td class="num">' + fmtMoney(r[12]) + '</td><td class="num">' + fmtMoney(r[13]) + '</td>' +
@@ -174,7 +199,7 @@ const TABLES = {
       '<td class="num">' + (r[25] == null ? dash : '<b>' + fmtMoney(r[25]) + '</b>' + (r[27] ? '' : ' <span class="dim" title="too slow for the window at this confidence">illiquid</span>')) + '</td>' +
       '<td class="num">' + fmtMoney(r[38]) + '</td>' +
       '<td>' + (r[26] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[26] === 'candidate' ? badge('Hot ' + r[28] + '/3', 'hot') : r[29] && r[29].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[29].join(', ')) + '">fails ' + r[29].length + '</span>' : dash) + '</td>' +
-      '<td class="num">' + (r[44] ? '<b>' + r[44] + '</b>' : dash) + '</td>' +
+      hitsCell(r[44]) + hitPctCell(r[52], r[51]) +
       '<td class="num">' + fmtPct(r[31]) + '</td>' +
       '<td class="num">' + fmtPct(r[32]) + '</td>' +
       '<td class="num">' + fmtPct(r[33], false, 0) + '</td>' +
@@ -189,6 +214,8 @@ const TABLES = {
   // 34 first seen (ISO) 35 PriceCharting ungraded $ 36 vs PC % 37 mismatch flag ('low' / 'high')
   // 38 item-specifics check ('ok' / 'conflict' / 'none') 39 what that check found 40 ord
   // 47 PC rarity/finish text 48 eBay facts (live row 34) 49 eBay set name 50 eBay rarity/finish text (49-50: sort keys)
+  // 40 PC sales (PriceCharting's bar for the last complete month; 54 = which month) 41 eBay sales last month (null until the
+  // collector has watched a whole month) 51 eBay sales this month 52 Hits 30d 53 Hit % - the card's figures, on each of its listings
   rv: {rows: () => LIVE.rv || [], noun: 'cards', ranges: [], labels: {}, defaults: {},
        extra: r => PERIOD.rv ? PERIOD.rv.test(r[7] || r[4]) : true,
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[18] || '') + ' ' + (r[20] || ''),
@@ -205,7 +232,7 @@ const TABLES = {
   er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5], chips: [24, 5, 25],   // chip order: Profit $, Listed within, ROI % (2026-10-13, Brett)
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %
        extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
@@ -217,7 +244,7 @@ const TABLES = {
       '<td class="num fxc">' + fmtMoney(r[7]) + '</td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
       '<td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[10]) + '</td>' +
       '<td class="num">' + fmtMoney(r[35]) + '</td><td class="num">' + fmtPct(r[36]) + '</td>' +
-      '<td class="num">' + (r[40] == null ? dash : r[40]) + '</td><td class="num">' + (r[41] == null ? dash : r[41]) + '</td>' +
+      pcSalesCell(r[40], r[54]) + kmCell(r[41]) + '<td class="num">' + fmtInt(r[51]) + '</td>' + hitsCell(r[52]) + hitPctCell(r[53]) +
       '<td class="num">' + fmtMoney(r[11]) + '</td>' +
       '<td class="num">' + fmtPct(r[12]) + '</td>' +
       '<td class="num">' + fmtMoney(r[26]) + '</td>' +
@@ -264,10 +291,11 @@ function auRows(live) {
       maxbuy == null ? null : r2(net - maxbuy), maxbuy == null ? null : r1(margin * 100), s,
       null, lp ? 'LP: judged as a lightly played copy' : kd === 'lead' ? 'Lead: priced from PriceCharting, not from eBay sales' : null,
       tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], t,
-      pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[5] == null ? null : r1(base[5] / 12), cs.k != null ? cs.k : null,
+      pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[PC_LIVE.pcm], base[PC_LIVE.km],
       bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
     row[46] = mtOf(cid);
     const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
+    row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
     row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um;
     return row;
   });
@@ -289,7 +317,7 @@ function auRow(r) {
     '<td class="num fxc"></td><td class="num">' + (r[8] == null ? dash : r[8] === 0 ? 'free' : fmtMoney(r[8])) + '</td>' +
     '<td class="num">' + money(r[9]) + '</td><td class="num">' + money(r[10]) + '</td>' +
     '<td class="num">' + money(r[35]) + '</td><td class="num">' + fmtPct(r[36]) + '</td>' +
-    '<td class="num">' + (r[40] == null ? dash : r[40]) + '</td><td class="num">' + (r[41] == null ? dash : r[41]) + '</td>' +
+    pcSalesCell(r[40], r[54]) + kmCell(r[41]) + '<td class="num">' + fmtInt(r[51]) + '</td>' + hitsCell(r[52]) + hitPctCell(r[53]) +
     '<td class="num">' + money(r[11]) + '</td><td class="num">' + fmtPct(r[12]) + '</td>' +
     '<td class="num">' + money(r[26]) + '</td>' +
     '<td class="num"' + (r[28] ? ' title="' + esc(r[28]) + '"' : '') + '>' + money(r[13]) + (r[28] ? ' <span class="dim">' + (/^Lead/.test(r[28]) ? 'PC' : 'LP') + '</span>' : '') + '</td>' +
@@ -942,10 +970,11 @@ function hhRows(live) {
     const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', first ? r1((now - Date.parse(first)) / 36e5) : null, ti || '', item, ship, tot,
       tot == null ? null : r2(tot + (item || 0) * (tax || 0) / 100), A, A && tot ? r1((tot / A - 1) * 100) : null, mb, marked ? 'mismatch: marked by you' : 'PASS', tc || 'UNK', !!bo, fb, pct,
       out === 'unknown' ? 'gone' : out, u, null, iid, null, p, roi, s, null, null, tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], first || t,
-      pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs.k != null ? cs.k : null,
+      pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[PC_LIVE.pcm], base[PC_LIVE.km],
       null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
     row[46] = mtOf(cid);
     const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
+    row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
     row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null;
     return row;
   });
@@ -1163,14 +1192,17 @@ function rebuildLive() {
   const S = settings();
   LIVE.sets = live.sets || {};
   LIVE.ec = []; LIVE.er = []; LIVE.dec = {};
-  DATA.forEach(r => { r[PC_LIVE.k] = r[PC_LIVE.maxbuy] = r[PC_LIVE.vspc] = r[PC_LIVE.liquid] = null; });   // the PriceCharting tab's eBay columns, refilled below
+  fillPcm();                                              // PC sales for every card (pcm.bin), the eBay figures cleared, refilled below
+  const covered = (live.since || '9999-99-99') <= prevMonthStart();   // was the collector running for the whole of last month?
   for (const [cid, c] of Object.entries(live.cards)) {
     const base = idRow.get(+cid); if (!base) continue;
     const d = decide(c, S); LIVE.dec[cid] = Object.assign({}, c, d);
     const hot = c.hot === 2 ? 'confirmed' : c.hot === 1 ? 'candidate' : '';
     const t = c.tr || {};
     const vspc = (c.pc || base[6]) && d.A ? Math.round((d.A / (c.pc || base[6]) - 1) * 1000) / 10 : null;   // anchor vs PriceCharting
-    base[PC_LIVE.k] = c.k == null ? null : c.k; base[PC_LIVE.maxbuy] = d.maxbuy == null ? null : d.maxbuy; base[PC_LIVE.vspc] = vspc; base[PC_LIVE.liquid] = d.liquid ? 1 : 0;
+    const km = covered && c.km != null ? c.km : null, kt = c.kt == null ? null : c.kt, n30 = c.n30 || 0;
+    const hits = (live.hits30 || {})[cid] || 0, hl = (live.hl30 || {})[cid] || 0, hitpct = n30 ? Math.round(Math.min(hl, n30) / n30 * 1000) / 10 : null;
+    base[PC_LIVE.km] = km; base[PC_LIVE.kt] = kt; base[PC_LIVE.A] = d.A == null ? null : d.A; base[PC_LIVE.vspc] = vspc; base[PC_LIVE.hits] = hits; base[PC_LIVE.hitpct] = hitpct; base.n30 = n30;
     LIVE.ec.push([base[0], base[1], base[2], base[3], base[4],
                   c.k, c.D, c.N, c.p1, c.p2, c.p3, c.mu, c.smed, c.s80, c.hrs, c.st,
                   c.lam, c.price, c.dos, c.io,
@@ -1178,13 +1210,14 @@ function rebuildLive() {
                   t.spm == null ? null : t.spm, t.d7 == null ? null : t.d7, t.d30 == null ? null : t.d30, t.pos == null ? null : t.pos,
                   t.vdp == null ? null : t.vdp, t.vd == null ? null : t.vd, t.vol == null ? null : t.vol, t.ts == null ? null : t.ts,
                   d.net, c.A_n || 0, LIVE.ec.length,
-                  c.pcv == null ? null : Math.round(c.pcv / 12 * 10) / 10,                       // 41 PriceCharting sales a month
+                  base[PC_LIVE.pcm],                                                              // 41 PriceCharting's sales in the last complete month (53 = which month)
                   c.pc == null ? base[6] : c.pc,                                                  // 42 PriceCharting ungraded $
                   vspc,                                                                           // 43 anchor vs PriceCharting
                   (live.hits30 || {})[String(cid)] || 0,                                          // 44 alerts on the card, 30 days
                   mtOf(cid),                                                                      // 45 "match:mismatch"
                   rfText(pcRF(base)), (live.ef || {})[String(cid)] || null,                       // 46-47 PC rarity/finish, eBay's record of the card
-                  rfText((live.ef || {})[String(cid)] || null)]);                                 // 48 eBay rarity/finish, for sorting
+                  rfText((live.ef || {})[String(cid)] || null),                                   // 48 eBay rarity/finish, for sorting
+                  km, kt, n30, hitpct, base[PC_LIVE.pcmm]]);                                      // 49-53 (2026-10-13): the month columns and Hit %
   }
   let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0, leads = 0, disagree = 0;
   live.live.forEach(x => {
@@ -1206,9 +1239,10 @@ function rebuildLive() {
                   d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
                   tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
                   pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
-                  base[5] == null ? null : Math.round(base[5] / 12 * 10) / 10, cs && cs.k != null ? cs.k : null,
+                  base[PC_LIVE.pcm], base[PC_LIVE.km],                                           // 40-41 PC sales last month, eBay sales last month
                   null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
     erow[46] = mtOf(x[1]);
+    erow[51] = base[PC_LIVE.kt]; erow[52] = base[PC_LIVE.hits]; erow[53] = base[PC_LIVE.hitpct]; erow[54] = base[PC_LIVE.pcmm];
     erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34];
     erow[49] = erow[48] && erow[48].length ? erow[48][0] || '' : ''; erow[50] = erow[48] && erow[48].length ? rfText([erow[48][1], erow[48][2]]) : '';
     if (rfBad(erow)) disagree++;
@@ -1263,6 +1297,21 @@ function paintPcPill() {
       : 'The collector has no PriceCharting sign-in (no PC_COOKIE on the droplet): the Trend charts show prices without the volume bars';
   }
 }
+// PC sales: every card's last complete month of PriceCharting sales (pcm.bin, the collector publishes it hourly) onto
+// the catalog rows; the eBay figures on those rows are cleared here and refilled by rebuildLive
+function fillPcm() {
+  const pcm = LIVE.pcm || {};
+  DATA.forEach(r => { const e = pcm[String(r[0])]; r[PC_LIVE.pcm] = e ? e[1] : null; r[PC_LIVE.pcmm] = e ? e[0] : null; r[PC_LIVE.km] = r[PC_LIVE.kt] = r[PC_LIVE.A] = r[PC_LIVE.vspc] = r[PC_LIVE.hits] = r[PC_LIVE.hitpct] = null; r.n30 = 0; });
+}
+async function loadPcm() {
+  if (!LIVE_URL || !HKEY) return;
+  try {
+    const res = await fetch(LIVE_URL.replace(/[^/]+$/, 'pcm.bin') + '?t=' + Math.floor(Date.now() / 3600000), {cache: 'no-store'});
+    if (!res.ok) return;
+    LIVE.pcm = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+    if (LIVE.data) rebuildLive(); else { fillPcm(); tables.pc.apply(true); }
+  } catch (e) { /* the next hour retries */ }
+}
 async function fetchLive() {
   const res = await fetch(LIVE_URL + '?t=' + Math.floor(Date.now() / 60000), {cache: 'no-store'});
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1277,6 +1326,7 @@ async function loadLive() {
     $('meta-ec').textContent = 'eBay Catalog · live data unavailable (' + e.message + ') — retry with a refresh.';
     $('meta-er').textContent = 'eBay Raw Data · live data unavailable (' + e.message + ').';
   }
+  loadPcm(); setInterval(loadPcm, 3600000);              // PC sales (last complete month), hourly
   setInterval(refreshLive, 60000);
   setInterval(tickAge, 30000);
 }
