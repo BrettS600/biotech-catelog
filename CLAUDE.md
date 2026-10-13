@@ -614,9 +614,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   looked up; the tooltip names the majority and whether this listing agrees; `cardFacts(cid)`). The eBay
   Catalog's band-title row (`tr.grp`) keeps only the Card and Trends titles (Brett, later the same day: "keep the
   card header and the trends header"); the Observed / Rates / Decisions titles are gone and their 23 columns sit
-  under one blank cell, so `bands()` lets a column move anywhere among those 23 but not into Card or Trends; the
-  coloured top edges on the headers and the legend still name the three bands. The PriceCharting tab's three
-  eBay columns carry no band colour (he asked for it off). HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
+  under one blank cell, so `bands()` lets a column move anywhere among those 23 but not into Card or Trends. The
+  band COLOURS are gone everywhere (same day: "left over color in the borders ... remove those"): no g-obs /
+  g-rate / g-dec / g-tr classes in body.html, no legend line under the tab line (the README keeps its inline
+  legend words), the two titles sit in one quiet fill (`--band`, class band) with no border darker than the
+  fill, and header rules use `--hline` (never darker than the header). A HIDDEN COLUMN NOW VANISHES, eye and all
+  (`th.col-hidden, td.col-hidden {display:none}`; "i also want the eye to disappear"); Columns... is the way
+  back. HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
   the name is stored with the description (`h:<key>.n`, collector `help_edit` keeps n up to 60 chars) and
   `applyNames()` (help.js) writes it into every header sharing that key, on every live refresh; the original is
   kept in th.dataset.on; an empty name restores it. THE ARCHIVE: `archive_tick()` (collector.py), after the publish
