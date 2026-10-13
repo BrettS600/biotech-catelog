@@ -142,7 +142,7 @@ else {
     $('rp').classList.remove('hide');
   }
   $('rows').innerHTML =
-    row(fact('Set / card number', esc(d.n) + (d.st ? ' / ' + d.st : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
+    row(fact('Set / card number', esc(d.n) + (/classic collection/i.test(rf[0] || '') ? ' <small>Classic Collection reprint: numbered as the original card was</small>' : d.st ? ' / ' + d.st : '')), fact('Set / card number', m ? m[1] + ' / ' + m[2] : 'none in the title')) +
     trio +
     (mm ? row('', '<span class="lab">Mismatched before</span><b class="amber">' + (mm[2] ? mm[1] + ' of ' + mm[2] + ' alert' + (mm[2] === 1 ? '' : 's') : mm[0] + ' listing' + (mm[0] === 1 ? '' : 's')) + '</b><small>on this card' + (mm[2] && mm[0] > mm[1] ? ' \u00b7 ' + mm[0] + ' marked in all' : '') + '</small>') : '') +
     (d.v || d.idv === 'conflict' ? row(d.v ? '<span class="tag warn">' + esc(d.v.toUpperCase()) + '</span><small>a special printing: check the photo shows it</small>' : '',
