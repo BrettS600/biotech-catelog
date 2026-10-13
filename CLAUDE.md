@@ -409,6 +409,12 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   THE EPID MEMORY: state["epids"][epid] = the product's facts + votes {card id: n} for the catalog card its
   listings were filed under when the number named the card and nothing was "far"; es.match_title(..., mem=
   state["epids"]) tries memory_card() first (how = "epid"), checked by epid_match against the title;
+  es.inherit_facts() (hourly, same log line) gives every open listing of a KNOWN product the product's facts with
+  no call of its own (src "memory"; on deploy night 2,779 of 24,553 open listings qualified at once, 18,291 carry
+  an epid, 5,126 distinct) - the only way the eBay Set / Rarity / Finish fill in faster than one call per listing
+  while eBay's 5,000 calls a day are spent (discovery 1,440, confirms ~700 with a backlog, re-reads, ID checks).
+  Brett wants them in days, not weeks: the levers are this inheritance, a per-card facts pass funded by trimming
+  re-reads, or eBay's Application Growth Check for a higher daily limit.
   es.apply_epid_memory() (hourly, with the "Facts:" log line) moves open listings their product contradicts
   (>= 2 votes for another card, none for theirs, title agrees). CONFLICT RULES (check_identity): the product's
   aspects feed the number / name / set checks before the seller's; rarity "far" is a hard conflict; a finish
