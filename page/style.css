@@ -1,6 +1,6 @@
-  :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e3e3e3; --head:#f5f5f5; --hover:#f0f6ff; --link:#0b5cad; --up:#15803d; --down:#b91c1c; }
+  :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e3e3e3; --head:#f5f5f5; --hline:#fff; --band:#e6eaf0; --hover:#f0f6ff; --link:#0b5cad; --up:#15803d; --down:#b91c1c; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#111417; --fg:#e8e8e8; --muted:#9aa; --line:#2a2f35; --head:#1a1e23; --hover:#1c2733; --link:#7fb3ff; --up:#4ade80; --down:#f87171; }
+    :root { --bg:#111417; --fg:#e8e8e8; --muted:#9aa; --line:#2a2f35; --head:#1a1e23; --hline:#2a2f35; --band:#262d38; --hover:#1c2733; --link:#7fb3ff; --up:#4ade80; --down:#f87171; }
   }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background:var(--bg); color:var(--fg); }
@@ -24,17 +24,13 @@
   .pcpill.ok { color:#15803d; background:#ecfdf5; border-color:#86efac; }
   .pcpill.bad { color:#b91c1c; background:#fef2f2; border-color:#fca5a5; }
   .readme:hover { background:var(--hover); }
-  /* the eBay Catalog's bands (Observed / Rates / Decisions / Trends): a coloured top edge on each header, named by the legend
-     under the tab line. The row of band titles above the headers keeps only Card and Trends (Brett, 2026-10-13); the
-     Observed / Rates / Decisions columns sit under one blank cell. */
+  /* the eBay Catalog's band-title row: only Card and Trends have a title (Brett, 2026-10-13), in one quiet fill (--band:
+     a shade off the header, never neon) with no border darker than the fill; the Observed / Rates / Decisions columns
+     sit under one blank cell and no header carries a band colour any more (the coloured top edges went the same day). */
   tr.grp th { position:static; text-align:center; font-size:11px; letter-spacing:.04em; text-transform:uppercase; padding:4px 6px; cursor:default; }
   tr.grp th:hover { text-decoration:none; }
+  tr.grp th.band { background:var(--band); color:var(--fg); border-bottom-color:var(--band); }
   tr.grp + tr th { top:0; }
-  th.g-obs { box-shadow: inset 0 3px 0 #3b82f6; }
-  th.g-rate { box-shadow: inset 0 3px 0 #22c55e; }
-  th.g-dec { box-shadow: inset 0 3px 0 #f59e0b; }
-  th.g-tr, tr.grp th.g-tr { box-shadow: inset 0 3px 0 #a855f7; }
-  tr.grp th.g-tr { background:rgba(168,85,247,.14); }
   .legend .l-tr::before { background:#a855f7; }
   .legend { display:inline-flex; gap:14px; margin-left:6px; }
   .legend span::before { content:""; display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:middle; border-radius:2px; }
@@ -76,7 +72,7 @@
   table { border-collapse:collapse; width:100%; }
   table.wide { min-width:1240px; }
   th, td { padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; text-align:left; }
-  th { position:sticky; top:0; z-index:1; background:var(--head); cursor:pointer; user-select:none; font-weight:600; }
+  th { position:sticky; top:0; z-index:1; background:var(--head); border-bottom-color:var(--hline); cursor:pointer; user-select:none; font-weight:600; }   /* --hline: never darker than the header itself (Brett, 2026-10-13) */
   th.rn, td.rn { text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; width:1%; white-space:nowrap; cursor:default; }
   th .s { color:var(--muted); font-size:11px; margin-left:4px; }
   th.on .s { color:var(--fg); }
@@ -95,16 +91,16 @@
   .tbtn:hover { border-color:var(--link); }
   .help { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin-left:5px; border-radius:50%; border:1px solid var(--muted); color:var(--muted); font-size:10px; font-weight:700; background:none; cursor:pointer; vertical-align:middle; padding:0; line-height:1; }
   .help:hover { border-color:var(--link); color:var(--link); }
-  /* column eye: click to collapse a column to a thin strip; click again to expand */
+  /* column eye: click to hide the column altogether, eye included (Brett, 2026-10-13: "i also want the eye to disappear");
+     the Columns... picker brings it back */
   .eye { display:inline-flex; align-items:center; justify-content:center; width:16px; height:15px; margin-left:3px; border:none; background:none; color:var(--muted); cursor:pointer; padding:0; vertical-align:middle; font-size:12px; line-height:1; }
   .eye:hover { color:var(--link); }
   .eye svg { width:13px; height:13px; display:block; }
-  th.col-hidden { width:22px; min-width:22px; max-width:22px; padding:6px 3px; text-align:center; font-size:0; overflow:hidden; }
+  th.col-hidden, td.col-hidden { display:none; }
   th[draggable=true] { cursor:grab; }
   th.dragging { opacity:.45; }
   th.drop-l { box-shadow:inset 3px 0 0 var(--link); }
   th.drop-r { box-shadow:inset -3px 0 0 var(--link); }
-  th.col-hidden > *:not(.eye) { display:none; }
   /* header highlight (the small ring beside the eye): neon green, for the columns that matter */
   .hlb { display:inline-flex; width:12px; height:12px; margin-left:4px; border:1.5px solid var(--muted); border-radius:50%; background:none; cursor:pointer; padding:0; vertical-align:middle; }
   .hlb:hover { border-color:#39ff14; background:rgba(57,255,20,.35); }
@@ -116,10 +112,6 @@
   .rsz:hover, th.resizing .rsz { background:rgba(31,111,235,.55); }
   th.sized, td.sized { overflow:hidden; text-overflow:ellipsis; }
   body.col-resizing, body.col-resizing th[draggable=true] { cursor:col-resize; user-select:none; }
-  th.col-hidden .eye { margin:0; color:var(--down); }
-  th.col-hidden:hover { text-decoration:none; }
-  td.col-hidden { width:22px; min-width:22px; max-width:22px; padding:0; font-size:0; color:transparent; overflow:hidden; }
-  td.col-hidden * { display:none; }
   /* popups */
   .ov { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50; padding:12px; }
   .ov.open { display:flex; }
