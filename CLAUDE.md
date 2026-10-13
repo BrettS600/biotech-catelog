@@ -398,7 +398,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   overrides (tag_finish). New snapshot columns `rarity`, `finish`, `rf-source` (tcgplayer | dataset | tag), page
   rows DATA[14], DATA[15]. The vocabulary for comparing the two sides is coarse on purpose (rarity_tier C / U / R /
   H / X / P, rarity_agree same / near / far; finish_class reverse / holo / plain): "near" is seller imprecision,
-  "far" is another card. THE EBAY SIDE: a getItem with fieldgroups=PRODUCT (the product container comes ONLY with
+  "far" is another card. CLASSIC COLLECTION (2026-10-13, the Crystal Lugia 149/147 hit): tier "K" = an old card
+  reprinted with the anniversary stamp (Celebrations, 30th Celebration); TCGplayer lists it as its own rarity, apart
+  from the set's own Secret Rares. K vs Secret / Holo / Rare = "near" (sellers reuse the ORIGINAL card's rarity
+  word), K vs Common / Uncommon / promo = "far". The printed total decides: the reprint keeps its original number
+  (149/147, 4/102), the set's own cards carry the set total (/128) - check_identity notes the first and calls the
+  second a conflict on a Classic Collection row; compare_facts marks /<set total> on a K card "far". learn_facts
+  falls back to the ePID memory's product record when the payload has no product block and the seller's words are
+  all there is (src "memory"). The page mirrors tier K (rarityTier / rarityAgree, the amber tooltip), the number
+  cell shows "149 cc" instead of 149/128 for a K card, hit.html says "numbered as the original card was".
+  Brett also wanted EVERY photo on the Review / check screens: imgs keeps up to 24 (was 4). ut/test_classic.py. THE EBAY SIDE: a getItem with fieldgroups=PRODUCT (the product container comes ONLY with
   that field group - found the hard way on deploy day) carries eBay's catalog product (`product.aspectGroups` -
   the "About this product" block: Set, Rarity, Finish, Card Number, Card Name) and the seller's `localizedAspects`;
   es.ebay_facts(it) takes the product's word first -> rec["ef"] = {s, r, f, n, k, src, cmp} (es.learn_facts), kept
