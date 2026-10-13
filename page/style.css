@@ -19,6 +19,10 @@
   .lpt span i { font-style:normal; color:var(--muted); margin-right:3px; }
   .condchip label { display:inline-flex; align-items:center; gap:3px; font-size:12.5px; color:var(--fg); padding:0 4px; cursor:pointer; }
   .readme { font:inherit; font-weight:600; padding:5px 12px; border:1px solid var(--link); border-radius:6px; background:none; color:var(--link); cursor:pointer; }
+  .pcpill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; line-height:1; padding:5px 10px; border-radius:999px; border:1px solid var(--line); background:var(--hover); color:var(--muted); white-space:nowrap; cursor:default; }
+  .pcpill::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; opacity:.8; }
+  .pcpill.ok { color:#15803d; background:#ecfdf5; border-color:#86efac; }
+  .pcpill.bad { color:#b91c1c; background:#fef2f2; border-color:#fca5a5; }
   .readme:hover { background:var(--hover); }
   tr.grp th { position:static; text-align:center; font-size:11px; letter-spacing:.04em; text-transform:uppercase; padding:4px 6px; cursor:default; }
   tr.grp th:hover { text-decoration:none; }
