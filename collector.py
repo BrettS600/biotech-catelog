@@ -1076,6 +1076,7 @@ PC_LAST_READ = {}                # what the last page read looked like: status c
 PC_COOKIE = os.environ.get("PC_COOKIE", "").strip().strip('"').strip("'")   # Brett's PriceCharting sign-in (/etc/pokemon-collector.env):
                                  # their chart's volume bars are served to signed-in subscribers only (2026-10-12)
 PC_SIGNIN_CLUES = {}             # once per kind (page with / without the volume series): what the page said about the sign-in
+PC_SIGNIN_STRIKES = 5            # pages in a row without the volume series before the sign-in counts as lost
 PC_JAR_PATH = os.path.join(DATA, "pc_cookies.txt")   # the PriceCharting sign-in as a browser keeps it (an LWP cookie file)
 _pc_sess = {}                    # {"s": the requests session, "snap": the jar as last saved}
 _pc_lock = threading.Lock()
@@ -1487,13 +1488,19 @@ def file_pc_images(state, worker):
                 pchist.file(cid, hist)
                 if PC_COOKIE and hist is not None:           # does the sign-in work? the page carries the volume series when it does
                     was = v.get("pch_signin")
-                    v["pch_signin"] = "ok" if hist.get("s") else "expired"
+                    if hist.get("s"):
+                        v["pch_nosig"], v["pch_signin"] = 0, "ok"
+                    else:                                    # one page without the series proves nothing (2026-10-13: a run of
+                        v["pch_nosig"] = v.get("pch_nosig", 0) + 1   # no-sales pages flipped the verdict - and the phone - every minute)
+                        if v["pch_nosig"] >= PC_SIGNIN_STRIKES:
+                            v["pch_signin"] = "expired"
                     if v["pch_signin"] != was:
                         log("PriceCharting sign-in: " + ("working - pages carry the volume series" if hist.get("s") else
                             "the page came WITHOUT the volume series: the PC_COOKIE in /etc/pokemon-collector.env has expired "
                             "or was not accepted. The chart keeps the bars it has until it is replaced and the service restarted")
                             + "; the page: " + PC_SIGNIN_CLUES.get(bool(hist.get("s")), "?"))
-                        if not hist.get("s") and was in ("ok", "unknown"):   # tell the phone once, so nobody has to remember to check
+                        if v["pch_signin"] == "expired" and time.time() - v.get("pch_push_t", 0) > 86400:   # the phone: once a day at most
+                            v["pch_push_t"] = time.time()
                             push("PriceCharting sign-in expired",
                                  "The collector's PriceCharting session no longer works, so new months get no volume bars (the bars "
                                  "already on file stay). When convenient: copy a fresh vgpc_session from Chrome, put it in "
