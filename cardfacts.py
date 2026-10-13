@@ -45,13 +45,15 @@ def norm_text(s):
 
 def rarity_tier(text):
     """'C' common | 'U' uncommon | 'R' plain rare | 'H' holo rare | 'X' everything above (ex / V / ultra /
-    secret / illustration ...) | 'P' promo | None when the text says nothing usable."""
+    secret / illustration ...) | 'K' Classic Collection reprint | 'P' promo | None when the text says nothing usable."""
     t = norm_text(text)
     if not t:
         return None
     toks = set(t.split())
     if "promo" in toks or "promotional" in toks:
         return "P"
+    if "classic" in toks and "collection" in toks:          # an old card reprinted with the anniversary stamp (Celebrations,
+        return "K"                                           # 30th Celebration): its own kind, not the set's secret rares
     if toks & ULTRA_WORDS or "black white rare" in t:       # Black Bolt / White Flare's own top rarity
         return "X"
     if "common" in toks and "uncommon" not in toks:
@@ -79,6 +81,8 @@ def rarity_agree(a, b):
         return "same"
     if "P" in (ta, tb):
         return "far"
+    if "K" in (ta, tb):                                      # Classic Collection against Secret / Holo / Rare: sellers reuse the
+        return "near" if {ta, tb} <= {"K", "X", "H", "R"} else "far"   # original card's words (Brett, 2026-10-13: the Crystal Lugia
     if "R" in (ta, tb):                                      # a bare "Rare" is the generic word for anything above
         return "near"                                        # uncommon: never a sign of another card on its own
     return "near" if abs(RANK[ta] - RANK[tb]) == 1 else "far"
