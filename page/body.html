@@ -38,6 +38,9 @@
     <th data-k="10" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="vd">?</button></th>
     <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="vol">?</button></th>
     <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="ts">?</button></th>
+    <th data-k="16" class="num g-obs">eBay sales<span class="s">⇅</span><button class="help" data-h="pc_k">?</button></th>
+    <th data-k="17" class="num g-dec">Max buy $<span class="s">⇅</span><button class="help" data-h="pc_maxbuy">?</button></th>
+    <th data-k="18" class="num g-dec">vs PC %<span class="s">⇅</span><button class="help" data-h="pc_vspc">?</button></th>
     <th>Trend<button class="help" data-h="trend">?</button></th>
   </tr></thead>
   <tbody id="rows-pc"></tbody>
@@ -62,14 +65,8 @@
 <div class="wrap">
 <table class="wide">
   <thead>
-  <tr class="grp">
-    <th colspan="8">Card</th>
-    <th colspan="8" class="g-obs">Observed on eBay — independent inputs</th>
-    <th colspan="4" class="g-rate">Rates — computed from Observed</th>
-    <th colspan="11" class="g-dec">Decisions — depend on the anchor, the credible floor, Confidence, Window and Margin</th>
-    <th colspan="7" class="g-tr">Trends — from a 7-day median of raw sale totals</th>
-    <th></th>
-  </tr>
+  <!-- the band titles (Card / Observed / Rates / Decisions / Trends) used to sit in a row above these headers; gone on
+       2026-10-13 (Brett). The coloured top edge on each header and the legend under the tab line still name the band. -->
   <tr>
     <th class="rn" title="Row number in the current sort and filters">Row</th>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
