@@ -1595,6 +1595,28 @@ def apply_epid_memory(state, cat):
     return moved
 
 
+def inherit_facts(state, cat):
+    """Open listings of a product the ePID memory already knows get its set / rarity / finish without a call of their
+    own - one lookup per product serves every listing of it (Brett, 2026-10-13: "waiting a few weeks would be too
+    long"; eBay's 5,000 calls a day are spoken for). -> how many listings were filled in."""
+    mem = state.get("epids") or {}
+    n = 0
+    for r in state["open"].values():
+        if r.get("ef") or not r.get("epid"):
+            continue
+        m = mem.get(str(r["epid"]))
+        if not m or not any(m.get(k) for k in ("s", "r", "f")):
+            continue
+        ef = {k: m[k] for k in ("s", "r", "f", "n", "k") if m.get(k)}
+        ef["src"] = "memory"
+        c = cat.by_id.get(r.get("card"))
+        if c:
+            ef["cmp"] = compare_facts(cat, c, ef)
+        r["ef"] = ef
+        n += 1
+    return n
+
+
 def printing_words(asp):
     """What a seller's Finish / Features / Card Size specifics say, as title words ("reverse", "holo", "jumbo")."""
     return set(expand_aliases(norm_tokens(" ".join(asp.get("finish", []) + asp.get("features", []) + asp.get("card size", [])))))
