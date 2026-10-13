@@ -2327,6 +2327,26 @@ def trend_stats(days):
     return tr, hist
 
 
+def month_sales(days, now=None):
+    """(sales in the previous calendar month, sales this month so far) from one card's daily rollup
+    ({date: [sold totals, ask, new]}). Brett, 2026-10-13: the eBay Catalog shows last month's count next to
+    PriceCharting's bar for the same month, and a running count for the month under way; the trailing 30-day count
+    (k) stays the number the model runs on."""
+    now = now or NOW
+    this_m = now.strftime("%Y-%m")
+    prev_m = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    km = sum(len(c[0]) for d, c in (days or {}).items() if d[:7] == prev_m)
+    kt = sum(len(c[0]) for d, c in (days or {}).items() if d[:7] == this_m)
+    return km, kt
+
+
+def data_since(state):
+    """The first day the collector has data for (the oldest day in the rollup, which keeps DAILY_KEEP_D days): a
+    calendar month is shown as a whole only when it started on or after this day."""
+    days = [d for v in (state.get("daily") or {}).values() for d in v]
+    return min(days) if days else NOW.date().isoformat()
+
+
 def compute_stats(state, cat, lp):
     by_id = cat.by_id
     twins = reprint_twins(cat)
@@ -2460,9 +2480,11 @@ def compute_stats(state, cat, lp):
             del hot_state[str(cid)]
 
         tr, hist = trend_stats(state.get("daily", {}).get(str(cid), {}))
+        km, kt = month_sales(state.get("daily", {}).get(str(cid), {}))
         cards[str(cid)] = {
             "tr": tr, "hist": hist if hist and any(hist["sales"]) else None,
             "price": r2(price), "k": k, "D": round(D, 1), "lam": lam, "N": N, "p1": p[0], "p2": p[1], "p3": p[2],
+            "n30": new30, "km": km, "kt": kt,             # listings seen in 30 d (the Hit % denominator); sales last month / this month
             "mu": mu, "dos": dos, "io": io_, "smed": r2(smed), "s80": r2(s80), "hrs": hrs, "st": None if st is None else round(st * 100, 1),
             "A": A, "A_n": A_n, "A_win": A_win, "A_fast": A_fast, "cred": cred, "L": L, "S": S, "liquid": liq,
             "basis": basis, "probT": probT, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy,
