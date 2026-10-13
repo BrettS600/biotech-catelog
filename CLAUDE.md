@@ -504,7 +504,10 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   The daily CSV CANNOT stand in for the bars: its sales-volume (trailing-year count) is a different measure - on
   152 cards read signed in, sum(last 12 monthly bars)/CSV count had median 1.30, quartiles 1.01-1.68 - so the
   exact monthly volume exists only behind the sign-in. ut/test_jar.py covers the jar (local stand-in server:
-  redirect, daily cookie, rotation, restart, reseed, values absent from the log). STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
+  redirect, daily cookie, rotation, restart, reseed, values absent from the log). THE PILL: a small oval in the
+  header (#pcpill, paintPcPill() on every live rebuild) reads live.pch.signin - green "PriceCharting connected"
+  (ok), red "PriceCharting not connected" (expired / none), neutral "checking..." (unknown: only right after a NEW
+  cookie was seeded - the verdict now survives restarts, so the pill does not flash red at every restart). STORE: data/pc_hist/<card id % 200>.json.gz ({id: {m0: months since 2000-01, p: [cents|null], v: [n],
   t: date read, n: raw points}}), a card index in memory; published as pc/<shard>.bin on the live branch (gzip
   under the live key, like ebay_live.bin), changed shards every PC_HIST_PUBLISH_S = 600 s (or at once for a card
   the site asked for); publish() now creates the pc/ folder. READER: PcImageWorker's plan is [(card id, picture
