@@ -1511,10 +1511,10 @@ window.loadShard = async function (n) {
   return data;
 };
 
-const COLORS = {loose: '#3b82f6', sell: '#22c55e', buy: '#f59e0b', vol: '#9ca3af', ref: '#a78bfa'};
+const COLORS = {loose: '#3b82f6', sell: '#22c55e', buy: '#f59e0b', vol: '#9ca3af', ref: '#a78bfa', fresh: '#fbbf24'};
 const LABEL_EB = {loose: 'Sold median (7d)', sell: 'Cheapest ask', buy: '', vol: 'Sales/day', ref: '90d high/low + Sell'};
 let LABEL = LABEL_EB;                                    // the shared chart draws the eBay history; PriceCharting's chart is drawPcChart()
-let cur = null;               // {dates, vol, loose, sell, buy, st, anchor, refs, labels}
+let cur = null;               // {dates, vol, loose, sell, sold, fresh, st, anchor, refs, ebay, card, full}
 let pts = [];
 function setChartLabels(lab) {
   LABEL = lab;
@@ -1523,7 +1523,22 @@ function setChartLabels(lab) {
   $('l-vol').textContent = lab.vol + ' (left axis)'; $('l-ref').textContent = lab.ref;
 }
 
-// eBay history: same chart, series from the collector's daily rollup
+/* eBay history (Brett, 2026-10-13: "have the eBay Catalog trend chart resemble the PriceCharting trend chart ... built on
+   eBay data ... daily, weekly or monthly time points"). The same popup as PriceCharting's chart, drawn only from the
+   collector's daily rollup (live.cards[cid].hist: one point per day since the collector started, kept 120 days -
+   sales, the trailing 7-day median sale total, the cheapest ask, every sale total (sp) and the listings that appeared
+   (new)). Points: Day / Week / Month decides what one bar is; the page folds the days itself. Bars = sales in the
+   period, a paler amber bar beside it = new listings (off by default), the price line = the 7-day median with Day
+   points or the period's own median with Week / Month points (3 sales or blank), a dot per sale with Day points, the
+   cheapest ask = the period's last reading. A period still running (today, this week, this month) or one the history
+   only partly covers is drawn faded with a dashed edge and says "to date" / "from <day>". Under the chart: the same
+   periods as a table, newest first, with a CSV. The choice of points is remembered (eb-pts). */
+const EB_MED_MIN = 3;                                    // sales a period needs before its median is drawn (the collector's MED_MIN_SALES)
+const EB_UNIT = {d: 'day', w: 'week', m: 'month'};
+const DAY_MS = 86400000;
+const dayIso = t => new Date(t).toISOString().slice(0, 10);
+const ebPts = () => { try { const v = localStorage.getItem('eb-pts'); return v === 'w' || v === 'm' ? v : 'd'; } catch (e) { return 'd'; } };
+const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
 function openTrendEbay(cid) {
   const c = LIVE.dec && LIVE.dec[String(cid)], base = idRow.get(cid);
   if (!c || !base) return;
@@ -1531,14 +1546,68 @@ function openTrendEbay(cid) {
   setChartLabels(LABEL_EB);
   $('mtitle').textContent = base[1];
   $('msub').textContent = base[2] + ' · #' + base[3] + ' · eBay raw sales';
-  $('note').textContent = ''; $('stats').innerHTML = ''; $('gate').innerHTML = ''; $('chart').innerHTML = '';
+  $('note').textContent = ''; $('stats').innerHTML = ''; $('gate').innerHTML = ''; $('chart').innerHTML = ''; $('ebtable').innerHTML = '';
   $('ov').classList.add('open');
   const h = c.hist, t = c.tr;
   if (!h || !t) { cur = null; $('note').textContent = 'No eBay sales recorded for this card yet. The rollup adds one point per day.'; return; }
-  const dates = h.sales.map((_, k) => { const d = new Date(Date.parse(h.start + 'T00:00:00Z') + k * 86400000); return d.toISOString().slice(0, 10); });
-  cur = {dates, vol: h.sales, loose: h.price, sell: h.ask, buy: h.sales.map(() => null), st: t, anchor: c.price,
-         refs: [['90d high', t.hi], ['90d low', t.lo], ['Sell', c.sell]], ebay: c};
-  drawChart(); renderStatsEbay();
+  const t0 = Date.parse(h.start + 'T00:00:00Z');
+  const dates = h.sales.map((_, k) => dayIso(t0 + k * DAY_MS));
+  let at = 0;
+  const sold = h.sales.map(n => { const s = (h.sp || []).slice(at, at + n); at += n; return s; });   // each day's sale totals, split from the flat list
+  cur = {dates, vol: h.sales, loose: h.price, sell: h.ask, sold, fresh: h.new || null, st: t, anchor: c.price,
+         refs: [['90d high', t.hi], ['90d low', t.lo], ['Sell', c.sell]], ebay: c, card: base, full: !!h.sp};
+  drawChart(); renderEbTable(); renderStatsEbay();
+}
+function ebBuckets(mode) {                               // the daily series folded into Day / Week (Mon-Sun) / Month periods
+  const today = dayIso(Date.now()), out = [], by = new Map();
+  cur.dates.forEach((d, k) => {
+    const t = Date.parse(d + 'T00:00:00Z'), dt = new Date(t);
+    let start = d, end = d;
+    if (mode === 'w') { const wd = (dt.getUTCDay() + 6) % 7; start = dayIso(t - wd * DAY_MS); end = dayIso(t + (6 - wd) * DAY_MS); }
+    else if (mode === 'm') { start = d.slice(0, 7) + '-01'; end = dayIso(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0)); }
+    let b = by.get(start);
+    if (!b) { b = {d: start, end, first: d, last: d, t: Date.parse(start + 'T00:00:00Z'), vol: 0, fresh: 0, sold: [], loose: null, sell: null}; by.set(start, b); out.push(b); }
+    b.last = d;
+    b.vol += cur.vol[k] || 0; b.fresh += (cur.fresh && cur.fresh[k]) || 0;
+    if (cur.sold[k] && cur.sold[k].length) b.sold = b.sold.concat(cur.sold[k]);
+    if (cur.sell[k] != null) b.sell = cur.sell[k];      // the last ask reading in the period
+    if (mode === 'd') b.loose = cur.loose[k];
+  });
+  out.forEach(b => {
+    if (mode !== 'd') b.loose = b.sold.length >= EB_MED_MIN ? Math.round(median(b.sold) * 100) / 100 : null;
+    b.lo = b.sold.length ? Math.min.apply(null, b.sold) : null; b.hi = b.sold.length ? Math.max.apply(null, b.sold) : null;
+    b.open = b.end >= today;                             // still running: today, this week, this month
+    b.from = b.first > b.d;                              // the history starts inside the period
+  });
+  return out;
+}
+function ebLabel(b, mode, long) {
+  const d = new Date(b.t);
+  if (mode === 'm') return (long ? MONTHS_LONG : MONTHS)[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+  if (mode === 'w') {
+    if (!long) return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+    const e = new Date(Date.parse(b.end + 'T00:00:00Z'));
+    return 'Week of ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ' – ' + MONTHS[e.getUTCMonth()] + ' ' + e.getUTCDate() + ', ' + e.getUTCFullYear();
+  }
+  return long ? MONTHS_LONG[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear() : b.d;
+}
+function renderEbTable() {                               // the periods as a table under the chart, newest first, with a CSV
+  const box = $('ebtable');
+  if (!cur) { box.innerHTML = ''; return; }
+  const mode = ebPts(), unit = EB_UNIT[mode], rows = ebBuckets(mode), r = cur.card, hasNew = !!cur.fresh, Unit = unit[0].toUpperCase() + unit.slice(1);
+  const money = v => v == null ? '<span class="dim">—</span>' : fmtMoneyPlain(v), num = v => v == null ? '' : v.toFixed(2);
+  let html = '<div class="pcth"><b>' + Unit + ' by ' + unit + '</b><span class="dim"> · eBay raw sales the collector recorded, newest first</span><button class="reset" id="ebcsv">Download CSV</button></div>';
+  html += '<div class="pctbox"><table><thead><tr><th>' + Unit + '</th><th class="num">Sales</th><th class="num">Median' + (mode === 'd' ? ' (7d)' : '') + '</th><th class="num">Low</th><th class="num">High</th><th class="num">Cheapest ask</th>' + (hasNew ? '<th class="num">New listings</th>' : '') + '</tr></thead><tbody>';
+  for (let k = rows.length - 1; k >= 0; k--) {
+    const b = rows[k];
+    html += '<tr' + (b.open || b.from ? ' class="part"' : '') + '><td>' + ebLabel(b, mode, true) + (b.open ? ' <span class="dim">to date</span>' : '') + (b.from ? ' <span class="dim">from ' + b.first + '</span>' : '') + '</td><td class="num">' + b.vol + '</td><td class="num">' + money(b.loose) + '</td><td class="num">' + money(b.lo) + '</td><td class="num">' + money(b.hi) + '</td><td class="num">' + money(b.sell) + '</td>' + (hasNew ? '<td class="num">' + b.fresh + '</td>' : '') + '</tr>';
+  }
+  box.innerHTML = html + '</tbody></table></div>';
+  $('ebcsv').addEventListener('click', () => {
+    const lines = ['period_start,period_end,sales,median_usd,low_usd,high_usd,cheapest_ask_usd' + (hasNew ? ',new_listings' : '')]
+      .concat(rows.map(b => [b.d, b.last, b.vol, num(b.loose), num(b.lo), num(b.hi), num(b.sell)].concat(hasNew ? [b.fresh] : []).join(',')));
+    downloadText((r[1] + ' ' + String(r[2] || '').replace(/^Pokemon /, '') + ' ebay ' + unit + ' history.csv').replace(/[\\/:*?"<>|]+/g, ' '), lines.join('\n'));
+  });
 }
 function renderStatsEbay() {
   const s = cur.st, c = cur.ebay;
@@ -1555,7 +1624,7 @@ function renderStatsEbay() {
   h += cell('Sell · Anchor', fmtMoneyPlain(c.sell) + ' · ' + fmtMoneyPlain(c.A), 'floor ' + fmtMoneyPlain(c.L) + ' · ' + (c.liquid ? 'liquid' : 'not liquid'));
   h += cell('Max buy', fmtMoneyPlain(c.maxbuy), 'net ' + fmtMoneyPlain(c.net));
   $('stats').innerHTML = h;
-  $('gate').innerHTML = '<p class="why">Price line = median of raw sale totals over a trailing 7-day window (blank when fewer than 3 sales in the window). Bars = sales that day. History starts the day the collector was switched on; the trend columns fill in at 7 / 30 / 60 days like the PriceCharting tab.</p>';
+  $('gate').innerHTML = '<p class="why">Points: Day, Week or Month sets what one bar is. Bars = raw sales in the period; the paler amber bars (New listings) = the listings that appeared in it, so supply sits next to demand. Price line = median of raw sale totals: over a trailing 7-day window with Day points, over the period\u2019s own sales with Week or Month points (blank under 3 sales). Each sale = a dot per sale (Day points). A period still running, or one the history only partly covers, is drawn faded with a dashed edge. Days split at midnight UTC. History starts the day the collector was switched on and the rollup keeps 120 days; the trend columns fill in at 7 / 30 / 60 days like the PriceCharting tab.</p>';
 }
 
 /* ---------------- PriceCharting's own chart (Brett, 2026-10-12: "the exact graph that shows the ungraded price and total
@@ -1587,10 +1656,10 @@ const monthOf = m => ({y: 2000 + Math.floor(m / 12), m: m % 12});               
 const monthShort = m => { const d = monthOf(m); return MONTHS[d.m] + ' ' + d.y; };
 const monthLong = m => { const d = monthOf(m); return MONTHS_LONG[d.m] + ' ' + d.y; };
 const monthIso = m => { const d = monthOf(m); return d.y + '-' + String(d.m + 1).padStart(2, '0'); };
-function pcMode(on) {                                    // the popup's controls: PriceCharting's zoom bar and table, or the eBay chart's bars
-  $('ebbar1').style.display = on ? 'none' : ''; $('ebbar2').style.display = on ? 'none' : '';
+function pcMode(on) {                                    // the popup's controls: PriceCharting's zoom bar and table, or the eBay chart's bars and table
+  ['ebpts', 'ebbar1', 'ebbar2', 'ebtable'].forEach(id => { $(id).style.display = on ? 'none' : ''; });
   $('pczoom').style.display = on ? '' : 'none'; $('pctable').style.display = on ? '' : 'none';
-  if (!on) $('pctable').innerHTML = '';
+  if (on) $('ebtable').innerHTML = ''; else $('pctable').innerHTML = '';
 }
 function pcZoom() { try { return localStorage.getItem('pc-zoom') || 'all'; } catch (e) { return 'all'; } }
 async function openTrend(i) {
@@ -1733,28 +1802,39 @@ function downloadText(name, text) {
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
-function rangePoints() {
-  const all = cur.dates.map((d, k) => ({d, t: Date.parse(d + 'T00:00:00Z'), vol: cur.vol[k], loose: cur.loose[k], sell: cur.sell[k], buy: cur.buy[k]}));
+function rangePoints(all) {                              // Show: all periods, or the last N days / weeks / months of them
   if (document.querySelector('input[name=rng]:checked').value === 'all') return all;
   const n = Math.max(1, +$('rn').value || 1), unit = +$('ru').value;
-  const cutoff = all[all.length - 1].t - (n * unit - 1) * 86400000;     // "last 30 days" = 30 points
-  return all.filter(p => p.t >= cutoff);
+  const cutoff = Date.parse(all[all.length - 1].last + 'T00:00:00Z') - (n * unit - 1) * DAY_MS;   // "last 30 days" = 30 days back from the newest point
+  return all.filter(b => Date.parse(b.last + 'T00:00:00Z') >= cutoff);
 }
 
 function drawChart() {
   const svg = $('chart');
   svg.innerHTML = '';
   if (!cur) return;
-  pts = rangePoints();
-  const on = {loose: $('c-loose').checked, sell: $('c-sell').checked, buy: $('c-buy').checked, vol: $('c-vol').checked, ref: $('c-ref').checked};
+  const mode = ebPts(), unit = EB_UNIT[mode];
+  document.querySelectorAll('#ebpts .zb').forEach(b => b.classList.toggle('on', b.dataset.p === mode));
+  $('l-loose').textContent = (mode === 'd' ? 'Sold median (7d)' : 'Sold median (' + unit + ')') + ' $';
+  $('l-vol').textContent = 'Sales/' + unit + ' (left axis)';
+  $('c-dots').disabled = mode !== 'd'; $('l-dots').parentElement.style.opacity = mode === 'd' ? '' : '.45';
+  const all = ebBuckets(mode);
+  pts = rangePoints(all);
+  const on = {loose: $('c-loose').checked, sell: $('c-sell').checked, vol: $('c-vol').checked, ref: $('c-ref').checked, fresh: $('c-new').checked, dots: mode === 'd' && $('c-dots').checked};
   const W = svg.clientWidth || 900, H = 380, L = 56, R = 64, T = 18, B = 42;
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   const iw = W - L - R, ih = H - T - B, n = pts.length;
-  const x = k => n === 1 ? L + iw / 2 : L + iw * k / (n - 1);
-  const money = ['loose', 'sell', 'buy'].filter(s => on[s]);
+  const x = k => L + iw * (k + 0.5) / n;                 // one slot per period, as PriceCharting's chart
+  const money = ['loose', 'sell'].filter(s => on[s]);
   const refs = on.ref ? (cur.refs || []).filter(([, v]) => v != null) : [];
+  const bars = on.vol || on.fresh;
   let pmax = 0, vmax = 0;
-  pts.forEach(p => { money.forEach(s => { if (p[s] != null) pmax = Math.max(pmax, p[s]); }); if (p.vol != null) vmax = Math.max(vmax, p.vol); });
+  pts.forEach(p => {
+    money.forEach(s => { if (p[s] != null) pmax = Math.max(pmax, p[s]); });
+    if (on.dots) p.sold.forEach(v => { pmax = Math.max(pmax, v); });
+    if (on.vol) vmax = Math.max(vmax, p.vol);
+    if (on.fresh) vmax = Math.max(vmax, p.fresh);
+  });
   refs.forEach(([, v]) => pmax = Math.max(pmax, v));
   pmax = pmax > 0 ? pmax * 1.08 : 1; vmax = vmax > 0 ? vmax * 1.15 : 1;
   const yP = v => T + ih - ih * v / pmax, yV = v => T + ih - ih * v / vmax;
@@ -1763,29 +1843,42 @@ function drawChart() {
   const mstep = nice(pmax), vstep = nice(vmax);
   for (let v = 0; v <= pmax; v += mstep) {
     el('line', {x1: L, x2: W - R, y1: yP(v), y2: yP(v), stroke: 'currentColor', 'stroke-opacity': .12});
-    if (money.length || refs.length) el('text', {x: W - R + 6, y: yP(v) + 4, 'font-size': 11, fill: 'currentColor', opacity: .7}, '$' + (mstep < 1 ? v.toFixed(2) : v.toLocaleString('en-US')));
+    if (money.length || refs.length || on.dots) el('text', {x: W - R + 6, y: yP(v) + 4, 'font-size': 11, fill: 'currentColor', opacity: .7}, '$' + (mstep < 1 ? v.toFixed(2) : v.toLocaleString('en-US')));
   }
-  if (on.vol) for (let v = 0; v <= vmax; v += vstep) el('text', {x: L - 6, y: yV(v) + 4, 'font-size': 11, fill: 'currentColor', opacity: .7, 'text-anchor': 'end'}, Math.round(v).toLocaleString('en-US'));
+  if (bars) for (let v = 0; v <= vmax; v += vstep) el('text', {x: L - 6, y: yV(v) + 4, 'font-size': 11, fill: 'currentColor', opacity: .7, 'text-anchor': 'end'}, Math.round(v).toLocaleString('en-US'));
   el('line', {x1: L, x2: W - R, y1: T + ih, y2: T + ih, stroke: 'currentColor', 'stroke-opacity': .35});
-  const ticks = Math.min(n, Math.max(2, Math.floor(iw / 110)));
+  const ticks = n <= Math.floor(iw / 64) ? n : Math.min(n, Math.max(2, Math.floor(iw / 110)));   // every period while they fit, else a spread
   for (let k = 0; k < ticks; k++) {
     const i = Math.round(k * (n - 1) / Math.max(1, ticks - 1));
-    el('text', {x: x(i), y: H - 14, 'font-size': 11, fill: 'currentColor', opacity: .75, 'text-anchor': 'middle'}, pts[i].d);
+    el('text', {x: x(i), y: H - 14, 'font-size': 11, fill: 'currentColor', opacity: .75, 'text-anchor': 'middle'}, ebLabel(pts[i], mode, false));
   }
-  el('text', {x: L - 6, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6, 'text-anchor': 'end'}, on.vol ? LABEL.vol.toLowerCase() : '');
-  el('text', {x: W - R + 6, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6}, (money.length || refs.length) ? 'USD' : '');
-  if (on.vol) {
-    const bw = Math.max(2, Math.min(18, iw / Math.max(1, n) * 0.6));
-    pts.forEach((p, k) => { if (p.vol != null) el('rect', {x: x(k) - bw / 2, y: yV(p.vol), width: bw, height: T + ih - yV(p.vol), fill: COLORS.vol, opacity: .55}); });
-  }
+  el('text', {x: 2, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6}, bars ? (on.vol && on.fresh ? 'sales · listed' : on.vol ? 'sales/' + unit : 'listed/' + unit) : '');
+  el('text', {x: W - R + 6, y: 12, 'font-size': 10, fill: 'currentColor', opacity: .6}, (money.length || refs.length || on.dots) ? 'USD' : '');
+  // the bars: sales, and beside them the listings that appeared; a period still running or only partly covered is faded with a dashed edge
+  const bw = Math.max(2, Math.min(26, iw / n * 0.62));
+  const bar = (p, k, v, cls, color, dx, w) => {
+    if (!(v > 0)) return;
+    const at = {class: cls, x: (x(k) + dx).toFixed(1), y: yV(v), width: w.toFixed(1), height: T + ih - yV(v), fill: color, opacity: .55};
+    if (p.open || p.from) Object.assign(at, {opacity: .25, stroke: color, 'stroke-width': 1, 'stroke-dasharray': '3 2', 'data-part': p.open ? 'open' : 'from'});
+    el('rect', at);
+  };
+  pts.forEach((p, k) => {
+    if (on.vol && on.fresh) { bar(p, k, p.vol, 'bar-s', COLORS.vol, -bw / 2, bw / 2); bar(p, k, p.fresh, 'bar-n', COLORS.fresh, 0, bw / 2); }
+    else if (on.vol) bar(p, k, p.vol, 'bar-s', COLORS.vol, -bw / 2, bw);
+    else if (on.fresh) bar(p, k, p.fresh, 'bar-n', COLORS.fresh, -bw / 2, bw);
+  });
   refs.forEach(([name, v]) => {
     el('line', {x1: L, x2: W - R, y1: yP(v), y2: yP(v), stroke: COLORS.ref, 'stroke-width': 1.3, 'stroke-dasharray': '6 4', opacity: .9});
     el('text', {x: L + 4, y: yP(v) - 3, 'font-size': 10, fill: COLORS.ref}, name + ' ' + fmtMoneyPlain(v));
   });
+  if (on.dots) pts.forEach((p, k) => {                   // a dot per sale, spread a little inside the slot so same-day sales stay visible
+    const m = p.sold.length, step = Math.min(4, bw / Math.max(1, m));
+    p.sold.forEach((v, j) => el('circle', {class: 'dot-s', cx: (x(k) + (j - (m - 1) / 2) * step).toFixed(1), cy: yP(v).toFixed(1), r: 2.6, fill: COLORS.loose, opacity: .4}));
+  });
   money.forEach(s => {
     let d = '', pen = false;
-    pts.forEach((p, k) => { if (p[s] == null) { pen = false; return; } d += (pen ? 'L' : 'M') + x(k) + ' ' + yP(p[s]) + ' '; pen = true; });
-    el('path', {d, fill: 'none', stroke: COLORS[s], 'stroke-width': 2.2, 'stroke-linejoin': 'round'});
+    pts.forEach((p, k) => { if (p[s] == null) { pen = false; return; } d += (pen ? 'L' : 'M') + x(k).toFixed(1) + ' ' + yP(p[s]).toFixed(1) + ' '; pen = true; });
+    el('path', {class: 'line-' + s, d, fill: 'none', stroke: COLORS[s], 'stroke-width': 2.2, 'stroke-linejoin': 'round'});
     if (n <= 60) pts.forEach((p, k) => { if (p[s] != null) el('circle', {cx: x(k), cy: yP(p[s]), r: 3, fill: COLORS[s]}); });
   });
   const cross = el('line', {x1: 0, x2: 0, y1: T, y2: T + ih, stroke: 'currentColor', 'stroke-opacity': .5, 'stroke-dasharray': '4 3', visibility: 'hidden'});
@@ -1795,12 +1888,15 @@ function drawChart() {
     const box = svg.getBoundingClientRect();
     const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - box.left;
     const px = cx * W / box.width;
-    const k = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round((px - L) / iw * (n - 1))));
+    const k = Math.max(0, Math.min(n - 1, Math.floor((px - L) / iw * n)));
     const p = pts[k];
     cross.setAttribute('x1', x(k)); cross.setAttribute('x2', x(k)); cross.setAttribute('visibility', 'visible');
-    let h = '<b>' + p.d + '</b>';
-    if (on.vol) h += '<br><span class="sw" style="background:' + COLORS.vol + '"></span>' + LABEL.vol + ': ' + (p.vol == null ? '—' : p.vol.toLocaleString('en-US'));
-    money.forEach(s => { h += '<br><span class="sw" style="background:' + COLORS[s] + '"></span>' + LABEL[s] + ': ' + fmtMoney(p[s]); });
+    let h = '<b>' + ebLabel(p, mode, true) + (p.open ? ' · to date' : '') + (p.from ? ' · from ' + p.first : '') + '</b>';
+    if (on.vol) h += '<br><span class="sw" style="background:' + COLORS.vol + '"></span>Sales: <b>' + p.vol + '</b>';
+    if (on.fresh) h += '<br><span class="sw" style="background:' + COLORS.fresh + '"></span>New listings: <b>' + p.fresh + '</b>';
+    if (on.loose) h += '<br><span class="sw" style="background:' + COLORS.loose + '"></span>' + (mode === 'd' ? 'Sold median (7d)' : 'Sold median') + ': ' + fmtMoney(p.loose);
+    if (p.sold.length) h += '<br>' + (p.sold.length === 1 ? 'The one sale: ' + fmtMoneyPlain(p.lo) : 'Low – high: ' + fmtMoneyPlain(p.lo) + ' – ' + fmtMoneyPlain(p.hi));
+    if (on.sell) h += '<br><span class="sw" style="background:' + COLORS.sell + '"></span>Cheapest ask: ' + fmtMoney(p.sell);
     tip.innerHTML = h;
     const left = x(k) * box.width / W;
     tip.style.display = 'block';
@@ -1809,7 +1905,9 @@ function drawChart() {
   };
   hit.addEventListener('mousemove', move); hit.addEventListener('touchmove', ev => { move(ev); ev.preventDefault(); }, {passive: false}); hit.addEventListener('touchstart', move, {passive: true});
   hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
-  $('note').textContent = n === 1 ? '1 day of history so far — a new point is added every day.' : n + ' days shown' + (on.vol && LABEL === LABEL_PC ? ' · sales/yr is PriceCharting\u2019s trailing twelve-month count on that day' : '');
+  const last = pts[n - 1];
+  $('note').textContent = n + ' ' + unit + (n === 1 ? '' : 's') + (n < all.length ? ' of ' + all.length : '') + ' shown · eBay raw sales the collector saw, one point per day from ' + cur.dates[0] +
+    (last.open ? ' · the last ' + unit + ' is still running' : '') + (cur.full ? '' : ' · the per-sale prices and new listings arrive with the collector’s next publish');
 }
 const fmtMoneyPlain = v => v == null ? '—' : '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const pctPlain = (v, nd = 1, signed = true) => v == null ? '—' : (signed && v > 0 ? '+' : '') + v.toFixed(nd) + '%';
@@ -1895,10 +1993,11 @@ $('rows-pc').addEventListener('click', e => { const b = e.target.closest('.tbtn'
 $('close').addEventListener('click', closeTrend);
 $('ov').addEventListener('click', e => { if (e.target === $('ov')) closeTrend(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTrend(); $('hov').classList.remove('open'); $('bov').classList.remove('open'); $('rov').classList.remove('open'); } });
-['c-loose', 'c-sell', 'c-buy', 'c-vol', 'c-ref', 'rn', 'ru'].forEach(id => $(id).addEventListener('input', drawChart));
+['c-loose', 'c-sell', 'c-buy', 'c-vol', 'c-ref', 'c-new', 'c-dots', 'rn', 'ru'].forEach(id => $(id).addEventListener('input', drawChart));
 document.querySelectorAll('input[name=rng]').forEach(r => r.addEventListener('change', drawChart));
 window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) { if (pcCur) drawPcChart(); else drawChart(); } });
 document.querySelectorAll('#pczoom .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('pc-zoom', b.dataset.z); } catch (e) {} if (pcCur) drawPcChart(); }));
+document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('eb-pts', b.dataset.p); } catch (e) {} if (cur) { drawChart(); renderEbTable(); } }));
 paintLp();
 loadLive();
 
