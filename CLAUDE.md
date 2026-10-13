@@ -676,6 +676,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   had been stopping renderStatsEbay after the chart drew. Help: `et_trend` (the Trend header's "?") explains every
   control, caveat and the PriceCharting comparison; README ec section 2; the pc `trend` entry now describes
   PriceCharting's chart. Tests: ut/test_hist.py (sp/new), t/pcpop/test_ui7.py (the popup end to end).
+  DOWNLOAD HISTORY CSV (same evening, Brett: "a csv that combines all of the csvs from the pricechart trend chart ...
+  every card, the year the card was released, the pricechart volume per month ... the ungraded price per month ... a
+  small download button"): `#pchist-btn` beside Filters... on the PriceCharting tab (inserted after the tables are
+  built, app.js `downloadPcHistory`). The page fetches all `pch.shards` history shards ten at a time (the Trend
+  popup's pc/<shard>.bin files, ~3 MB in all), decrypts them with HKEY and writes ONE ROW PER CATALOG CARD in DATA
+  order, months as columns: card_id, card, set, number, released, release_year, first_month_on_record,
+  months_on_file, read (rec.t), then `volume YYYY-MM` for every month from the earliest m0 on file to the newest
+  point (PriceCharting's Pokemon record starts 2020-12, so about 70 months), then `ungraded YYYY-MM` (dollars, 2 dp;
+  blank where p is null). A card without a record is a row with 0 months and blank cells; volume cells are written
+  only when the record was read signed in (`s` or `sv`), as the chart does. Progress on the button ("Reading 50 of
+  200..."), then "Downloaded ✓ N of M cards on file" for 8 s; the file is `pricecharting history YYYY-MM-DD.csv`,
+  built from Blob parts (no collector work, nothing new stored). No long (card-month) layout: 44k cards x ~70 months
+  is past Excel's row limit; build it only if he asks. Help: the pc README section 3. Test: t/pcpop/test_ui8.py.
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
