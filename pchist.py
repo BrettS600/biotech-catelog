@@ -26,7 +26,7 @@ import os
 import re
 import threading
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SHARDS = 200
 EPOCH_Y = 2000
@@ -57,6 +57,42 @@ def month_index(ts_ms):
 
 def month_label(i):
     return f"{EPOCH_Y + i // 12}-{i % 12 + 1:02d}"
+
+
+def month_of_day(day):
+    """day index (days since 2000-01-01) -> month index (months since 2000-01)."""
+    d = datetime(2000, 1, 1, tzinfo=timezone.utc) + timedelta(days=day)
+    return (d.year - EPOCH_Y) * 12 + d.month - 1
+
+
+def last_complete_month(rec):
+    """[month index, sales] for the latest month whose bar was complete when the volume was read: the month before
+    the read date's month (the read's own month is still running). A month after the record's last point had no
+    sales. None when the record carries no volume (read without the sign-in, nothing to keep)."""
+    if not rec or not (rec.get("s") or rec.get("sv")):
+        return None
+    read = day_of(rec.get("sv") or rec.get("t"))
+    if not read:
+        return None
+    target = month_of_day(read) - 1
+    j = target - rec["m0"]
+    if j < 0:
+        return None
+    return [target, rec["v"][j] if j < len(rec["v"]) else 0]
+
+
+def last_month_all():
+    """{card id: [month index, sales]} over every card on file with volume bars (Brett, 2026-10-13: "PC sales" =
+    last month's bar, no more sales/yr ÷ 12). Reads every shard once; the few shards in the cache stay cached."""
+    out = {}
+    for sh in range(SHARDS):
+        with _lock:
+            d = _load(sh) if sh in _cache else _read(sh)
+        for cid, rec in d.items():
+            lm = last_complete_month(rec)
+            if lm is not None:
+                out[int(cid)] = lm
+    return out
 
 
 # ---------------- the page ----------------
@@ -215,15 +251,20 @@ def _path(sh):
     return os.path.join(_store, f"{sh}.json.gz")
 
 
+def _read(sh):
+    """A shard from disk, without touching the cache."""
+    try:
+        with gzip.open(_path(sh), "rt", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def _load(sh):
     if sh in _cache:
         _cache.move_to_end(sh)
         return _cache[sh]
-    try:
-        with gzip.open(_path(sh), "rt", encoding="utf-8") as f:
-            d = json.load(f)
-    except Exception:
-        d = {}
+    d = _read(sh)
     _cache[sh] = d
     while len(_cache) > 12:
         _cache.popitem(last=False)
@@ -285,6 +326,8 @@ def stale(cid, active=False, today=None, want_signed=False):
     day, signed = last
     if want_signed and not signed:
         return True
+    if active and month_of_day(day) < month_of_day(today):   # a new month: last month's bar is final now, read it
+        return True                                           # (Brett, 2026-10-13: "PC sales" shows last month's bar)
     return today - day >= (REFRESH_ACTIVE_D if active else REFRESH_OTHER_D)
 
 
