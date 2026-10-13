@@ -620,7 +620,30 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   legend words), the two titles sit in one quiet fill (`--band`, class band) with no border darker than the
   fill, and header rules use `--hline` (never darker than the header). A HIDDEN COLUMN NOW VANISHES, eye and all
   (`th.col-hidden, td.col-hidden {display:none}`; "i also want the eye to disappear"); Columns... is the way
-  back. HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
+  back; a band title (tr.grp) spans only the columns still showing (`paintBands`, data-span keeps the real span
+  for `bands()`). THE MONTH COLUMNS (2026-10-13, Brett: "pc sales for last month, ebay sales for last month, and a
+  column that records the number of ebay sales that have accrued since the start of this month"; Hits 30d and a
+  Hit % on all three tabs; Anchor $ in place of Max buy $ on the PriceCharting tab): PC SALES (last mo) =
+  PriceCharting's volume bar for the last complete month on the card's page (every grade; `pchist.
+  last_complete_month(rec)`: the month before the volume read date's month - `sv` or `t` - a month past the record's
+  last point = 0, no bars = None), for EVERY card via `pcm.bin` ({cid: [month index, sales]}, `pchist.
+  last_month_all()`, published hourly, PCM_PUBLISH_S; the page's `loadPcm()` fetches it once an hour and
+  `fillPcm()` puts it on the DATA rows); a bar older than last month shows its month in grey; `pchist.stale()`
+  marks an active card stale on the first read of a new month so its bar turns final within days (REFRESH_ACTIVE_D
+  otherwise weekly). EBAY SALES (last mo) / (this mo) = `es.month_sales(daily)` from the daily rollup (calendar
+  months, UTC) -> card `km` / `kt`; last month is shown only when `live.since` (`es.data_since`: the oldest rollup
+  day) is on or before the 1st of that month - the collector started 2026-09-28, so October is its first whole
+  month and the column fills on November 1 (until then a dim dash with the reason). The trailing-30-day count k is
+  NO LONGER A COLUMN anywhere (λ, Hot and the anchor still run on it). HIT % = `live.hl30` (`hit_listings_30d`:
+  Buy It Now listings alerted in 30 d, each once; auctions out) ÷ card `n30` (compute_stats' new30: comparable
+  listings first seen in 30 d incl. the unsold counts), `Math.min` so it never passes 100; Hits 30d stays the alert
+  count (hits_30d, BIN + auctions). ROW INDEXES: DATA 16 pcm, 17 its month, 18 km, 19 kt, 20 Anchor A, 21 vs PC %,
+  22 hits30, 23 hit % (`PC_LIVE`), ord at 24, `r.n30` expando for the tooltip; ec 41 = pcm (was pcv ÷ 12), 49 km, 50
+  kt, 51 n30, 52 hit %, 53 pcm month, header data-k 5 -> 49, `inserted {v: 6, at: 9, n: 1}, {v: 7, at: 32, n: 1}`,
+  compact shifted, band colspan 25; er 40 = pcm, 41 = km, 51 kt, 52 hits30, 53 hit %, 54 pcm month (auRows and
+  hhRows read them off the DATA row), `inserted {v: 12, at: 22, n: 3}`; pc `inserted {v: 6, at: 14, n: 1}, {v: 7,
+  at: 16, n: 1}, {v: 8, at: 19, n: 2}`. Cells: `pcSalesCell`, `kmCell`, `hitsCell`, `hitPctCell` (app.js). Tests:
+  ut/test_months.py, t/pcpop/test_ui6.py. HEADER RENAMES: the "?" popup's pencil has a "Column name" field;
   the name is stored with the description (`h:<key>.n`, collector `help_edit` keeps n up to 60 chars) and
   `applyNames()` (help.js) writes it into every header sharing that key, on every live refresh; the original is
   kept in th.dataset.on; an empty name restores it. THE ARCHIVE: `archive_tick()` (collector.py), after the publish
