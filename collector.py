@@ -2550,10 +2550,12 @@ def cycle(state, cat, sched, counters):
             f"{state.get('printchecks', {}).get(es.TODAY, 0)} printing lookups today")
         refreshed = es.refresh_facts(state, cat)             # verdicts follow the vocabulary and the card as they are now
         moved = es.apply_epid_memory(state, cat)
+        inherited = es.inherit_facts(state, cat)             # a known product's facts reach all its listings for free
         mem = state.get("epids") or {}
         with_facts = sum(1 for r in state["open"].values() if r.get("ef"))
         far = sum(1 for r in state["open"].values() if "far" in ((r.get("ef") or {}).get("cmp") or {}).values())
-        log(f"Facts: eBay's record read on {with_facts} open listings ({far} disagree with the card on set, rarity or finish); "
+        log(f"Facts: eBay's record on {with_facts} open listings ({far} disagree with the card on set, rarity or finish; "
+            f"{inherited} just inherited from their product this hour); "
             f"{len(mem)} products in the ePID memory, {sum(1 for m in mem.values() if m.get('v'))} tied to a card; "
             f"{moved} listings moved to their product's card this hour, {refreshed} verdicts re-read")
         free = disk_check()
