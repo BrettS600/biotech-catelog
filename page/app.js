@@ -1141,7 +1141,25 @@ function rebuildLive() {
     live.n_cards.toLocaleString('en-US') + ' cards with data · ' + live.n_open.toLocaleString('en-US') + ' listings being followed · ' + live.n_closed.toLocaleString('en-US') + ' outcomes recorded · ' + live.calls_today + ' API calls today · ' + calTxt + ' · ' + Math.round(S.conf * 100) + '% within ' + S.window + ' h needs λ ≥ ' + lamMin(S).toFixed(2) + '/day · margin ' + Math.round(S.margin * 100) + '% · buy tax ' + (S.tax * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
   $('meta-er').textContent = 'eBay Raw Data · ' + live.n_live.toLocaleString('en-US') + ' matched listings in the last 24 h · ' + passes + ' pass the gate at these settings · ' + hiddenImg + ' left out (fewer than 2 photos) · ' + hiddenSus + ' suspect hidden · ' + tooCheap + ' too cheap vs PriceCharting · ' + leads + ' leads · as of ' + ageText(live.t);
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
+  paintPcPill();
   tables.ec.apply(); tables.er.apply();
+}
+// the small pill in the header: is the collector reading PriceCharting signed in (the charts' volume bars depend on it)?
+function paintPcPill() {
+  const el = $('pcpill'); if (!el) return;
+  const p = (LIVE.data && LIVE.data.pch) || {}, si = p.signin || 'none';
+  el.hidden = false;
+  if (si === 'ok') {
+    el.className = 'pcpill ok'; el.textContent = 'PriceCharting connected';
+    el.title = 'The collector reads PriceCharting signed in, so the Trend charts get the monthly volume bars' + (p.signed != null ? ' \u00b7 ' + Number(p.signed).toLocaleString('en-US') + ' of ' + Number(p.total || 0).toLocaleString('en-US') + ' cards have them so far' : '');
+  } else if (si === 'unknown') {
+    el.className = 'pcpill'; el.textContent = 'PriceCharting checking\u2026';
+    el.title = 'The collector just started with a new sign-in; the first page it reads tells whether it works';
+  } else {
+    el.className = 'pcpill bad'; el.textContent = 'PriceCharting not connected';
+    el.title = si === 'expired' ? 'The collector\u2019s PriceCharting sign-in has expired: new months get no volume bars until a fresh cookie is pasted (PC_COOKIE in /etc/pokemon-collector.env, then systemctl restart pokemon-collector). The bars already on file stay.'
+      : 'The collector has no PriceCharting sign-in (no PC_COOKIE on the droplet): the Trend charts show prices without the volume bars';
+  }
 }
 async function fetchLive() {
   const res = await fetch(LIVE_URL + '?t=' + Math.floor(Date.now() / 60000), {cache: 'no-store'});
