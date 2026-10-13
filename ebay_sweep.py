@@ -885,8 +885,8 @@ def summary_record(s):
         "origin": s.get("itemOriginDate") or s.get("itemCreationDate"), "created": s.get("itemCreationDate"),
         "end": s.get("itemEndDate"),
         "epid": s.get("epid") or "", "img": (s.get("image") or {}).get("imageUrl"),
-        # front, back and two more, straight from the search result: the check screens show them (none = key left out)
-        **({"imgs": [u for u in [(p or {}).get("imageUrl") for p in [s.get("image")] + list(s.get("additionalImages") or [])] if u][:4]}
+        # every photo, straight from the search result: the check screens show them (none = key left out)
+        **({"imgs": [u for u in [(p or {}).get("imageUrl") for p in [s.get("image")] + list(s.get("additionalImages") or [])] if u][:24]}
            if s.get("additionalImages") else {}),
         "url": s.get("itemWebUrl"), "loc": (s.get("itemLocation") or {}).get("stateOrProvince"),
         "promo": bool(s.get("priorityListing")), "top": bool(s.get("topRatedBuyingExperience")),
@@ -1453,7 +1453,7 @@ def item_facts(r, it):
         r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
     pics = [(p or {}).get("imageUrl") for p in [it.get("image")] + list(it.get("additionalImages") or [])]
     if any(pics):
-        r["imgs"] = [u for u in pics if u][:4]             # front, back and two more, for the phone's check screen
+        r["imgs"] = [u for u in pics if u][:24]            # every photo (eBay allows 24), for the check and Review screens
 
 
 def specifics(it):
@@ -1526,6 +1526,11 @@ def compare_facts(cat, c, ef):
             out["s"] = "far" if other > 1.5 * mine else ("same" if mine > 0 else None)
     out["r"] = cardfacts.rarity_agree(ef.get("r"), c.get("rarity")) if ef.get("r") and c.get("rarity") else None
     out["f"] = cardfacts.finish_agree(ef.get("f"), c.get("finish")) if ef.get("f") and c.get("finish") else None
+    k = parse_number(ef.get("k") or "") if ef.get("k") else None   # the printed total decides for a Classic Collection card:
+    if k and k[3] is not None and not k[0] and cardfacts.rarity_tier(c.get("rarity")) == "K":   # /<set total> is one of
+        official = cat.totals.get(c["set"])                  # the set's own cards; the reprint keeps its original number
+        if official is not None and k[3] == official:
+            out["r"] = "far"
     return out
 
 
@@ -1535,11 +1540,17 @@ def learn_facts(state, cat, rec, it):
     facts, and a vote for the catalog card when the number names it and nothing is far off - so that every later
     listing of the product matches at once (match_title)."""
     ef = ebay_facts(it)
+    epid = rec.get("epid") or (it or {}).get("epid") or ""
+    m = (state.get("epids") or {}).get(str(epid)) if epid else None
+    if m and any(m.get(x) for x in ("s", "r", "f")) and (not ef or ef.get("src") == "seller"):
+        kept = {x: m[x] for x in ("s", "r", "f", "n", "k") if m.get(x)}   # no product block in this payload, but the memory
+        if ef and ef.get("k") and not kept.get("k"):         # knows the product: its record beats the seller's words
+            kept["k"] = ef["k"]
+        ef = dict(kept, src="memory")
     c = cat.by_id.get(rec.get("card"))
     if ef and c:
         ef["cmp"] = compare_facts(cat, c, ef)
     rec["ef"] = ef or {}
-    epid = rec.get("epid") or (it or {}).get("epid") or ""
     if not ef or not epid or not product_aspects(it):
         return
     rec["epid"] = str(epid)
@@ -1646,8 +1657,12 @@ def check_identity(cat, c, it, title="", total=None):
         else:
             num_ok = True
             official = cat.totals.get(c["set"])
+            classic = cardfacts.rarity_tier(c.get("rarity")) == "K"   # a Classic Collection reprint keeps its original number
             if p[3] is not None and not p[0] and official is not None and official != p[3]:
-                notes.append(f"printed total {p[3]} vs {official}")
+                notes.append(f"printed total {p[3]}: the Classic Collection reprint keeps its original number" if classic
+                             else f"printed total {p[3]} vs {official}")
+            elif p[3] is not None and not p[0] and official is not None and classic:
+                bad.append(f"printed total /{official}: one of the set's own cards, not the Classic Collection reprint")
     name = first("card name", "character")
     if name:
         ntoks, want = set(norm_tokens(name)), c["ntoks"] or ["?"]
