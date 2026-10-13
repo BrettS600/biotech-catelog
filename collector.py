@@ -333,7 +333,7 @@ def refill(state):
     v = state.setdefault("vps", {})
     remaining, secs = allowance(state)
     mins = max(1.0, secs / 60)
-    reserve = mins * (1 + 60 / KW_EVERY_S)
+    reserve = mins * ((2 / 3 if v.get("facts_big") else 1) + 60 / KW_EVERY_S)   # discovery: every minute, or 2 in 3 during the facts pass
     spare = remaining - SAFETY - reserve
     per_min = max(0.0, spare / mins)
     v["tokens"] = min(TOKEN_CAP, v.get("tokens", 0.0) + per_min)
@@ -538,6 +538,44 @@ def rereadable(rec):
     st = rec_start(rec)
     return rec.get("src") == "aspect" and not rec.get("nocheck") and in_band(rec, REREAD_BAND) and st is not None \
         and (es.NOW - st).total_seconds() / 86400 <= REREAD_MAX_AGE_D
+
+
+FACTS_MAX_PER_CYCLE = 1          # the backlog pass (Brett, 2026-10-13: "option 2 ... return to its previous rate after the
+                                 # backlog"): one lookup a minute for a card whose open listings carry no eBay record yet
+FACTS_BIG = 100                  # while this many cards or more wait, discovery sits out every third cycle (480 calls a day
+                                 # freed) and the reserve shrinks with it; back to every minute by itself when the pile is gone
+FACTS_RETRY_D = 3                # a card whose lookup taught nothing is tried again, with another listing, after this long
+
+
+def facts_backlog(state):
+    """Cards with open listings and eBay's record on none of them -> [(card id, listing id)] in the order worth reading:
+    cards with the most open listings first; for each, the listing whose product (epid) covers the most open listings
+    (one lookup teaches the ePID memory and inherit_facts() fills the rest), else its cheapest copy. A card tried in
+    the last FACTS_RETRY_D days waits."""
+    tried = state.setdefault("vps", {}).setdefault("facts_tried", {})
+    by_card, has, epid_n, n_open = defaultdict(list), set(), Counter(), Counter()
+    for iid, r in state["open"].items():
+        c = r.get("card")
+        if c is None:
+            continue
+        n_open[c] += 1
+        if r.get("ef"):
+            has.add(c)
+        if r.get("epid"):
+            epid_n[str(r["epid"])] += 1
+        if "ef" not in r and not r.get("nocheck"):
+            by_card[c].append((iid, r))
+    out = []
+    for c, lst in by_card.items():
+        if c in has:
+            continue
+        t = es.parse_ts(tried.get(str(c)) or "")
+        if t and (es.NOW - t).total_seconds() < FACTS_RETRY_D * 86400:
+            continue
+        iid, _ = max(lst, key=lambda x: (epid_n[str(x[1].get("epid"))] if x[1].get("epid") else 0, -(x[1].get("total") or 1e9)))
+        out.append((n_open[c], c, iid))
+    out.sort(key=lambda x: -x[0])
+    return [(c, iid) for _, c, iid in out]
 
 
 def book_queue(state, cards):
@@ -2284,6 +2322,8 @@ def cycle(state, cat, sched, counters):
         return
     # 2. discovery: the main query every cycle, the keyword backup every 5 min
     queries = ["aspect"]
+    if v.get("facts_big") and counters["cycles"] % 3 == 0:  # the facts pass: discovery sits out every third cycle
+        queries = []
     if due("kw", KW_EVERY_S) and not DRY_RUN:
         queries.append("kw")
     if remaining < SAFETY:                                   # nearly out: main query only, and only every other cycle
@@ -2357,6 +2397,24 @@ def cycle(state, cat, sched, counters):
             v["tokens"] += est - pages                       # charge what it actually cost
             counters["windows"] += 1; counters["window_pages"] += pages
             counters["flagged"] += flagged; counters["repriced"] += repriced
+    if cards:                                                # the backlog pass: cards with no eBay record on any open listing
+        backlog = facts_backlog(state)
+        v["facts_back"] = len(backlog)
+        big = len(backlog) >= FACTS_BIG
+        if big != bool(v.get("facts_big")):
+            v["facts_big"] = big
+            log("Facts pass: " + (f"{len(backlog)} cards have no eBay record on any open listing - one lookup a minute for them, "
+                                  "and discovery sits out every third cycle meanwhile" if big else
+                                  f"the pile is down to {len(backlog)} cards - discovery back to every minute; a new card still gets its one lookup"))
+        if not saving:
+            for cid, iid in backlog[:FACTS_MAX_PER_CYCLE]:
+                if not spend(state, COST_CONFIRM):
+                    break
+                v.setdefault("facts_tried", {})[str(cid)] = es.ts(now)
+                out = confirm(state, iid, state["open"][iid], "facts", cat)
+                counters["facts_" + out] += 1
+                v["facts_done"] = v.get("facts_done", 0) + 1
+                es.inherit_facts(state, cat)                 # what this lookup taught reaches the product's other listings now
     if not saving:
         for iid in book_queue(state, cards)[:BOOK_MAX_PER_CYCLE]:
             if not spend(state, COST_BOOK):
@@ -2557,7 +2615,9 @@ def cycle(state, cat, sched, counters):
         log(f"Facts: eBay's record on {with_facts} open listings ({far} disagree with the card on set, rarity or finish; "
             f"{inherited} just inherited from their product this hour); "
             f"{len(mem)} products in the ePID memory, {sum(1 for m in mem.values() if m.get('v'))} tied to a card; "
-            f"{moved} listings moved to their product's card this hour, {refreshed} verdicts re-read")
+            f"{moved} listings moved to their product's card this hour, {refreshed} verdicts re-read; backlog pass: "
+            f"{v.get('facts_done', 0)} lookups so far, {v.get('facts_back', 0)} cards still without eBay's record"
+            + (" (discovery sits out every third cycle)" if v.get("facts_big") else ""))
         free = disk_check()
         if free is not None:
             log(f"Disk: {free / 1000:.1f} GB free on the data disk (the live checkout is swept below {DISK_MIN_MB / 1000:.1f} GB)")
