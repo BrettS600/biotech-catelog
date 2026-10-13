@@ -24,16 +24,14 @@
   .pcpill.ok { color:#15803d; background:#ecfdf5; border-color:#86efac; }
   .pcpill.bad { color:#b91c1c; background:#fef2f2; border-color:#fca5a5; }
   .readme:hover { background:var(--hover); }
-  tr.grp th { position:static; text-align:center; font-size:11px; letter-spacing:.04em; text-transform:uppercase; padding:4px 6px; cursor:default; }
-  tr.grp th:hover { text-decoration:none; }
-  tr.grp + tr th { top:0; }
-  th.g-obs, tr.grp th.g-obs { box-shadow: inset 0 3px 0 #3b82f6; }
-  th.g-rate, tr.grp th.g-rate { box-shadow: inset 0 3px 0 #22c55e; }
-  th.g-dec, tr.grp th.g-dec { box-shadow: inset 0 3px 0 #f59e0b; }
-  th.g-tr, tr.grp th.g-tr { box-shadow: inset 0 3px 0 #a855f7; }
-  tr.grp th.g-tr { background:rgba(168,85,247,.14); }
+  /* the eBay Catalog's bands (Observed / Rates / Decisions / Trends): a coloured top edge on each header, named by the legend
+     under the tab line; the row of band titles above the headers went on 2026-10-13 (Brett). The PriceCharting tab's
+     three eBay columns wear the same colours. */
+  th.g-obs { box-shadow: inset 0 3px 0 #3b82f6; }
+  th.g-rate { box-shadow: inset 0 3px 0 #22c55e; }
+  th.g-dec { box-shadow: inset 0 3px 0 #f59e0b; }
+  th.g-tr { box-shadow: inset 0 3px 0 #a855f7; }
   .legend .l-tr::before { background:#a855f7; }
-  tr.grp th.g-obs { background:rgba(59,130,246,.12); } tr.grp th.g-rate { background:rgba(34,197,94,.12); } tr.grp th.g-dec { background:rgba(245,158,11,.14); }
   .legend { display:inline-flex; gap:14px; margin-left:6px; }
   .legend span::before { content:""; display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:middle; border-radius:2px; }
   .legend .l-obs::before { background:#3b82f6; } .legend .l-rate::before { background:#22c55e; } .legend .l-dec::before { background:#f59e0b; }
@@ -50,9 +48,17 @@
   .controls input[type=search] { flex:1 1 220px; min-width:180px; }
   .controls select { max-width:320px; }
   .ranges { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 12px; align-items:center; }
-  .range { display:inline-flex; align-items:center; gap:6px; padding:3px 5px 3px 11px; border:1px solid var(--line); border-radius:999px; background:var(--head); transition:border-color .15s; }
+  .range { display:inline-flex; align-items:center; gap:6px; padding:3px 5px 3px 11px; border:1px solid var(--line); border-radius:999px; background:var(--head); transition:border-color .15s; touch-action:none; -webkit-touch-callout:none; }
+  .range[hidden] { display:none; }   /* a filter switched off in the Filters picker leaves the row and the others close up (2026-10-13, Brett) */
   .range.on { border-color:var(--link); box-shadow:0 0 0 1px var(--link) inset; }
-  .range .lbl { color:var(--muted); font-size:11.5px; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+  .range .lbl { color:var(--muted); font-size:11.5px; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; cursor:grab; user-select:none; -webkit-user-select:none; }
+  .range .to, .range .unit, .condchip label { user-select:none; -webkit-user-select:none; }
+  /* hold a chip still until it lifts, then drag it along the row: the lifted chip fades in place, a copy rides with the pointer, a blue edge marks where it will land */
+  .range.lifted { opacity:.4; }
+  .range.ghost { position:fixed; z-index:50; margin:0; pointer-events:none; opacity:.95; box-shadow:0 6px 18px rgba(0,0,0,.35); transform:scale(1.04); cursor:grabbing; }
+  .range.drop-l { box-shadow:-5px 0 0 -2px var(--link); }
+  .range.drop-r { box-shadow:5px 0 0 -2px var(--link); }
+  body.chip-drag, body.chip-drag * { cursor:grabbing !important; user-select:none; -webkit-user-select:none; }
   .range input { font:inherit; font-size:13px; width:60px; padding:3px 7px; border:1px solid transparent; border-radius:999px; background:var(--bg); color:var(--fg); text-align:right; -moz-appearance:textfield; }
   .range input::-webkit-outer-spin-button, .range input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
   .range input:focus { outline:none; border-color:var(--link); }
