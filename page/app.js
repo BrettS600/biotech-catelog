@@ -2124,10 +2124,12 @@ function fcCompute() {
     const pcBuy = a[ix.buy], pct = a[ix['pct' + I.h]], age = a[ix.age], vol12 = a[ix.vol12] || 0;
     const c = LIVE.dec && LIVE.dec[cid], band = (LIVE.data && LIVE.data.band) || [50, 500];
     // the standard price: what a credible copy costs on eBay now (the card's credible floor, else its sold median),
-    // else PriceCharting's level; the sale is projected from what buyers actually pay on eBay (the sold median A,
-    // else PriceCharting's level) moved by the model's return, see fcNet
+    // else PriceCharting's level; the sale is projected from what buyers actually pay on eBay (the sold median A)
+    // moved by the model's return, see fcNet. A card with a credible floor but no anchor (too few recent sales for
+    // a median) cannot be assumed to sell above its cheapest credible competing ask, whatever PriceCharting prints
+    // (a stale $256 there against $185 asks is not a 38% deal), so its sale is the lower of the two levels.
     const buy = c && c.L != null ? c.L : c && c.A != null ? c.A : pcBuy, src = c && c.L != null ? 'eBay floor' : c && c.A != null ? 'eBay sold median' : 'PriceCharting';
-    const sell = c && c.A != null ? c.A : pcBuy;
+    const sell = c && c.A != null ? c.A : c && c.L != null ? Math.min(pcBuy, c.L) : pcBuy;
     if (!(buy >= I.pmin && buy <= I.pmax) || vol12 < FC_MIN_VOL12) continue;
     if (!I.young && !(age >= 24)) continue;
     let supply = null, ask = null;                       // the collector only follows listings inside its price band: outside it the supply is unknown
