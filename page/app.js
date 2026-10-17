@@ -850,9 +850,9 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 
 /* ---------------- Tabs ---------------- */
-const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', al: 'alerts', rv: 'revenue'};      // default (no hash) = PriceCharting
+const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', fc: 'forecast', al: 'alerts', rv: 'revenue'};      // default (no hash) = PriceCharting
 function showTab(id) {
-  if (!TABLES[id] && id !== 'al') id = 'pc';
+  if (!TABLES[id] && id !== 'al' && id !== 'fc') id = 'pc';
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
   history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
@@ -1279,6 +1279,7 @@ function rebuildLive() {
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   paintPcPill();
   tables.pc.apply(true); tables.ec.apply(true); tables.er.apply(true);   // true: a refresh keeps the rows already shown (Show more) on view
+  try { if (FC.doc) fcCompute(); else loadForecast(); } catch (e) { console.error('forecast', e); }   // the Forecast tab: eBay supply changed, or the model file is not in yet; never in the way of the live tabs
 }
 // the small pill in the header: is the collector reading PriceCharting signed in (the charts' volume bars depend on it)?
 function paintPcPill() {
@@ -2054,6 +2055,209 @@ document.querySelectorAll('input[name=rng]').forEach(r => r.addEventListener('ch
 window.addEventListener('resize', () => { if ($('ov').classList.contains('open')) { if (pcCur) drawPcChart(); else drawChart(); } });
 document.querySelectorAll('#pczoom .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('pc-zoom', b.dataset.z); } catch (e) {} if (pcCur) drawPcChart(); }));
 document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('eb-pts', b.dataset.p); } catch (e) {} if (cur) { drawChart(); renderEbTable(); } }));
+/* ---------------- Forecast tab (Brett, 2026-10-17: "I input my capital, you tell me what cards to buy, how many of
+   each, my estimated range of net profit after I hold for a month, and a confidence %") ----------------
+   The model runs in the site workflow (forecast.py): every card priced $10+ gets a predicted move over 1 / 3 / 6
+   months from PriceCharting's monthly history, and forecast.bin (same key as the live file) carries the scores,
+   the market regime and the calibration tables - the realized outcomes, out of sample over 2022-2026, by horizon
+   x regime x score bucket. This tab turns a score into money with the same fee arithmetic as the eBay tabs:
+   net per copy = buy x (1 + return) x (1 - fee) - fixed - label - supplies - buy x (1 - discount) x (1 + buy tax),
+   where buy = max(PriceCharting's price, its 3-month average) (you cannot buy at a print that just dipped) and the
+   return is drawn from the bucket's realized distribution. Quantities are capped by what eBay has for sale at a
+   reasonable price (the card's book from the live file) and by the share-per-card cap; the portfolio range and
+   P(net > 0) come from a Monte Carlo over the picks. "Record this forecast" sends the picks to the collector,
+   which scores them with PriceCharting's prices when the hold is up (live.forecasts), so the record below says
+   how the forecasts have done. The research behind it is in the README (Forecast tab) and CLAUDE.md. */
+const FC = {doc: null, err: null, rows: [], picks: [], mc: null, loaded: 0};
+const FC_MIN_VOL12 = 6;                                  // a card needs six sales in its last twelve PriceCharting months
+const FC_ASK_LIMIT = 1.15;                               // a listing counts as supply when its total is within 15% of the buy price
+const fcBucket = pct => pct >= .95 ? 'top5' : pct >= .9 ? 'b95' : pct >= .8 ? 'b90' : pct >= .5 ? 'b80' : 'b50';
+const FC_BUCKET_WORDS = {top5: 'top 5%', b95: 'top 10%', b90: 'top 20%', b80: 'upper half', b50: 'lower half'};
+function fcTable(h, bucket) {                            // the realized-return quantile grid for (horizon, regime, bucket)
+  const cal = FC.doc && FC.doc.calib; if (!cal) return null;
+  const reg = FC.doc.regime.strong ? 'strong' : 'other';
+  return cal.tables[h + '|' + reg + '|' + bucket] || cal.tables[h + '|all|all'] || null;
+}
+function fcNet(buy, r, S, disc) {                        // net profit per copy at a gross return r
+  return buy * (1 + r) * (1 - S.fee) - S.fixed - S.shipOut - S.supplies - buy * (1 - disc) * (1 + S.tax);
+}
+function fcBreakEven(buy, S, disc) {                     // the gross return at which the copy nets zero
+  return (buy * (1 - disc) * (1 + S.tax) + S.fixed + S.shipOut + S.supplies) / (buy * (1 - S.fee)) - 1;
+}
+function fcCdf(tab, r) {                                 // P(return <= r) from the quantile grid, tails extended linearly
+  const qs = FC.doc.calib.quantiles, q = tab.q, n = q.length;
+  if (r <= q[0]) return Math.max(0, qs[0] - qs[0] * (q[0] - r) / Math.max(1e-6, q[1] - q[0]));
+  if (r >= q[n - 1]) return Math.min(1, qs[n - 1] + (1 - qs[n - 1]) * (r - q[n - 1]) / Math.max(1e-6, q[n - 1] - q[n - 2]));
+  let i = 0; while (i < n - 1 && q[i + 1] < r) i++;
+  return qs[i] + (qs[i + 1] - qs[i]) * (r - q[i]) / Math.max(1e-9, q[i + 1] - q[i]);
+}
+function fcDraw(tab, u) {                                // a return at probability u (inverse of the grid)
+  const qs = FC.doc.calib.quantiles, q = tab.q, n = q.length;
+  if (u <= qs[0]) return q[0] - (q[1] - q[0]) * (qs[0] - u) / qs[0];
+  if (u >= qs[n - 1]) return q[n - 1] + (q[n - 1] - q[n - 2]) * (u - qs[n - 1]) / (1 - qs[n - 1]);
+  let i = 0; while (i < n - 1 && qs[i + 1] < u) i++;
+  return q[i] + (q[i + 1] - q[i]) * (u - qs[i]) / (qs[i + 1] - qs[i]);
+}
+function fcDist(buy, tab, S, disc) {                     // the copy's net at the 10th / 50th / 90th percentile, its mean, and P(net > 0)
+  const qs = FC.doc.calib.quantiles, at = p => tab.q[qs.indexOf(p)];
+  return {lo: fcNet(buy, at(0.1), S, disc), med: fcNet(buy, at(0.5), S, disc), hi: fcNet(buy, at(0.9), S, disc), mean: fcNet(buy, tab.mean, S, disc), p: 1 - fcCdf(tab, fcBreakEven(buy, S, disc))};
+}
+function fcInputs() {
+  const n = (id, d) => { const v = parseFloat($(id).value); return isNaN(v) ? d : v; };
+  return {cap: Math.max(0, n('fc-cap', 0)), h: +$('fc-h').value || 1, disc: Math.min(0.6, Math.max(0, n('fc-disc', 0) / 100)), pmin: Math.max(10, n('fc-pmin', 50)), pmax: Math.max(10, n('fc-pmax', 500)),
+          share: Math.min(1, Math.max(0.05, n('fc-share', 20) / 100)), minp: Math.min(0.95, Math.max(0, n('fc-minp', 50) / 100)), young: $('fc-young').checked, untracked: $('fc-untracked').checked};
+}
+function fcCompute() {
+  const doc = FC.doc; if (!doc) return;
+  const S = settings(), I = fcInputs(), ix = Object.fromEntries(doc.cols.map((k, i) => [k, i]));
+  const rows = [];
+  for (const cid in doc.cards) {
+    const a = doc.cards[cid], base = idRow.get(+cid); if (!base) continue;
+    const pcBuy = a[ix.buy], pct = a[ix['pct' + I.h]], age = a[ix.age], vol12 = a[ix.vol12] || 0;
+    const c = LIVE.dec && LIVE.dec[cid], band = (LIVE.data && LIVE.data.band) || [50, 500];
+    // the standard price: what a credible copy costs on eBay now (the card's credible floor, else its sold median),
+    // else PriceCharting's level; the model's move is a ratio, so it applies to whichever level you actually trade at
+    const buy = c && c.L != null ? c.L : c && c.A != null ? c.A : pcBuy, src = c && c.L != null ? 'eBay floor' : c && c.A != null ? 'eBay sold median' : 'PriceCharting';
+    if (!(buy >= I.pmin && buy <= I.pmax) || vol12 < FC_MIN_VOL12) continue;
+    if (!I.young && !(age >= 24)) continue;
+    let supply = null, ask = null;                       // the collector only follows listings inside its price band: outside it the supply is unknown
+    if (c && c.book && buy >= band[0] && buy <= band[1]) { supply = c.book.filter(b => b[1] <= buy * FC_ASK_LIMIT).length; ask = c.book.length ? c.book[0][1] : null; }
+    if (supply === 0 || (supply == null && !I.untracked)) continue;
+    const bucket = fcBucket(pct), tab = fcTable(I.h, bucket); if (!tab) continue;
+    const d = fcDist(buy, tab, S, I.disc);
+    rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, src, ask, supply, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
+                             mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], qty: 0}, d));
+  }
+  rows.sort((x, y) => y.pct - x.pct);                    // the model's order; the gate below decides what gets money
+  const elig = rows.filter(r => r.p >= I.minp).sort((x, y) => y.p - x.p || y.pct - x.pct);
+  let left = I.cap;
+  elig.forEach(r => {                                    // greedy: best chance first, up to the share cap and the eBay supply
+    const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
+    let q = Math.floor(I.cap * I.share / costEach);
+    if (r.supply != null) q = Math.min(q, r.supply);
+    q = Math.min(q, Math.floor(left / costEach));
+    if (q > 0) { r.qty = q; left -= q * costEach; }
+  });
+  FC.rows = rows; FC.picks = elig.filter(r => r.qty > 0); FC.inputs = I; FC.S = S; FC.spent = I.cap - left;
+  FC.mc = fcMonteCarlo(FC.picks, S, I.disc);
+  fcRenderRegime(); fcRenderPicks(); fcRenderRecords();
+}
+const FC_RHO = 0.5;                                      // share of each pick's variance that is the market's: cards fall together when it turns
+function fcMonteCarlo(picks, S, disc, n = 3000) {        // the portfolio's net: a market draw shared by every pick plus each pick's own draw (Gaussian copula)
+  if (!picks.length) return null;
+  let seed = 12345; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return (seed + 0.5) / 4294967296; };
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd());
+  const Phi = z => { const t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+  const wm = Math.sqrt(FC_RHO), wo = Math.sqrt(1 - FC_RHO);
+  const tot = new Float64Array(n);
+  for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; picks.forEach(r => { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += r.qty * fcNet(r.buy, fcDraw(r.tab, u), S, disc); }); tot[k] = s; }
+  const a = Array.from(tot).sort((x, y) => x - y), at = p => a[Math.min(n - 1, Math.floor(p * n))];
+  return {lo: at(0.1), q25: at(0.25), med: at(0.5), q75: at(0.75), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: a.filter(v => v > 0).length / n};
+}
+const fcPct = (v, nd = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(nd) + '%';
+const fcMoney = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+const fcMoney2 = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toFixed(2);
+function fcRenderRegime() {
+  const doc = FC.doc, R = doc.regime, I = FC.inputs || fcInputs(), S = FC.S || settings();
+  const word = R.strong ? 'strong' : R.reg3 > 0.005 ? 'mild' : R.reg3 >= -0.005 ? 'flat' : 'weak';
+  const line = (h, b) => { const t = fcTable(h, b); if (!t) return ''; const qs = doc.calib.quantiles, med = t.q[qs.indexOf(0.5)];
+    const ref = 100, p0 = 1 - fcCdf(t, fcBreakEven(ref, S, 0)), p20 = 1 - fcCdf(t, fcBreakEven(ref, S, 0.2));
+    return '<tr><td>' + h + ' mo</td><td class="num">' + fcPct(med) + '</td><td class="num">' + (t.p_up * 100).toFixed(0) + '%</td><td class="num">' + (p0 * 100).toFixed(0) + '%</td><td class="num">' + (p20 * 100).toFixed(0) + '%</td></tr>'; };
+  $('fc-regime').innerHTML = '<p><b>' + word[0].toUpperCase() + word.slice(1) + ' market.</b> The typical $10+ card moved <b>' + fcPct(R.reg3, 1) + ' a month</b> over the last three months (' + fcPct(R.reg1, 1) + ' last month; ' + (R.breadth3 != null ? (R.breadth3 * 100).toFixed(0) + '% of cards up' : '') + '). ' +
+    'Monthly moves of the whole market are strongly persistent, so this is the single biggest input to every forecast below.</p>' +
+    '<p class="dim">What the model’s 80th–90th percentile picks did in ' + (R.strong ? 'strong' : 'non-strong') + ' markets, 2022–2026 (cards $25+): the median move, how often the price was up, and how often a $100 copy netted a profit at the standard price and when bought 20% under.</p>' +
+    '<div class="pctbox fc-box"><table><thead><tr><th>Hold</th><th class="num">Move</th><th class="num">Up</th><th class="num" title="a $100 copy bought at the standard price">Net&gt;0</th><th class="num" title="the same copy bought 20% under">20% under</th></tr></thead><tbody>' +
+    line(1, 'b90') + line(3, 'b90') + line(6, 'b90') + '</tbody></table></div>' +
+    '<p class="dim">Model data month ' + esc(doc.month) + ', built ' + esc((doc.t || '').replace('T', ' ').replace('Z', ' UTC')) + ' from ' + Number(doc.n).toLocaleString('en-US') + ' cards’ PriceCharting history. eBay’s raw sold prices run about even with PriceCharting’s ungraded price on the cards the collector tracks (median 1.04×), so selling at that price is a fair assumption.</p>';
+}
+function fcWhy(r) {
+  const yrs = r.age == null ? '' : r.age >= 24 ? (r.age / 12).toFixed(0) + ' yr old set' : r.age + ' mo old set';
+  const bits = [yrs, r.mom1 != null ? 'last month ' + fcPct(r.mom1) : '', r.mom12 != null ? '12 mo ' + fcPct(r.mom12) : '', r.dd12 != null && r.dd12 < -0.02 ? (Math.abs(r.dd12) * 100).toFixed(0) + '% under its 12-mo high' : r.dd12 != null ? 'at its 12-mo high' : '',
+                r.setm != null ? 'set ' + fcPct(r.setm) + ' last month' : '', r.vol12 + ' PC sales / 12 mo'].filter(Boolean);
+  return bits.join(' · ');
+}
+function fcRenderPicks() {
+  const I = FC.inputs, S = FC.S, picks = FC.picks, mc = FC.mc, unit = I.h + ' month' + (I.h > 1 ? 's' : '');
+  let sum = '';
+  if (!FC.rows.length) sum = '<p>No card passes your filters (price range, set age, eBay supply). Widen them.</p>';
+  else if (!picks.length) {
+    const best = FC.rows.slice().sort((x, y) => y.p - x.p)[0];
+    let need = null; for (let d = 0; d <= 0.6; d += 0.01) { if (fcDist(best.buy, best.tab, S, d).p >= I.minp) { need = d; break; } }
+    sum = '<p><b>Nothing to buy at these settings.</b> Over ' + unit + ' the best card on the list has a ' + (best.p * 100).toFixed(0) + '% chance of a profit after eBay’s fees when bought at the standard price' + (I.disc ? ' less ' + (I.disc * 100).toFixed(0) + '%' : '') +
+      '; your bar is ' + (I.minp * 100).toFixed(0) + '%. ' + (need != null ? 'It clears the bar when bought <b>' + (need * 100).toFixed(0) + '% under</b> the standard price — that is what the hit alerts are for.' : 'No discount up to 60% clears the bar at this hold.') + ' The list below is the model’s ranking anyway: what to buy if you can get it cheap.</p>';
+  } else {
+    sum = '<p>Spend <b>' + fcMoney(FC.spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + picks.length + ' card' + (picks.length > 1 ? 's' : '') + '</b> (' + (n => n + (n === 1 ? ' copy' : ' copies'))(picks.reduce((s, r) => s + r.qty, 0)) + '), hold ' + unit + ', sell at PriceCharting’s price then.</p>' +
+      '<div class="stats fc-stats">' +
+      '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + fcMoney(mc.mean) + '</div><div class="d">average over the model’s history</div></div>' +
+      '<div class="stat"><div class="k">Likely range</div><div class="v">' + fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) + '</div><div class="d">10th to 90th percentile; median ' + fcMoney(mc.med) + '</div></div>' +
+      '<div class="stat"><div class="k">Chance of a profit</div><div class="v">' + (mc.p * 100).toFixed(0) + '%</div><div class="d">P(basket net &gt; 0), ' + (I.disc ? 'bought ' + (I.disc * 100).toFixed(0) + '% under' : 'at the standard price') + '; half of each card’s swing is the market’s</div></div>' +
+      '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (S.fee * 100).toFixed(1) + '% + $' + (S.fixed + S.shipOut + S.supplies).toFixed(2) + '</div><div class="d">eBay fee, label, supplies' + (S.tax ? ', ' + (S.tax * 100).toFixed(2) + '% buy tax' : '') + ' (Raw Data boxes)</div></div></div>';
+  }
+  $('fc-summary').innerHTML = sum;
+  const rows = picks.concat(FC.rows.filter(r => !r.qty).slice(0, Math.max(0, 40 - picks.length)));
+  const supplyCell = r => r.supply == null ? '<span class="dim">untracked</span>' : r.supply + (r.ask != null ? ' <span class="dim">(from ' + fmtMoneyPlain(r.ask) + ')</span>' : '');
+  let html = '<div class="pctbox fc-box"><table><thead><tr><th>Card</th><th class="num">Price</th><th class="num" title="copies in the collector\'s book within 15% of the price (cheapest ask in brackets)">Supply</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
+    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '"><td><a href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener">' + esc(r.name) + '</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
+      '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.price || r.buy > 1.3 * r.price ? ' down' : '') + '" title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '') + '</td><td class="num">' + supplyCell(r) + '</td>' +
+      '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + (r.pct * 100).toFixed(0) + 'th pct</span></td>' +
+      '<td class="num">' + fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
+      '<td class="num">' + (r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
+  });
+  html += '</tbody></table></div><p class="dim">Bold rows are the buys; the rest is the model’s ranking (up to 40). Net per copy = sold at PriceCharting’s price at the end of the hold, less eBay’s fee, the label and supplies, less what you paid. The range is what cards in the same rank bucket actually did in this kind of market, 2022–2026, out of sample.</p>';
+  $('fc-picks').innerHTML = html;
+}
+function fcRenderRecords() {
+  const F = (LIVE.data && LIVE.data.forecasts) || {}, recs = (F.recs || []).slice().reverse();
+  if (!recs.length) { $('fc-records').innerHTML = '<p class="dim">None recorded yet. Record a forecast and the collector scores it with PriceCharting’s prices once the hold is up.</p>'; return; }
+  const scored = recs.filter(r => r.done);
+  let head = '';
+  if (scored.length) {
+    const err = scored.map(r => r.actual - r.exp), inside = scored.filter(r => r.actual >= r.lo && r.actual <= r.hi).length, sign = scored.filter(r => (r.actual > 0) === (r.exp > 0)).length;
+    head = '<p><b>' + scored.length + ' scored</b> of ' + recs.length + ': the realized net was on average ' + fcMoney(err.reduce((s, v) => s + v, 0) / err.length) + ' from the expected net, inside the 10–90% range ' + inside + ' time' + (inside === 1 ? '' : 's') + ', and on the predicted side of zero ' + sign + ' time' + (sign === 1 ? '' : 's') + '.</p>';
+  }
+  const when = t => new Date(t).toLocaleDateString([], {year: 'numeric', month: 'short', day: 'numeric'});
+  let html = head + '<div class="pctbox fc-box"><table><thead><tr><th>Recorded</th><th>Hold</th><th class="num">Capital</th><th class="num">Cards</th><th class="num">Expected net</th><th class="num">Range</th><th class="num">Chance</th><th>Status</th><th class="num">Actual net</th><th class="num">Miss</th></tr></thead><tbody>';
+  recs.forEach(r => {
+    const due = r.t + r.h * 30 * 86400000;
+    html += '<tr><td>' + when(r.t) + (r.reg ? '<br><span class="dim">' + esc(r.reg) + ' market' + (r.disc ? ', bought ' + (r.disc * 100).toFixed(0) + '% under' : '') + '</span>' : '') + '</td><td>' + r.h + ' mo</td><td class="num">' + fcMoney(r.cap) + '</td><td class="num">' + r.picks.length + '<br><span class="dim">' + r.picks.reduce((s, p) => s + p[1], 0) + ' copies</span></td>' +
+      '<td class="num">' + fcMoney(r.exp) + '</td><td class="num">' + fcMoney(r.lo) + ' to ' + fcMoney(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
+      '<td>' + (r.done ? 'scored ' + esc(String(r.done).slice(0, 10)) : 'due ' + when(due)) + '</td><td class="num">' + (r.done ? '<b>' + fcMoney(r.actual) + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.done ? fcMoney(r.actual - r.exp) : '<span class="dim">—</span>') + '</td></tr>';
+  });
+  $('fc-records').innerHTML = html + '</tbody></table></div>';
+}
+async function fcRecord() {
+  const I = FC.inputs, mc = FC.mc, S = FC.S, st = $('fc-status');
+  if (!FC.picks.length) { st.textContent = 'There is nothing to record: no buys at these settings.'; st.className = 'al-status warn'; return; }
+  if (!HKEY) { st.textContent = 'This page has no key for the collector.'; st.className = 'al-status warn'; return; }
+  const t = Date.now();
+  try {
+    await alSend({type: 'forecast', t, h: I.h, cap: I.cap, disc: I.disc, fees: {fee: S.fee, fixed: S.fixed, shipOut: S.shipOut, supplies: S.supplies, tax: S.tax},
+                  picks: FC.picks.map(r => [r.cid, r.qty, Math.round(r.buy * 100) / 100, Math.round(r.mean * 100) / 100]), exp: Math.round(mc.mean * 100) / 100, lo: Math.round(mc.lo * 100) / 100, hi: Math.round(mc.hi * 100) / 100, p: Math.round(mc.p * 1000) / 1000,
+                  reg: FC.doc.regime.strong ? 'strong' : 'other', month: FC.doc.month});
+    st.textContent = 'Recorded. The collector confirms in a minute or two and scores it ' + I.h * 30 + ' days from now.'; st.className = 'al-status ok';
+  } catch (e) { st.textContent = 'Could not reach the collector’s channel (' + e.message + '). Nothing was recorded.'; st.className = 'al-status warn'; }
+}
+async function loadForecast() {
+  const b = Math.floor(Date.now() / 3600000);
+  if (FC.loaded === b) return;
+  try {
+    const res = await fetch('forecast.bin?t=' + b, {cache: 'no-store'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const doc = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+    if (!doc || !doc.cols || !doc.cards || !doc.calib || !doc.regime) throw new Error('not a forecast file');
+    FC.doc = doc; FC.err = null; FC.loaded = b;
+    $('meta-fc').textContent = 'Forecast · which cards to buy at a standard price and hold, from PriceCharting’s monthly history of every card · model of ' + esc(FC.doc.month) + ' built ' + (FC.doc.t || '').replace('T', ' ').replace('Z', ' UTC') + ' · ' + Number(FC.doc.n).toLocaleString('en-US') + ' cards scored';
+    fcCompute();
+  } catch (e) {
+    FC.err = e.message; FC.loaded = b;                   // one try an hour
+    $('meta-fc').textContent = 'Forecast · the model file could not be loaded (' + e.message + ') — it is built by the daily site update; try again after the next build.';
+  }
+}
+['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-young', 'fc-untracked'].forEach(id => $(id).addEventListener('input', () => { if (FC.doc) fcCompute(); }));
+$('fc-record').addEventListener('click', fcRecord);
+
 paintLp();
 loadLive();
 
