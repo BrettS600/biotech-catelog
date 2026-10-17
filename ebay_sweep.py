@@ -1005,7 +1005,8 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "seller": rec.get("seller"), "n_img": rec.get("n_img"), "qty": rec.get("qty"), "ret": rec.get("ret"),
         "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
         **({"tier": rec["tier"]} if "tier" in rec else {}),
-        **{k: rec[k] for k in ("pc", "pcm", "idv", "idr", "ef", "epid") if k in rec},   # identity checks and eBay's facts, as they stood
+        **{k: rec[k] for k in ("pc", "pcm", "idv", "idr", "ef", "epid", "ec", "ecc") if k in rec},   # identity checks, eBay's facts and condition, as they stood
+        **({"imgs": rec["imgs"][:4]} if rec.get("imgs") else {}),   # the first photos, for the Review screen after the listing has gone
     })
     del state["open"][iid]
 
@@ -1400,7 +1401,7 @@ def rematch(state, cat):
 
     def redo(r):
         title = r.get("title") or ""
-        t = title_condition(title)
+        t = r.get("ecc") or title_condition(title)       # eBay's stated condition, once read, outranks the title
         if t != r.get("tcond", "UNK"):
             r["tcond"] = t
             n["cond"] += 1
@@ -1439,8 +1440,63 @@ def stamp_pc(state, cat):
             r["pc"], r["pcm"] = (c.get("pc"), pc_flag(r, c)) if c else (None, "")
 
 
+COND_DAMAGED = re.compile(r"\bdamaged\b", re.I)
+COND_LOG = {"n": 0}              # the first few raw descriptor payloads go to the log, to confirm eBay's shape
+
+
+def ebay_condition(it):
+    """eBay's own statement of the card's condition from a full getItem payload -> (code NM/LP/MP/HP/UNK, the text
+    eBay shows), or (None, None) when the listing carries none (Brett, 2026-10-17: "many listings say n/s but the
+    posting states the condition"). Trading-card listings carry it as a condition descriptor ("Card Condition":
+    "Near Mint or Better", "Lightly Played (Excellent)", "Moderately Played (Very Good)", "Heavily Played (Poor)",
+    "Damaged"); older ones as the "Card Condition" item specific; the seller's free-text condition note is the last
+    resort. The same words the title reader knows decide the code; "Damaged" counts as heavily played."""
+    texts = []
+    for d in (it or {}).get("conditionDescriptors") or []:
+        if not isinstance(d, dict):
+            continue
+        name = str(d.get("name") or "").lower()
+        if "condition" not in name and "grade" not in name:
+            continue
+        for v in d.get("values") or []:
+            t = v.get("content") if isinstance(v, dict) else v
+            if t not in (None, ""):
+                texts.append(str(t).strip())
+    if not texts:
+        asp = specifics(it)
+        texts = [t for n in ("card condition", "condition") for t in asp.get(n, [])]
+    src = "descriptor" if texts else None
+    if not texts and (it or {}).get("conditionDescription"):
+        texts, src = [str(it["conditionDescription"]).strip()[:200]], "note"
+    if not texts:
+        return None, None
+    text = texts[0]
+    code = title_condition(text)
+    if code == "UNK" and COND_DAMAGED.search(text):
+        code = "HP"
+    if src == "note" and code == "UNK":              # a free-text note that names no condition says nothing
+        return None, None
+    return code, text[:60]
+
+
+def apply_condition(r, it):
+    """Keep eBay's stated condition on the record (ec: the text, ecc: its code) and let it set the condition the
+    gate uses when it names one - the seller's structured declaration beats words in the title."""
+    code, text = ebay_condition(it)
+    if text is None:
+        return
+    if COND_LOG["n"] < 3 and (it or {}).get("conditionDescriptors"):
+        COND_LOG["n"] += 1
+        log(f"Condition: {r.get('id')} descriptors {json.dumps(it.get('conditionDescriptors'))[:300]} -> {code} '{text}'")
+    r["ec"] = text
+    if code != "UNK":
+        r["ecc"] = code
+        r["tcond"] = code
+
+
 def item_facts(r, it):
     """Quantity, returns and photo count from a full getItem payload (the scam score uses them)."""
+    apply_condition(r, it)
     av = (it.get("estimatedAvailabilities") or [{}])[0]
     q = av.get("estimatedAvailableQuantity")
     if q is None:
@@ -1539,6 +1595,7 @@ def learn_facts(state, cat, rec, it):
     with the card it is filed under; {} when the payload says nothing), and teach the ePID memory - the product's
     facts, and a vote for the catalog card when the number names it and nothing is far off - so that every later
     listing of the product matches at once (match_title)."""
+    apply_condition(rec, it)                          # eBay's own condition field rides along with every full look
     ef = ebay_facts(it)
     epid = rec.get("epid") or (it or {}).get("epid") or ""
     m = (state.get("epids") or {}).get(str(epid)) if epid else None
@@ -1984,7 +2041,7 @@ def scam_calib(state):
         for code, n in sd.get("s", {}).items():
             signals.setdefault(code, Counter())["stale"] += n
     return {"tiers": {k: dict(v) for k, v in tiers.items()}, "signals": {k: dict(v) for k, v in signals.items()},
-            "labels": SCAM_LABELS, "watch": SCAM_WATCH, "suspect": SCAM_SUSPECT}
+            "labels": SCAM_LABELS, "points": SCAM_POINTS, "watch": SCAM_WATCH, "suspect": SCAM_SUSPECT}
 
 
 def enrich(state, max_calls=ENRICH_MAX_CALLS):
@@ -2713,7 +2770,8 @@ def build_live(state, cards, lp):
                      r.get("idv") or "", r.get("idr") or [],      # 29-30: item-specifics check (ok/conflict/none), what it found
                      1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
                      (r.get("imgs") or [])[1:4],                    # 33: the listing's other photos (the first is 20), for the Review screen
-                     facts_row(r)])                                 # 34: eBay's facts (None = not looked up, [] = none on the listing)
+                     facts_row(r),                                  # 34: eBay's facts (None = not looked up, [] = none on the listing)
+                     r.get("ec") or ""])                            # 35: the condition eBay states on the listing ("" = not read / none)
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
