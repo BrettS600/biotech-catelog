@@ -1070,16 +1070,17 @@ def forecast_record(v, msg, t):
     log(f"Forecast recorded: {len(rec['picks'])} cards, ${rec['cap']:.0f} for {rec['h']} month(s), expected net ${rec['exp']:.0f}")
 
 
-def forecast_score(v, cat):
-    """A record whose hold is up (t + h x 30 days) is scored once with PriceCharting's price now: realized net per
-    copy = P1 x (1 - fee) - fixed - shipping - supplies - buy x (1 - discount) x (1 + tax), the arithmetic the tab used."""
+def forecast_score(v, cat, cards=None):
+    """A record whose hold is up (t + h x 30 days) is scored once with what the card sells for on eBay now - the sold
+    median A from the card stats, PriceCharting's price for a card without one (the tab projects the sale the same
+    way): realized net per copy = P1 x (1 - fee) - fixed - shipping - supplies - buy x (1 - discount) x (1 + tax)."""
     now_ms = time.time() * 1000
     for rec in v.get("forecasts", []):
         if rec.get("done") or now_ms < rec["t"] + rec["h"] * 30 * 86400000:
             continue
         f, total, rows = rec["fees"], 0.0, []
         for cid, qty, buy, exp in rec["picks"]:
-            p1 = (cat.by_id.get(cid) or {}).get("pc")
+            p1 = ((cards or {}).get(str(cid)) or {}).get("A") or (cat.by_id.get(cid) or {}).get("pc")
             if not p1:
                 rows.append([cid, None, None])
                 continue
@@ -2600,7 +2601,7 @@ def cycle(state, cat, sched, counters):
     live["hl30"] = hit_listings_30d(state)                   # per card: listings that got a hit in 30 days (Hit % with each card's n30)
     live["since"] = es.data_since(state)                     # the first day with data: "last month" shows only for a month that began after it
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
-    forecast_score(v, cat)
+    forecast_score(v, cat, cards)
     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
