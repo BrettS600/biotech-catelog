@@ -145,6 +145,20 @@
   .zb { font:inherit; font-size:13px; padding:4px 11px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }   /* PriceCharting's Zoom buttons */
   .zb.on { background:var(--link); border-color:var(--link); color:#fff; }
   #pctable, #ebtable { margin-top:10px; }
+  .fc .al-card { min-width:0; }
+  .fc .fc-box { margin:6px 0 10px; max-height:none; }
+  .fc .fc-box table { font-size:12px; }
+  .fc .fc-box td, .fc .fc-box th { white-space:nowrap; padding:4px 7px; }
+  .fc .fc-box td:first-child { white-space:normal; min-width:170px; }
+  .fc .fc-box td:first-child a { font-weight:600; }
+  .fc tr.fc-buy td { font-weight:600; background:color-mix(in srgb, var(--link) 8%, transparent); }
+  .fc tr.fc-buy td .dim, .fc tr.fc-buy td .fc-why { font-weight:400; }
+  .fc .fc-why { font-size:11px; }
+  .fc .fc-stats { margin:6px 0 10px; }
+  .fc select { font:inherit; padding:5px 7px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); }
+  .fc .al-row .lab { flex:0 0 auto; }
+  .fc .al-row > span:last-child { display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+  @media (min-width: 901px) { .al.fc { grid-template-columns:minmax(320px, 420px) 1fr; } }
   .pctbox tr.part td:first-child { font-style:italic; }
   .pcth { display:flex; align-items:center; gap:8px; margin:0 0 6px; font-size:13px; }
   .pcth .reset { margin-left:auto; }
