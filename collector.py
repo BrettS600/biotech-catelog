@@ -627,6 +627,28 @@ def suspect_queue(state):
     return [iid for _, iid in out]
 
 
+COND_MAX_PER_CYCLE = 3           # the condition pass: full looks at listings whose title names no condition ...
+COND_DAILY_MAX = 400             # ... this many a day at most, paid from the tokens nothing above wanted
+
+
+def cond_queue(state, cfg):
+    """Listings the Raw Data tab shows as "n/s" that eBay's own condition field would settle (Brett, 2026-10-17):
+    matched, first seen in the last 24 h, in the alert price band, not suspect, two or more photos, never looked
+    up in full. Dearest first - those are the rows that matter - and each gets ONE full look (confirm with the
+    PRODUCT field group), which also teaches the record eBay's set / rarity / finish."""
+    day_ago = es.ts(es.NOW - timedelta(hours=24))
+    lo, hi = float(cfg.get("pmin") or 0), float(cfg.get("pmax") or 1e9)
+    out = []
+    for iid, rec in state["open"].items():
+        if rec.get("tcond", "UNK") != "UNK" or "ef" in rec or rec.get("cond_tried") or rec.get("card") is None \
+                or rec["first"] < day_ago or rec.get("tier") == "suspect" or rec.get("total") is None \
+                or not lo <= rec["total"] <= hi or (rec.get("n_img") is not None and rec["n_img"] < 2):
+            continue
+        out.append((-rec["total"], iid))
+    out.sort()
+    return [iid for _, iid in out]
+
+
 def close_stale(state, cards):
     """Settle every listing that is past its re-reads (the 2-day rule, see es.FOLLOW_D). No lookups are spent here.
       - flagged as vanished inside its first 2 days: left for the confirmation queue (that is where the sales are)
@@ -2059,7 +2081,8 @@ def auction_alerts(state, cat, cards, cfg):
             "i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "card": rec["card"], "ti": rec["title"][:90], "u": rec["url"],
             "bid": rec["item"], "ship": rec["ship"], "nb": watch[iid].get("bids") or 0, "end": end, "tc": rec["tcond"],
             "fb": rec.get("fb"), "pct": rec.get("pct"), "kd": kind, "s": d["nm"][0], "net": [nets.get("NM"), nets.get("LP")],
-            "tier": rec["tier"], "sc": rec["sc"], "scr": rec["scr"], "ph": rec.get("n_img")})
+            "tier": rec["tier"], "sc": rec["sc"], "scr": rec["scr"], "ph": rec.get("n_img"),
+            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4]})   # its photos, for the Review screen after the auction
     return n
 
 
@@ -2076,7 +2099,8 @@ def hit_snapshot(rec, d, kd, cs):
             "item": rec.get("item"), "ship": rec.get("ship"), "tot": rec["total"], "tc": rec.get("tcond", "UNK"),
             "bo": 1 if rec.get("bo") else 0, "fb": rec.get("fb"), "pct": rec.get("pct"), "ph": rec.get("n_img"),
             "sc": rec.get("sc", 0), "scr": rec.get("scr") or [], "idv": rec.get("idv") or "", "A": cs.get("A"),
-            "s": d["nm"][0], "mb": d["nm"][1], "p": d["nm"][2], "roi": d["nm"][3], "tax": d.get("tax")}
+            "s": d["nm"][0], "mb": d["nm"][1], "p": d["nm"][2], "roi": d["nm"][3], "tax": d.get("tax"),
+            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4]}   # its photos, for the Review screen once it has left the table
 
 
 def hh_backfill(state, cat):
@@ -2124,7 +2148,8 @@ def hh_rows(state):
         rows.append([r["i"], r["t"], r.get("card"), r.get("ti"), r.get("u"), r.get("first"), r.get("item"), r.get("ship"), r.get("tot"),
                      r.get("tc"), r.get("bo", 0), r.get("fb"), r.get("pct"), r.get("ph"), r.get("tr"), r.get("sc", 0), r.get("scr") or [],
                      r.get("idv") or "", r.get("A"), r.get("s"), r.get("mb"), r.get("p"), r.get("roi"), r.get("tax"), r.get("kd"),
-                     r.get("dec"), 1 if (r.get("um") or (rec or {}).get("um")) else 0, out, r.get("old", 0)])
+                     r.get("dec"), 1 if (r.get("um") or (rec or {}).get("um")) else 0, out, r.get("old", 0),
+                     r.get("img") or (rec or {}).get("img"), (r.get("imgs") or (rec or {}).get("imgs") or [])[:4]])   # 29-30: photos for the Review screen
     return rows
 
 
@@ -2168,7 +2193,9 @@ def au_rows(state):
     return [[r["i"], r["t"], r.get("card"), r.get("ti"), r.get("u"), r.get("bid"), r.get("ship"), r.get("nb"), r.get("end"),
              r.get("tc"), r.get("fb"), r.get("pct"), r.get("kd"), r.get("s"), (r.get("net") or [None, None])[0],
              (r.get("net") or [None, None])[1], r.get("tier"), r.get("sc"), r.get("scr") or [], r.get("ph"), r.get("fin"),
-             r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0"), 1 if r.get("um") else 0] for r in v["au_hist"]]
+             r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0"), 1 if r.get("um") else 0,
+             r.get("img") or (state["open"].get(r["i"]) or {}).get("img"),                  # 27-28: photos for the Review screen
+             (r.get("imgs") or (state["open"].get(r["i"]) or {}).get("imgs") or [])[:4]] for r in v["au_hist"]]
 
 
 def auction_finish(state, cards, n):
@@ -2520,6 +2547,22 @@ def cycle(state, cat, sched, counters):
                 before = state["calls"].get(es.TODAY, 0)
                 es.enrich(state, n)
                 v["tokens"] -= state["calls"].get(es.TODAY, 0) - before
+        # the condition pass, last of all: eBay's own condition field for the "n/s" rows (Brett, 2026-10-17)
+        cond_day = v.setdefault("cond_day", {})
+        if cond_day.get("d") != es.TODAY:
+            cond_day.clear(); cond_day.update({"d": es.TODAY, "n": 0, "named": 0})
+        if cond_day["n"] < COND_DAILY_MAX:
+            for iid in cond_queue(state, alert_cfg(state))[:COND_MAX_PER_CYCLE]:
+                if cond_day["n"] >= COND_DAILY_MAX or not spend(state, COST_CONFIRM):
+                    break
+                rec = state["open"][iid]
+                rec["cond_tried"] = 1
+                out = confirm(state, iid, rec, "cond", cat)
+                cond_day["n"] += 1
+                counters["cond_" + out] += 1
+                if rec.get("ecc"):
+                    cond_day["named"] += 1
+                    counters["cond_named"] += 1
     # 4. housekeeping, statistics, live file
     if cards and due("settle", 3600):                        # needs the cards' books, so not before the first statistics
         res = close_stale(state, cards)
@@ -2685,6 +2728,12 @@ def cycle(state, cat, sched, counters):
             f"{es.PC_HIGH:.0%} (kept out of the statistics); item specifics read on {sum(ids.values())} open listings "
             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
             f"printed totals for {len(cat.totals)} sets")
+        ec = Counter("named" if r.get("ecc") else "stated" if r.get("ec") else "none" for r in state["open"].values() if r.get("cond_tried") or "ef" in r)
+        day_ago = es.ts(es.NOW - timedelta(hours=24))
+        ns = sum(1 for r in state["open"].values() if r["first"] >= day_ago and r.get("tcond", "UNK") == "UNK")
+        log(f"Conditions: eBay's condition field read on {sum(ec.values())} open listings ({ec['named']} name a grade, {ec['stated']} say "
+            f"something else, {ec['none']} carry none); the condition pass made {v.get('cond_day', {}).get('n', 0)} of its "
+            f"{COND_DAILY_MAX} looks today, {len(cond_queue(state, alert_cfg(state)))} in its queue; {ns} listings of the last 24 h still n/s")
         log(f"Pictures: {len(v.get('pc_img', {}))} cards with a PriceCharting picture on file, {counters['pc_img']} pages read this hour, "
             f"{len(v.get('pc_miss', {}))} cards whose page had none, {pc_worker().backlog() if pc_worker() else 0} still to read "
             f"(one page every {pc_worker().gap if pc_worker() else 0:g} s, last read HTTP {PC_LAST_READ.get('code')} in "
