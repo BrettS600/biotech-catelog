@@ -1038,6 +1038,57 @@ def read_requests(state):
                     pc_worker().want(int(msg["c"]))
             except (TypeError, ValueError):
                 pass
+        elif msg.get("type") == "forecast":
+            forecast_record(v, msg, t)
+
+
+# ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
+FORECAST_KEEP = 100              # records kept (newest), each with its picks and, once mature, the realized result
+
+
+def forecast_record(v, msg, t):
+    """A forecast Brett recorded on the Forecast tab: {type: 'forecast', t, h (months), cap, disc (bought this far under
+    the standard price), fees {fee, fixed, shipOut, supplies, tax}, picks [[card id, qty, buy price, expected net per
+    copy], ...], exp / lo / hi (the portfolio's expected net and its 10th / 90th percentile), p (P(net > 0)), reg
+    (the market regime), month (the model's data month)}. Kept in the state; scored by forecast_score() at maturity."""
+    try:
+        h = int(msg.get("h") or 1)
+        fees = msg.get("fees") or {}
+        rec = {"t": t, "h": h if h in (1, 3, 6) else 1, "cap": round(float(msg.get("cap") or 0), 2), "disc": round(float(msg.get("disc") or 0), 4),
+               "fees": {k: round(float(fees.get(k, d)), 6) for k, d in (("fee", 0.1411), ("fixed", 0.4), ("shipOut", 4.5), ("supplies", 0.3), ("tax", 0.0))},
+               "picks": [[int(p[0]), int(p[1]), round(float(p[2]), 2), round(float(p[3]), 2)] for p in (msg.get("picks") or [])[:60] if int(p[1]) > 0],
+               "exp": round(float(msg.get("exp") or 0), 2), "lo": round(float(msg.get("lo") or 0), 2), "hi": round(float(msg.get("hi") or 0), 2),
+               "p": round(float(msg.get("p") or 0), 3), "reg": str(msg.get("reg") or "")[:12], "month": str(msg.get("month") or "")[:7], "done": None}
+    except (TypeError, ValueError, KeyError, IndexError):
+        return
+    if not rec["picks"]:
+        return
+    recs = v.setdefault("forecasts", [])
+    recs.append(rec)
+    del recs[:-FORECAST_KEEP]
+    v["forecast_t"] = t
+    log(f"Forecast recorded: {len(rec['picks'])} cards, ${rec['cap']:.0f} for {rec['h']} month(s), expected net ${rec['exp']:.0f}")
+
+
+def forecast_score(v, cat):
+    """A record whose hold is up (t + h x 30 days) is scored once with PriceCharting's price now: realized net per
+    copy = P1 x (1 - fee) - fixed - shipping - supplies - buy x (1 - discount) x (1 + tax), the arithmetic the tab used."""
+    now_ms = time.time() * 1000
+    for rec in v.get("forecasts", []):
+        if rec.get("done") or now_ms < rec["t"] + rec["h"] * 30 * 86400000:
+            continue
+        f, total, rows = rec["fees"], 0.0, []
+        for cid, qty, buy, exp in rec["picks"]:
+            p1 = (cat.by_id.get(cid) or {}).get("pc")
+            if not p1:
+                rows.append([cid, None, None])
+                continue
+            net = p1 * (1 - f["fee"]) - f["fixed"] - f["shipOut"] - f["supplies"] - buy * (1 - rec["disc"]) * (1 + f["tax"])
+            rows.append([cid, round(p1, 2), round(net, 2)])
+            total += net * qty
+        rec["done"], rec["actual"], rec["res"] = es.ts(es.NOW), round(total, 2), rows
+        v["forecast_t"] = int(now_ms)
+        log(f"Forecast scored: recorded {rec['t']}, expected net ${rec['exp']:.0f}, realized ${total:.0f}")
 
 
 def quiet_now(cfg):
@@ -2549,13 +2600,15 @@ def cycle(state, cat, sched, counters):
     live["hl30"] = hit_listings_30d(state)                   # per card: listings that got a hit in 30 days (Hit % with each card's n30)
     live["since"] = es.data_since(state)                     # the first day with data: "last month" shows only for a month that began after it
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
+    forecast_score(v, cat)
+    live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
     live["source"] = "vps"
     raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
     state["runs"] = state.get("runs", 0) + 1
     state_raw = save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0))   # a change on the Alerts tab is published at once
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0))   # a change on the Alerts tab is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
