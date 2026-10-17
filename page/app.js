@@ -2078,11 +2078,13 @@ function fcTable(h, bucket) {                            // the realized-return 
   const reg = FC.doc.regime.strong ? 'strong' : 'other';
   return cal.tables[h + '|' + reg + '|' + bucket] || cal.tables[h + '|all|all'] || null;
 }
-/* buy = what the copy costs on eBay (the credible floor, else the sold median, else PriceCharting's level); sell = the
-   PriceCharting level the model's return is measured against (max(price, 3-month average)), so the sale is projected
-   as sell x (1 + r) - the same arithmetic the collector scores a record with (PriceCharting's price at maturity).
-   Where eBay's floor sits far above PriceCharting (a $77 card asking $170) that is a loss, not a deal, and the tab
-   says so; where it sits below, the gap is the same margin the hit alerts hunt for. */
+/* buy = what the copy costs on eBay (the credible floor, else the sold median, else PriceCharting's level); sell = what
+   buyers actually pay for the card on eBay (the collector's sold median A; PriceCharting's level when the card has no
+   anchor), so the sale is projected as sell x (1 + r) with the model's return applied to eBay's own level - the same
+   arithmetic the collector scores a record with (A at maturity, else PriceCharting's price). PriceCharting alone would
+   mislead both ways: a card PriceCharting prices at $161 that clears for $100 on eBay is not a 40% deal at $95, and a
+   $77 card asking $170 is a loss, not a buy. A credible floor is never more than 25% under A (the collector's rule),
+   so the built-in margin of a standard-price buy is at most that. */
 function fcNet(buy, r, S, disc, sell = buy) {            // net profit per copy at a gross return r
   return sell * (1 + r) * (1 - S.fee) - S.fixed - S.shipOut - S.supplies - buy * (1 - disc) * (1 + S.tax);
 }
@@ -2103,9 +2105,10 @@ function fcDraw(tab, u) {                                // a return at probabil
   let i = 0; while (i < n - 1 && qs[i + 1] < u) i++;
   return q[i] + (q[i + 1] - q[i]) * (u - qs[i]) / (qs[i + 1] - qs[i]);
 }
+const FC_P_CAP = 0.95;                                   // no stated chance above this: the measured ranges end at the 5th percentile
 function fcDist(buy, tab, S, disc, sell = buy) {         // the copy's net at the 10th / 50th / 90th percentile, its mean, and P(net > 0)
   const qs = FC.doc.calib.quantiles, at = p => tab.q[qs.indexOf(p)];
-  return {lo: fcNet(buy, at(0.1), S, disc, sell), med: fcNet(buy, at(0.5), S, disc, sell), hi: fcNet(buy, at(0.9), S, disc, sell), mean: fcNet(buy, tab.mean, S, disc, sell), p: 1 - fcCdf(tab, fcBreakEven(buy, S, disc, sell))};
+  return {lo: fcNet(buy, at(0.1), S, disc, sell), med: fcNet(buy, at(0.5), S, disc, sell), hi: fcNet(buy, at(0.9), S, disc, sell), mean: fcNet(buy, tab.mean, S, disc, sell), p: Math.min(FC_P_CAP, 1 - fcCdf(tab, fcBreakEven(buy, S, disc, sell)))};
 }
 function fcInputs() {
   const n = (id, d) => { const v = parseFloat($(id).value); return isNaN(v) ? d : v; };
@@ -2121,16 +2124,18 @@ function fcCompute() {
     const pcBuy = a[ix.buy], pct = a[ix['pct' + I.h]], age = a[ix.age], vol12 = a[ix.vol12] || 0;
     const c = LIVE.dec && LIVE.dec[cid], band = (LIVE.data && LIVE.data.band) || [50, 500];
     // the standard price: what a credible copy costs on eBay now (the card's credible floor, else its sold median),
-    // else PriceCharting's level; the sale is projected from PriceCharting's level (pcBuy x (1 + r)), see fcNet
+    // else PriceCharting's level; the sale is projected from what buyers actually pay on eBay (the sold median A,
+    // else PriceCharting's level) moved by the model's return, see fcNet
     const buy = c && c.L != null ? c.L : c && c.A != null ? c.A : pcBuy, src = c && c.L != null ? 'eBay floor' : c && c.A != null ? 'eBay sold median' : 'PriceCharting';
+    const sell = c && c.A != null ? c.A : pcBuy;
     if (!(buy >= I.pmin && buy <= I.pmax) || vol12 < FC_MIN_VOL12) continue;
     if (!I.young && !(age >= 24)) continue;
     let supply = null, ask = null;                       // the collector only follows listings inside its price band: outside it the supply is unknown
     if (c && c.book && buy >= band[0] && buy <= band[1]) { supply = c.book.filter(b => b[1] <= buy * FC_ASK_LIMIT).length; ask = c.book.length ? c.book[0][1] : null; }
     if (supply === 0 || (supply == null && !I.untracked)) continue;
     const bucket = fcBucket(pct), tab = fcTable(I.h, bucket); if (!tab) continue;
-    const d = fcDist(buy, tab, S, I.disc, pcBuy);
-    rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell: pcBuy, src, ask, supply, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
+    const d = fcDist(buy, tab, S, I.disc, sell);
+    rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, ask, supply, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
                              mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], qty: 0}, d));
   }
   rows.sort((x, y) => y.pct - x.pct);                    // the model's order; the gate below decides what gets money
@@ -2157,7 +2162,7 @@ function fcMonteCarlo(picks, S, disc, n = 3000) {        // the portfolio's net:
   const tot = new Float64Array(n);
   for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; picks.forEach(r => { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += r.qty * fcNet(r.buy, fcDraw(r.tab, u), S, disc, r.sell); }); tot[k] = s; }
   const a = Array.from(tot).sort((x, y) => x - y), at = p => a[Math.min(n - 1, Math.floor(p * n))];
-  return {lo: at(0.1), q25: at(0.25), med: at(0.5), q75: at(0.75), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: a.filter(v => v > 0).length / n};
+  return {lo: at(0.1), q25: at(0.25), med: at(0.5), q75: at(0.75), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(FC_P_CAP, a.filter(v => v > 0).length / n)};
 }
 const fcPct = (v, nd = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(nd) + '%';
 const fcMoney = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
@@ -2192,7 +2197,7 @@ function fcRenderPicks() {
     sum = '<p><b>Nothing to buy at these settings.</b> Over ' + unit + ' the best card on the list has a ' + (best.p * 100).toFixed(0) + '% chance of a profit after eBay’s fees when bought at the standard price' + (I.disc ? ' less ' + (I.disc * 100).toFixed(0) + '%' : '') +
       '; your bar is ' + (I.minp * 100).toFixed(0) + '%. ' + (need != null ? 'It clears the bar when bought <b>' + (need * 100).toFixed(0) + '% under</b> the standard price — that is what the hit alerts are for.' : 'No discount up to 60% clears the bar at this hold.') + ' The list below is the model’s ranking anyway: what to buy if you can get it cheap.</p>';
   } else {
-    sum = '<p>Spend <b>' + fcMoney(FC.spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + picks.length + ' card' + (picks.length > 1 ? 's' : '') + '</b> (' + (n => n + (n === 1 ? ' copy' : ' copies'))(picks.reduce((s, r) => s + r.qty, 0)) + '), hold ' + unit + ', sell at PriceCharting’s price then.</p>' +
+    sum = '<p>Spend <b>' + fcMoney(FC.spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + picks.length + ' card' + (picks.length > 1 ? 's' : '') + '</b> (' + (n => n + (n === 1 ? ' copy' : ' copies'))(picks.reduce((s, r) => s + r.qty, 0)) + '), hold ' + unit + ', sell at eBay’s going price then.</p>' +
       '<div class="stats fc-stats">' +
       '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + fcMoney(mc.mean) + '</div><div class="d">average over the model’s history</div></div>' +
       '<div class="stat"><div class="k">Likely range</div><div class="v">' + fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) + '</div><div class="d">10th to 90th percentile; median ' + fcMoney(mc.med) + '</div></div>' +
@@ -2206,17 +2211,18 @@ function fcRenderPicks() {
   rows.forEach(r => {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
     html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '"><td><a href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener">' + esc(r.name) + '</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
-      '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.price || r.buy > 1.3 * r.price ? ' down' : '') + '" title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '') + '</td><td class="num">' + supplyCell(r) + '</td>' +
+      '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (r.sell !== r.pcBuy || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
+        [r.sell !== r.pcBuy ? '<span title="eBay’s sold median: what buyers actually pay; the sale is projected from it">sells ' + fmtMoneyPlain(r.sell) + '</span>' : '', Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num">' + supplyCell(r) + '</td>' +
       '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span></td>' +
       '<td class="num">' + fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
       '<td class="num">' + (r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
   });
-  html += '</tbody></table></div><p class="dim">Bold rows are the buys; the rest is the model’s ranking (up to 40). Net per copy = sold at PriceCharting’s price at the end of the hold, less eBay’s fee, the label and supplies, less what you paid. The range is what cards in the same rank bucket actually did in this kind of market, 2022–2026, out of sample.</p>';
+  html += '</tbody></table></div><p class="dim">Bold rows are the buys; the rest is the model’s ranking (up to 40). Net per copy = sold at eBay’s going price at the end of the hold (the card’s sold median moved by the model’s return; PriceCharting’s price when the collector has no sales for it), less eBay’s fee, the label and supplies, less what you paid. The range is what cards in the same rank bucket actually did in this kind of market, 2022–2026, out of sample.</p>';
   $('fc-picks').innerHTML = html;
 }
 function fcRenderRecords() {
   const F = (LIVE.data && LIVE.data.forecasts) || {}, recs = (F.recs || []).slice().reverse();
-  if (!recs.length) { $('fc-records').innerHTML = '<p class="dim">None recorded yet. Record a forecast and the collector scores it with PriceCharting’s prices once the hold is up.</p>'; return; }
+  if (!recs.length) { $('fc-records').innerHTML = '<p class="dim">None recorded yet. Record a forecast and the collector scores it once the hold is up, at eBay’s sold median then (PriceCharting’s price for a card without one).</p>'; return; }
   const scored = recs.filter(r => r.done);
   let head = '';
   if (scored.length) {
