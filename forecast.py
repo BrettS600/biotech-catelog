@@ -220,12 +220,25 @@ def score(df, models, m_now):
     return now
 
 
+def clean(o):
+    """NaN / inf -> null, recursively: Python's json writes NaN, which a browser's JSON.parse refuses, so the file
+    must never carry one (2026-10-17: a card with one month of history has no 3-month average -> buy was NaN)."""
+    if isinstance(o, dict):
+        return {k: clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [clean(v) for v in o]
+    if isinstance(o, float) and not np.isfinite(o):
+        return None
+    return o
+
+
 def publish(now, mk, m_now, calib, out, password, meta):
     reg = mk.loc[m_now] if m_now in mk.index else mk.iloc[-1]
     strong = bool(reg["reg3"] >= REGIME_STRONG)
     cards = {}
     for r in now.itertuples(index=False):
-        cards[str(r.id)] = [round(float(r.price), 2), round(float(r.buy_real), 2)] + \
+        buy = r.price if pd.isna(r.buy_real) else r.buy_real          # one month of history: no 3-month average yet
+        cards[str(r.id)] = [round(float(r.price), 2), round(float(buy), 2)] + \
             [x for h in HORIZONS for x in (round(float(getattr(r, f"pred{h}")), 4), round(float(getattr(r, f"pct{h}")), 4))] + \
             [None if pd.isna(r.mom1) else round(float(r.mom1), 4), None if pd.isna(r.mom3) else round(float(r.mom3), 4),
              None if pd.isna(r.mom12) else round(float(r.mom12), 4), None if pd.isna(r.age) else int(r.age),
@@ -236,7 +249,8 @@ def publish(now, mk, m_now, calib, out, password, meta):
                       "breadth3": None if pd.isna(reg["breadth3"]) else round(float(reg["breadth3"]), 3), "strong": strong, "threshold": REGIME_STRONG},
            "cols": ["price", "buy", "pred1", "pct1", "pred3", "pct3", "pred6", "pct6", "mom1", "mom3", "mom12", "age", "vol", "vol12", "dd12", "set_mom1"],
            "horizons": list(HORIZONS), "min_price": MIN_PRICE, "n": len(cards), "cards": cards, "calib": calib, "meta": meta}
-    raw = gzip.compress(json.dumps(doc, separators=(",", ":")).encode("utf-8"))
+    doc = clean(doc)
+    raw = gzip.compress(json.dumps(doc, separators=(",", ":"), allow_nan=False).encode("utf-8"))   # strict: a NaN here is a bug, not a value
     open(out, "wb").write(encrypt_live(raw, password))
     return doc
 
