@@ -84,6 +84,15 @@ jobs:
           cp ../page/link.html ../public/link.html   # where eBay sends Brett back after he approves account access
           ls -la ../public
 
+      - name: Forecast (the Forecast tab's model, from the collector's PriceCharting history)
+        continue-on-error: true      # a model hiccup must never block the site; the tab then shows the last file
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: |
+          git fetch --depth 1 origin live
+          rm -rf live_pc && mkdir -p live_pc && git archive FETCH_HEAD pc | tar -x -C live_pc
+          python forecast.py --shards live_pc/pc --snapshots snapshots --calib forecast_calib.json --out public/forecast.bin
+
       - uses: actions/configure-pages@v5
         with:
           enablement: true
