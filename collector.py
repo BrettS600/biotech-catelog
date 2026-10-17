@@ -2190,12 +2190,15 @@ def au_rows(state):
     v = state["vps"]
     cut = es.ts(es.NOW - timedelta(days=AU_HIST_KEEP_D))
     v["au_hist"] = [r for r in v.get("au_hist", []) if r["t"] >= cut]
+    want = {r["i"] for r in v["au_hist"] if not r.get("img")}             # older records: the photo from the listing itself
+    closed = {r["id"]: r for r in state["closed"] if r["id"] in want}
+    rec_of = lambda r: state["open"].get(r["i"]) or closed.get(r["i"]) or {}
     return [[r["i"], r["t"], r.get("card"), r.get("ti"), r.get("u"), r.get("bid"), r.get("ship"), r.get("nb"), r.get("end"),
              r.get("tc"), r.get("fb"), r.get("pct"), r.get("kd"), r.get("s"), (r.get("net") or [None, None])[0],
              (r.get("net") or [None, None])[1], r.get("tier"), r.get("sc"), r.get("scr") or [], r.get("ph"), r.get("fin"),
              r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0"), 1 if r.get("um") else 0,
-             r.get("img") or (state["open"].get(r["i"]) or {}).get("img"),                  # 27-28: photos for the Review screen
-             (r.get("imgs") or (state["open"].get(r["i"]) or {}).get("imgs") or [])[:4]] for r in v["au_hist"]]
+             r.get("img") or rec_of(r).get("img"),                                           # 27-28: photos for the Review screen
+             (r.get("imgs") or rec_of(r).get("imgs") or [])[:4]] for r in v["au_hist"]]
 
 
 def auction_finish(state, cards, n):
