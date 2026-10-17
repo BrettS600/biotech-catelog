@@ -1,0 +1,64 @@
+diff --git a/collector.py b/collector.py
+index bcef639..dd3df1c 100644
+--- a/collector.py
++++ b/collector.py
+@@ -627,8 +627,9 @@ def suspect_queue(state):
+     return [iid for _, iid in out]
+ 
+ 
+-COND_MAX_PER_CYCLE = 3           # the condition pass: full looks at listings whose title names no condition ...
+-COND_DAILY_MAX = 400             # ... this many a day at most, paid from the tokens nothing above wanted
++COND_MAX_PER_CYCLE = 1           # the condition pass: a full look at a listing whose title names no condition ...
++COND_EVERY_S = 90                # ... at most one every 90 s (960 a day) ...
++COND_DAILY_MAX = 400             # ... and this many a day at most, 8% of the API budget
+ 
+ 
+ def cond_queue(state, cfg):
+@@ -2490,6 +2491,24 @@ def cycle(state, cat, sched, counters):
+         done = es.verify_hits(state, cat, cards, n_id)
+         v["tokens"] -= done
+         counters["verified"] += done
++    # the condition pass: eBay's own condition field for the "n/s" rows (Brett, 2026-10-17). One full look every
++    # COND_EVERY_S, COND_DAILY_MAX a day, taken here - behind the identity lookups, ahead of the re-reads - because
++    # at the tail of the optional work the bucket never had a token left for it (0 looks in its first hours)
++    cond_day = v.setdefault("cond_day", {})
++    if cond_day.get("d") != es.TODAY:
++        cond_day.clear(); cond_day.update({"d": es.TODAY, "n": 0, "named": 0})
++    if cards and cond_day["n"] < COND_DAILY_MAX and v.get("tokens", 0) >= 2 and due("cond", COND_EVERY_S):
++        for iid in cond_queue(state, alert_cfg(state))[:COND_MAX_PER_CYCLE]:
++            if not spend(state, COST_CONFIRM):
++                break
++            rec = state["open"][iid]
++            rec["cond_tried"] = 1
++            out = confirm(state, iid, rec, "cond", cat)
++            cond_day["n"] += 1
++            counters["cond_" + out] += 1
++            if rec.get("ecc"):
++                cond_day["named"] += 1
++                counters["cond_named"] += 1
+     saving = False
+     if v.get("window_ok"):
+         for last, key, n in due_windows(state, now)[:REREAD_MAX_PER_CYCLE]:
+@@ -2550,22 +2569,6 @@ def cycle(state, cat, sched, counters):
+                 before = state["calls"].get(es.TODAY, 0)
+                 es.enrich(state, n)
+                 v["tokens"] -= state["calls"].get(es.TODAY, 0) - before
+-        # the condition pass, last of all: eBay's own condition field for the "n/s" rows (Brett, 2026-10-17)
+-        cond_day = v.setdefault("cond_day", {})
+-        if cond_day.get("d") != es.TODAY:
+-            cond_day.clear(); cond_day.update({"d": es.TODAY, "n": 0, "named": 0})
+-        if cond_day["n"] < COND_DAILY_MAX:
+-            for iid in cond_queue(state, alert_cfg(state))[:COND_MAX_PER_CYCLE]:
+-                if cond_day["n"] >= COND_DAILY_MAX or not spend(state, COST_CONFIRM):
+-                    break
+-                rec = state["open"][iid]
+-                rec["cond_tried"] = 1
+-                out = confirm(state, iid, rec, "cond", cat)
+-                cond_day["n"] += 1
+-                counters["cond_" + out] += 1
+-                if rec.get("ecc"):
+-                    cond_day["named"] += 1
+-                    counters["cond_named"] += 1
+     # 4. housekeeping, statistics, live file
+     if cards and due("settle", 3600):                        # needs the cards' books, so not before the first statistics
+         res = close_stale(state, cards)
