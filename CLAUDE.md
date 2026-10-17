@@ -740,10 +740,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   record's own fees), published as live["forecasts"] {t, recs} (forecast_t in the publish signature); the tab's
   Past forecasts table shows expected vs actual with the score line (mean miss, inside the 10-90% range, right side
   of zero). forecast.bin is fetched from the site itself (same origin, hourly bucket); a missing/garbled file only
-  blanks the tab (loadForecast validates the doc; rebuildLive wraps fcCompute in try/catch). Tests:
-  t/pcpop/test_ui9.py (the tab end to end against a forecast.bin fixture served over http), ut/test_forecast_rec.py
-  (records). The research scripts: build.py, features.py/features2.py, explore1-4.py, backtest.py/backtest2.py,
-  calib.py, final_model.py, make_calib.py, validate_pipeline.py, recency.py, structural.py, blend.py.
+  blanks the tab (loadForecast validates the doc; rebuildLive wraps fcCompute in try/catch). LESSON (build #96): the
+  first live file carried a NaN (a card with one month of history has no 3-month average, so buy_real was NaN) and
+  Python's json.dumps writes NaN, which the browser's JSON.parse refuses while Python's own loads accepts it - so a
+  Python-only check of the file proves nothing; `publish()` now runs `clean()` (NaN/inf -> null, buy = price when
+  there is no average) and dumps with allow_nan=False, and ut/test_forecast_pub.py parses the output with Node.
+  Tests: t/pcpop/test_ui9.py (the tab end to end against a forecast.bin fixture served over http),
+  ut/test_forecast_rec.py (records), ut/test_forecast_pub.py (strict JSON). The research scripts: build.py,
+  features.py/features2.py, explore1-4.py, backtest.py/backtest2.py, calib.py, final_model.py, make_calib.py,
+  validate_pipeline.py, recency.py, structural.py, blend.py.
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
