@@ -760,6 +760,30 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   ut/test_forecast_rec.py (records), ut/test_forecast_pub.py (strict JSON). The research scripts: build.py,
   features.py/features2.py, explore1-4.py, backtest.py/backtest2.py, calib.py, final_model.py, make_calib.py,
   validate_pipeline.py, recency.py, structural.py, blend.py.
+- REVIEW ON AUCTIONS, THE RISK POINTS POPUP, EBAY'S CONDITION FIELD (2026-10-17 evening, Brett: "the review button does
+  not work for auctions sent to my phone"; "press the watch button and have a popup revealing the points"; "many
+  listings say condition n/s but the posting states the condition"). (1) openReview(iid) found its row only in
+  LIVE.erMap (the 24-hour live table), so an auction (alert.au) or a hit from the history (alert.hh) whose listing
+  had left the table did nothing; it now falls back to LIVE.au / LIVE.hh, and those records carry the photos: the
+  collector stores img + the first 4 imgs on hit_snapshot and the au_hist record and publishes them at hh row 29-30
+  / au row 27-28 (falling back to the live/closed record); closed records keep imgs[:4] too. (2) riskCell renders
+  a <button class="riskb"> around the badge (and around the dash when signals fired but the tier is clean);
+  openRisk(iid) shows the signals that fired with their points (live.scam.points = SCAM_POINTS, published since
+  this change, SCAM_POINTS_DEFAULT in the page meanwhile), the thresholds (watch 3, suspect 5, dup alone, burst),
+  and per signal what closed listings with it did (live.scam.signals: sold/ended/gone/stale). (3) The condition:
+  es.ebay_condition(it) reads getItem's conditionDescriptors (name containing "condition"/"grade", values as
+  {content} or strings), else the "card condition"/"condition" item specific, else the seller's
+  conditionDescription note; the title's COND_WORDS decide the code, "damaged" -> HP; apply_condition(rec, it)
+  stores rec["ec"] (text) and, when it names a grade, rec["ecc"] and rec["tcond"] (eBay's declaration beats title
+  words; the re-match pass keeps ecc). It runs inside item_facts() AND learn_facts(), so every full look (identity
+  checks, confirmations, book/suspect/facts lookups, alerts) reads it. The CONDITION PASS (collector, last in the
+  optional work): cond_queue() = n/s, matched, first seen < 24 h, in the alert price band, not suspect, 2+ photos,
+  never looked up, dearest first; COND_MAX_PER_CYCLE 3, COND_DAILY_MAX 400 (v["cond_day"]), each a confirm(...,
+  "cond", cat) full look, once per listing (rec["cond_tried"]). Live row 35 = rec["ec"]; the page's condCell shows
+  the grade with a small "e" when it is eBay's and explains n/s on hover; the hourly "Conditions:" log line counts
+  the reads. The first three descriptor payloads are logged raw ("Condition: <id> descriptors ...") - CHECK THE LOG
+  after the first deploy: eBay's exact JSON shape for trading-card descriptors was not verifiable from the docs, so
+  the reader accepts both shapes and the log confirms which one arrives. Tests: ut/test_cond.py, t/test_risk.js.
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
