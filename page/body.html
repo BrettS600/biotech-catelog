@@ -2,6 +2,7 @@
   <button class="tab on" data-t="pc">PriceCharting Catalog</button>
   <button class="tab" data-t="ec">eBay Catalog</button>
   <button class="tab" data-t="er">eBay Raw Data</button>
+  <button class="tab" data-t="fc">Forecast</button>
   <button class="tab" data-t="al">Notification Settings</button>
   <button class="tab" data-t="rv">Transaction Report</button>
   <div class="tools">
@@ -285,6 +286,35 @@
 </div>
 
 <!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
+<!-- ============ Tab: Forecast (Brett, 2026-10-17: capital in, cards + quantities + net profit range + confidence out) ============ -->
+<section class="panel" id="p-fc" hidden>
+<div class="meta" id="meta-fc">Forecast · which cards to buy at a standard price and hold, from PriceCharting&rsquo;s monthly history of every card · loading the model&hellip;</div>
+<div class="al fc">
+  <div class="al-card">
+    <h3>Your plan</h3>
+    <div class="al-row"><span class="lab">Capital to spend<button class="help" data-h="fc_cap">?</button></span><span><span class="unit">$</span><input type="number" id="fc-cap" min="0" step="50" value="1000"></span></div>
+    <div class="al-row"><span class="lab">Hold for<button class="help" data-h="fc_hold">?</button></span><span><select id="fc-h"><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option></select></span></div>
+    <div class="al-row"><span class="lab">I buy at<button class="help" data-h="fc_disc">?</button></span><span><input type="number" id="fc-disc" min="0" max="60" step="5" value="0"><span class="unit">%</span><span class="dim"> under the standard price</span></span></div>
+    <div class="al-row"><span class="lab">Card price between<button class="help" data-h="fc_price">?</button></span><span><span class="unit">$</span><input type="number" id="fc-pmin" min="10" step="5" value="50"> <span class="dim">and</span> <span class="unit">$</span><input type="number" id="fc-pmax" min="10" step="5" value="500"></span></div>
+    <div class="al-row"><span class="lab">At most per card<button class="help" data-h="fc_share">?</button></span><span><input type="number" id="fc-share" min="5" max="100" step="5" value="20"><span class="unit">%</span><span class="dim"> of the capital</span></span></div>
+    <div class="al-row"><span class="lab">Buy only at<button class="help" data-h="fc_conf">?</button></span><span><input type="number" id="fc-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span><span class="dim"> or better chance of a profit</span></span></div>
+    <label class="al-check"><input type="checkbox" id="fc-young"> Allow cards from sets under 2 years old<button class="help" data-h="fc_young">?</button></label>
+    <label class="al-check"><input type="checkbox" id="fc-untracked"> Allow cards whose eBay supply is unknown<button class="help" data-h="fc_supply">?</button></label>
+    <div class="al-actions"><button class="al-save" id="fc-record">Record this forecast</button></div>
+    <div class="al-status" id="fc-status"></div>
+    <h3>The market now<button class="help" data-h="fc_regime">?</button></h3>
+    <div class="al-now" id="fc-regime">Waiting for the model&hellip;</div>
+  </div>
+  <div class="al-card" id="fc-main">
+    <h3>What to buy<button class="help" data-h="fc_picks">?</button></h3>
+    <div id="fc-summary" class="al-now"></div>
+    <div id="fc-picks"></div>
+    <h3>Past forecasts<button class="help" data-h="fc_record">?</button></h3>
+    <div id="fc-records" class="al-now"></div>
+  </div>
+</div>
+</section>
+
 <section class="panel" id="p-al" hidden>
 <div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes on the eBay Raw Data tab only change what the tables show.</div>
 <div class="al">
