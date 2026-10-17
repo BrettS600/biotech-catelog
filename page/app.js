@@ -254,7 +254,7 @@ const TABLES = {
       '<td class="num auc"></td><td class="num auc"></td>' +
       '<td>' + verdictCell(r) + hhNote(r) + '</td>' +
       '<td>' + riskCell(r) + '</td>' +
-      '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td>' +
+      '<td>' + condCell(r) + '</td>' +
       '<td>' + (r[16] ? 'BO' : dash) + '</td>' +
       '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
       '<td>' + (r[19] === 'open' ? 'open' : r[19] === 'sold' ? '<span class="up">sold</span>' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td>' +
@@ -274,7 +274,7 @@ function auRows(live) {
   const margin = Math.min(0.5, Math.max(0, c.margin / 100)), tax = Math.min(0.15, Math.max(0, c.tax / 100)), now = Date.now();
   const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
   return A.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((a, i) => {
-    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag] = a;
+    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag, img, imgs] = a;
     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {};
     const lp = dec === 'lp' || (dec !== 'nm' && tc === 'LP'), net = lp ? netLP : netNM;
     const maxbuy = net == null ? null : r2(net / (1 + margin)), sh = ship == null ? 0 : ship;
@@ -287,7 +287,7 @@ function auRows(live) {
     const pc = base[6] == null ? null : base[6];
     const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', r1((now - Date.parse(t)) / 36e5), ti || '', sold ? fin : null, ship, ftot, fall,
       cs.A != null ? cs.A : null, sold && cs.A ? r1((ftot / cs.A - 1) * 100) : null, maxbuy, res, tc || 'UNK', false, fb, pct,
-      sold ? 'sold' : fst === 'nobids' ? 'ended' : fst === 'gone' ? 'gone' : 'open', u, null, iid, null,
+      sold ? 'sold' : fst === 'nobids' ? 'ended' : fst === 'gone' ? 'gone' : 'open', u, img || null, iid, null,
       maxbuy == null ? null : r2(net - maxbuy), maxbuy == null ? null : r1(margin * 100), s,
       null, lp ? 'LP: judged as a lightly played copy' : kd === 'lead' ? 'Lead: priced from PriceCharting, not from eBay sales' : null,
       tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], t,
@@ -296,7 +296,7 @@ function auRows(live) {
     row[46] = mtOf(cid);
     const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
     row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
-    row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um;
+    row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um; row.pics = (imgs || []).slice(1);
     return row;
   });
 }
@@ -325,7 +325,7 @@ function auRow(r) {
     '<td class="num auc" title="Best case: at the price it closed at">' + signed(r[44]) + '</td><td class="num auc" title="Best case: at the price it closed at">' + fmtPct(r[45]) + '</td>' +
     '<td><span title="' + esc(tip + said) + '">' + (x.res === 'PASS' ? badge('PASS', 'pass') : r.um ? badge('mismatch \u2717', 'warn') : '<span class="dim">' + esc(x.res) + '</span>') + (x.dec === 'no' ? ' <span class="dim">· you said No</span>' : '') + '</span></td>' +
     '<td>' + riskCell(r) + '</td>' +
-    '<td>' + (r[15] === 'UNK' ? '<span class="dim">n/s</span>' : esc(r[15])) + '</td><td>' + dash + '</td>' +
+    '<td>' + condCell(r) + '</td><td>' + dash + '</td>' +
     '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
     '<td>' + (r[19] === 'sold' ? '<span class="up">sold</span>' : r[19] === 'open' ? 'open' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td><td class="num">' + dash + '</td>';
 }
@@ -342,15 +342,48 @@ function auMode() {
   $('au-note').innerHTML = '<b>Auctions sent to your phone</b>, newest first, kept for 60 days. Max buy, Profit and ROI use your saved alert settings (margin <b>' + c.margin + '%</b>, buy tax <b>' + c.tax + '%</b>), not the boxes above: they are the <b>worst case</b> if you win, paying your whole Max buy. The two "at final" columns are the <b>best case</b>: the price it closed at with no bid from you. Your own bid would have pushed that price up, or lost to a higher hidden maximum. What the card sells for is the figure the alert used.';
 }
 
-// scam screen: tier badge with the score and the signals behind it on hover
+// condition: NM / LP / MP / HP from eBay's own condition field when the collector has read the listing (r[55] holds
+// eBay's words), else from the title; n/s = neither names one (hover says which)
+function condCell(r) {
+  const ec = r[55] || '';
+  if (r[15] === 'UNK') return '<span class="dim" title="' + esc(ec ? 'eBay\u2019s condition field says: ' + ec + ' (no grade in it)' : r[48] == null ? 'no condition in the title; eBay\u2019s condition field has not been read yet (the collector reads it for listings in the alert price band, dearest first)' : 'no condition in the title and none on the listing') + '">n/s</span>';
+  return '<span title="' + esc(ec ? 'eBay\u2019s condition field: ' + ec : 'from the title') + '">' + esc(r[15]) + (ec ? '<sup class="dim" title="stated on eBay">e</sup>' : '') + '</span>';
+}
+// scam screen: tier badge with the score and the signals behind it on hover; a click opens the points table
+// (Brett, 2026-10-17: "press the watch button and have a popup revealing the points it received")
 const RISK_RANK = {clean: 0, watch: 1, suspect: 2};
+const SCAM_POINTS_DEFAULT = {p50: 4, p65: 2, p75: 1, fb0: 3, fbq: 1, img: 1, qty: 2, dup: 3, slow: 1, top: -2, est: -1, burst: 0, fb1: 1, pct: 2, ret: 1};   // the collector's table, until the live file carries it
 function riskCell(r) {
   const lab = (LIVE.data && LIVE.data.scam && LIVE.data.scam.labels) || {};
   const why = (r[33] || []).map(c => lab[c] || c).join(' · ');
-  const title = 'score ' + r[31] + (why ? ': ' + why : '');
-  if (r[29] === 'suspect') return '<span title="' + esc(title) + '">' + badge('suspect', 'sus') + '</span>';
-  if (r[29] === 'watch') return '<span title="' + esc(title) + '">' + badge('watch', 'watch') + '</span>';
-  return '<span class="dim" title="' + esc(title) + '">—</span>';
+  const title = 'score ' + r[31] + (why ? ': ' + why : '') + ' — click for the points';
+  const btn = inner => '<button class="riskb" data-i="' + esc(r[22] || '') + '" title="' + esc(title) + '">' + inner + '</button>';
+  if (r[29] === 'suspect') return btn(badge('suspect', 'sus'));
+  if (r[29] === 'watch') return btn(badge('watch', 'watch'));
+  return (r[33] || []).length ? btn('<span class="dim">—</span>') : '<span class="dim" title="' + esc(title) + '">—</span>';
+}
+document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.riskb') : null; if (b && b.dataset.i) openRisk(b.dataset.i); });
+function openRisk(iid) {
+  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid);
+  if (!r) return;
+  const sc = (LIVE.data && LIVE.data.scam) || {}, pts = Object.assign({}, SCAM_POINTS_DEFAULT, sc.points || {}), lab = sc.labels || {};
+  const watchAt = sc.watch || 3, susAt = sc.suspect || 5, codes = r[33] || [], tier = r[29] || 'clean';
+  const outcomes = c => { const o = (sc.signals || {})[c]; if (!o) return '<span class="dim">no closed listings yet</span>';
+    const n = Object.values(o).reduce((s, v) => s + v, 0), sold = o.sold || 0, gone = o.gone || 0;
+    return n + ' closed: <b>' + sold + '</b> sold (' + Math.round(sold / n * 100) + '%), ' + (o.ended || 0) + ' ended, ' + gone + ' gone (' + Math.round(gone / n * 100) + '%), ' + (o.stale || 0) + ' outlived 2 days'; };
+  $('btitle').textContent = 'Risk: ' + tier + ' — score ' + r[31];
+  $('bsub').innerHTML = esc(r[1]) + ' · <a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener">' + esc((r[6] || '').slice(0, 90)) + '</a>';
+  let h = '<p>Every open listing is scored on the signals below; <b>' + watchAt + ' points</b> or more makes it <b>watch</b>, <b>' + susAt + '</b> or more <b>suspect</b>. A photo also used by another seller is suspect by itself, and a watch listing from a seller never seen before who put up several $75+ cards the same day is moved to suspect (“burst”). ' +
+    'Points come from the calibration of closed listings: what listings with each signal went on to do (sold normally, or vanished without a sale — the scam pattern).</p>';
+  if (!codes.length) h += '<p class="dim">No signal fired on this listing: score 0, clean.</p>';
+  else {
+    h += '<table><thead><tr><th>Signal</th><th class="num">Points</th><th>Listings with this signal</th></tr></thead><tbody>' +
+      codes.map(c => '<tr><td>' + esc(lab[c] || c) + ' <span class="dim">(' + esc(c) + ')</span></td><td class="num"><b>' + (pts[c] > 0 ? '+' : '') + (pts[c] == null ? '?' : pts[c]) + '</b></td><td>' + outcomes(c) + '</td></tr>').join('') +
+      '<tr><td><b>Total</b></td><td class="num"><b>' + r[31] + '</b></td><td>' + (tier === 'suspect' ? 'suspect: at or over ' + susAt + (codes.indexOf('dup') >= 0 ? ', or the shared photo alone' : codes.indexOf('burst') >= 0 ? ', or the seller burst' : '') : tier === 'watch' ? 'watch: ' + watchAt + ' to ' + (susAt - 1) : 'clean: under ' + watchAt) + '</td></tr></tbody></table>';
+  }
+  h += '<p class="dim">Watch listings are shown and can alert (Notification Settings decides); suspects are hidden unless “Show suspects” is ticked and never alert. The seller’s own bar (ratings, feedback %) is a separate check in the gate.</p>';
+  $('bbody').innerHTML = h;
+  $('bov').classList.add('open');
 }
 // verdict badge; the identity checks explain themselves on hover
 const pcPct = (k, d) => Math.round(((LIVE.data && LIVE.data.gate && LIVE.data.gate[k]) || d) * 100);
@@ -964,18 +997,18 @@ const COMPARABLE = new Set(['NM', 'LP', 'UNK']);
 function hhRows(live) {
   const H = (live.alert && live.alert.hh) || [], now = Date.now();
   return H.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((h, i) => {
-    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old] = h;
+    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old, img, imgs] = h;
     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {}, pc = base[6] == null ? null : base[6];
     const marked = umOf(iid, um);
     const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', first ? r1((now - Date.parse(first)) / 36e5) : null, ti || '', item, ship, tot,
       tot == null ? null : r2(tot + (item || 0) * (tax || 0) / 100), A, A && tot ? r1((tot / A - 1) * 100) : null, mb, marked ? 'mismatch: marked by you' : 'PASS', tc || 'UNK', !!bo, fb, pct,
-      out === 'unknown' ? 'gone' : out, u, null, iid, null, p, roi, s, null, null, tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], first || t,
+      out === 'unknown' ? 'gone' : out, u, img || null, iid, null, p, roi, s, null, null, tier || 'clean', RISK_RANK[tier] || 0, sc || 0, ph == null ? 99 : ph, scr || [], first || t,
       pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[PC_LIVE.pcm], base[PC_LIVE.km],
       null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
     row[46] = mtOf(cid);
     const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
     row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
-    row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null;
+    row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null; row.pics = (imgs || []).slice(1);
     return row;
   });
 }
@@ -1089,11 +1122,14 @@ function reviewPicRefresh() {
   box.outerHTML = '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>';
 }
 function openReview(iid) {
-  const r = LIVE.erMap && LIVE.erMap.get(iid); if (!r) return;
+  // the row may be a live listing, an auction sent to the phone or a hit from the history - those two outlive the
+  // 24-hour table, so the button failed on them until 2026-10-17 (Brett: "the review button does not work for auctions")
+  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid);
+  if (!r) return;
   const x = (LIVE.data.live || []).find(z => z[0] === iid) || [];
   const cs = (LIVE.dec || {})[String(r[0])] || {}, base = idRow.get(r[0]) || [];
   const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
-  const pics = [r[21]].concat(x[33] || []).filter(Boolean);
+  const pics = [r[21]].concat(x[33] && x[33].length ? x[33] : r.pics || []).filter(Boolean);
   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
   LIVE.rvCard = r[0];
   if (!pcu) pcAsk(r[0]);                           // the collector reads that one page now; the picture lands here within a minute or two
@@ -1243,7 +1279,7 @@ function rebuildLive() {
                   null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
     erow[46] = mtOf(x[1]);
     erow[51] = base[PC_LIVE.kt]; erow[52] = base[PC_LIVE.hits]; erow[53] = base[PC_LIVE.hitpct]; erow[54] = base[PC_LIVE.pcmm];
-    erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34];
+    erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34]; erow[55] = x[35] || '';
     erow[49] = erow[48] && erow[48].length ? erow[48][0] || '' : ''; erow[50] = erow[48] && erow[48].length ? rfText([erow[48][1], erow[48][2]]) : '';
     if (rfBad(erow)) disagree++;
     erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
