@@ -727,8 +727,10 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   hold 1/3/6, discount under the standard price (default 0), price range (50-500: the collector's listing band),
   per-card share (20%), confidence bar (50%), allow young sets (off), allow unknown supply (off). For each scored
   card: buy = c.L (credible eBay floor) else c.A else buy_real (PC) - what the copy costs; SELL base = c.A (eBay's
-  sold median, what buyers actually pay) else buy_real (PC), so the sale is sell x (1 + r) with the model's PC-series
-  return applied to eBay's own level; forecast_score() scores the same way (A from the card stats at maturity, else
+  sold median, what buyers actually pay), else min(buy_real, c.L) for a card with a credible floor but no anchor
+  (too few recent sales: it cannot be assumed to sell above its cheapest credible competing ask - PC printed $256
+  against $185 asks on the second live build), else buy_real (PC); the sale is sell x (1 + r) with the model's
+  PC-series return applied to eBay's own level; forecast_score() scores the same way (A from the card stats at maturity, else
   PC). PC alone misled both ways on the first live build: a $161-on-PC card that clears for ~$100 on eBay showed as
   a 40% deal at $95 (100% chance), and a $77 card asking $170 as a buy - hence A. A credible floor is never more
   than 25% under A (CRED_MIN_RATIO), so a standard-price buy's built-in margin is at most that; no stated chance
