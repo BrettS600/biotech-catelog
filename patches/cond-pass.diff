@@ -1,5 +1,5 @@
 diff --git a/collector.py b/collector.py
-index bcef639..dd3df1c 100644
+index bcef639..f35e30c 100644
 --- a/collector.py
 +++ b/collector.py
 @@ -627,8 +627,9 @@ def suspect_queue(state):
@@ -62,3 +62,24 @@ index bcef639..dd3df1c 100644
      # 4. housekeeping, statistics, live file
      if cards and due("settle", 3600):                        # needs the cards' books, so not before the first statistics
          res = close_stale(state, cards)
+@@ -2731,7 +2734,7 @@ def cycle(state, cat, sched, counters):
+             f"{es.PC_HIGH:.0%} (kept out of the statistics); item specifics read on {sum(ids.values())} open listings "
+             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
+             f"printed totals for {len(cat.totals)} sets")
+-        ec = Counter("named" if r.get("ecc") else "stated" if r.get("ec") else "none" for r in state["open"].values() if r.get("cond_tried") or "ef" in r)
++        ec = Counter("named" if r.get("ecc") else "stated" if r.get("ec") else "none" for r in state["open"].values() if "ec" in r)
+         day_ago = es.ts(es.NOW - timedelta(hours=24))
+         ns = sum(1 for r in state["open"].values() if r["first"] >= day_ago and r.get("tcond", "UNK") == "UNK")
+         log(f"Conditions: eBay's condition field read on {sum(ec.values())} open listings ({ec['named']} name a grade, {ec['stated']} say "
+diff --git a/ebay_sweep.py b/ebay_sweep.py
+index 46c4740..e6a86dc 100644
+--- a/ebay_sweep.py
++++ b/ebay_sweep.py
+@@ -1484,6 +1484,7 @@ def apply_condition(r, it):
+     gate uses when it names one - the seller's structured declaration beats words in the title."""
+     code, text = ebay_condition(it)
+     if text is None:
++        r.setdefault("ec", "")                        # read, and the listing carries none ("" tells that apart from never read)
+         return
+     if COND_LOG["n"] < 3 and (it or {}).get("conditionDescriptors"):
+         COND_LOG["n"] += 1
