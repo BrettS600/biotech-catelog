@@ -726,10 +726,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   "Forecast tab" section, body.html #p-fc, help.js README.fc + fc_* entries, style.css .fc): inputs capital,
   hold 1/3/6, discount under the standard price (default 0), price range (50-500: the collector's listing band),
   per-card share (20%), confidence bar (50%), allow young sets (off), allow unknown supply (off). For each scored
-  card: buy = c.L (credible eBay floor) else c.A else buy_real (PC) - what the copy costs; SELL base = buy_real (PC's
-  level the model's return is measured on, and the price forecast_score() uses), so the sale is buy_real x (1 + r):
-  an eBay floor far above PC shows as a loss, one below it as the hit-alert margin (the test fixture: floor $90 vs
-  PC $120 -> a buy at the standard price); needs vol12 >= 6 and age >= 24 unless allowed; supply = book copies
+  card: buy = c.L (credible eBay floor) else c.A else buy_real (PC) - what the copy costs; SELL base = c.A (eBay's
+  sold median, what buyers actually pay) else buy_real (PC), so the sale is sell x (1 + r) with the model's PC-series
+  return applied to eBay's own level; forecast_score() scores the same way (A from the card stats at maturity, else
+  PC). PC alone misled both ways on the first live build: a $161-on-PC card that clears for ~$100 on eBay showed as
+  a 40% deal at $95 (100% chance), and a $77 card asking $170 as a buy - hence A. A credible floor is never more
+  than 25% under A (CRED_MIN_RATIO), so a standard-price buy's built-in margin is at most that; no stated chance
+  exceeds FC_P_CAP = 0.95 (the grids end at the 5th percentile). The Price cell shows buy, then "sells $A · PC $x"
+  when they differ (red when buy is 30% off the sell level). Fixture: floor $90, sells $95, PC $120 -> 12% at the
+  standard price, 78% at 25% under; needs vol12 >= 6 and age >= 24 unless allowed; supply = book copies
   <= 1.15 x buy (null outside the band = untracked); bucket -> calib grid -> net per copy at the 10/50/90th percentile
   (`fcNet(buy, r, S, disc, sell)` = sell(1+r)(1-fee) - fixed - label - supplies - buy(1-disc)(1+tax), fees from
   settings()), P(net>0) = 1 - cdf(break-even return) on the grid (`fcCdf`). Allocation: cards with P >= the bar,
