@@ -7,7 +7,7 @@ A private, password-protected website for buying and reselling **raw (ungraded) 
 Live at https://bretts600.github.io/biotech-catelog/ (GitHub Pages, encrypted with staticrypt).
 Everything runs on GitHub Actions; nothing runs on Brett's laptop. Never commit secrets or data.
 
-Three tabs:
+The tabs (PriceCharting Catalog, eBay Catalog, eBay Raw Data, Forecast, Notification Settings, Transaction Report):
 1. **PriceCharting Catalog** (default) — 43,891 English singles from PriceCharting's daily CSV, plus trend
    columns computed from this site's own daily snapshots (Δ7d/30d, 90-day range, volatility, Theil–Sen slope,
    volume drift) and a per-card Trend popup with a chart and a buy-gate table.
@@ -689,6 +689,61 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   200..."), then "Downloaded ✓ N of M cards on file" for 8 s; the file is `pricecharting history YYYY-MM-DD.csv`,
   built from Blob parts (no collector work, nothing new stored). No long (card-month) layout: 44k cards x ~70 months
   is past Excel's row limit; build it only if he asks. Help: the pc README section 3. Test: t/pcpop/test_ui8.py.
+- THE FORECAST TAB (2026-10-17, Brett: "I input my capital that I can spend, then you tell me what cards to buy with
+  that capital, how many of each to buy, and my estimate range of net profit after I hold for a month and then sell,
+  and confidence% ... spend at least 3 hours manipulating the historical price chart data and testing algorithms").
+  THE RESEARCH (scripts in the session's /tmp/claude-0/fc/an; 2.3M card-months from the pc/<shard>.bin history,
+  Dec 2020 - Oct 2026, 43,924 cards; rolling out-of-sample backtests refit every 6 months, scoring 2022-12 on):
+  (1) PriceCharting's month-to-month moves are mostly noise - a card whose price just fell prints higher next month
+  (Spearman IC of last month's move vs next month's -0.23, negative in 67 of 67 months) but it cannot be bought at
+  the dipped print, so the honest buy price is max(price, 3-month average) ("buy_real") and the sell price is
+  PriceCharting's price h months on; on that basis card-level 1-month momentum is nil. (2) The market regime (the
+  trailing 3-month MEDIAN move of $10+ cards with 2+ sales; "strong" >= +2%/mo) is 90% autocorrelated month to month
+  and is the biggest predictor; 2021 fell, 2022-24 flat/slightly up, 2025-26 strong (+3-7%/mo). (3) Set age is the
+  most reliable structural effect: sets < 6 months lose 10-20%/mo, 6-11 mo -5%, 12-23 -4%, 2+ years ~flat/up - in
+  every year including the 2025-26 rally. (4) A gradient-boosted model (sklearn HistGradientBoostingRegressor,
+  30 features: mom1/3/6/12, accel, vol6, dd12, up12, lv, vgrow, dvol, vol12, lage, lp, cal, reg1/3/6, breadth/3,
+  lsy, rarity/finish codes, set_mom1, set_n, prank, vintage, yoy_same, vz, m_since_hi) ranks well (IC ~0.25 at
+  every horizon; top-50 beats the universe in 87% of months) but at ONE MONTH the top 5% average only +5-6% gross;
+  with eBay's 14.1% + $5.20 round trip NO selection has a positive expected net at a standard price (P(net>0) ~10%
+  for the best picks, mean net -15 to -30%); the month pays only bought 20%+ under market (P(net>0) 57%; 25% under
+  73%; 30% under 86%). (5) At 6 months in a strong market the model's upper buckets did +26-36% gross, P(up) 73-83%,
+  P(net>0) ~45-50%, mean net ~+5%; BUT the 6-month ranking is regime-fragile: trained through 2025-06 it had IC
+  0.32 on 2024-25 and ~0 on 2025-26 (its top picks +15% vs the universe +36%: that rally was cheap old commons /
+  reverse holos it did not favour). Recency weighting, dropping the reversal features, a structural prior, blends -
+  none fixed it. (6) eBay sold medians run ~even with PriceCharting's ungraded (median A/pc 1.04 on anchored cards),
+  but cheapest asks sit well below PC on some promos, so the tab prices at eBay's level when it has one.
+  THE PIECES: `forecast.py` (repo root; identical feature code to the research; `panel`, `features`, `train`,
+  `score`, `publish`) runs in the site workflow after staticrypt (step "Forecast", continue-on-error): fetches the
+  live branch's pc/ shards, decrypts with SITE_PASSWORD (live key), reads the newest snapshot, fits one model per
+  horizon (1/3/6; universe price >= $10 and vol >= 2; targets clipped -0.9..2; months <= last complete - h) and
+  writes public/forecast.bin = encrypt_live(gzip(JSON)): {t, m, month, regime {reg1, reg3, reg6, breadth3,
+  strong}, cols, cards {cid: [price, buy, pred1, pct1, pred3, pct3, pred6, pct6, mom1, mom3, mom12, age, vol, vol12,
+  dd12, set_mom1]} for every $10+ card (~10.5k), calib, meta}. `forecast_calib.json` = the realized-return quantile
+  grids (5..95%) by "h|regime|bucket" (buckets b50/b80/b90/b95/top5 of the percentile rank; regime strong/other)
+  for cards >= $25, out of sample 2022-2026 (make_calib.py) - RERUN THE RESEARCH to refresh it; it is static.
+  requirements.txt gained scikit-learn (the Action; the droplet does not import forecast.py). PAGE (app.js
+  "Forecast tab" section, body.html #p-fc, help.js README.fc + fc_* entries, style.css .fc): inputs capital,
+  hold 1/3/6, discount under the standard price (default 0), price range (50-500: the collector's listing band),
+  per-card share (20%), confidence bar (50%), allow young sets (off), allow unknown supply (off). For each scored
+  card: standard price = c.L (credible eBay floor) else c.A else buy_real (PC); needs vol12 >= 6 and age >= 24 unless
+  allowed; supply = book copies <= 1.15 x price (null outside the band = untracked); bucket -> calib grid ->
+  net per copy at the 10/50/90th percentile (`fcNet` = buy(1+r)(1-fee) - fixed - label - supplies - buy(1-disc)(1+tax),
+  fees from settings()), P(net>0) = 1 - cdf(break-even return) on the grid (`fcCdf`). Allocation: cards with P >=
+  the bar, best chance first, qty = min(share cap, supply, money left). Basket range/chance: Monte Carlo (3,000
+  draws) with a Gaussian copula - half of each pick's variance is a shared market draw (`FC_RHO`). When nothing
+  clears the bar the summary names the discount at which the best card would. The regime card shows the trailing
+  moves and what the 80-90th percentile bucket did at each hold in this regime (`fcRenderRegime`). RECORDS:
+  "Record this forecast" -> alSend {type:'forecast', t, h, cap, disc, fees, picks [[cid, qty, buy, mean net]], exp,
+  lo, hi, p, reg, month}; collector `forecast_record()` keeps the newest FORECAST_KEEP=100 in v["forecasts"],
+  `forecast_score()` scores a record at t + h x 30 d with cat.by_id[cid]["pc"] (realized net per copy with the
+  record's own fees), published as live["forecasts"] {t, recs} (forecast_t in the publish signature); the tab's
+  Past forecasts table shows expected vs actual with the score line (mean miss, inside the 10-90% range, right side
+  of zero). forecast.bin is fetched from the site itself (same origin, hourly bucket); a missing/garbled file only
+  blanks the tab (loadForecast validates the doc; rebuildLive wraps fcCompute in try/catch). Tests:
+  t/pcpop/test_ui9.py (the tab end to end against a forecast.bin fixture served over http), ut/test_forecast_rec.py
+  (records). The research scripts: build.py, features.py/features2.py, explore1-4.py, backtest.py/backtest2.py,
+  calib.py, final_model.py, make_calib.py, validate_pipeline.py, recency.py, structural.py, blend.py.
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
