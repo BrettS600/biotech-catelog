@@ -271,6 +271,10 @@ td.mmk input { width:16px; height:16px; cursor:pointer; accent-color:#d1242f; }
 button.rvb { font:inherit; font-size:12px; padding:2px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--link); cursor:pointer; white-space:nowrap; }
 button.rvb.same { color:#1a7f37; border-color:#1a7f37; }
 button.rvb.diff { color:#d1242f; border-color:#d1242f; }
+button.riskb { font:inherit; padding:0; border:0; background:none; color:inherit; cursor:pointer; }   /* the Risk badge: click for the points */
+button.riskb .badge { cursor:pointer; }
+button.riskb:hover .badge { filter:brightness(1.12); text-decoration:underline; }
+sup.dim { font-size:9px; margin-left:1px; }
 /* the Review popup: the phone's first question, on the site */
 .rvpair { display:flex; gap:10px; align-items:stretch; }
 .rvside { flex:1 1 0; min-width:0; background:var(--bg2, rgba(128,128,128,.08)); border:1px solid var(--line); border-radius:10px; padding:8px; }
