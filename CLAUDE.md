@@ -726,11 +726,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   "Forecast tab" section, body.html #p-fc, help.js README.fc + fc_* entries, style.css .fc): inputs capital,
   hold 1/3/6, discount under the standard price (default 0), price range (50-500: the collector's listing band),
   per-card share (20%), confidence bar (50%), allow young sets (off), allow unknown supply (off). For each scored
-  card: standard price = c.L (credible eBay floor) else c.A else buy_real (PC); needs vol12 >= 6 and age >= 24 unless
-  allowed; supply = book copies <= 1.15 x price (null outside the band = untracked); bucket -> calib grid ->
-  net per copy at the 10/50/90th percentile (`fcNet` = buy(1+r)(1-fee) - fixed - label - supplies - buy(1-disc)(1+tax),
-  fees from settings()), P(net>0) = 1 - cdf(break-even return) on the grid (`fcCdf`). Allocation: cards with P >=
-  the bar, best chance first, qty = min(share cap, supply, money left). Basket range/chance: Monte Carlo (3,000
+  card: buy = c.L (credible eBay floor) else c.A else buy_real (PC) - what the copy costs; SELL base = buy_real (PC's
+  level the model's return is measured on, and the price forecast_score() uses), so the sale is buy_real x (1 + r):
+  an eBay floor far above PC shows as a loss, one below it as the hit-alert margin (the test fixture: floor $90 vs
+  PC $120 -> a buy at the standard price); needs vol12 >= 6 and age >= 24 unless allowed; supply = book copies
+  <= 1.15 x buy (null outside the band = untracked); bucket -> calib grid -> net per copy at the 10/50/90th percentile
+  (`fcNet(buy, r, S, disc, sell)` = sell(1+r)(1-fee) - fixed - label - supplies - buy(1-disc)(1+tax), fees from
+  settings()), P(net>0) = 1 - cdf(break-even return) on the grid (`fcCdf`). Allocation: cards with P >= the bar,
+  best chance (whole percent) first then the model's rank, qty = min(share cap, supply, money left). Basket
+  range/chance: Monte Carlo (3,000
   draws) with a Gaussian copula - half of each pick's variance is a shared market draw (`FC_RHO`). When nothing
   clears the bar the summary names the discount at which the best card would. The regime card shows the trailing
   moves and what the 80-90th percentile bucket did at each hold in this regime (`fcRenderRegime`). RECORDS:
