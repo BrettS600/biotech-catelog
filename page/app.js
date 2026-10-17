@@ -2129,7 +2129,7 @@ function fcCompute() {
                              mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], qty: 0}, d));
   }
   rows.sort((x, y) => y.pct - x.pct);                    // the model's order; the gate below decides what gets money
-  const elig = rows.filter(r => r.p >= I.minp).sort((x, y) => y.p - x.p || y.pct - x.pct);
+  const elig = rows.filter(r => r.p >= I.minp).sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // chance to the whole percent, then the model's rank (otherwise price alone breaks the tie)
   let left = I.cap;
   elig.forEach(r => {                                    // greedy: best chance first, up to the share cap and the eBay supply
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
@@ -2157,6 +2157,7 @@ function fcMonteCarlo(picks, S, disc, n = 3000) {        // the portfolio's net:
 const fcPct = (v, nd = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(nd) + '%';
 const fcMoney = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
 const fcMoney2 = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toFixed(2);
+const fcOrd = n => { const m = n % 100; return n + (m >= 11 && m <= 13 ? 'th' : m % 10 === 1 ? 'st' : m % 10 === 2 ? 'nd' : m % 10 === 3 ? 'rd' : 'th'); };   // 92nd, 100th, 61st
 function fcRenderRegime() {
   const doc = FC.doc, R = doc.regime, I = FC.inputs || fcInputs(), S = FC.S || settings();
   const word = R.strong ? 'strong' : R.reg3 > 0.005 ? 'mild' : R.reg3 >= -0.005 ? 'flat' : 'weak';
@@ -2201,7 +2202,7 @@ function fcRenderPicks() {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
     html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '"><td><a href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener">' + esc(r.name) + '</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
       '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.price || r.buy > 1.3 * r.price ? ' down' : '') + '" title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '') + '</td><td class="num">' + supplyCell(r) + '</td>' +
-      '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + (r.pct * 100).toFixed(0) + 'th pct</span></td>' +
+      '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span></td>' +
       '<td class="num">' + fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
       '<td class="num">' + (r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
   });
