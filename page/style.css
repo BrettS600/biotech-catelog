@@ -305,6 +305,43 @@ sup.dim { font-size:9px; margin-left:1px; }
 .rvbtns .rvyes { background:#238636; } .rvbtns .rvno { background:#da3633; }
 .rvundo { text-align:center; margin-top:8px; }
 
+/* Favorites (Brett, 2026-10-23): the star on every row, the tab's view chooser, and the notes in the All view */
+th.favh, td.favc { text-align:center; width:1%; white-space:nowrap; padding-left:6px; padding-right:4px; }
+th.favh { font-size:15px; line-height:1; }
+button.favb { font:inherit; font-size:18px; line-height:1; padding:0 3px; border:0; background:none; color:var(--muted); opacity:.45; cursor:pointer; vertical-align:middle; transition:transform .1s, opacity .1s; }
+button.favb:hover { opacity:1; transform:scale(1.2); }
+button.favb.on { color:#f5b301; opacity:1; text-shadow:0 0 1px rgba(0,0,0,.25); }
+button.favb.sm { font-size:15px; }
+.tcnt { font-weight:400; color:var(--muted); font-size:12px; }
+.tcnt:empty { display:none; }
+.fvsel { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 12px; align-items:center; }
+.fvchip { font:inherit; font-size:13px; font-weight:600; padding:6px 14px; border:1px solid var(--line); border-radius:999px; background:var(--head); color:var(--fg); cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+.fvchip .n { font-weight:400; color:var(--muted); font-variant-numeric:tabular-nums; }
+.fvchip:hover { border-color:var(--link); }
+.fvchip.on { background:var(--link); border-color:var(--link); color:#fff; }
+.fvchip.on .n { color:rgba(255,255,255,.8); }
+.fvsec[hidden] { display:none; }
+.fvfrom { font-size:11px; }
+.fvum { padding:6px 18px 18px; font-size:13px; }
+.fvum h3 { font-size:14px; margin:14px 0 6px; }
+.fvum table { min-width:0; width:auto; font-size:13px; }
+.fvum th { position:static; cursor:default; }
+.fvfc { padding:4px 18px 18px; }
+.fvfc table { min-width:0; width:auto; }
+.fvfc th { position:static; cursor:default; }
+.fvfc th:hover { text-decoration:none; }
+#fv-note:empty { display:none; }
+.fvempty { padding:18px; color:var(--muted); }
+/* the Review screen's star sits with the question */
+.rvstar { float:right; margin-left:10px; }
+/* the Forecast's picks: the star took the first cell, the card name moved one over */
+.fc .fc-box td:first-child.favc { min-width:0; white-space:nowrap; }
+.fc .fc-box td.favc + td { white-space:normal; min-width:170px; }
+.fc .fc-box td.favc + td a { font-weight:600; }
+/* a quiet word at the bottom of the window (a star that could not be sent, the 400 cap) */
+#fvtoast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); max-width:min(560px, 90vw); background:var(--fg); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:13px; z-index:70; opacity:0; pointer-events:none; transition:opacity .2s; }
+#fvtoast.open { opacity:.95; }
+
 /* The Mismatches list */
 .mmq { width:100%; font:inherit; padding:7px 10px; margin:6px 0 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
 tr.mmr { cursor:pointer; }
