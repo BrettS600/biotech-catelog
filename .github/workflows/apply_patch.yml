@@ -1,0 +1,64 @@
+name: Apply patch
+
+# A second way to change the repository when the GitHub web editor is out of reach (Claude, 2026-10-17: the Chrome
+# extension dropped mid-session, and the GitHub connector can only replace a file whole, which does not fit a 160 KB
+# collector.py in one call). A change is committed as a unified diff in patches/ (git diff format, paths a/... b/...),
+# with the commit message to use beside it; this workflow applies it, commits the result with that message and removes
+# the patch, all in one commit on main. A diff that does not apply cleanly fails the run and stays where it is, so a
+# half-applied change can never reach main (the collector pulls main every 5 minutes and restarts when a .py file
+# changed). When the change touches the site (page/, the build scripts, the forecast, requirements.txt), the site
+# workflow is started as well. The repository's own token cannot change workflow files: those are edited directly.
+#   patches/<name>.diff   the change
+#   patches/<name>.msg    its commit message (optional; "Apply <name>" without it)
+
+on:
+  push:
+    branches: [main]
+    paths: ["patches/*.diff"]
+
+permissions:
+  contents: write             # commit the applied change to main
+  actions: write              # start the site workflow when the change touches the site
+
+concurrency:
+  group: apply-patch
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply, commit, push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          git config user.name "apply-patch workflow"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          site=0
+          for p in patches/*.diff; do
+            name=$(basename "$p" .diff)
+            echo "== $name"
+            git apply --check --verbose "$p"
+            n=$(git apply --numstat "$p" | cut -f3 | grep -cE '^(page/|build_catalog\.py|cardfacts\.py|forecast\.py|forecast_calib\.json|requirements\.txt)' || true)
+            if [ "${n:-0}" -gt 0 ]; then site=1; fi
+            git apply --verbose "$p"
+            msg=$(mktemp)
+            if [ -f "patches/$name.msg" ]; then cat "patches/$name.msg" > "$msg"; else echo "Apply $name" > "$msg"; fi
+            git rm -q "$p"
+            if [ -f "patches/$name.msg" ]; then git rm -q "patches/$name.msg"; fi
+            git add -A
+            git commit -q -F "$msg"
+            git show --stat --format='%h %s' HEAD
+          done
+          if ! git push origin HEAD:main; then
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          if [ "$site" = 1 ]; then
+            gh workflow run update_catalog.yml --ref main
+            echo "Site workflow started."
+          fi
