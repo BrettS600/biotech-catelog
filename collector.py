@@ -1065,6 +1065,11 @@ def read_requests(state):
         import requests
         r = requests.get(f"{NTFY_SERVER}/{topic}/json", params={"poll": "1", "since": v.get("req_since") or "12h"}, timeout=10)
         lines = r.text.splitlines() if r.status_code == 200 else []
+        if r.status_code != 200:                             # a refused poll (429 = ntfy's per-address ration) must be visible, not silent
+            v["req_bad"] = v.get("req_bad", 0) + 1
+            if time.time() - v.get("req_bad_logged", 0) > 3600:
+                v["req_bad_logged"] = time.time()
+                log(f"Requests: ntfy answered {r.status_code} to the channel poll ({v['req_bad']} refused so far); the site's marks, reviews and stars wait for a poll that gets through")
     except Exception:
         return
     for line in lines:
@@ -1469,6 +1474,7 @@ def pc_image(state, pid):
 
 
 PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
+PC_POLL_S = 20                   # how often the picture worker polls its request topic (-pc); see poll_requests for why not 4 s
 PC_HIST_PUBLISH_S = 600          # changed history shards go to the live branch this often
 PCM_PUBLISH_S = 3600             # pcm.bin (every card's last complete month of PriceCharting sales) goes out hourly
 PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
@@ -1515,9 +1521,12 @@ class PcImageWorker(threading.Thread):
 
     def poll_requests(self):
         """Picture requests from the site's Review button arrive on their own topic (<channel>-pc), so this thread can
-        look every few seconds instead of once a cycle; the answer goes back on <channel>-pcr the moment the page has
-        been read (`answer`), and the page shows the picture without waiting for the next live file (which the raw
-        CDN holds for up to five minutes anyway). Same signature as the main channel."""
+        look every PC_POLL_S seconds instead of once a cycle; the answer goes back on <channel>-pcr the moment the page
+        has been read (`answer`), and the page shows the picture without waiting for the next live file (which the raw
+        CDN holds for up to five minutes anyway). Same signature as the main channel. NOT every 4 s as at first
+        (2026-10-23): ntfy.sh rations requests per address (a bucket of 60, one back every few seconds), and a poll
+        every 4 s drained it, so the main channel's once-a-cycle poll in read_requests was answered 429 most of the
+        time and the site's marks, reviews, forecasts and stars arrived late or not at all."""
         self.polled = time.time()
         if DRY_RUN or not es.PASSWORD:
             return
@@ -1622,7 +1631,7 @@ class PcImageWorker(threading.Thread):
     def run(self):
         while True:
             try:
-                if time.time() - self.polled >= 4:
+                if time.time() - self.polled >= PC_POLL_S:
                     self.poll_requests()
                 if time.time() < self.paused_until or not self.step():
                     time.sleep(2)
