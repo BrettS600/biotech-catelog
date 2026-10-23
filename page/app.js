@@ -2677,7 +2677,7 @@ async function loadForecast() {
     FC.doc = doc; FC.err = null; FC.loaded = b; FC.ix = Object.fromEntries(doc.cols.map((k, i) => [k, i]));
     $('meta-fc').textContent = 'Forecast · which cards to buy at a standard price and hold, from PriceCharting’s monthly history of every card · model of ' + esc(FC.doc.month) + ' built ' + (FC.doc.t || '').replace('T', ' ').replace('Z', ' UTC') + ' · ' + Number(FC.doc.n).toLocaleString('en-US') + ' cards scored';
     fcCompute();
-    if (LIVE.data) { fcStampRows(); tables.er.apply(true); }   // the Raw Data Forecast % column fills in
+    if (LIVE.data) { fcStampRows(); tables.er.apply(true); alRender(); }   // the Raw Data Forecast % column fills in; the alerts preview can apply its forecast filter
   } catch (e) {
     FC.err = e.message; FC.loaded = b;                   // one try an hour
     $('meta-fc').textContent = 'Forecast · the model file could not be loaded (' + e.message + ') — it is built by the daily site update; try again after the next build.';
@@ -2698,9 +2698,9 @@ loadLive();
    The numbers here decide what the collector sends to the phone. Save posts them to a private channel the collector
    reads every minute (its name and the key that signs each message both come from the site key, so only this
    unlocked page and the collector can use it); the collector reports what it is using in the live file (live.alert). */
-const AL_DEFAULT = {margin: 10, tax: 6.25, conf: 70, window: 48, min_profit: 0, pmin: 25, pmax: 500, hits: true, leads: false, watch: true, suspects: false, auctions: true, quiet: false, q_from: 23, q_to: 7};
-const AL_NUM = {margin: 'al-margin', tax: 'al-tax', conf: 'al-conf', window: 'al-win', min_profit: 'al-minprofit', pmin: 'al-pmin', pmax: 'al-pmax', q_from: 'al-q1', q_to: 'al-q2'};
-const AL_BOX = {hits: 'al-hits', leads: 'al-leads', watch: 'al-watch', suspects: 'al-suspects', auctions: 'al-auctions', quiet: 'al-quiet'};
+const AL_DEFAULT = {margin: 10, tax: 6.25, conf: 70, window: 48, min_profit: 0, pmin: 25, pmax: 500, hits: true, leads: false, watch: true, suspects: false, auctions: true, quiet: false, q_from: 23, q_to: 7, fc_only: false, fc_h: 1, fc_minp: 50};
+const AL_NUM = {margin: 'al-margin', tax: 'al-tax', conf: 'al-conf', window: 'al-win', min_profit: 'al-minprofit', pmin: 'al-pmin', pmax: 'al-pmax', q_from: 'al-q1', q_to: 'al-q2', fc_h: 'al-fch', fc_minp: 'al-fcminp'};
+const AL_BOX = {hits: 'al-hits', leads: 'al-leads', watch: 'al-watch', suspects: 'al-suspects', auctions: 'al-auctions', quiet: 'al-quiet', fc_only: 'al-fconly'};   // fc_*: the forecast filter (2026-10-23)
 const AL = {filled: false, pending: 0, test: 0, note: '', cls: ''};
 function alRead() {
   const c = {};
@@ -2737,14 +2737,17 @@ function alMatches(c) {
     if (!dd || dd.net == null) continue;
     const profit = Math.round((dd.net - allin) * 100) / 100;
     if (profit < c.min_profit) continue;
-    out.push({x, kind, sus, profit, roi: profit / allin * 100, base: idRow.get(x[1]) || []});
+    const fcp = FC.doc ? fcListing(x[1], x[7], x[0], c.fc_h, S) : null;   // the Forecast tab's chance at this price (the collector tests the same)
+    if (c.fc_only && (fcp == null || fcp * 100 < c.fc_minp)) continue;
+    out.push({x, kind, sus, profit, roi: profit / allin * 100, base: idRow.get(x[1]) || [], fcp});
   }
   return out.sort((a, b) => b.profit - a.profit);
 }
 function alDescribe(c) {
   return 'margin <b>' + c.margin + '%</b> · buy tax <b>' + c.tax + '%</b> · sells within <b>' + c.window + ' h</b> at <b>' + c.conf + '%</b> confidence<br>' +
     'profit at least <b>$' + c.min_profit + '</b> · buy price <b>$' + c.pmin + '</b> to <b>$' + c.pmax + '</b><br>' +
-    'hits <b>' + (c.hits ? 'on' : 'off') + '</b> · leads <b>' + (c.leads ? 'on' : 'off') + '</b> · scam-watch listings <b>' + (c.watch ? 'included' : 'left out') + '</b> · suspects <b>' + (c.suspects ? 'alerted' : 'blocked') + '</b> · auctions <b>' + (c.auctions ? 'on' : 'off') + '</b> · quiet hours <b>' + (c.quiet ? c.q_from + ':00 to ' + c.q_to + ':00' : 'off') + '</b>';
+    'hits <b>' + (c.hits ? 'on' : 'off') + '</b> · leads <b>' + (c.leads ? 'on' : 'off') + '</b> · scam-watch listings <b>' + (c.watch ? 'included' : 'left out') + '</b> · suspects <b>' + (c.suspects ? 'alerted' : 'blocked') + '</b> · auctions <b>' + (c.auctions ? 'on' : 'off') + '</b> · quiet hours <b>' + (c.quiet ? c.q_from + ':00 to ' + c.q_to + ':00' : 'off') + '</b>' +
+    ' · forecast hits only <b>' + (c.fc_only ? 'on (' + c.fc_minp + '% or better over ' + c.fc_h + ' month' + (c.fc_h > 1 ? 's' : '') + ')' : 'off') + '</b>';
 }
 function alRender() {
   const live = LIVE.data, a = live && live.alert;
@@ -2767,8 +2770,8 @@ function alRender() {
   const m = alMatches(mine), hits = m.filter(r => r.kind === 'hit').length;
   $('al-pre').innerHTML = 'With the numbers on the left, <b>' + m.length + '</b> listing' + (m.length === 1 ? '' : 's') + ' from the last 24 hours would have been sent' +
     (m.length ? ' (' + hits + ' hit' + (hits === 1 ? '' : 's') + ', ' + (m.length - hits) + ' lead' + (m.length - hits === 1 ? '' : 's') + ').' : '.') +
-    (m.length ? '<table data-sel="alpre"><thead><tr><th></th><th>Card</th><th>Listing</th><th class="num">Total</th><th class="num">Profit</th><th class="num">ROI</th><th>Kind</th><th>Now</th></tr></thead><tbody>' +
-      m.slice(0, 40).map(r => '<tr data-key="' + esc(r.x[0]) + '"><td class="favc">' + favBtn('er', r.x[0], r.x[1], {ti: String(r.x[4] || '').slice(0, 90), u: r.x[18] || null, p: r.x[7] == null ? null : r.x[7]}, 'sm') + '</td><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + (r.sus ? ' ' + badge('suspect', 'warn') : '') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
+    (m.length ? '<table data-sel="alpre"><thead><tr><th></th><th>Card</th><th>Listing</th><th class="num">Total</th><th class="num">Profit</th><th class="num">ROI</th><th class="num" title="the Forecast tab\u2019s chance of a profit at this price, for the hold set on the left">Forecast</th><th>Kind</th><th>Now</th></tr></thead><tbody>' +
+      m.slice(0, 40).map(r => '<tr data-key="' + esc(r.x[0]) + '"><td class="favc">' + favBtn('er', r.x[0], r.x[1], {ti: String(r.x[4] || '').slice(0, 90), u: r.x[18] || null, p: r.x[7] == null ? null : r.x[7]}, 'sm') + '</td><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td class="num">' + (r.fcp == null ? '<span class="dim">' + dash + '</span>' : '<span class="' + (r.fcp * 100 >= mine.fc_minp ? 'up' : '') + '">' + Math.round(r.fcp * 100) + '%</span>') + '</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + (r.sus ? ' ' + badge('suspect', 'warn') : '') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
   ['al-pre', 'al-hist', 'al-wrong'].forEach(id => selApply($(id).querySelector('table')));
 }
 // what was sent, what you answered on the phone, and what became of the listing
@@ -2794,7 +2797,7 @@ function alHistory(a) {
   const fate = r => r[8] === 'open' ? 'still listed' : r[8] === 'sold' ? 'sold' + (r[9] != null ? ' ' + (r[9] < 1 ? Math.round(r[9] * 60) + ' min' : r[9].toFixed(1) + ' h') + ' after the alert' : '') : r[8] === 'unknown' ? 'no longer tracked' : esc(r[8]);
   return 'Last <b>' + h.length + '</b> alert' + (h.length === 1 ? '' : 's') + ' \u00b7 you answered <b>' + said.length + '</b>' + (said.length ? ': ' + (said.length - no) + ' yes, ' + no + ' no' : '') +
     '<table data-sel="alhist"><thead><tr><th></th><th>Sent</th><th>Card</th><th class="num">Total</th><th class="num">Profit</th><th>Kind</th><th>Your answer</th><th>Listing</th></tr></thead><tbody>' +
-    h.map(r => '<tr data-key="' + esc(r[10] || r[0]) + '"><td class="favc">' + (r[10] ? favBtn('er', r[10], r[11], {ti: String(r[2] || '').slice(0, 90), u: r[3] || null, p: r[4] == null ? null : r[4]}, 'sm') : '') + '</td><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a><br><span class="dim">' + esc(r[2]) + '</span></td><td class="num">' + fmtMoney(r[4]) + '</td><td class="num">' + fmtMoney(r[5]) + '</td><td>' + esc(String(r[6]).replace('-drop', ', price drop').replace('-lead', ', lead').replace('-suspect', ', SUSPECT')) + '</td><td>' + (r[7] ? ans[r[7]] || esc(r[7]) : '<span class="dim">not answered</span>') + '</td><td>' + fate(r) + '</td></tr>').join('') + '</tbody></table>';
+    h.map(r => '<tr data-key="' + esc(r[10] || r[0]) + '"><td class="favc">' + (r[10] ? favBtn('er', r[10], r[11], {ti: String(r[2] || '').slice(0, 90), u: r[3] || null, p: r[4] == null ? null : r[4]}, 'sm') : '') + '</td><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a><br><span class="dim">' + esc(r[2]) + '</span></td><td class="num">' + fmtMoney(r[4]) + '</td><td class="num">' + fmtMoney(r[5]) + (r[12] != null ? ' <span class="dim" title="the Forecast tab\u2019s chance of a profit at this price when the alert went out">· ' + Math.round(r[12] * 100) + '%</span>' : '') + '</td><td>' + esc(String(r[6]).replace('-drop', ', price drop').replace('-lead', ', lead').replace('-suspect', ', SUSPECT')) + '</td><td>' + (r[7] ? ans[r[7]] || esc(r[7]) : '<span class="dim">not answered</span>') + '</td><td>' + fate(r) + '</td></tr>').join('') + '</tbody></table>';
 }
 async function alChannel() {
   const enc = new TextEncoder();
