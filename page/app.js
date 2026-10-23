@@ -141,9 +141,75 @@ function fitRows(root) {                                 // one-line cells (b.fi
 }
 const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // filled by loadLive(); prevT = the previous data's stamp; sets = printed set sizes
 
+/* ---------------- Favorites (Brett, 2026-10-23: "each tab to have an additional column called favorites ... clicking
+   the star turns it yellow ... I want the entire row to go to a tab called Favorites") ----------------
+   A favorite is a pointer, not a copy: {s: where it was starred - pc / ec / er (any listing-shaped row: Raw Data, the
+   auction view, a hit, the Scam screen, Mismatches, a phone alert, the Review screen) / fc / um (an unmatched title),
+   k: the row's key - the card id on the catalog tabs and the Forecast, the item id for a listing, c: the card id, t:
+   when, m: a few words kept for rows that may leave the data (title, link, price; the Forecast's horizon and numbers)}.
+   It goes to the collector over the signed channel like a Mismatch mark, shows at once from FAVS, and is confirmed by
+   live.favs (list + t) - so the same stars show on every device. The Favorites tab re-renders the pointed-at rows from
+   the live data through the source tab's own columns (fvBuild, below TABLES). The collector keeps a starred listing's
+   record and photos past the usual prune and follows it to its outcome. */
+const FAV_MAX = 400, FAV_SRC_NAME = {pc: 'PriceCharting', ec: 'eBay Catalog', er: 'eBay Raw Data', fc: 'Forecast', um: 'Unmatched titles'};
+const FAVS = {};                                   // 's:k' -> {v: 1 | 0, t, f} until the collector confirms (live.favs.t >= t)
+const FAV_META = new Map();                        // 's:k' -> {c, m} of every star drawn on the page: what a click sends
+let FAV_MAP = new Map(), FAV_LAST_T = 0;           // 's:k' -> {s, k, c, t, m}: the favorites as the page knows them now
+const favKey = (s, k) => s + ':' + k;
+function favIndex() {                              // the collector's list, with the clicks it has not confirmed yet on top
+  const out = new Map();
+  (((LIVE.data || {}).favs || {}).list || []).forEach(a => out.set(favKey(a[0], a[1]), {s: a[0], k: String(a[1]), c: a[2] == null ? null : a[2], t: a[3], m: a[4] || null}));
+  for (const key in FAVS) { if (FAVS[key].v) out.set(key, FAVS[key].f); else out.delete(key); }
+  FAV_MAP = out;
+  return out;
+}
+const favCard = f => f.c != null ? +f.c : f.s !== 'er' && f.s !== 'um' ? +f.k : null;   // the card a favorite points at, if any
+const isFav = (s, k) => FAV_MAP.has(favKey(s, k));
+const favOn = key => key.slice(0, 4) === 'all:' ? FV_FROM.has(+key.slice(4)) : FAV_MAP.has(key);   // the All view's star stands for every star on the card
+const favTitle = on => on ? 'In your Favorites — click to remove' : 'Add to Favorites';
+// the star itself (yellow when on); cls 'sm' = the smaller one used in lists and popups
+function favBtn(s, k, c, m, cls) {
+  if (k == null || k === '') return '';
+  const key = favKey(s, k), on = favOn(key);
+  FAV_META.set(key, {c: c == null ? null : c, m: m || null});
+  return '<button type="button" class="favb' + (on ? ' on' : '') + (cls ? ' ' + cls : '') + '" data-f="' + esc(key) + '" title="' + favTitle(on) + '" aria-pressed="' + on + '">★</button>';
+}
+// the star cell of a table row: f = the table's fav config {s (a tab, or a function of the row), k, c, m}
+const favCell = (f, r) => { const s = typeof f.s === 'function' ? f.s(r) : f.s, k = f.k(r); return '<td class="favc">' + (k == null || k === '' ? '' : favBtn(s, k, f.c ? f.c(r) : null, f.m ? f.m(r) : null)) + '</td>'; };
+const favMetaEr = r => ({ti: String(r[6] || '').slice(0, 90), u: r[20] || null, p: r[9] == null ? null : r[9]});   // what a listing's star keeps
+function favSend(s, k, c, m, on) {                 // show it now, tell the collector, take it back if the channel fails
+  const key = favKey(s, k), t = FAV_LAST_T = Math.max(Date.now(), FAV_LAST_T + 1);   // strictly increasing: the collector drops a message older than its last
+  FAVS[key] = {v: on ? 1 : 0, t, f: {s, k: String(k), c: c == null ? null : c, t, m: m || null}};
+  favIndex(); favPaint();
+  alSend({type: 'fav', t, s, k: String(k), c: c == null ? null : c, v: on ? 1 : 0, m: m || null})
+    .catch(e => { delete FAVS[key]; favIndex(); favPaint(); favSay('The star could not be sent to the collector (' + e.message + '), so it is not saved.'); });
+}
+function favToggle(key) {
+  const i = key.indexOf(':'), s = key.slice(0, i), k = key.slice(i + 1), meta = FAV_META.get(key) || {};
+  if (s === 'all') {                               // the All view: take every star off this card
+    const cid = +k;
+    for (const f of [...FAV_MAP.values()]) if (favCard(f) === cid) favSend(f.s, f.k, f.c, f.m, false);
+    return;
+  }
+  const on = !FAV_MAP.has(key);
+  if (on && FAV_MAP.size >= FAV_MAX) { favSay('You have ' + FAV_MAX + ' favorites, the most the collector keeps: take a star off something first.'); return; }
+  favSend(s, k, meta.c, meta.m, on);
+}
+function favSay(msg) {                             // a quiet line at the bottom of the window, gone after a few seconds
+  let el = $('fvtoast'); if (!el) { el = document.createElement('div'); el.id = 'fvtoast'; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add('open'); clearTimeout(favSay.timer); favSay.timer = setTimeout(() => el.classList.remove('open'), 6000);
+}
+function favPaint() {                              // every star on the page follows the map; then the counts and, if it is showing, the Favorites tab
+  document.querySelectorAll('button.favb').forEach(b => { const on = favOn(b.dataset.f); b.classList.toggle('on', on); b.title = favTitle(on); b.setAttribute('aria-pressed', on); });
+  fvCounts();
+  if ($('p-fv') && !$('p-fv').hidden) fvRender();
+}
+document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.favb') : null; if (b && b.dataset.f) favToggle(b.dataset.f); });
+
 const TABLES = {
   pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
-       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}, {v: 5, at: 14, n: 3}, {v: 6, at: 14, n: 1}, {v: 7, at: 16, n: 1}, {v: 8, at: 19, n: 2}],   // v4: PC Rarity/Finish after Set / Card; v5: eBay sales, Max buy $, vs PC % before Trend; v6-v8: PC sales, eBay this month, Hits 30d + Hit % (Anchor $ took Max buy's place)
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}, {v: 5, at: 14, n: 3}, {v: 6, at: 14, n: 1}, {v: 7, at: 16, n: 1}, {v: 8, at: 19, n: 2}, {v: 9, at: 1, n: 1}],   // v4: PC Rarity/Finish after Set / Card; v5: eBay sales, Max buy $, vs PC % before Trend; v6-v8: PC sales, eBay this month, Hits 30d + Hit % (Anchor $ took Max buy's place); v9: the star
+       fav: {s: 'pc', k: r => r[0], c: r => r[0]},             // the star column (Favorites): key = card id
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[14] || '') + ' ' + (r[15] || ''),
        row: r => cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
       '<td class="num">' + fmtInt(r[5]) + '</td>' +
@@ -171,8 +237,9 @@ const TABLES = {
   //   (6 D, 8-10 p1-p3 and 30 spm stay in the row for the Book and the chart; the table no longer shows them - 2026-10-08)
   //   49 eBay sales last month 50 eBay sales this month 51 listings seen in 30 d 52 Hit % 53 the month of 41 (2026-10-13; 41 = PriceCharting's bar for the last complete month)
   ec: {rows: () => LIVE.ec, noun: 'cards', ranges: [17, 49, 50, 41, 16, 7, 18, 12, 14, 15, 20, 43, 22, 25, 38, 44, 52, 32, 37],
-       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}, {v: 5, at: 4, n: 2}, {v: 6, at: 9, n: 1}, {v: 7, at: 32, n: 1}],   // v4: the column set was rebuilt; v5: PC / eBay Rarity/Finish after Set / Card; v6: eBay sales this month; v7: Hit %
-       compact: [12, 13, 14, 15, 17, 18, 19, 20, 24, 27],   // hidden in the Compact view: the diagnostics behind the decision numbers
+       inserted: [{v: 3, at: 0, n: 1}, {v: 4, reset: 1}, {v: 5, at: 4, n: 2}, {v: 6, at: 9, n: 1}, {v: 7, at: 32, n: 1}, {v: 8, at: 1, n: 1}],   // v4: the column set was rebuilt; v5: PC / eBay Rarity/Finish after Set / Card; v6: eBay sales this month; v7: Hit %; v8: the star
+       fav: {s: 'ec', k: r => r[0], c: r => r[0]},
+       compact: [13, 14, 15, 16, 18, 19, 20, 21, 25, 28],   // hidden in the Compact view: the diagnostics behind the decision numbers (header positions, one past the star)
        labels: {17: 'Price $', 49: 'eBay last mo', 50: 'eBay this mo', 41: 'PC sales', 16: 'λ /day', 7: 'Active', 18: 'Days supply', 12: 'Sold med $', 14: 'Hrs to sale', 15: 'Sell-thru %', 20: 'Anchor $', 43: 'vs PC %', 22: 'Sell $', 25: 'Max buy $', 38: 'Net $', 44: 'Hits 30d', 52: 'Hit %', 32: 'Δ30d %', 37: 'Slope %/mo'},
        defaults: {17: [50, 500]},
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[46] || ''),
@@ -232,7 +299,8 @@ const TABLES = {
   er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5], chips: [24, 5, 25],   // chip order: Profit $, Listed within, ROI % (2026-10-13, Brett)
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star
+       fav: {s: r => r.unm ? 'um' : 'er', k: r => r[22], c: r => r[0], m: r => favMetaEr(r)},   // key = item id; an unmatched title (Favorites view only) is its own kind
        extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
@@ -260,6 +328,146 @@ const TABLES = {
       '<td>' + (r[19] === 'open' ? 'open' : r[19] === 'sold' ? '<span class="up">sold</span>' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td>' +
       '<td class="num">' + (r[27] == null ? dash : (r[19] === 'open' ? '<span class="dim">' + fmtNum(r[27], 1) + '</span>' : fmtNum(r[27], 1))) + '</td>'},
 };
+/* ---------------- The Favorites tab ----------------
+   Five views, chosen by the chips under the tabs and remembered (fav-sel): All, and one per source tab. Each per-tab
+   view is a table fvBuild() makes from a copy of the source tab's header row, run by makeTable with the source's own
+   cfg (row builder, chips, search), the source's saved column choices (store) and the starred rows as rows() - so the
+   view IS that tab, cut down to the stars, newest star first. The Raw Data view also holds what was starred on the
+   listing-shaped screens (auctions and hits, the Scam screen's suspects, Mismatches, the phone alerts, Review) and the
+   unmatched titles, each drawn from the best data on hand: the live row, the alert's own record, the row the collector
+   builds for a starred listing that has left the 24-hour window (live.favs.rows), or the few words saved with the star.
+   All shows every starred card once, through the eBay Catalog's columns, with where it was starred under its name; a
+   card eBay has nothing on gets a row from the catalog (PriceCharting's price, dashes elsewhere); the unmatched titles
+   sit in a strip under the table. */
+const FV = {sel: 'all', cur: null};                // sel: the view; cur: the id of the table it shows (the scroll handler loads more rows)
+try { const v = localStorage.getItem('fav-sel'); if (['all', 'pc', 'ec', 'er', 'fc'].includes(v)) FV.sel = v; } catch (e) {}
+const FV_VIEWS = [['all', 'All'], ['pc', 'PriceCharting'], ['ec', 'eBay Catalog'], ['er', 'eBay Raw Data'], ['fc', 'Forecast']];
+const FV_FROM = new Map();                         // the All view: card id -> {srcs: the tabs it was starred on, n: listings starred, titles, t}
+const favsOf = s => [...FAV_MAP.values()].filter(f => f.s === s).sort((a, b) => b.t - a.t);
+function favRowsPc() { return favsOf('pc').map(f => idRow.get(+f.k)).filter(Boolean); }
+function favRowsEc() { const m = LIVE.ecMap || new Map(); return favsOf('ec').map(f => m.get(+f.k) || ecStub(+f.k)).filter(Boolean); }
+function favRowsEr() {
+  const au = new Map((LIVE.au || []).map(r => [r[22], r])), hh = new Map((LIVE.hh || []).map(r => [r[22], r]));
+  return [...FAV_MAP.values()].filter(f => f.s === 'er' || f.s === 'um').sort((a, b) => b.t - a.t)
+    .map(f => f.s === 'um' ? unmStub(f) : (LIVE.erMap && LIVE.erMap.get(f.k)) || au.get(f.k) || hh.get(f.k) || (LIVE.favEr && LIVE.favEr.get(f.k)) || erStub(f));
+}
+function favRowsAll() {
+  FV_FROM.clear();
+  for (const f of [...FAV_MAP.values()].sort((a, b) => b.t - a.t)) {
+    const cid = favCard(f); if (cid == null) continue;
+    const e = FV_FROM.get(cid) || {srcs: new Set(), n: 0, titles: [], t: f.t}; FV_FROM.set(cid, e);
+    if (f.s === 'er') { e.n++; const ti = ((LIVE.erMap && LIVE.erMap.get(f.k)) || [])[6] || (f.m && f.m.ti) || ''; if (ti) e.titles.push(ti); } else e.srcs.add(f.s);
+  }
+  const m = LIVE.ecMap || new Map(), out = [];
+  for (const cid of FV_FROM.keys()) { const r = m.get(cid) || ecStub(cid); if (r) out.push(r); }
+  return out;
+}
+function fvFromNote(r) {                           // under the card's name in the All view: where it was starred
+  const e = FV_FROM.get(r[0]); if (!e) return '';
+  const bits = [...e.srcs].map(s => FAV_SRC_NAME[s] || s); if (e.n) bits.push(e.n + ' listing' + (e.n === 1 ? '' : 's'));
+  return '<br><span class="dim fvfrom" title="' + esc(e.titles.join('\n')) + '">from: ' + esc(bits.join(' · ')) + '</span>';
+}
+function ecStub(cid) {                             // an eBay Catalog row for a card eBay has nothing on: the catalog's columns, dashes elsewhere
+  const base = idRow.get(cid); if (!base) return null;
+  const r = new Array(54).fill(null), f = cardFacts(cid);
+  r[0] = base[0]; r[1] = base[1]; r[2] = base[2]; r[3] = base[3]; r[4] = base[4];
+  r[29] = []; r[39] = 0; r[40] = 0; r[41] = base[PC_LIVE.pcm]; r[42] = base[6]; r[45] = mtOf(cid); r[46] = rfText(pcRF(base)); r[47] = f; r[48] = rfText(f); r[53] = base[PC_LIVE.pcmm];
+  r.stub = true;
+  return r;
+}
+function erStub(f) {                               // a starred listing nothing else knows any more: the words kept with the star
+  const m = f.m || {}, base = (f.c != null && idRow.get(+f.c)) || [];
+  const r = new Array(56).fill(null);
+  r[0] = base[0] == null ? null : base[0]; r[1] = base[1] || ''; r[2] = base[2] || ''; r[3] = base[3] || ''; r[4] = base[4] || '';
+  r[6] = m.ti || ''; r[9] = m.p == null ? null : m.p; r[14] = 'no longer on record'; r[15] = 'UNK'; r[19] = 'unknown'; r[20] = m.u || '#'; r[22] = f.k;
+  r[29] = 'clean'; r[30] = 0; r[31] = 0; r[32] = 99; r[33] = []; r[34] = ''; r[39] = []; r[47] = rfText(pcRF(base)); r[49] = ''; r[50] = ''; r[55] = '';
+  r.stub = true; r.um = false; r.pics = [];
+  return r;
+}
+function unmStub(f) { const r = erStub(f); r[0] = null; r.unm = {why: (f.m && f.m.why) || ''}; return r; }
+// the Raw Data view's row for an unmatched title (no card), or a starred listing whose card is unknown: every column, most of them blank
+function unmRow(r) {
+  const blank = n => ('<td class="num">' + dash + '</td>').repeat(n);
+  return (r.unm ? '<td class="mmk"></td>' : umCell(r)) +
+    '<td>' + (r.unm ? '<span class="dim">no card</span>' : esc(r[1] || '')) + '</td><td></td><td></td><td class="num"></td><td></td><td></td><td>' + dash + '</td>' +   // Card, PC Set, eBay Set, Set / Card, PC and eBay Rarity/Finish, Released
+    blank(2) +                                                             // Match:mismatch, Listed within
+    '<td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener" title="' + esc(r[6] || '') + '">' + esc(r[6] || '') + '</a></td>' +
+    '<td class="num auc"></td><td class="num auc"></td>' +
+    '<td class="num fxc">' + dash + '</td><td class="num">' + dash + '</td><td class="num">' + fmtMoney(r[9]) + '</td>' + blank(1) +   // Item, Ship, Total, All-in
+    blank(7) + blank(6) +                                                  // PC $ ... Hit %; Anchor ... ROI
+    '<td class="num auc"></td><td class="num auc"></td>' +
+    '<td>' + (r.unm ? badge('unmatched') + (r.unm.why ? ' <span class="dim">' + esc(r.unm.why) + '</span>' : '') : badge(r[14] || 'no longer on record')) + '</td>' +
+    '<td>' + dash + '</td><td>' + dash + '</td><td>' + dash + '</td>' + blank(2) + '<td><span class="dim">' + esc(r[19] || 'unknown') + '</span></td>' + blank(1);
+}
+const FV_TABLES = {                                // the Favorites views: the source tab's cfg, its saved columns, the stars as rows, no implicit filters
+  fall: Object.assign({}, TABLES.ec, {rows: favRowsAll, extra: null, defaults: {}, store: 'ec', root: '#fv-fall', name: 'Favorites · All', noun: 'cards',
+        fav: {s: 'all', k: r => r[0], c: r => r[0]},
+        row: r => { const h = TABLES.ec.row(r), i = h.indexOf('</td>'); return h.slice(0, i) + fvFromNote(r) + h.slice(i); }}),
+  fpc: Object.assign({}, TABLES.pc, {rows: favRowsPc, extra: null, defaults: {}, store: 'pc', root: '#fv-fpc', name: 'Favorites · PriceCharting', noun: 'favorites'}),
+  fec: Object.assign({}, TABLES.ec, {rows: favRowsEc, extra: null, defaults: {}, store: 'ec', root: '#fv-fec', name: 'Favorites · eBay Catalog', noun: 'favorites'}),
+  fer: Object.assign({}, TABLES.er, {rows: favRowsEr, extra: null, defaults: {}, store: 'er', root: '#fv-fer', name: 'Favorites · eBay Raw Data', noun: 'favorites',
+        row: r => r.unm || (r.stub && r[0] == null) ? unmRow(r) : TABLES.er.row(r)}),
+};
+function fvBuild() {                               // the Favorites tab's tables: a copy of each source tab's header row, before makeTable decorates the originals
+  const host = $('fv-host'); if (!host) return;
+  for (const [fid, src] of [['fall', 'ec'], ['fpc', 'pc'], ['fec', 'ec'], ['fer', 'er']]) {
+    const sec = document.createElement('div'); sec.className = 'fvsec'; sec.id = 'fv-' + fid; sec.hidden = true;
+    sec.innerHTML = '<div class="controls"><input type="search" id="q-' + fid + '" placeholder="Search your favorites…"><select id="set-' + fid + '"><option value="">All sets (release order)</option></select><span class="count" id="count-' + fid + '"></span></div>' +
+      '<div class="ranges" id="ranges-' + fid + '"><button class="reset" id="reset-' + fid + '">Reset filters</button></div>' +
+      '<div class="wrap"><table class="wide"><tbody id="rows-' + fid + '"></tbody></table></div><button class="more" id="more-' + fid + '" hidden>Show more</button>' +
+      (fid === 'fall' ? '<div class="fvum" id="fv-um"></div>' : '');
+    const thead = document.querySelector('#p-' + src + ' thead').cloneNode(true);
+    sec.querySelector('table').insertBefore(thead, sec.querySelector('tbody'));
+    host.appendChild(sec);
+  }
+  $('fv-sel').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; FV.sel = b.dataset.v; try { localStorage.setItem('fav-sel', FV.sel); } catch (x) {} fvRender(); });
+}
+function fvCounts() {                              // the chips' counts and the tab's; All counts cards once (plus the unmatched titles)
+  const n = {all: 0, pc: 0, ec: 0, er: 0, fc: 0}, cards = new Set(); let um = 0;
+  for (const f of FAV_MAP.values()) { if (f.s === 'um') { n.er++; um++; continue; } n[f.s] = (n[f.s] || 0) + 1; const c = favCard(f); if (c != null) cards.add(c); }
+  n.all = cards.size + um;
+  const el = $('nfv'); if (el) el.textContent = FAV_MAP.size ? '(' + FAV_MAP.size + ')' : '';
+  return n;
+}
+function fvRender() {
+  const sel = $('fv-sel'); if (!sel) return;
+  const n = fvCounts();
+  sel.innerHTML = FV_VIEWS.map(([k, name]) => '<button type="button" class="fvchip' + (FV.sel === k ? ' on' : '') + '" data-v="' + k + '">' + name + '<span class="n">' + (n[k] || 0) + '</span></button>').join('');
+  ['fall', 'fpc', 'fec', 'fer', 'fc'].forEach(x => { const e = $('fv-' + x); if (e) e.hidden = true; });
+  const id = FV.sel === 'all' ? 'fall' : FV.sel === 'fc' ? null : 'f' + FV.sel, note = $('fv-note');
+  FV.cur = id;
+  note.textContent = LIVE.data ? '' : 'Waiting for the live data: the stars are kept by the collector and arrive with it.';
+  if (FV.sel === 'fc') { $('fv-fc').hidden = false; if (LIVE.data) fvRenderFc(); else $('fv-fcbody').innerHTML = ''; return; }   // (before the live data the page may still be loading: nothing below this point is referenced)
+  const t = tables[id]; if (!t) return;
+  $('fv-' + id).hidden = false;
+  t.resync(); t.apply();
+  if (id === 'fall') fvRenderUm();
+  if (!t.view.length && !note.textContent) note.textContent = FV.sel === 'all' ? 'Nothing starred yet. Click the ★ on any row of the PriceCharting, eBay Catalog or eBay Raw Data tabs, on a Forecast pick, or in the Scam screen, Mismatches, Unmatched titles, the phone alerts or the Review screen.'
+    : 'Nothing starred on the ' + FAV_SRC_NAME[FV.sel] + ' tab yet' + (FV.sel === 'er' ? ' (its stars include the auction view, the hits, the Scam screen, Mismatches, the phone alerts, Review and Unmatched titles)' : '') + '.';
+}
+function fvRenderUm() {                            // the strip under the All view: the unmatched titles starred (no card to put them on)
+  const box = $('fv-um'); if (!box) return;
+  const L = favsOf('um');
+  if (!L.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<h3>Unmatched titles you starred (' + L.length + ')</h3><p class="dim">Listings the title parser could not tie to a card: with no catalog row to sit on, they are listed here (and in the eBay Raw Data view).</p><table><tbody>' +
+    L.map(f => { const m = f.m || {}; return '<tr><td class="favc">' + favBtn('um', f.k, null, m, 'sm') + '</td><td class="ttl"><a href="' + esc(m.u || '#') + '" target="_blank" rel="noopener">' + esc(m.ti || f.k) + '</a></td><td class="num">' + fmtMoney(m.p) + '</td><td class="dim">' + esc(m.why || '') + '</td><td class="dim">starred ' + rvWhen(new Date(f.t).toISOString()) + '</td></tr>'; }).join('') + '</tbody></table>';
+}
+function fvRenderFc() {                            // the Forecast view: each pick as it stood when starred, and where it is on the tab now
+  const box = $('fv-fcbody'), L = favsOf('fc');
+  if (!L.length) { box.innerHTML = '<p class="dim">Nothing starred on the Forecast tab yet. The star beside a card there keeps it here with the hold, the discount and the numbers it had.</p>'; return; }
+  const now = new Map((FC.rows || []).map(r => [r.cid, r])), I = FC.inputs;
+  let h = '<p class="dim">Each row keeps the forecast as it stood when you starred it: the hold, the discount, the price, the net per copy (10th percentile – median – 90th) and the chance of a profit. "Now" is the same card on the Forecast tab at its current settings' + (I ? ' (' + I.h + '-month hold' + (I.disc ? ', bought ' + (I.disc * 100).toFixed(0) + '% under' : ', standard price') + ')' : '') + '.</p>';
+  h += '<table><thead><tr><th></th><th>Card</th><th>Hold</th><th>Bought at</th><th class="num">Price then</th><th class="num">Net per copy then</th><th class="num">Chance then</th><th class="num">Copies</th><th>Starred</th><th class="num">Now</th></tr></thead><tbody>';
+  L.forEach(f => {
+    const m = f.m || {}, base = idRow.get(+f.k) || [], r = now.get(+f.k);
+    h += '<tr><td class="favc">' + favBtn('fc', f.k, +f.k, m, 'sm') + '</td><td><a href="https://www.pricecharting.com/game/' + esc(f.k) + '" target="_blank" rel="noopener">' + esc(base[1] || m.n || ('card ' + f.k)) + '</a><br><span class="dim">' + esc(String(base[2] || m.s || '').replace(/^Pokemon /, '')) + '</span></td>' +
+      '<td>' + (m.h ? m.h + ' mo' : dash) + '</td><td>' + (m.d ? (m.d * 100).toFixed(0) + '% under' : 'standard price') + '</td><td class="num">' + (m.buy == null ? dash : fmtMoneyPlain(m.buy)) + '</td>' +
+      '<td class="num">' + (m.med == null ? dash : fcMoney2(m.lo) + ' – <b>' + fcMoney2(m.med) + '</b> – ' + fcMoney2(m.hi)) + '</td><td class="num">' + (m.p == null ? dash : (m.p * 100).toFixed(0) + '%') + '</td><td class="num">' + (m.q ? m.q : dash) + '</td>' +
+      '<td>' + rvWhen(new Date(f.t).toISOString()) + '</td><td class="num">' + (r ? (r.p * 100).toFixed(0) + '% · ' + fcMoney2(r.med) + (r.qty ? ' · buy ' + r.qty : '') : '<span class="dim">' + (FC.doc ? 'not on the list now' : 'model not loaded') + '</span>') + '</td></tr>';
+  });
+  box.innerHTML = h + '</tbody></table>';
+}
+
 /* ---------------- Raw Data's auction view: "Auctions sent to my phone" ----------------
    With the switch on the table shows no ordinary listing, only the auctions the collector pinged the phone about
    (live.alert.au, kept 60 days). Each row is laid out like a listing row so the same columns, sorts and filters work:
@@ -371,7 +579,7 @@ function riskCell(r) {
 }
 document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.riskb') : null; if (b && b.dataset.i) openRisk(b.dataset.i); });
 function openRisk(iid) {
-  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid);
+  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid) || (LIVE.favEr && LIVE.favEr.get(iid));
   if (!r) return;
   const sc = (LIVE.data && LIVE.data.scam) || {}, pts = Object.assign({}, SCAM_POINTS_DEFAULT, sc.points || {}), lab = sc.labels || {};
   const watchAt = sc.watch || 3, susAt = sc.suspect || 5, codes = r[33] || [], tier = r[29] || 'clean';
@@ -476,9 +684,9 @@ function hitLedger() {
   // every hit in the period, newest first: the fixed-price alerts, and the auctions that closed at or under the max
   const A = (LIVE.data && LIVE.data.alert) || {}, P = PERIOD.er, out = [];
   const kindOf = k => /drop/.test(k) ? 'Buy It Now, price drop' : /suspect/.test(k) ? 'Buy It Now, suspect' : 'Buy It Now';
-  if (A.hh) (LIVE.hh || []).forEach(r => { if (r[24] != null && P.test(r.hh.t)) out.push({t: r.hh.t, src: 'bin', kind: kindOf(r.hh.kd), p: r[24], i: r[22], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.hh.dec, um: r.um}); });
-  else (A.all || []).forEach(e => { if (/^hit/.test(e[2] || '') && e[1] != null && P.test(e[0])) out.push({t: e[0], src: 'bin', kind: kindOf(e[2]), p: e[1], i: e[4], c: e[5] || '', u: e[6], tot: e[7], ti: e[9] || '', dec: e[3], um: umOf(e[4], e[8])}); });
-  (LIVE.au || []).forEach(r => { if (r.au.res0 === 'PASS' && r[44] != null && P.test(r[34])) out.push({t: r[34], src: 'au', kind: 'auction, at the final price', p: r[44], i: r[22], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.au.dec, um: r.um}); });
+  if (A.hh) (LIVE.hh || []).forEach(r => { if (r[24] != null && P.test(r.hh.t)) out.push({t: r.hh.t, src: 'bin', kind: kindOf(r.hh.kd), p: r[24], i: r[22], cid: r[0], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.hh.dec, um: r.um}); });
+  else (A.all || []).forEach(e => { if (/^hit/.test(e[2] || '') && e[1] != null && P.test(e[0])) out.push({t: e[0], src: 'bin', kind: kindOf(e[2]), p: e[1], i: e[4], cid: null, c: e[5] || '', u: e[6], tot: e[7], ti: e[9] || '', dec: e[3], um: umOf(e[4], e[8])}); });
+  (LIVE.au || []).forEach(r => { if (r.au.res0 === 'PASS' && r[44] != null && P.test(r[34])) out.push({t: r[34], src: 'au', kind: 'auction, at the final price', p: r[44], i: r[22], cid: r[0], c: r[1], u: r[20], tot: r[9], ti: r[6], dec: r.au.dec, um: r.um}); });
   return out.sort((x, y) => (x.t < y.t ? 1 : -1));
 }
 function hitSummary() {
@@ -499,16 +707,20 @@ function openHits() {
   $('btitle').textContent = 'Hits in ' + PERIOD.er.label();
   $('bsub').textContent = 'Every hit the collector alerted you to in the period, newest first. The table behind this list only holds the last 24 hours and judges each listing as it stands now, so a hit from earlier can be missing there or no longer pass.';
   $('bbody').innerHTML = !L.length ? '<p>None in this period.</p>' :
-    '<table><thead><tr><th>Mismatch</th><th>Alerted</th><th>Card</th><th>Kind</th><th class="num">Total</th><th class="num">Profit</th><th>Your answer</th><th>In the table now</th></tr></thead><tbody>' +
+    '<table><thead><tr><th></th><th>Mismatch</th><th>Alerted</th><th>Card</th><th>Kind</th><th class="num">Total</th><th class="num">Profit</th><th>Your answer</th><th>In the table now</th></tr></thead><tbody>' +
     L.map(h => { const r = now.get(h.i), out = h.um || h.dec === 'no';
-      return '<tr class="' + (out ? 'umm' : '') + '"><td class="mmk"><input type="checkbox" class="um" data-i="' + esc(h.i || '') + '"' + (h.um ? ' checked' : '') + '></td><td>' + when(h.t) + '</td><td><a href="' + esc(h.u || '#') + '" target="_blank" rel="noopener" title="' + esc(h.ti) + '">' + esc(h.c || h.ti) + '</a></td><td>' + esc(h.kind) + '</td><td class="num">' + fmtMoney(h.tot) + '</td><td class="num">' + (out ? '<s>' + fmtMoney(h.p) + '</s>' : fmtMoney(h.p)) + '</td><td>' + (h.dec ? ans[h.dec] || esc(h.dec) : '<span class="dim">none</span>') + '</td><td>' +
+      return '<tr class="' + (out ? 'umm' : '') + '"><td class="favc">' + favBtn('er', h.i, h.cid, {ti: String(h.ti || '').slice(0, 90), u: h.u || null, p: h.tot == null ? null : h.tot}, 'sm') + '</td><td class="mmk"><input type="checkbox" class="um" data-i="' + esc(h.i || '') + '"' + (h.um ? ' checked' : '') + '></td><td>' + when(h.t) + '</td><td><a href="' + esc(h.u || '#') + '" target="_blank" rel="noopener" title="' + esc(h.ti) + '">' + esc(h.c || h.ti) + '</a></td><td>' + esc(h.kind) + '</td><td class="num">' + fmtMoney(h.tot) + '</td><td class="num">' + (out ? '<s>' + fmtMoney(h.p) + '</s>' : fmtMoney(h.p)) + '</td><td>' + (h.dec ? ans[h.dec] || esc(h.dec) : '<span class="dim">none</span>') + '</td><td>' +
         (h.src === 'au' ? '<span class="dim">auction view</span>' : r ? esc(r[14]) + (r[19] && r[19] !== 'open' ? ' <span class="dim">(' + esc(r[19]) + ')</span>' : '') : '<span class="dim">older than 24 h</span>') + '</td></tr>'; }).join('') + '</tbody></table>';
   $('bov').classList.add('open');
 }
 
 function makeTable(id, cfg) {
   const el = k => $(k + '-' + id);
-  const t = {id, sortKey: null, sortDir: 1, view: [], shown: 0};
+  // store: the name the column choices, widths, highlights and chip settings are saved under (hide-/order-/... in
+  // localStorage) - a table built for the Favorites tab names its source tab here, so it shows that tab's columns as
+  // set up there; root: the selector of the markup that holds this table's header row (default: the tab's panel)
+  const store = cfg.store || id, root = cfg.root || ('#p-' + id);
+  const t = {id, store, sortKey: null, sortDir: 1, view: [], shown: 0};
   const sel = el('set');
   SETS.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
   const maxes = cfg.maxes || [];
@@ -547,8 +759,10 @@ function makeTable(id, cfg) {
     });
     if (t.sortKey != null) {
       const k = t.sortKey, d = t.sortDir;
+      // the star header: favorites first (ascending), then favorites last; a row's star may belong to another source (f.s a function)
+      const fv = k === 'fav' && cfg.fav ? r => (isFav(typeof cfg.fav.s === 'function' ? cfg.fav.s(r) : cfg.fav.s, cfg.fav.k(r)) ? 0 : 1) : null;
       t.view.sort((a, b) => {
-        let x = a[k], y = b[k];
+        let x = fv ? fv(a) : a[k], y = fv ? fv(b) : b[k];
         if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
         if (x === '') x = null; if (y === '') y = null;         // blanks always sort last
         if (x == null && y == null) return ordOf(a) - ordOf(b);
@@ -564,39 +778,39 @@ function makeTable(id, cfg) {
   t.renderMore = n => {                                 // n rows more (a number; the Show more button's click event means PAGE)
     const frag = document.createDocumentFragment();
     const end = Math.min(t.shown + (typeof n === 'number' ? n : PAGE), t.view.length);
-    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + (cfg.fav ? favCell(cfg.fav, t.view[i]) : '') + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
     el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
   };
   // column eyes: every header cell (last header row) gets one; hidden columns collapse to a strip
-  const headRow = document.querySelector('#p-' + id + ' thead tr:last-child');
+  const headRow = document.querySelector(root + ' thead tr:last-child');
   let hiddenCols = new Set();
-  try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + id) || '[]')); } catch (e) {}
+  try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + store) || '[]')); } catch (e) {}
   for (const ins of [].concat(cfg.inserted || [])) try {   // columns added (or removed, n < 0) since the choice was saved: keep it on the same columns
-    const mark = 'cols-' + id + '-v' + ins.v;
+    const mark = 'cols-' + store + '-v' + ins.v;
     if (!localStorage.getItem(mark)) {
       if (ins.reset) {                                     // the column set was rebuilt: saved eyes, order, widths and highlights start over
-        for (const key of ['hide-' + id, 'order-' + id, 'hl-' + id, 'width-' + id]) localStorage.removeItem(key);
+        for (const key of ['hide-' + store, 'order-' + store, 'hl-' + store, 'width-' + store]) localStorage.removeItem(key);
         hiddenCols = new Set(); localStorage.setItem(mark, '1'); continue;
       }
       const shift = ci => ins.n < 0 ? (ci > ins.at ? ci + ins.n : ci) : (ci >= ins.at ? ci + ins.n : ci);
       const keep = ci => ins.n >= 0 || ci !== ins.at;
       hiddenCols = new Set([...hiddenCols].filter(keep).map(shift));
-      localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols]));
-      for (const key of ['order-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(sv)) { const out = sv.filter(keep).map(shift); if (ins.n > 0) { const fresh = [...Array(ins.n).keys()].map(i => ins.at + i); out.splice(ins.at === 0 ? 0 : out.indexOf(ins.at - 1) + 1, 0, ...fresh); } localStorage.setItem(key, JSON.stringify(out)); } }   // a new column takes its natural place in a saved order
-      for (const key of ['hl-' + id, 'width-' + id]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (sv && typeof sv === 'object') { const out = Array.isArray(sv) ? sv.filter(keep).map(shift) : Object.fromEntries(Object.entries(sv).filter(([k]) => keep(+k)).map(([k, v]) => [shift(+k), v])); localStorage.setItem(key, JSON.stringify(out)); } }
+      localStorage.setItem('hide-' + store, JSON.stringify([...hiddenCols]));
+      for (const key of ['order-' + store]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(sv)) { const out = sv.filter(keep).map(shift); if (ins.n > 0) { const fresh = [...Array(ins.n).keys()].map(i => ins.at + i); out.splice(ins.at === 0 ? 0 : out.indexOf(ins.at - 1) + 1, 0, ...fresh); } localStorage.setItem(key, JSON.stringify(out)); } }   // a new column takes its natural place in a saved order
+      for (const key of ['hl-' + store, 'width-' + store]) { const sv = JSON.parse(localStorage.getItem(key) || 'null'); if (sv && typeof sv === 'object') { const out = Array.isArray(sv) ? sv.filter(keep).map(shift) : Object.fromEntries(Object.entries(sv).filter(([k]) => keep(+k)).map(([k, v]) => [shift(+k), v])); localStorage.setItem(key, JSON.stringify(out)); } }
       localStorage.setItem(mark, '1');
     }
   } catch (e) {}
-  if (cfg.compact && localStorage.getItem('hide-' + id) == null) {   // first visit (or a rebuilt set): the Compact view
-    hiddenCols = new Set(cfg.compact); try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
+  if (cfg.compact && localStorage.getItem('hide-' + store) == null) {   // first visit (or a rebuilt set): the Compact view
+    hiddenCols = new Set(cfg.compact); try { localStorage.setItem('hide-' + store, JSON.stringify([...hiddenCols])); } catch (e) {}
   }
   const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
   const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6c1.6 0 3 .3 4.3.9l-1.6 1.6A6 6 0 0 0 12 8c-4.4 0-7.2 3.2-8.1 4 .5.5 1.6 1.7 3.2 2.6l-1.5 1.5C3.4 14.7 2 12 2 12zm20 0s-3.5 6-10 6c-1.6 0-3-.3-4.3-.9l1.6-1.6c.8.3 1.7.5 2.7.5 4.4 0 7.2-3.2 8.1-4-.5-.5-1.6-1.7-3.2-2.6l1.5-1.5C20.6 9.3 22 12 22 12zM4 20 20 4l1.4 1.4L5.4 21.4z" fill="currentColor"/></svg>';
   // a hidden column is gone altogether, eye included (2026-10-13, Brett), so a band title above the headers (tr.grp,
   // eBay Catalog) must span only the columns still showing: its original span is kept in data-span
-  const grpRow = document.querySelector('#p-' + id + ' thead tr.grp');
+  const grpRow = document.querySelector(root + ' thead tr.grp');
   if (grpRow) [...grpRow.children].forEach(th => { th.dataset.span = th.getAttribute('colspan') || '1'; });
   const paintBands = () => { if (!grpRow) return; let at = 0; for (const th of grpRow.children) { const n = +th.dataset.span; let vis = 0; for (let ci = at; ci < at + n; ci++) if (!hiddenCols.has(ci)) vis++; at += n; th.colSpan = Math.max(1, vis); th.style.display = vis ? '' : 'none'; } };
   const paintHeads = () => { [...headRow.children].forEach((th, pos) => {
@@ -609,10 +823,10 @@ function makeTable(id, cfg) {
   const paintRow = tr => { if (hiddenCols.size) hiddenCols.forEach(ci => { const td = cellOf(tr, ci); if (td) td.classList.add('col-hidden'); }); };
   const toggleCol = ci => {
     if (hiddenCols.has(ci)) hiddenCols.delete(ci); else hiddenCols.add(ci);
-    try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
+    try { localStorage.setItem('hide-' + store, JSON.stringify([...hiddenCols])); } catch (e) {}
     paintHeads();
     el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) td.classList.toggle('col-hidden', hiddenCols.has(ci)); });
-    if (t.sizeRow) { const th = [...headRow.children].find(x => +x.dataset.ci === ci) || headRow.children[ci]; const w = (JSON.parse(localStorage.getItem('width-' + id) || '{}') || {})[ci]; if (th) { const on = w && !hiddenCols.has(ci); th.style.width = th.style.minWidth = th.style.maxWidth = on ? w + 'px' : ''; th.classList.toggle('sized', !!on); } el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) { const on = w && !hiddenCols.has(ci); td.style.width = td.style.minWidth = td.style.maxWidth = on ? w + 'px' : ''; td.classList.toggle('sized', !!on); } }); }
+    if (t.sizeRow) { const th = [...headRow.children].find(x => +x.dataset.ci === ci) || headRow.children[ci]; const w = (JSON.parse(localStorage.getItem('width-' + store) || '{}') || {})[ci]; if (th) { const on = w && !hiddenCols.has(ci); th.style.width = th.style.minWidth = th.style.maxWidth = on ? w + 'px' : ''; th.classList.toggle('sized', !!on); } el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) { const on = w && !hiddenCols.has(ci); td.style.width = td.style.minWidth = td.style.maxWidth = on ? w + 'px' : ''; td.classList.toggle('sized', !!on); } }); }
   };
   [...headRow.children].forEach((th, ci) => {
     const b = document.createElement('button'); b.className = 'eye'; b.type = 'button';
@@ -623,11 +837,11 @@ function makeTable(id, cfg) {
   /* Highlight (2026-10-08, Brett): the small ring beside the eye paints the header neon green, to find the columns
      that matter at a glance; remembered per tab under hl-<tab>, by original index. */
   let hlCols = new Set();
-  try { hlCols = new Set(JSON.parse(localStorage.getItem('hl-' + id) || '[]')); } catch (e) {}
+  try { hlCols = new Set(JSON.parse(localStorage.getItem('hl-' + store) || '[]')); } catch (e) {}
   const paintHl = () => [...headRow.children].forEach((th, pos) => { const ci = th.dataset.ci != null ? +th.dataset.ci : pos; th.classList.toggle('hl', hlCols.has(ci)); const b = th.querySelector('.hlb'); if (b) b.title = hlCols.has(ci) ? 'Remove the highlight' : 'Highlight this column header'; });
   [...headRow.children].forEach((th, ci) => {
     const b = document.createElement('button'); b.className = 'hlb'; b.type = 'button'; b.setAttribute('aria-label', 'Highlight column');
-    b.addEventListener('click', e => { e.stopPropagation(); if (hlCols.has(ci)) hlCols.delete(ci); else hlCols.add(ci); try { localStorage.setItem('hl-' + id, JSON.stringify([...hlCols])); } catch (x) {} paintHl(); });
+    b.addEventListener('click', e => { e.stopPropagation(); if (hlCols.has(ci)) hlCols.delete(ci); else hlCols.add(ci); try { localStorage.setItem('hl-' + store, JSON.stringify([...hlCols])); } catch (x) {} paintHl(); });
     th.appendChild(b);
   });
   paintHl();
@@ -635,13 +849,13 @@ function makeTable(id, cfg) {
      The width is pinned on the header and every cell of the column (min and max too, so a column can be made
      narrower than its text, which is then clipped); remembered per tab under width-<tab>, by original index. */
   let widths = {};
-  try { widths = JSON.parse(localStorage.getItem('width-' + id) || '{}') || {}; } catch (e) {}
+  try { widths = JSON.parse(localStorage.getItem('width-' + store) || '{}') || {}; } catch (e) {}
   const sizeCell = (cell, ci) => { const w = widths[ci]; if (w && !hiddenCols.has(ci)) { cell.style.width = cell.style.minWidth = cell.style.maxWidth = w + 'px'; cell.classList.add('sized'); } else { cell.style.width = cell.style.minWidth = cell.style.maxWidth = ''; cell.classList.remove('sized'); } };
   const sizeRow = tr => { for (const ci of Object.keys(widths)) { const td = cellOf(tr, +ci); if (td) sizeCell(td, +ci); } };
   const sizeCol = ci => { const th = [...headRow.children].find(x => +x.dataset.ci === ci) || headRow.children[ci]; if (th) sizeCell(th, ci); el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) sizeCell(td, ci); }); };
-  const saveWidths = () => { try { if (Object.keys(widths).length) localStorage.setItem('width-' + id, JSON.stringify(widths)); else localStorage.removeItem('width-' + id); } catch (e) {} };
+  const saveWidths = () => { try { if (Object.keys(widths).length) localStorage.setItem('width-' + store, JSON.stringify(widths)); else localStorage.removeItem('width-' + store); } catch (e) {} };
   t.sizeRow = sizeRow;
-  t.resetLayout = () => { widths = {}; saveWidths(); hlCols = new Set(); try { localStorage.removeItem('hl-' + id); } catch (e) {} paintHl(); [...headRow.children].forEach((th, pos) => sizeCell(th, th.dataset.ci != null ? +th.dataset.ci : pos)); el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => sizeCell(td, td.dataset.ci != null ? +td.dataset.ci : pos))); };
+  t.resetLayout = () => { widths = {}; saveWidths(); hlCols = new Set(); try { localStorage.removeItem('hl-' + store); } catch (e) {} paintHl(); [...headRow.children].forEach((th, pos) => sizeCell(th, th.dataset.ci != null ? +th.dataset.ci : pos)); el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => sizeCell(td, td.dataset.ci != null ? +td.dataset.ci : pos))); };
   let rs = null;                                           // the resize in progress: {ci, x0, w0}
   [...headRow.children].forEach((th, ci) => {
     const h = document.createElement('span'); h.className = 'rsz'; h.title = 'Drag to change the width; double-click to let the column size itself';
@@ -658,16 +872,16 @@ function makeTable(id, cfg) {
   /* The Columns picker (2026-10-08, Brett: "a button where I can select which columns I would like to switch on
      and off"): every column with a tick, plus Compact (the tab's lean set, where one is defined) and All. Same
      memory as the eyes (hide-<tab>). */
-  const colLabel = th => { const tn = [...th.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); return (tn ? tn.textContent : th.textContent).replace(/[\u21c5?]/g, '').trim() || ('Column ' + th.dataset.ci); };
+  const colLabel = th => { if (th.dataset.label) return th.dataset.label; const tn = [...th.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); return (tn ? tn.textContent : th.textContent).replace(/[\u21c5?]/g, '').trim() || ('Column ' + th.dataset.ci); };
   t.setHidden = set => {
     hiddenCols = new Set([...set].map(Number));
-    try { localStorage.setItem('hide-' + id, JSON.stringify([...hiddenCols])); } catch (e) {}
+    try { localStorage.setItem('hide-' + store, JSON.stringify([...hiddenCols])); } catch (e) {}
     paintHeads();
     el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => { td.classList.toggle('col-hidden', hiddenCols.has(td.dataset.ci != null ? +td.dataset.ci : pos)); }));
     [...headRow.children].forEach((th, pos) => sizeCell(th, th.dataset.ci != null ? +th.dataset.ci : pos));
     el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => sizeCell(td, td.dataset.ci != null ? +td.dataset.ci : pos)));
   };
-  const tabName = () => { const b = document.querySelector('.tab[data-t="' + id + '"]'); return b ? b.textContent.trim() : id; };
+  const tabName = () => { if (cfg.name) return cfg.name; const b = document.querySelector('.tab[data-t="' + id + '"]'); return b ? b.textContent.trim() : id; };
   t.openColumns = () => {
     const ths = [...headRow.children].sort((a, b) => +a.dataset.ci - +b.dataset.ci);
     $('btitle').textContent = 'Columns \u00b7 ' + tabName();
@@ -687,7 +901,7 @@ function makeTable(id, cfg) {
   const chipId = div => div.id || ('r' + ((div.querySelector('input') || {}).id || '').replace(/^(min|max)/, '').replace('-' + id, ''));
   const chipLabel = div => { const l = div.querySelector('.lbl'); return (l ? l.textContent : div.textContent).replace(/\(\s*\d+\s*\)/g, '').replace(/\s+/g, ' ').trim() || chipId(div); };
   let hiddenChips = new Set();
-  try { hiddenChips = new Set(JSON.parse(localStorage.getItem('chips-' + id) || '[]')); } catch (e) {}
+  try { hiddenChips = new Set(JSON.parse(localStorage.getItem('chips-' + store) || '[]')); } catch (e) {}
   const neutralize = div => {
     div.querySelectorAll('input[type=number]').forEach(i => { if (i.value !== '') { i.value = ''; i.dispatchEvent(new Event('input', {bubbles: true})); } });
     const all = div.id === 'condchip' || div.id === 'statchip';
@@ -702,13 +916,13 @@ function makeTable(id, cfg) {
   const natural = chipAll().map(chipId);
   const placeChips = ids => { const by = new Map(chipAll().map(d => [chipId(d), d])); ids.forEach(k => { const d = by.get(k); if (d) el('ranges').insertBefore(d, el('reset')); }); };
   const loadChipOrder = () => {
-    let sv = null; try { sv = JSON.parse(localStorage.getItem('chiporder-' + id) || 'null'); } catch (e) {}
+    let sv = null; try { sv = JSON.parse(localStorage.getItem('chiporder-' + store) || 'null'); } catch (e) {}
     if (!Array.isArray(sv)) return;
     const want = sv.filter(k => natural.includes(k));
     natural.forEach((k, i) => { if (!want.includes(k)) want.splice(i ? want.indexOf(natural[i - 1]) + 1 : 0, 0, k); });   // a chip the saved order never saw goes after its natural neighbour
     placeChips(want);
   };
-  const saveChipOrder = () => { const cur = chipAll().map(chipId); try { if (cur.every((k, i) => k === natural[i])) localStorage.removeItem('chiporder-' + id); else localStorage.setItem('chiporder-' + id, JSON.stringify(cur)); } catch (e) {} };
+  const saveChipOrder = () => { const cur = chipAll().map(chipId); try { if (cur.every((k, i) => k === natural[i])) localStorage.removeItem('chiporder-' + store); else localStorage.setItem('chiporder-' + store, JSON.stringify(cur)); } catch (e) {} };
   t.resetChipOrder = () => { placeChips(natural); saveChipOrder(); };
   loadChipOrder();
   let lift = null;                                         // the press in progress: {div, x, y, timer, on (lifted), ghost, dx, dy, to: [div, before]}
@@ -756,7 +970,7 @@ function makeTable(id, cfg) {
     $('bsub').textContent = 'Tick the filters to keep above the table. A hidden filter is switched off, so nothing filters out of sight. To move a filter, press it, hold still until it lifts, then drag it along the row. Both are remembered in this browser.';
     $('bbody').innerHTML = '<div class="colpick">' + chips.map(div => '<label><input type="checkbox" data-id="' + esc(chipId(div)) + '"' + (hiddenChips.has(chipId(div)) ? '' : ' checked') + '> ' + esc(chipLabel(div)) + '</label>').join('') + '</div>' +
       '<div class="pickbtns"><button class="reset" id="fp-all">All filters</button><button class="reset" id="fp-order" title="Put the filters back in their original order">Default order</button><button class="reset" id="fp-done">Done</button></div>';
-    const save = () => { try { if (hiddenChips.size) localStorage.setItem('chips-' + id, JSON.stringify([...hiddenChips])); else localStorage.removeItem('chips-' + id); } catch (e) {} paintChipsVis(); };
+    const save = () => { try { if (hiddenChips.size) localStorage.setItem('chips-' + store, JSON.stringify([...hiddenChips])); else localStorage.removeItem('chips-' + store); } catch (e) {} paintChipsVis(); };
     $('bbody').querySelector('.colpick').addEventListener('input', e => { const i = e.target; if (!i || !i.dataset.id) return; if (i.checked) hiddenChips.delete(i.dataset.id); else hiddenChips.add(i.dataset.id); save(); });
     $('fp-all').addEventListener('click', () => { hiddenChips = new Set(); save(); $('bbody').querySelectorAll('.colpick input').forEach(i => { i.checked = true; }); });
     $('fp-order').addEventListener('click', () => { t.resetChipOrder(); t.openFilters(); });
@@ -777,11 +991,11 @@ function makeTable(id, cfg) {
   });
   const bandOf = ci => { const b = bands(); if (!b) return [0, nCols]; return b.find(([a, z]) => ci >= a && ci < z) || [0, nCols]; };
   let order = null;                                        // array of original indexes in display order, or null = original
-  try { const sv = JSON.parse(localStorage.getItem('order-' + id) || 'null'); if (Array.isArray(sv) && sv.length === nCols && [...sv].sort((a, b) => a - b).every((v, i) => v === i)) order = sv; } catch (e) {}
+  try { const sv = JSON.parse(localStorage.getItem('order-' + store) || 'null'); if (Array.isArray(sv) && sv.length === nCols && [...sv].sort((a, b) => a - b).every((v, i) => v === i)) order = sv; } catch (e) {}
   [...headRow.children].forEach((th, ci) => { th.dataset.ci = ci; th.draggable = true; });
   const place = tr => { if (!order) return; const cells = [...tr.children]; if (cells.length !== nCols) return; order.forEach(ci => tr.appendChild(cells[ci])); };
   const placeAll = () => { place(headRow); el('rows').querySelectorAll('tr').forEach(place); };
-  const saveOrder = () => { try { if (order) localStorage.setItem('order-' + id, JSON.stringify(order)); else localStorage.removeItem('order-' + id); } catch (e) {} };
+  const saveOrder = () => { try { if (order) localStorage.setItem('order-' + store, JSON.stringify(order)); else localStorage.removeItem('order-' + store); } catch (e) {} };
   t.resetOrder = () => { order = null; saveOrder(); t.apply(); [...headRow.children].sort((a, b) => +a.dataset.ci - +b.dataset.ci).forEach(th => headRow.appendChild(th)); };
   let dragCi = null;
   headRow.addEventListener('dragstart', e => {
@@ -818,9 +1032,9 @@ function makeTable(id, cfg) {
   t.stampRow = tr => { [...tr.children].forEach((td, ci) => { td.dataset.ci = ci; }); place(tr); if (t.sizeRow) t.sizeRow(tr); };
   el('rows').querySelectorAll('tr').forEach(t.stampRow);   // rows rendered before this block existed
   place(headRow);
-  const ths = document.querySelectorAll('#p-' + id + ' th[data-k]');
+  const ths = document.querySelectorAll(root + ' th[data-k]');
   ths.forEach(th => th.addEventListener('click', () => {
-    const k = +th.dataset.k;
+    const k = th.dataset.k === 'fav' ? 'fav' : +th.dataset.k;   // 'fav': the star column sorts favorites first
     if (t.sortKey === k) { if (t.sortDir === 1) t.sortDir = -1; else { t.sortKey = null; t.sortDir = 1; } } else { t.sortKey = k; t.sortDir = 1; }
     ths.forEach(x => { x.classList.remove('on'); x.querySelector('.s').textContent = '⇅'; });
     if (t.sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = t.sortDir === 1 ? ' ▲' : ' ▼'; }
@@ -837,18 +1051,18 @@ function makeTable(id, cfg) {
   const ds = document.querySelector('#ranges-' + id + ' #dis-' + id);
   if (ds) ds.addEventListener('input', () => { $('dischip').classList.toggle('on', ds.checked); t.apply(); });
   if (conds.length) {
-    try { const sv = JSON.parse(localStorage.getItem('cond-' + id) || 'null'); if (sv) conds.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
+    try { const sv = JSON.parse(localStorage.getItem('cond-' + store) || 'null'); if (sv) conds.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
     conds.forEach(c => c.addEventListener('input', () => {
-      try { localStorage.setItem('cond-' + id, JSON.stringify(conds.filter(x => x.checked).map(x => x.id))); } catch (e) {}
+      try { localStorage.setItem('cond-' + store, JSON.stringify(conds.filter(x => x.checked).map(x => x.id))); } catch (e) {}
       $('condchip').classList.toggle('on', conds.some(x => !x.checked)); t.apply();
     }));
     $('condchip').classList.toggle('on', conds.some(x => !x.checked));
   }
   const stats = [...document.querySelectorAll('#ranges-' + id + ' #statchip input')];
   if (stats.length) {
-    try { const sv = JSON.parse(localStorage.getItem('stat-' + id) || 'null'); if (sv) stats.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
+    try { const sv = JSON.parse(localStorage.getItem('stat-' + store) || 'null'); if (sv) stats.forEach(c => { c.checked = sv.includes(c.id); }); } catch (e) {}
     stats.forEach(c => c.addEventListener('input', () => {
-      try { localStorage.setItem('stat-' + id, JSON.stringify(stats.filter(x => x.checked).map(x => x.id))); } catch (e) {}
+      try { localStorage.setItem('stat-' + store, JSON.stringify(stats.filter(x => x.checked).map(x => x.id))); } catch (e) {}
       $('statchip').classList.toggle('on', stats.some(x => !x.checked)); t.apply();
     }));
     $('statchip').classList.toggle('on', stats.some(x => !x.checked));
@@ -862,8 +1076,8 @@ function makeTable(id, cfg) {
     el('q').value = ''; sel.value = '';
     cfg.ranges.forEach(k => { const d = cfg.defaults[k] || ['', '']; el('min' + k).value = d[0]; el('max' + k).value = d[1]; });
     maxes.forEach(k => { el('max' + k).value = ''; });
-    conds.forEach(c => { c.checked = true; }); if (conds.length) { $('condchip').classList.remove('on'); try { localStorage.removeItem('cond-' + id); } catch (e) {} }
-    stats.forEach(c => { c.checked = true; }); if (stats.length) { $('statchip').classList.remove('on'); try { localStorage.removeItem('stat-' + id); } catch (e) {} }
+    conds.forEach(c => { c.checked = true; }); if (conds.length) { $('condchip').classList.remove('on'); try { localStorage.removeItem('cond-' + store); } catch (e) {} }
+    stats.forEach(c => { c.checked = true; }); if (stats.length) { $('statchip').classList.remove('on'); try { localStorage.removeItem('stat-' + store); } catch (e) {} }
     if (sus) { sus.checked = false; $('suschip').classList.remove('on'); }
     if (t.paintChipsVis) setTimeout(t.paintChipsVis, 0);   // a hidden chip stays switched off
     if (mm) { mm.checked = false; $('mmchip').classList.remove('on'); }
@@ -872,11 +1086,26 @@ function makeTable(id, cfg) {
   });
   sel.addEventListener('change', t.apply);
   el('more').addEventListener('click', t.renderMore);
+  /* Two tables can share one store (a tab and its Favorites view): resync() takes up what the other one saved - which
+     columns are hidden, their order, widths and highlights, which chips show - before this one is shown again. */
+  t.resync = () => {
+    try { hiddenCols = new Set(JSON.parse(localStorage.getItem('hide-' + store) || '[]')); } catch (e) {}
+    try { hlCols = new Set(JSON.parse(localStorage.getItem('hl-' + store) || '[]')); } catch (e) {}
+    try { widths = JSON.parse(localStorage.getItem('width-' + store) || '{}') || {}; } catch (e) { widths = {}; }
+    try { const sv = JSON.parse(localStorage.getItem('order-' + store) || 'null'); order = Array.isArray(sv) && sv.length === nCols && [...sv].sort((a, b) => a - b).every((v, i) => v === i) ? sv : null; } catch (e) { order = null; }
+    try { hiddenChips = new Set(JSON.parse(localStorage.getItem('chips-' + store) || '[]')); } catch (e) {}
+    paintHeads(); paintHl(); paintChipsVis(); loadChipOrder();
+    const want = order || [...Array(nCols).keys()], heads = [...headRow.children];
+    want.forEach(ci => { const th = heads.find(x => +x.dataset.ci === ci); if (th) headRow.appendChild(th); });
+    [...headRow.children].forEach(th => sizeCell(th, +th.dataset.ci));
+  };
   t.apply();
   return t;
 }
 const tables = {};
+fvBuild();                                                // the Favorites tab's copies of the header rows, before the eyes and handles go on the originals
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
+for (const id in FV_TABLES) tables[id] = makeTable(id, FV_TABLES[id]);
 periodBar('rv', () => tables.rv.apply());
 periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); }, 'd');   // the period chooses the table's rows too; starts on today
 tables.rv.apply();
@@ -885,16 +1114,17 @@ tables.rv.apply();
 // itself is the scroller - the tables sit in no box of their own - and the header row sticks to the top of the
 // window. More rows load as the bottom of the page comes near.
 window.addEventListener('scroll', () => {
-  const p = document.querySelector('.panel:not([hidden])'), id = p && p.id.slice(2), t = tables[id];
+  const p = document.querySelector('.panel:not([hidden])'), id = p && p.id === 'p-fv' ? FV.cur : p && p.id.slice(2), t = id && tables[id];
   if (t && !$('more-' + id).hidden && window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 900) t.renderMore();
 }, {passive: true});
 
 /* ---------------- Tabs ---------------- */
-const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', fc: 'forecast', al: 'alerts', rv: 'revenue'};      // default (no hash) = PriceCharting
+const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', fc: 'forecast', al: 'alerts', rv: 'revenue', fv: 'favorites'};      // default (no hash) = PriceCharting
 function showTab(id) {
-  if (!TABLES[id] && id !== 'al' && id !== 'fc') id = 'pc';
+  if (!TABLES[id] && id !== 'al' && id !== 'fc' && id !== 'fv') id = 'pc';
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
+  if (id === 'fv') fvRender();                           // the Favorites tab draws its view from the stars as they stand now
   history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
   auMode();                                             // the top boxes are out of play only while Raw Data shows auctions
 }
@@ -1167,7 +1397,7 @@ async function readWait(iid, t0) {
 function applyRead(iid, m) {
   if (!LIVE.data) return;
   const pics = m.imgs || [], tc = m.tc && m.tc !== 'UNK' ? m.tc : null;
-  const x = (LIVE.data.live || []).find(z => z[0] === iid);
+  const x = (LIVE.data.live || []).find(z => z[0] === iid) || ((LIVE.data.favs || {}).rows || {})[iid];   // the 24-hour row, or a starred listing's
   if (x) { if (m.img) x[19] = m.img; x[33] = pics.slice(1); x[34] = m.ef === undefined ? null : m.ef; x[35] = m.ec || ''; if (tc) x[13] = tc; }
   const a = ((LIVE.data.alert || {}).au || []).find(z => z[0] === iid);
   if (a) { if (m.img) a[27] = m.img; if (pics.length) a[28] = pics; a[29] = m.ef === undefined ? null : m.ef; a[30] = m.ec || ''; if (tc) a[9] = tc; }
@@ -1178,9 +1408,9 @@ function applyRead(iid, m) {
 function openReview(iid) {
   // the row may be a live listing, an auction sent to the phone or a hit from the history - those two outlive the
   // 24-hour table, so the button failed on them until 2026-10-17 (Brett: "the review button does not work for auctions")
-  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid);
+  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid) || (LIVE.favEr && LIVE.favEr.get(iid));
   if (!r) return;
-  const x = (LIVE.data.live || []).find(z => z[0] === iid) || [];
+  const x = (LIVE.data.live || []).find(z => z[0] === iid) || ((LIVE.data.favs || {}).rows || {})[iid] || [];
   const cs = (LIVE.dec || {})[String(r[0])] || {}, base = idRow.get(r[0]) || [];
   const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
   const pics = [r[21]].concat(x[33] && x[33].length ? x[33] : r.pics || []).filter(Boolean);
@@ -1207,7 +1437,7 @@ function openReview(iid) {
                                                                      '<span class="lab">' + lab + '</span>' + ebv(i, ef && ef[6 + i]))).join('');
   const v = reviewOf(iid);
   $('btitle').textContent = r[1] + ' \u2014 ' + String(r[2] || '').replace('Pokemon ', '');
-  $('bsub').innerHTML = 'Is the card in the eBay photos the card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 || r.um ? '<b class="down">You said: not the same.</b>' : '');
+  $('bsub').innerHTML = favBtn('er', iid, r[0], favMetaEr(r), 'rvstar') + 'Is the card in the eBay photos the card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 || r.um ? '<b class="down">You said: not the same.</b>' : '');
   let h = '<div class="rvpair">' +
     '<div class="rvside"><h4>PriceCharting <a href="' + pcPage + '" target="_blank" rel="noopener">\u2197</a></h4>' +
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
@@ -1287,6 +1517,9 @@ function sellerBar(fb, pct) {
 function rebuildLive() {
   const live = LIVE.data; if (!live) return;
   const S = settings();
+  const favT = (live.favs && live.favs.t) || 0;         // the collector has taken every star up to this time: its list stands, the local echoes go
+  for (const k of Object.keys(FAVS)) if (favT >= FAVS[k].t) delete FAVS[k];
+  favIndex();
   LIVE.sets = live.sets || {};
   LIVE.ec = []; LIVE.er = []; LIVE.dec = {};
   fillPcm();                                              // PC sales for every card (pcm.bin), the eBay figures cleared, refilled below
@@ -1316,34 +1549,14 @@ function rebuildLive() {
                   rfText((live.ef || {})[String(cid)] || null),                                   // 48 eBay rarity/finish, for sorting
                   km, kt, n30, hitpct, base[PC_LIVE.pcmm]]);                                      // 49-53 (2026-10-13): the month columns and Hit %
   }
+  LIVE.ecMap = new Map(LIVE.ec.map(r => [r[0], r]));
   let passes = 0, hiddenImg = 0, hiddenSus = 0, tooCheap = 0, leads = 0, disagree = 0;
   live.live.forEach(x => {
     const base = idRow.get(x[1]); if (!base) return;
-    const cs = LIVE.dec[String(x[1])];
-    const [v, allin, dd] = verdictOf(x, cs, S);
-    const d = dd || listingDecide(x, cs, S), note = d.note;
+    const erow = erowOf(x, S, base, LIVE.dec[String(x[1])]), v = erow[14], tier = erow[29], nimg = erow[32];
     if (v === 'PASS') passes++;
-    const profit = d.net != null && allin != null ? Math.round((d.net - allin) * 100) / 100 : null;
-    const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
-    const status = x[17], tHours = status === 'open' ? x[3] : (x[21] != null ? x[21] : x[3]);
-    const tier = x[23] || 'clean', nimg = x[22] == null ? 99 : x[22];
     if (nimg < 2) hiddenImg++; else if (tier === 'suspect') hiddenSus++; else if (x[28] === 'low') tooCheap++; else if (v === 'LEAD') leads++;
-    // PriceCharting's ungraded price: the one the collector judged the listing against, else today's from the catalog tab
-    const pc = x[27] != null ? x[27] : base[6];
-    const vspc = pc && x[7] != null ? Math.round((x[7] / pc - 1) * 1000) / 10 : null;
-    const erow = [base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
-                  cs ? cs.A : null, cs && cs.A && x[7] != null ? Math.round((x[7] / cs.A - 1) * 1000) / 10 : null,
-                  d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
-                  tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
-                  pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
-                  base[PC_LIVE.pcm], base[PC_LIVE.km],                                           // 40-41 PC sales last month, eBay sales last month
-                  null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
-    erow[46] = mtOf(x[1]);
-    erow[51] = base[PC_LIVE.kt]; erow[52] = base[PC_LIVE.hits]; erow[53] = base[PC_LIVE.hitpct]; erow[54] = base[PC_LIVE.pcmm];
-    erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34]; erow[55] = x[35] || '';
-    erow[49] = erow[48] && erow[48].length ? erow[48][0] || '' : ''; erow[50] = erow[48] && erow[48].length ? rfText([erow[48][1], erow[48][2]]) : '';
     if (rfBad(erow)) disagree++;
-    erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
     LIVE.er.push(erow);
   });
   $('nsus').textContent = hiddenSus; $('ncheap').textContent = tooCheap; $('nlead').textContent = leads; $('ndis').textContent = disagree;
@@ -1354,6 +1567,9 @@ function rebuildLive() {
   const reviewT = (live.alert && live.alert.review_t) || 0;
   for (const k of Object.keys(REVIEWS)) if (reviewT >= REVIEWS[k].t) delete REVIEWS[k];
   LIVE.erMap = new Map(LIVE.er.map(r => [r[22], r]));
+  // starred listings that have left the 24-hour table: the collector builds their live rows (live.favs.rows), judged here like the rest
+  LIVE.favEr = new Map();
+  for (const [iid, x] of Object.entries((live.favs && live.favs.rows) || {})) { const base = idRow.get(x[1]); if (base && !LIVE.erMap.has(iid)) LIVE.favEr.set(iid, erowOf(x, S, base, LIVE.dec[String(x[1])])); }
   LIVE.hh = hhRows(live);
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
   $('nmm').textContent = ((live.alert && live.alert.wrong) || []).length;
@@ -1376,7 +1592,35 @@ function rebuildLive() {
   $('unmatched-btn').textContent = 'Unmatched titles (' + live.unmatched.length + ')';
   paintPcPill();
   tables.pc.apply(true); tables.ec.apply(true); tables.er.apply(true);   // true: a refresh keeps the rows already shown (Show more) on view
+  fvCounts(); if (!$('p-fv').hidden) fvRender();        // the Favorites tab follows the live data too
   try { if (FC.doc) fcCompute(); else loadForecast(); } catch (e) { console.error('forecast', e); }   // the Forecast tab: eBay supply changed, or the model file is not in yet; never in the way of the live tabs
+}
+// one Raw Data row from a collector live row: rebuildLive() for the 24-hour table, and live.favs.rows for a starred
+// listing that has left it (the Favorites tab). x = the collector's row (build_live in ebay_sweep.py); the verdict and
+// the money columns are judged here, with the boxes at the top of the Raw Data tab.
+function erowOf(x, S, base, cs) {
+  const [v, allin, dd] = verdictOf(x, cs, S);
+  const d = dd || listingDecide(x, cs, S), note = d.note;
+  const profit = d.net != null && allin != null ? Math.round((d.net - allin) * 100) / 100 : null;
+  const roi = profit != null && allin > 0 ? Math.round(profit / allin * 1000) / 10 : null;
+  const status = x[17], tHours = status === 'open' ? x[3] : (x[21] != null ? x[21] : x[3]);
+  const tier = x[23] || 'clean', nimg = x[22] == null ? 99 : x[22];
+  // PriceCharting's ungraded price: the one the collector judged the listing against, else today's from the catalog tab
+  const pc = x[27] != null ? x[27] : base[6];
+  const vspc = pc && x[7] != null ? Math.round((x[7] / pc - 1) * 1000) / 10 : null;
+  const erow = [base[0], base[1], base[2], base[3], base[4], x[3], x[4], x[5], x[6], x[7], allin,
+                cs ? cs.A : null, cs && cs.A && x[7] != null ? Math.round((x[7] / cs.A - 1) * 1000) / 10 : null,
+                d.maxbuy, v, x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[0], x[20], profit, roi, d.sell,
+                tHours, note, tier, RISK_RANK[tier] || 0, x[24] || 0, nimg, x[25] || [], x[2],
+                pc == null ? null : pc, vspc, x[28] || '', x[29] || '', x[30] || [],
+                base[PC_LIVE.pcm], base[PC_LIVE.km],                                           // 40-41 PC sales last month, eBay sales last month
+                null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
+  erow[46] = mtOf(x[1]);
+  erow[51] = base[PC_LIVE.kt]; erow[52] = base[PC_LIVE.hits]; erow[53] = base[PC_LIVE.hitpct]; erow[54] = base[PC_LIVE.pcmm];
+  erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34]; erow[55] = x[35] || '';
+  erow[49] = erow[48] && erow[48].length ? erow[48][0] || '' : ''; erow[50] = erow[48] && erow[48].length ? rfText([erow[48][1], erow[48][2]]) : '';
+  erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
+  return erow;
 }
 // the small pill in the header: is the collector reading PriceCharting signed in (the charts' volume bars depend on it)?
 function paintPcPill() {
@@ -1507,8 +1751,8 @@ function openScam() {
   const sus = LIVE.er.filter(r => r[29] === 'suspect');
   h += '<h3>Suspect listings right now (' + sus.length + ')</h3>';
   if (!sus.length) h += '<p class="dim">None.</p>';
-  else h += '<table><thead><tr><th>Title</th><th class="num">Total $</th><th class="num">Card price $</th><th class="num">Seller fb</th><th class="num">Score</th><th>Why</th></tr></thead><tbody>' +
-    sus.map(r => '<tr><td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener">' + esc(r[6]) + '</a></td><td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtInt(r[17]) + (r[18] != null ? ' · ' + r[18].toFixed(1) + '%' : '') + '</td><td class="num">' + r[31] + '</td><td>' + esc((r[33] || []).map(c => (sc.labels || {})[c] || c).join(' · ')) + '</td></tr>').join('') + '</tbody></table>';
+  else h += '<table><thead><tr><th></th><th>Title</th><th class="num">Total $</th><th class="num">Card price $</th><th class="num">Seller fb</th><th class="num">Score</th><th>Why</th></tr></thead><tbody>' +
+    sus.map(r => '<tr><td class="favc">' + favBtn('er', r[22], r[0], favMetaEr(r), 'sm') + '</td><td class="ttl"><a href="' + esc(r[20] || '#') + '" target="_blank" rel="noopener">' + esc(r[6]) + '</a></td><td class="num">' + fmtMoney(r[9]) + '</td><td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtInt(r[17]) + (r[18] != null ? ' · ' + r[18].toFixed(1) + '%' : '') + '</td><td class="num">' + r[31] + '</td><td>' + esc((r[33] || []).map(c => (sc.labels || {})[c] || c).join(' · ')) + '</td></tr>').join('') + '</tbody></table>';
   $('bbody').innerHTML = h;
   $('bov').classList.add('open');
 }
@@ -1556,7 +1800,7 @@ function openMismatches() {
     $('mm-list').innerHTML = !cards.length ? '<p>None yet. Tick Mismatch on a Raw Data row, or answer "No, not the same card" on your phone.</p>' : !show.length ? '<p>No card matches that search.</p>' :
       '<table><thead><tr><th>PriceCharting card</th><th class="num">Mismatches</th><th>Of its matches</th><th>Of its alerts</th></tr></thead><tbody>' +
       show.map(c => '<tr class="mmr" data-k="' + esc(c.k) + '"><td>' + (c.id ? '<a href="https://www.pricecharting.com/game/' + c.id + '" target="_blank" rel="noopener">' + esc(c.name) + '</a>' : esc(c.name)) + (c.set ? ' <span class="dim">' + esc(c.set) + '</span>' : '') + '</td><td class="num"><b>' + c.n + '</b></td><td>' + (c.t ? c.n + ' of ' + c.t.toLocaleString('en-US') + ' listing' + (c.t === 1 ? '' : 's') + ' <span class="dim">(' + (c.n / c.t * 100).toFixed(1) + '%)</span>' : '<span class="dim">no matches on record</span>') + '</td><td>' + (c.y ? c.x + ' of ' + c.y + ' alert' + (c.y === 1 ? '' : 's') : '<span class="dim">no alerts counted yet</span>') + '</td></tr>' +
-        '<tr class="mmd" data-k="' + esc(c.k) + '" hidden><td colspan="4"><ul>' + c.list.map(w => '<li>' + when(w[0]) + ' \u00b7 <a href="' + esc(w[3] || '#') + '" target="_blank" rel="noopener">' + esc(w[2] || w[1]) + '</a>' + (w[8] != null ? ' \u00b7 ' + fmtMoney(w[8]) : '') + (w[7] ? ' <span class="dim">\u00b7 ' + esc(String(w[7]).replace('-drop', ', price drop').replace('-lead', ', lead')) + '</span>' : '') + '</li>').join('') + '</ul></td></tr>').join('') + '</tbody></table>';
+        '<tr class="mmd" data-k="' + esc(c.k) + '" hidden><td colspan="4"><ul>' + c.list.map(w => '<li>' + favBtn('er', w[1], w[6], {ti: String(w[2] || '').slice(0, 90), u: w[3] || null, p: w[8] == null ? null : w[8]}, 'sm') + ' ' + when(w[0]) + ' \u00b7 <a href="' + esc(w[3] || '#') + '" target="_blank" rel="noopener">' + esc(w[2] || w[1]) + '</a>' + (w[8] != null ? ' \u00b7 ' + fmtMoney(w[8]) : '') + (w[7] ? ' <span class="dim">\u00b7 ' + esc(String(w[7]).replace('-drop', ', price drop').replace('-lead', ', lead')) + '</span>' : '') + '</li>').join('') + '</ul></td></tr>').join('') + '</tbody></table>';
   };
   $('mm-q').addEventListener('input', draw);
   $('bbody').onclick = e => { const tr = e.target.closest ? e.target.closest('tr.mmr') : null; if (!tr || e.target.closest('a')) return; const d = [...$('mm-list').querySelectorAll('tr.mmd')].find(x => x.dataset.k === tr.dataset.k); if (d) d.hidden = !d.hidden; };
@@ -1587,7 +1831,7 @@ $('unmatched-btn').addEventListener('click', () => {
   const u = (LIVE.data && LIVE.data.unmatched) || [];
   $('htitle').textContent = 'Unmatched titles (last 24 h)';
   $('hbody').innerHTML = '<p class="dim">Listings the title parser could not tie to one catalog card, with the reason. Useful for spotting patterns to teach it.</p>' +
-    (u.length ? '<table style="min-width:0;width:100%;font-size:12px"><tbody>' + u.slice().reverse().map(x => '<tr><td class="ttl"><a href="' + esc(x[4]) + '" target="_blank" rel="noopener">' + esc(x[2]) + '</a></td><td class="num">' + fmtMoney(x[3]) + '</td><td class="dim">' + esc(x[5]) + '</td></tr>').join('') + '</tbody></table>' : '<p>None.</p>');
+    (u.length ? '<table style="min-width:0;width:100%;font-size:12px"><tbody>' + u.slice().reverse().map(x => '<tr><td class="favc">' + favBtn('um', x[1], null, {ti: String(x[2] || '').slice(0, 90), p: x[3], u: x[4], why: String(x[5] || '').slice(0, 120)}, 'sm') + '</td><td class="ttl"><a href="' + esc(x[4]) + '" target="_blank" rel="noopener">' + esc(x[2]) + '</a></td><td class="num">' + fmtMoney(x[3]) + '</td><td class="dim">' + esc(x[5]) + '</td></tr>').join('') + '</tbody></table>' : '<p>None.</p>');
   $('hov').classList.add('open');
 });
 
@@ -2306,10 +2550,10 @@ function fcRenderPicks() {
   $('fc-summary').innerHTML = sum;
   const rows = picks.concat(FC.rows.filter(r => !r.qty).slice(0, Math.max(0, 40 - picks.length)));
   const supplyCell = r => r.supply == null ? '<span class="dim">untracked</span>' : r.supply + (r.ask != null ? ' <span class="dim">(from ' + fmtMoneyPlain(r.ask) + ')</span>' : '');
-  let html = '<div class="pctbox fc-box"><table><thead><tr><th>Card</th><th class="num">Price</th><th class="num" title="copies in the collector\'s book within 15% of the price (cheapest ask in brackets)">Supply</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
+  let html = '<div class="pctbox fc-box"><table><thead><tr><th title="Favorites: the star keeps this pick, with the hold, the discount and its numbers, on the Favorites tab">\u2605</th><th>Card</th><th class="num">Price</th><th class="num" title="copies in the collector\'s book within 15% of the price (cheapest ask in brackets)">Supply</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
   rows.forEach(r => {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
-    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '"><td><a href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener">' + esc(r.name) + '</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
+    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener">' + esc(r.name) + '</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
       '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (r.sell !== r.pcBuy || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
         [r.sell !== r.pcBuy ? '<span title="eBay’s sold median: what buyers actually pay; the sale is projected from it">sells ' + fmtMoneyPlain(r.sell) + '</span>' : '', Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num">' + supplyCell(r) + '</td>' +
       '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span></td>' +
@@ -2445,8 +2689,8 @@ function alRender() {
   const m = alMatches(mine), hits = m.filter(r => r.kind === 'hit').length;
   $('al-pre').innerHTML = 'With the numbers on the left, <b>' + m.length + '</b> listing' + (m.length === 1 ? '' : 's') + ' from the last 24 hours would have been sent' +
     (m.length ? ' (' + hits + ' hit' + (hits === 1 ? '' : 's') + ', ' + (m.length - hits) + ' lead' + (m.length - hits === 1 ? '' : 's') + ').' : '.') +
-    (m.length ? '<table><thead><tr><th>Card</th><th>Listing</th><th class="num">Total</th><th class="num">Profit</th><th class="num">ROI</th><th>Kind</th><th>Now</th></tr></thead><tbody>' +
-      m.slice(0, 40).map(r => '<tr><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + (r.sus ? ' ' + badge('suspect', 'warn') : '') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
+    (m.length ? '<table><thead><tr><th></th><th>Card</th><th>Listing</th><th class="num">Total</th><th class="num">Profit</th><th class="num">ROI</th><th>Kind</th><th>Now</th></tr></thead><tbody>' +
+      m.slice(0, 40).map(r => '<tr><td class="favc">' + favBtn('er', r.x[0], r.x[1], {ti: String(r.x[4] || '').slice(0, 90), u: r.x[18] || null, p: r.x[7] == null ? null : r.x[7]}, 'sm') + '</td><td>' + esc(r.base[1] || '') + '<br><span class="dim">' + esc(r.base[2] || '') + '</span></td><td><a href="' + esc(r.x[18] || '#') + '" target="_blank" rel="noopener">' + esc(r.x[4] || '') + '</a></td><td class="num">' + fmtMoney(r.x[7]) + '</td><td class="num">' + fmtMoney(r.profit) + '</td><td class="num">' + r.roi.toFixed(0) + '%</td><td>' + badge(r.kind === 'hit' ? 'hit' : 'lead', r.kind === 'hit' ? 'pass' : 'hot') + (r.sus ? ' ' + badge('suspect', 'warn') : '') + '</td><td>' + esc(r.x[17] || '') + '</td></tr>').join('') + '</tbody></table>' : '');
 }
 // what was sent, what you answered on the phone, and what became of the listing
 // clean listings he answered "No, not the same card" to: the matcher's test cases (kept a year by the collector)
@@ -2470,8 +2714,8 @@ function alHistory(a) {
   const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
   const fate = r => r[8] === 'open' ? 'still listed' : r[8] === 'sold' ? 'sold' + (r[9] != null ? ' ' + (r[9] < 1 ? Math.round(r[9] * 60) + ' min' : r[9].toFixed(1) + ' h') + ' after the alert' : '') : r[8] === 'unknown' ? 'no longer tracked' : esc(r[8]);
   return 'Last <b>' + h.length + '</b> alert' + (h.length === 1 ? '' : 's') + ' \u00b7 you answered <b>' + said.length + '</b>' + (said.length ? ': ' + (said.length - no) + ' yes, ' + no + ' no' : '') +
-    '<table><thead><tr><th>Sent</th><th>Card</th><th class="num">Total</th><th class="num">Profit</th><th>Kind</th><th>Your answer</th><th>Listing</th></tr></thead><tbody>' +
-    h.map(r => '<tr><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a><br><span class="dim">' + esc(r[2]) + '</span></td><td class="num">' + fmtMoney(r[4]) + '</td><td class="num">' + fmtMoney(r[5]) + '</td><td>' + esc(String(r[6]).replace('-drop', ', price drop').replace('-lead', ', lead').replace('-suspect', ', SUSPECT')) + '</td><td>' + (r[7] ? ans[r[7]] || esc(r[7]) : '<span class="dim">not answered</span>') + '</td><td>' + fate(r) + '</td></tr>').join('') + '</tbody></table>';
+    '<table><thead><tr><th></th><th>Sent</th><th>Card</th><th class="num">Total</th><th class="num">Profit</th><th>Kind</th><th>Your answer</th><th>Listing</th></tr></thead><tbody>' +
+    h.map(r => '<tr><td class="favc">' + (r[10] ? favBtn('er', r[10], r[11], {ti: String(r[2] || '').slice(0, 90), u: r[3] || null, p: r[4] == null ? null : r[4]}, 'sm') : '') + '</td><td>' + when(r[0]) + '</td><td><a href="' + esc(r[3] || '#') + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a><br><span class="dim">' + esc(r[2]) + '</span></td><td class="num">' + fmtMoney(r[4]) + '</td><td class="num">' + fmtMoney(r[5]) + '</td><td>' + esc(String(r[6]).replace('-drop', ', price drop').replace('-lead', ', lead').replace('-suspect', ', SUSPECT')) + '</td><td>' + (r[7] ? ans[r[7]] || esc(r[7]) : '<span class="dim">not answered</span>') + '</td><td>' + fate(r) + '</td></tr>').join('') + '</tbody></table>';
 }
 async function alChannel() {
   const enc = new TextEncoder();
