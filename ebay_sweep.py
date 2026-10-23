@@ -2409,7 +2409,9 @@ def trend_stats(days):
     vol = round(pct(moves, 0.5) * 100, 2) if len(moves) >= 3 else None
     pts30 = [(i, math.log(price[i])) for i in range(max(0, n - 30), n) if price[i] is not None]
     ts = tsq1 = tsq3 = None
-    if hist_days >= 30 and len(pts30) >= 10:
+    # 10 priced days spanning at least two weeks (the slope is per day, scaled to a month). A floor of 30 days of history
+    # stood here until 2026-10-23: redundant given the span, and it kept the column blank through the collector's first month.
+    if len(pts30) >= 10 and pts30[-1][0] - pts30[0][0] >= 14:
         r = theil_sen(pts30)
         if r:
             ts, tsq1, tsq3 = (round((math.exp(v * 30) - 1) * 100, 1) for v in r)
