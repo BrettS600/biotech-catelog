@@ -775,15 +775,37 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   {content} or strings), else the "card condition"/"condition" item specific, else the seller's
   conditionDescription note; the title's COND_WORDS decide the code, "damaged" -> HP; apply_condition(rec, it)
   stores rec["ec"] (text) and, when it names a grade, rec["ecc"] and rec["tcond"] (eBay's declaration beats title
-  words; the re-match pass keeps ecc). It runs inside item_facts() AND learn_facts(), so every full look (identity
-  checks, confirmations, book/suspect/facts lookups, alerts) reads it. The CONDITION PASS (collector, last in the
-  optional work): cond_queue() = n/s, matched, first seen < 24 h, in the alert price band, not suspect, 2+ photos,
-  never looked up, dearest first; COND_MAX_PER_CYCLE 3, COND_DAILY_MAX 400 (v["cond_day"]), each a confirm(...,
-  "cond", cat) full look, once per listing (rec["cond_tried"]). Live row 35 = rec["ec"]; the page's condCell shows
-  the grade with a small "e" when it is eBay's and explains n/s on hover; the hourly "Conditions:" log line counts
-  the reads. The first three descriptor payloads are logged raw ("Condition: <id> descriptors ...") - CHECK THE LOG
+  words; the re-match pass keeps ecc; rec["ec"] = "" when the listing states nothing, so "read, none there" is told
+  apart from "never read"). It runs inside item_facts() AND learn_facts(), so every full look (identity checks,
+  confirmations, book/suspect/facts lookups, alerts) reads it. The CONDITION PASS (collector, right after the
+  identity lookups and AHEAD of the window re-reads - its first version sat last in the optional work and made 0 of
+  its 400 looks in its first hours, the bucket never had a token left by then): cond_queue() = n/s, matched, first
+  seen < 24 h, in the alert price band, not suspect, 2+ photos, never looked up, dearest first; one look every
+  COND_EVERY_S = 90 s (COND_MAX_PER_CYCLE 1) when the bucket holds 2+ tokens, COND_DAILY_MAX 400 a day
+  (v["cond_day"]), each a confirm(..., "cond", cat) full look, once per listing (rec["cond_tried"]). Live row 35 =
+  rec["ec"]; the page's condCell shows the grade with a small "e" when it is eBay's and explains n/s on hover; the
+  hourly "Conditions:" log line counts the listings read with the condition code (before the "" marker it counted
+  every listing with facts on file and said 13,413 "carry none" when it meant "not read for this yet"). The first
+  three descriptor payloads are logged raw ("Condition: <id> descriptors ..."; ebay_sweep's log is quiet inside the
+  collector, so the last such line comes out with the hourly summary) - CHECK THE LOG
   after the first deploy: eBay's exact JSON shape for trading-card descriptors was not verifiable from the docs, so
   the reader accepts both shapes and the log confirms which one arrives. Tests: ut/test_cond.py, t/test_risk.js.
+- THE DROPLET RAN OUT OF MEMORY (found 2026-10-23: the collector died every ~40 minutes through the night of
+  2026-10-20/21 - "Collector starting" with no "Cycle failed" or "Restarting on the new code" before it, process lives
+  shrinking from 4 h to 40 min as the state grew - and stopped publishing altogether at 07:13 UTC on the 21st; the
+  state backup had reached 14 MB gzipped / 86 MB of JSON, 27K open + 56K closed records). Measured on a copy of that
+  state: 191 MB as Python objects (open 70, closed 78), the catalog 45 MB, the libraries 60 MB - and json.dumps()
+  of the state, run EVERY CYCLE by save_state, peaked at +171 MB of transient string, with the live file's dump on
+  top: enough to hit the 1 GB droplet's ceiling. THE DIET: es.json_gz(obj) gzips the JSON piecewise (a top-level
+  list element by element, a big top-level dict entry by entry; +19 MB transient, same bytes back), used for the
+  state and the live file; the state is saved every SAVE_EVERY_S (180 s) and before a restart, not every minute
+  (the hourly backup saves on its own turn); KEEP_CLOSED_D 60 -> 35 (the statistics reach 30 + 3 days, the archive
+  takes last month's rows on the 1st); IMGS_KEEP = 4 photos per listing (discovery had kept all 24 eBay allows -
+  46 MB of JSON across the open listings; every screen shows four); closed records keep imgs only for listings in
+  v["alerted"] (the hit / auction history falls back to them); es.prune() trims what older records already carry.
+  Recovery needs a hand on the droplet (DigitalOcean power cycle, or `systemctl restart pokemon-collector`; the
+  unit's ExecStartPre pulls main first, so the new code runs from the first start); a swap file or the 2 GB size
+  is the safety net the box lacks. Tests: ut/test_cond.py (json_gz round trip, prune, close_listing).
 - RAW DATA TIDY-UP, COLUMN WIDTHS AND HIGHLIGHTS (2026-10-08 evening, Brett's request). Every tab: a header's right
   edge is a drag handle (`.rsz`) - the width is pinned as width/min/max on the header and every cell of the column
   (`th.sized, td.sized` clip with an ellipsis), remembered per tab in localStorage `width-<tab>` {original index: px};
@@ -997,11 +1019,24 @@ directly (`push_files`); the workflow is then triggered by clicking "Run workflo
 Chrome extension (the connector has no Actions tools). Verify a push by comparing the blob SHA
 (`sha1("blob <size>\0" + bytes)`) with the directory listing. Claude Code (desktop) is the faster route
 for larger changes; Brett has not adopted it yet.
-Files too big to type through the connector (`ebay_sweep.py` is ~100 KB) go through Claude in Chrome instead: open
-github.com/BrettS600/biotech-catelog/upload/main (or .../upload/main/page for the page files) and, with the JavaScript
-tool, fetch the current file from raw.githubusercontent.com, apply the change as line edits, check the git blob SHA
-against the tested copy, put the result on the page's file input (`#upload-manifest-files-input`: a DataTransfer plus a
-`change` event) and click "Commit changes" - one commit per folder. (`file_upload` does not accept sandbox paths.)
+Files too big to type through the connector (`collector.py` 165 KB, `ebay_sweep.py`, `page/app.js`, `CLAUDE.md`: one
+tool call cannot carry them) go through Claude in Chrome: open github.com/BrettS600/biotech-catelog/edit/main/<path>
+(the CodeMirror editor), inject two helpers with the JavaScript tool - `__sha()` (git blob SHA of the editor text) and
+`__applySeq(ops, want)` (each op {a: a unique anchor string, b: its replacement}, applied with `view.dispatch`, returning
+OK <sha> / MISMATCH / ANCHOR PROBLEM) - generate the ops from the tested local copy (`mkedits.py old new ops.json`
+widens each hunk to a unique anchor and prints both SHAs), then "Commit changes..." with the message and the two
+attribution lines in the description. Verify any commit with `git fetch --depth 1 origin main && git ls-tree FETCH_HEAD
+<path>` (only git reaches GitHub from the sandbox; api.github.com and github.io do not).
+WHEN CHROME IS NOT CONNECTED (2026-10-17: the extension dropped mid-session): the "Apply patch" workflow
+(.github/workflows/apply_patch.yml). Commit `patches/<name>.diff` (plain `git diff` output, a/ b/ paths, any number of
+files) and `patches/<name>.msg` (the commit message, attribution lines included) to main through the connector
+(`create_or_update_file`, content as-is, and compare the returned blob sha with `git hash-object` of the local file);
+the push triggers the workflow, which `git apply --check`s and applies the diff, commits with that message, removes the
+patch files, pushes, and starts the site workflow when page/, the build scripts, the forecast or requirements.txt
+changed. A diff that does not apply fails the run and stays in patches/ untouched. Build the diff in a scratch repo
+whose first commit is main's blobs (`git show FETCH_HEAD:<path>`), copy the tested files over and `git diff`; test it
+with the same script the workflow runs (ut/test_applypatch.sh [branch]). The connector's token CANNOT create or
+change workflow files (403 Forbidden): those need the editor.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
