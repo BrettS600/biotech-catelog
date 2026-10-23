@@ -93,6 +93,14 @@ jobs:
           rm -rf live_pc && mkdir -p live_pc && git archive FETCH_HEAD pc | tar -x -C live_pc
           python forecast.py --shards live_pc/pc --snapshots snapshots --calib forecast_calib.json --out public/forecast.bin
 
+      - name: Forecast history (the monthly replay, if one has been built - see forecast_history.yml)
+        continue-on-error: true      # no replay yet, or a download hiccup: the tab says so and shows the live plans
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download snapshots --dir public --pattern forecast_hist.bin --clobber
+          ls -la public/forecast_hist.bin
+
       - uses: actions/configure-pages@v5
         with:
           enablement: true
