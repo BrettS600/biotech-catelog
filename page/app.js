@@ -2752,7 +2752,7 @@ function fhCells(c, done) {                               // the six cells of on
   const spent = c.spent || 0, roi = spent ? c.exp / spent : null;
   return '<td class="num">' + c.picks.length + ' · ' + c.copies + '<br><span class="dim">' + fcMoney(spent) + '</span></td>' +
     '<td class="num">' + fcMoney(c.exp) + '<br><span class="dim">' + fcPct(roi, 1) + '</span></td>' +
-    '<td class="num">' + fcMoney(c.lo) + ' to ' + fcMoney(c.hi) + '</td><td class="num">' + Math.round((c.p || 0) * 100) + '%</td>' +
+    '<td class="num">' + fcMoney(c.lo) + '<br><span class="dim">to ' + fcMoney(c.hi) + '</span></td><td class="num">' + Math.round((c.p || 0) * 100) + '%</td>' +
     (c.actual != null ? '<td class="num"><b class="' + (c.actual > 0 ? 'up' : c.actual < 0 ? 'down' : '') + '">' + fcMoney(c.actual) + '</b> <span class="dim" title="' + (c.inside ? 'inside the 10-90% range' : 'outside the 10-90% range') + '">' + (c.inside ? '\u2713' : '\u2717') + '</span></td><td class="num ' + (c.roi > 0 ? 'up' : c.roi < 0 ? 'down' : '') + '">' + fcPct(c.roi, 1) + '</td>'
       : '<td class="num dim" colspan="2">' + (done === false ? 'hold not up yet' : c.done === false ? 'hold not up yet' : 'not scored') + '</td>');
 }
