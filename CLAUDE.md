@@ -845,6 +845,17 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (yellow #f5b301 when .on), th.favh / td.favc, .fvchip, .fvsec, .fvfrom, .fvum, .fvfc, #fvtoast (favSay). Help:
   HELP.fav, README.fv. Tests: t/test_fav.js (14 checks incl. load order on #favorites), ut/test_fav.py; test_page.js
   band indexes moved up one. Not starred: Transaction Report rows (his own flips), the Book and Offer lists, hit.html.
+- NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+  first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
+  From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
+  second earlier. ntfy.sh's per-visitor request bucket (about 60, one back every few seconds) was drained by the
+  picture worker polling `<channel>-pc` every 4 s, so the main channel's once-a-cycle poll was refused most of the
+  time - and read_requests treated any non-200 as "no messages", silently. That is why marks, reviews, forecast
+  records and reads arrived minutes late (or only when a restart paused the worker). Fix: PC_POLL_S = 20 for the
+  worker; read_requests counts refused polls in v["req_bad"] and logs "Requests: ntfy answered 429 ..." once an hour.
+  RULE: everything that talks to ntfy.sh from the droplet shares ONE ration - add no poller faster than ~20 s, and
+  never let a non-200 pass in silence. (A poll with an unknown `since` id also returns nothing: a req_since older
+  than ntfy's 12-hour cache would blind the channel until a restart; not seen yet, but worth knowing.)
 - REVIEW READS THE LISTING ON DEMAND; ALERT HISTORIES KEEP THEIR FACTS (2026-10-23, Brett: "some of the ebay auction
   pictures are not showing in the review button", "a lot of the set names and raritys say not read??? why", "many
   cards that are 'read' report n/s but the item specifics report the condition"). Why "not read": a full look is one
