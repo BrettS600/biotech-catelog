@@ -158,7 +158,9 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
             continue
         supply, ask = None, None
         book = (c or {}).get("book")
-        if c and book is not None and band[0] <= buy <= band[1]:
+        if c and c.get("supply") is not None:              # the history replay: a supply from PriceCharting's monthly sales (no book then)
+            supply = c["supply"]
+        elif c and book is not None and band[0] <= buy <= band[1]:
             supply = sum(1 for b in book if b[1] <= buy * ASK_LIMIT)
             ask = book[0][1] if book else None
         if supply == 0 or (supply is None and not I["untracked"]):
@@ -191,6 +193,18 @@ def _phi(z):
     d = 0.3989423 * math.exp(-z * z / 2)
     p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
     return 1 - p if z > 0 else p
+
+
+def actual_net(picks, S, disc, y_of):
+    """The realized net of a basket: each pick sold at its own realized return (y_of(cid) -> gross return, or None when
+    the hold is not up yet); None when any pick's outcome is missing."""
+    total = 0.0
+    for r in picks:
+        y = y_of(r["cid"])
+        if y is None:
+            return None
+        total += r["qty"] * net(r["buy"], y, S, disc, r["sell"])
+    return total
 
 
 def monte_carlo(qs, picks, S, disc, n=3000, rho=RHO, seed=12345):
