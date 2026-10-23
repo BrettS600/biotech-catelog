@@ -1,0 +1,61 @@
+name: Forecast history
+
+# The Forecast history tab's replay (Brett, 2026-10-23): forecast_hist.py runs the Forecast tab over every month since
+# December 2022 from the collector's PriceCharting history - the model refit every six months, every month scored out
+# of sample, the chance tables from the outcomes known by then, the standard plans for every capital x hold x discount,
+# scored when the hold is up - and writes forecast_hist.bin (encrypted like forecast.bin). The result is kept as an
+# asset on the "snapshots" release; the site build (update_catalog.yml) copies it into the page. About ten minutes.
+
+on:
+  schedule:
+    - cron: "41 7 2 * *"      # the 2nd of each month, 07:41 UTC: the month's PriceCharting point is in by then
+  workflow_dispatch:          # the "Run workflow" button
+
+permissions:
+  contents: write             # the result is an asset on the "snapshots" release
+
+concurrency:
+  group: forecast-history
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Fetch the newest PriceCharting snapshot (the catalog the replay names cards from)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p snapshots
+          newest=$(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | sort | last')
+          echo "newest snapshot: $newest"
+          gh release download snapshots --dir snapshots --pattern "$newest" --clobber
+          ls -la snapshots
+
+      - name: Fetch the collector's PriceCharting history (the live branch's shards)
+        run: |
+          git fetch --depth 1 origin live
+          rm -rf live_pc && mkdir -p live_pc && git archive FETCH_HEAD pc | tar -x -C live_pc
+          echo "$(ls live_pc/pc | wc -l) shard(s)"
+
+      - name: Replay the Forecast tab month by month
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: python forecast_hist.py --shards live_pc/pc --snapshots snapshots --calib forecast_calib.json --out forecast_hist.bin
+
+      - name: Save the result to the release (the site build copies it into the page)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload snapshots forecast_hist.bin --clobber
+          echo "forecast_hist.bin: $(stat -c %s forecast_hist.bin) bytes on the snapshots release"
