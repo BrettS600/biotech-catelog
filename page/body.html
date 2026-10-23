@@ -5,6 +5,7 @@
   <button class="tab" data-t="fc">Forecast</button>
   <button class="tab" data-t="al">Notification Settings</button>
   <button class="tab" data-t="rv">Transaction Report</button>
+  <button class="tab" data-t="fv" title="The rows you starred, from every tab">Favorites <span class="tcnt" id="nfv"></span></button>
   <div class="tools">
     <span class="pcpill" id="pcpill" hidden></span>
     <button class="readme" id="readme-btn" title="How this tab works">README</button>
@@ -26,6 +27,7 @@
 <table class="wide">
   <thead><tr>
     <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts it on the Favorites tab; click here to sort your favorites to the top">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
@@ -73,13 +75,14 @@
        Observed / Rates / Decisions titles are gone, their 23 columns sit under one blank cell, and no header carries a
        band colour any more. A column can be dragged anywhere inside its own band (app.js bands()). -->
   <tr class="grp">
-    <th colspan="8" class="band">Card</th>
+    <th colspan="9" class="band">Card</th>
     <th colspan="25"></th>
     <th colspan="7" class="band">Trends — from a 7-day median of raw sale totals</th>
     <th></th>
   </tr>
   <tr>
     <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts it on the Favorites tab; click here to sort your favorites to the top">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">Set<span class="s">⇅</span><button class="help" data-h="set">?</button></th>
     <th data-k="3" class="num">Set / Card<span class="s">⇅</span><button class="help" data-h="num">?</button></th>
@@ -167,6 +170,7 @@
 <table class="wide">
   <thead><tr>
     <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts it on the Favorites tab; click here to sort your favorites to the top">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
     <th class="mmk">Reviewer<button class="help" data-h="er_mm">?</button></th>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">PC Set Name<span class="s">⇅</span><button class="help" data-h="er_pcset">?</button></th>
@@ -213,6 +217,20 @@
 </div>
 <button class="more" id="more-er" hidden>Show more</button>
 <footer>Listings are pulled from eBay every minute (raw singles, fixed price, $25–$500, US sellers). Titles link to the listing. A listing that has already sold or ended still shows here for 24 hours with its status. "PASS" means item + shipping + tax is at or below this listing's Max buy; "PASS ✓" means the collector has also read the listing's item specifics and they agree with the matched card.</footer>
+</section>
+
+<!-- ============ Tab: Favorites (Brett, 2026-10-23: a star on every row; the starred rows gathered on one tab, shown through
+     the columns of the tab they came from, or all together through the eBay Catalog's columns) ============
+     The tables inside are built by app.js (fvBuild): each is a copy of its source tab's header row, run by the same table
+     code with the same saved column choices (hide-/order-/width-/hl-<tab>), so the Favorites view of a tab IS that tab's
+     columns. The Forecast view and the unmatched-title strip are plain lists. -->
+<section class="panel" id="p-fv" hidden>
+<div class="meta" id="meta-fv">Favorites · the rows you starred, from every tab · kept by the collector, so the same stars show on every device</div>
+<div class="fvsel" id="fv-sel"></div>
+<div class="live-note" id="fv-note"></div>
+<div id="fv-host"></div>
+<div class="fvsec" id="fv-fc" hidden><div id="fv-fcbody" class="al-now fvfc"></div></div>
+<footer>A star is saved on the collector the moment you click it (the page shows it at once and the next live file confirms it), so your favorites follow you from the laptop to the phone. Each view shows the starred rows through the columns of the tab they came from, with that tab's column choices; the Raw Data view also holds the auctions and hits you starred, and the listings starred on the Scam screen, in Mismatches, in the phone alerts and in the Review screen. "All" shows every starred card once, through the eBay Catalog's columns, with a note of where it was starred; cards eBay has nothing on yet show PriceCharting's price and dashes. The collector keeps following a starred listing to its outcome and never prunes it. Up to 400 favorites.</footer>
 </section>
 
 <div class="ov" id="rov">
