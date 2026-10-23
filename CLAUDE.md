@@ -55,7 +55,12 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   machine took over), concurrency group `ebay`. Runs the collector, then
   force-pushes `live/ebay_live.bin` to a one-commit `live` branch (the page fetches it via
   raw.githubusercontent.com, which allows CORS; release assets do not).
-- `requirements.txt` — pandas, numpy, requests, cryptography.
+- `forecast.py` (the Forecast tab's model, run by the site workflow), `forecast_math.py` (the tab's plan arithmetic in
+  Python, a line-for-line mirror of app.js: `levels`, `plan`, `standard_plans`, `actual_net`; the collector and the
+  replay import it) and `forecast_hist.py` (the Forecast history replay, run by `.github/workflows/forecast_history.yml`
+  on the 2nd of each month; writes forecast_hist.bin to the snapshots release, which the site build copies into the
+  page). See THE FORECAST TAB and FORECAST HISTORY below.
+- `requirements.txt` — pandas, numpy, requests, cryptography, scikit-learn.
 
 ## Storage (git must stay small)
 - Daily PriceCharting snapshots (`pc_catalog_YYYY-MM-DD.csv.gz.enc`, every PriceCharting column) and the
@@ -845,6 +850,100 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (yellow #f5b301 when .on), th.favh / td.favc, .fvchip, .fvsec, .fvfrom, .fvum, .fvfc, #fvtoast (favSay). Help:
   HELP.fav, README.fv. Tests: t/test_fav.js (14 checks incl. load order on #favorites), ut/test_fav.py; test_page.js
   band indexes moved up one. Not starred: Transaction Report rows (his own flips), the Book and Offer lists, hit.html.
+- THE TWO GUARDS, EXPECTED ROI, THE RAW DATA FORECAST COLUMN, STICKY ROWS (2026-10-23 evening, Brett: "Next to expected
+  net lets include expected ROI%", "the ebay raw data tab, to have a forecasted hit check mark tick option next to the
+  only hit tick option", "for all tabs, when i click on a row, i want that row to stay highlighted until i click on a
+  different row", and "i like those two guards"). THE GUARDS came out of the first live picks: the tab showed 11 cards
+  at 80%+ and +$711 on $5,000 at a one-month hold, and every one of them rested on a sold median made of two or three
+  sales (eBay's "A") sitting far above the card's floor, which the 25% credibility rule then let the floor undercut -
+  a margin built from noise. (1) A counts only with A_n >= gate.minSales (5; `FC_MIN_SALES()` on the page, ANCHOR_MIN
+  in forecast_math / the collector); a thinner card sells no higher than PriceCharting's level, capped by its floor:
+  sell = min(pcBuy, L) when a floor exists, else pcBuy (the Price cell says "thin" / "pc" beside the sell level).
+  (2) The sale must undercut the cheapest competing credible ask - the copy you buy leaves the market, so the next
+  credible ask (cred[1], or cred[0] when the pick is not the floor copy) caps the sell ("ask", the median it replaced
+  on hover). `fcLevels(c, pcBuy, skip)` (app.js) / `levels()` (forecast_math.py) return {buy, sell, src, why, A, An,
+  comp}; buy = L ?? (A if ok) ?? pcBuy as before; forecast_score() applies guard 1 at scoring time too. Live result
+  after the guards (build #114): 8 picks at 52-84%, +7.4% expected ROI, 876 cards "thin", 68 "ask". ROI: the summary
+  shows the expected net and its ROI on the money actually spent (exp / spent), and the range's ends as percentages
+  of it; "Buy only at" help text corrected (it had claimed the bar was a per-card net margin). RAW DATA: a "Forecast %"
+  column (er row index 56, header position 32, `inserted {v: 14, at: 32, n: 1}`): `fcStampRows()` stamps every er / au /
+  hh / favEr row with `fcListing(cid, total, iid, h, S)` = the chance of a profit buying THIS listing at its total
+  (the Forecast tab's hold, the Raw Data buy tax, the guards' sell level with the listing itself skipped as the
+  competing ask), re-stamped after fcCompute and every rebuild; the "Forecast hits" tick (`#fchits`, saved in
+  ebay-settings) keeps rows with r[56] >= the Forecast tab's bar (`fcErOk`); the Favorites Raw Data view carries it.
+  STICKY ROWS on every table: `SEL` (a Map keyed by `table.dataset.sel`) remembers the clicked row's `data-key`; one
+  document-level click handler marks `tr.sel` (CSS: an inset box-shadow tint on the first cell, so it shows through
+  the tab's own row tints) and `selApply(table)` re-marks it after every render; makeTable sets `tbl.dataset.sel = id`
+  and `tr.dataset.key = keyOf(row)` (cfg.key: er String(r[22]), rv 'rv' + the last field, default r[0]); the Forecast
+  tables, the Favorites views and the popups' tables carry data-sel too. Tests: t/pcpop/test_ui10.py (ROI, the
+  guards against fixtures - a 2-sale median capped by PC, a competing ask - the Raw Data column and tick, sticky rows
+  on five tabs); test_ui9.py / test_ui6.py indexes shifted for the star column.
+- FORECAST HITS ONLY, AND THE MONTHLY ARCHIVE (2026-10-23 evening, Brett: "have the alarm notification tab, have an
+  toggle option to only be notified for forecast card hits"). NOTIFICATION SETTINGS: cfg fields `fc_only` (bool),
+  `fc_h` (1 / 3 / 6, the hold the chance is judged at) and `fc_minp` (0-95, the bar; default the Forecast tab's); the
+  Alerts tab's preview shows what would pass now (`alRender()` after fcCompute, so the preview waits for the model).
+  COLLECTOR: `forecast_doc()` reads the site's own forecast.bin once an hour (decrypted with the live key; cached in
+  memory, never in the state), `forecast_chance(cards, cfg, cid, total, iid)` = the page's fcListing in Python
+  (forecast_math), `forecast_gate(cfg, fcp)` decides; a hit push (and an auction push, judged at max bid + shipping)
+  carries "Forecast: NN% chance of a profit at a <h>-month hold" and, under the bar with fc_only on, is HELD BACK -
+  not marked sent, so it goes out if the chance later clears (the listing is still in the window); the alert-log
+  entries carry "fc" and alert_status's hist rows publish it at index 12; a model file that is missing or stale (> 2
+  days) leaves the filter open and logs once. THE ARCHIVE (the Forecast history tab's live half): `fc_auto_tick()`
+  runs on the first cycle of each calendar month (v["fc_auto_month"]) and files `forecast_math.standard_plans()` -
+  5 capitals (500 / 1,000 / 5,000 / 10,000 / 25,000) x 3 holds x 2 discounts (0 / 0.2) = 30 plans at STD_FEES {fee
+  0.1325 x 1.065, fixed 0.40, shipOut 4.50, supplies 0.30, tax 0} and STD_INPUTS {pmin 50, pmax 500, share 0.2, minp
+  0.5, young off, untracked off} with the live eBay floors / medians of that moment (the guards applied) - as records
+  like Brett's own ({t, auto: 1, cal: "2026-10", done: None, ...}), kept 24 months in v["fc_auto"], scored by
+  forecast_score() when the hold is up (roi added to every scored record, his included), published as live["fc_auto"]
+  = {t, recs} (fc_auto_t in the publish signature). First set filed 2026-10-23 20:26 UTC: 30 plans for 2026-10.
+  forecast_math.py mirrors app.js EXACTLY - the same LCG (seed 12345) and Box-Muller draws, the Gaussian copula (RHO
+  0.5), P_CAP 0.95, MC_N - so a plan the collector files is the plan the tab showed; ut/test_fcmath.py runs both on
+  one fixture and asserts identical numbers (keep it passing when either side changes). `plan()` accepts a card stub
+  {"supply": n} for the replay; `actual_net(picks, S, disc, y_of)` scores a basket. Tests: t/pcpop/test_ui11.py (the
+  toggle and the preview), ut/test_forecast_rec.py (guard 1 at scoring, the archive, the gate), ut/test_fcmath.py.
+- FORECAST HISTORY (2026-10-23 evening, Brett: "a forecast history tab. Where it shows the estimate net profit range, and
+  the actual profit range and the actual %roi. for a 1-month hold, 3-month hold, 6-month hold for $500 ... $25,000 ...
+  so for instance, if i wanted to see how much I would have made in march 2025, with a $5000 dollar investment ...
+  You can design it how ever you see best"; then "you can include the 0% standard as well as the under 20%"). TWO
+  HALVES. (1) THE REPLAY, `forecast_hist.py` (repo root; imports forecast.py's panel / features / train and
+  forecast_math): from START_M 275 (2022-12) to the last complete month, the model is refit every 6 months on the
+  months before (F.train(df, h, t - 1)), every $10+ card scored and ranked within its month (pct), the chance tables
+  built from the outcomes known by then (months <= t - h, price >= $25; under 12 such months the static
+  forecast_calib.json tables stand in and the month is marked calib "static"), and the standard plans run for every
+  cap x hold x disc with BAND (50, 500), the standard price = buy_real (max(price, 3-month average); there is no eBay
+  history), supply = max(1, int(vol x 0.25)), MC_N 2000, then scored with PriceCharting's price h months on
+  (`actual_net`); a month without buys records `forced_roi` / `forced_n` = the top-ranked cards bought anyway. Output
+  (encrypted like forecast.bin, ~107 KB): {t, made, from, to, last_month, consts, caps, holds, discs, cards {cid:
+  [name, set]}, months [{m, month, reg, reg3, n, calib, cells {"h|disc|cap": {n_elig, best, picks [[cid, qty, buy,
+  mean, y]], copies, spent, done, exp, lo, hi, p, actual, roi, inside, forced_roi, forced_n}}}]}. Args --shards /
+  --hist-json, --snapshots, --catalog, --calib, --out, --password (SITE_PASSWORD env). `.github/workflows/
+  forecast_history.yml` (cron 07:41 UTC on the 2nd + dispatch, ~3.5 min on Actions): the newest pc_catalog_* snapshot
+  + the live branch's shards -> forecast_hist.py -> `gh release upload snapshots forecast_hist.bin --clobber`; the
+  site workflow's "Forecast history" step downloads it into public/ (continue-on-error: no file = the tab says so and
+  shows the live plans). First run 2026-10-23: 47 months, 776 plans with buys. (2) THE LIVE PLANS = live.fc_auto
+  (above), scored at eBay's sold median when each hold is up - the test of the tab as it really ran, floor picks
+  included; the replay can only test the model. PAGE (app.js "Forecast history tab" block, body.html #p-fh / #fh-body,
+  style.css .fh, help.js README.fh + fh_replay / fh_live; nav data-t="fh", hash #forecast-history): FH {doc, err,
+  loaded, cap, disc, open}; chips pick the capital (fh-cap) and the scenario (fh-disc: "At the standard price" /
+  "Bought 20% under", remembered); `loadForecastHist()` fetches forecast_hist.bin?t=<hour> (same origin); per half:
+  `fhSummary` tiles (one per hold: months with buys, scored months profitable, expected -> actual, mean ROI per hold,
+  inside the 10-90% range) and `fhTable` (data-sel 'fh' / 'fhlive'; a row per month, newest first, six cells per hold:
+  Buys = cards · copies + spent, Expected + ROI, 10-90% range, Chance, Actual (tick = inside the range), ROI; a no-buy
+  cell shows the best chance and the forced ROI; * = the static-calib first year); a click on a month toggles its
+  detail row (`fhDetail`: every pick with the realized net per copy via fcNet(buy, y, FH_S, disc, buy); FH.open keyed
+  '<sel>:<month>') and keeps the sticky highlight (SEL.set before the repaint, since the document handler runs after
+  this one on the old row); the tab's help buttons are drawn dynamically, so the #fh-body click handler opens them
+  (openHelp). showTab defers the first render with setTimeout: with #forecast-history in the address at load, FH is
+  declared further down (TDZ). rebuildLive re-renders the live half. WHAT THE REPLAY SAYS (the honest answer to "can
+  the model predict 10% in a month?"): at the standard price the 1- and 3-month plans NEVER cleared the 50% bar in
+  47 months (best chance 22% / 42%) - with the buy and the sell at the same level eBay's round trip needs ~22% in a
+  month and no rank bucket delivers it; the 6-month plan had buys in 18 of 47 months, 9 of 12 scored profitable, mean
+  ROI +5.5%; bought 20% under (the hit-alert price): 1-month 42 of 46 profitable, +9.5% mean ROI, 3-month 38 of 44
+  +14.5%, 6-month 37 of 41 +28%. March 2025, $5,000, 1-month: standard no buys (top picks anyway -15.2%); 20% under
+  17 copies, expected +$666, actual +$102 (+2.0%). The one-month edge, if any, is the collector's floor picks - which
+  only the live half can test. Tests: t/pcpop/test_ui12.py (needs /tmp/claude-0/t/forecast_hist.bin, a real replay
+  re-keyed to the test page's key, + forecast_hist_local.json), ut/test_fcmath.py; a replay run locally takes ~3.5
+  min (`SITE_PASSWORD=... python3 forecast_hist.py --shards <pc dir> --snapshots <dir> --out forecast_hist.bin`).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
@@ -1082,6 +1181,9 @@ day-30 check are never closed as stale) also needs a rule.
   with eBay's tax-exemption program (removes the 6.25% buying tax — breakeven 24% → <19%; then Buy tax box → 0 and
   BUY_TAX_PCT=0 on the machine); confirm eBay payout timing.
 - Keep it simple; don't over-build. Brett prefers fewer, larger flips; ≥15% margin, ≥$5 per flip.
+- The Forecast tab's sell level obeys the two guards (a sold median needs 5 sales; the sale undercuts the next
+  credible ask) - Brett approved them 2026-10-23 after the thin-median picks; the Forecast history replay prices at
+  PriceCharting with no eBay history and shows both the standard price and 20% under (his choice, same day).
 
 ## Roadmap (in order)
 0. Sourcing, once the deal-speed table has two weeks of data: a daily Best Offer list (aged listings of liquid
