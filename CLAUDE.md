@@ -91,6 +91,16 @@ checked at day 1 and 3, open listings closed as stale at 30 d. A self-test on st
 works before re-reads are enabled (`window_ok`). The Actions workflow `ebay_sweep.yml` is the fallback (manual only
 once the machine is confirmed publishing); it must not run on a schedule at the same time, since both force-push
 the `live` branch.
+THE BOX TODAY (2026-10-23, after the memory incident below): 2 GB RAM / 1 vCPU / 25 GB disk ($12/mo; resized from
+the $6 1 GB plan with "keep the storage size fixed" ticked, so it can be downsized again), plus a 2 GB swap file
+(/swapfile, in /etc/fstab, vm.swappiness=10 in /etc/sysctl.d/99-swap.conf). Droplet id 605047934, IP 165.22.191.104.
+Brett does not want his Mac used to reach it (he refused an ssh from device_bash): droplet work goes through the
+DigitalOcean web console in his Chrome, https://cloud.digitalocean.com/droplets/605047934/terminal/ui/ (a root
+shell; the repo on the box is owned by user `collector`, so `git` there wants `sudo -u collector` or
+`safe.directory`). The service: `systemctl status/restart pokemon-collector`, `journalctl -u pokemon-collector -f`,
+Restart=always / RestartSec=15, ExecStartPre `git pull --ff-only`. Between 2026-10-21 07:00 and 2026-10-23 15:17
+the OOM killer killed the collector 839 times (every ~4.5 min, 18 s restart, never reaching a publish) on 1 GB with
+no swap; the diet below plus the swap file brought the first publish back at 15:27 UTC, the resize followed.
 
 ## Is it the right card? (identity checks, added 2026-10-04 at Brett's request)
 Brett's two fears: buying a card that was matched to the wrong (dearer) catalog row, and missing deals the matcher
@@ -790,6 +800,51 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   collector, so the last such line comes out with the hourly summary) - CHECK THE LOG
   after the first deploy: eBay's exact JSON shape for trading-card descriptors was not verifiable from the docs, so
   the reader accepts both shapes and the log confirms which one arrives. Tests: ut/test_cond.py, t/test_risk.js.
+- FAVORITES (2026-10-23, Brett: "I want each tab to have an additional column called favorites ... a star icon.
+  Clicking the star turns it into a yellow color and toggles it on ... I want the entire row to go to a tab called
+  Favorites ... Unmatched titles, Scam screen, Mismatches, phone notifications, review button to also have the option
+  ... after I click Favorites I am presented the option to click one of: pricecharting, ebay catalog, ebay raw data,
+  forecast ... it populates the favorite tab with the exact columns from the corresponding tab", plus "one option can
+  just be show all, where it shows everything through ebay lens"). A FAVORITE IS A POINTER, NOT A COPY: {s: source
+  (pc / ec / er = any listing-shaped row / fc / um = an unmatched title), k: key (card id on pc, ec, fc; item id on
+  er, um), c: card id or null, t: ms, m: a few words for rows that may leave the data (listing: ti / u / p (+ why for
+  um); Forecast: h, d, buy, med, lo, hi, p, q, n, s)}. PAGE (app.js, "Favorites" block after LIVE and "The Favorites
+  tab" block after TABLES): FAV_MAP = live.favs.list + local echoes FAVS (cleared when live.favs.t >= echo.t, like
+  MARKS); favBtn(s, k, c, m) draws the star and files its {c, m} in FAV_META; one document click handler ->
+  favToggle -> favSend: echo, favPaint (every star on the page, the counts, the Favorites tab if showing), alSend
+  {type: 'fav', t, s, k, c, v, m} with a STRICTLY INCREASING t (FAV_LAST_T: the collector drops a message older
+  than its last). The star is a real column: `<th class="favh" data-k="fav" data-label="Favorite">` second after Row
+  in the pc / ec / er header rows (ec's Card band colspan 8 -> 9; `inserted` v9 / v8 / v13 {at: 1, n: 1} shift the
+  saved eyes / order / widths / highlights; ec `compact` indexes moved up one); makeTable renders
+  `favCell(cfg.fav, r)` after the Row cell when cfg.fav = {s (a tab or a function of the row), k, c, m}; a header
+  click with data-k "fav" sorts favorites first / last / default (the comparator maps k === 'fav' through isFav);
+  colLabel honours data-label. THE TAB (#p-fv, nav button data-t="fv", hash #favorites, showTab allows 'fv' and calls
+  fvRender): chips All / PriceCharting / eBay Catalog / eBay Raw Data / Forecast with counts (fav-sel remembered;
+  All default). fvBuild() runs BEFORE the tables are made and clones each source tab's <thead> into #fv-fall (ec's),
+  #fv-fpc, #fv-fec, #fv-fer with fresh controls / ranges / tbody ids (q-fpc ...); FV_TABLES = the source cfg with
+  rows = the starred rows (newest star first), extra null, defaults {}, store = the source tab (makeTable's new
+  `store` option names the localStorage keys hide-/order-/hl-/width-/chips-/chiporder-/cols-<store>, and `root` the
+  selector of the header row), so a view shows the tab's columns AS SET UP THERE; t.resync() re-reads those keys
+  before each showing. Raw Data view rows: erMap -> LIVE.au -> LIVE.hh -> LIVE.favEr (rows the collector builds for
+  starred listings past 24 h, live.favs.rows, judged by erowOf - the live-row builder factored out of rebuildLive) ->
+  erStub (the words saved with the star); unmatched titles are unmStub rows drawn by unmRow (every column, mostly
+  blank; the row builder picks unmRow when r.unm or a card-less stub). The .auc / .fxc columns show in the view
+  (the #p-er CSS does not reach it). All view: favRowsAll groups every favorite by card into FV_FROM, uses the ec
+  row or ecStub(cid) (catalog columns + PC price, dashes elsewhere), appends fvFromNote into the Card cell ("from:
+  PriceCharting · 2 listings", titles on hover); its star key is 'all:<cid>' and favToggle on it removes every
+  favorite of the card; favsOf('um') go in the strip #fv-um (fvRenderUm). Forecast view (fvRenderFc, a plain list):
+  the pick as starred (m) and "Now" from FC.rows. Stars elsewhere: fcRenderPicks (first cell), openScam's suspects,
+  openMismatches' <li>, the Unmatched popup (kind um), openHits (ledger entries carry cid), alHistory (the collector's
+  hist rows now carry item id and card id at 10-11), alRender's Preview, openReview ($('bsub'), class rvstar).
+  Scroll handler: on the Favorites tab the id is FV.cur. COLLECTOR: fav_set() (read_requests, type 'fav') keeps
+  v["favs"] {s:k -> {s, k, c, t, m}} capped at FAV_MAX 400 (oldest out), v["fav_t"]; fav_live() publishes
+  live["favs"] = {t, list: [[s, k, c, t, m] ...] oldest first, rows: {iid: es.live_row(rec, cs)} for starred listings
+  not in the 24-hour table} (fav_t is in the publish signature); es.live_row(r, cs) is build_live's row factored out;
+  es.fav_listing_ids(state) exempts starred listings from es.prune (record + imgs), from close_listing's photo rule,
+  and from the 60-day trims in hh_rows / au_rows; alert_status hist rows append e["i"], e.get("card"). CSS: .favb
+  (yellow #f5b301 when .on), th.favh / td.favc, .fvchip, .fvsec, .fvfrom, .fvum, .fvfc, #fvtoast (favSay). Help:
+  HELP.fav, README.fv. Tests: t/test_fav.js (14 checks incl. load order on #favorites), ut/test_fav.py; test_page.js
+  band indexes moved up one. Not starred: Transaction Report rows (his own flips), the Book and Offer lists, hit.html.
 - REVIEW READS THE LISTING ON DEMAND; ALERT HISTORIES KEEP THEIR FACTS (2026-10-23, Brett: "some of the ebay auction
   pictures are not showing in the review button", "a lot of the set names and raritys say not read??? why", "many
   cards that are 'read' report n/s but the item specifics report the condition"). Why "not read": a full look is one
