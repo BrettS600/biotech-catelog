@@ -60,6 +60,9 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   replay import it) and `forecast_hist.py` (the Forecast history replay, run by `.github/workflows/forecast_history.yml`
   on the 2nd of each month; writes forecast_hist.bin to the snapshots release, which the site build copies into the
   page). See THE FORECAST TAB and FORECAST HISTORY below.
+- `data_archive.py` + `.github/workflows/data_archive.yml` — the data folder (`data/`, see THE DATA FOLDER below): PokeViews'
+  feeds, the PriceCharting panel, the eBay Catalog of the day, committed to main by the workflow daily. `data/README.md` is
+  the dictionary; read it before analyzing anything in there.
 - `requirements.txt` — pandas, numpy, requests, cryptography, scikit-learn.
 
 ## Storage (git must stay small)
@@ -960,6 +963,37 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   column fills on 2026-11-01. The page's blank trend cells now carry the reason on hover (`trendDash(trDays(cid), need,
   why)`, the card's own day count and live.since; Trend popup notes match). Expect Δ30d and Slope to fill from ~10-28,
   Range and drift from ~11-27 - say so instead of lowering a minimum.
+- THE DATA FOLDER (2026-10-23 night, Brett: "save the data, because if I want you to analyze the data in the future, then
+  you will have it saved and at your quick and easy disposal ... store the data from the ungraded price and the sales
+  volume per month since December 2020 ... all of the data from the ebay catalog data tab ... google trend data ...
+  save it in a data folder in github"). `data/` on main, four sub-folders, `data/README.md` = the dictionary (every file,
+  every column, PokeViews' own descriptions as Brett pasted them). (1) `data/pokeviews/`: PokeViews' charts are
+  TradingView-style canvases fed by public JSON files at storage.googleapis.com/pokeviews-prod/<feed>/<feed>.json.gz
+  (found via performance.getEntriesByType('resource') in his Chrome; the page fetches them from the browser, so the
+  sandbox cannot - the egress allowlist refuses the host). Feeds: top100_index, top250_index (+ constituents_table,
+  series_composition), bull_bear_indicator (= Hot & Cold), mms (Market Momentum), new_highs_lows, asset_comparison (+
+  asset_correlation/correlation_matrix), trend_exhaustion (= Trend Extension), pc_era_index, pc_series_index (+
+  constituents), pc_set_index_<series slug> x 15 (+ constituents; slug = lower, & -> and, spaces -> _, hyphens kept:
+  "e-card"). data_archive.py writes every column of every feed to CSV (gzipped over 1.5 MB), one row per day (or per
+  day x series / set), plus manifest.json. Checked against the charts: every Top 100 right-axis label equals the feed's
+  last row and the 30-day EMA recomputes from index_value to 6e-7; the Hot & Cold page shows the `gauge` column, not
+  `display_score`. (2) `data/pricecharting/`: pc_monthly_<year>.csv.gz (card_id, month, price $, sales) from the live
+  branch's pc/ shards - 2,309,526 card-months, 2020-12..2026-10, 43,955 cards - split by year so a monthly refresh
+  rewrites ~2 MB, not 10; cards.csv.gz from the newest snapshot. (3) `data/ebay/catalog/<date>.csv.gz` daily (~385 KB:
+  every live.cards scalar, tr.* flattened, today's rollup cell, names from the snapshot) and `daily_rollup.csv.gz`
+  monthly (card, date, sales, sold totals, 7-day median, cheapest ask, new listings). (4) `data/google_trends/`: Brett's
+  five Google Trends exports for "pokemon cards" (web from 2004, image / news / shopping / YouTube from 2008, each 0-100
+  on its own peak) + pokemon_cards_interest.csv side by side - manual, he downloads them. THE WORKFLOW runs daily 10:41
+  UTC (+ dispatch with full = true; the 2nd of the month is full) on GitHub's machine - it can reach the feeds, the live
+  branch and the snapshot release, decrypts with SITE_PASSWORD, and `git push`es to main with the GITHUB_TOKEN (rebase
+  and retry when main moved). First run 2026-10-23 22:44 UTC: 25 s, ~17 MB. Growth: ~140 MB/yr of daily eBay files +
+  ~25 MB/yr of panel rewrites - watch `git count-objects -vH`; move old daily files to a release if it ever matters.
+  FROM THE SANDBOX: `git fetch --depth 1 origin main && git archive FETCH_HEAD data | tar -x -C <dir>` - the whole folder
+  in seconds; pandas reads the .csv.gz directly. HOW IT GOT THERE (the routes, for next time): no push access from the
+  sandbox (add_repo: "link your GitHub account"), so text files <= ~40 KB went through the connector's push_files (byte-
+  identical, verified by blob sha - the only change was a trailing newline on files that lacked one), the workflow file
+  through the editor, and every big or binary file through the workflow itself. That division is the rule now: data is
+  built on GitHub, never typed through a tool call.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
