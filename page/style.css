@@ -356,3 +356,21 @@ tr.mmd li { margin:3px 0; }
    An inset shadow, so it shows over any background a row already has (fresh, suspect, a buy). */
 table tbody tr.sel > td { box-shadow: inset 0 0 0 999px rgba(59, 130, 246, .17); }
 table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b82f6), inset 0 0 0 999px rgba(59, 130, 246, .17); }
+
+/* Forecast history tab (2026-10-23) */
+.fh { display:block; padding:4px 18px 28px; }
+.fh .fh-card { max-width:none; }
+.fh h3 { margin:14px 0 6px; font-size:14px; display:flex; align-items:center; }
+.fh h4 { margin:10px 0 4px; font-size:13px; }
+.fh .fvchips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0 8px; }
+.fh .fh-sep { width:14px; }
+.fh .fc-stats { grid-template-columns:repeat(3, minmax(240px, 360px)); }
+.fh .fc-stats .stat .v { font-size:15px; }
+.fh .fh-box table { font-size:12px; }
+.fh .fh-box td, .fh .fh-box th { white-space:nowrap; padding:4px 7px; }
+.fh .fh-box th.band { text-align:center; background:var(--band); }
+.fh tr.fh-row { cursor:pointer; }
+.fh tr.fh-row.open td { font-weight:600; }
+.fh tr.fh-detail td { white-space:normal; background:color-mix(in srgb, var(--link) 5%, transparent); }
+.fh tr.fh-detail table { margin:2px 0 8px; }
+.fh td.fh-none { white-space:normal; }
