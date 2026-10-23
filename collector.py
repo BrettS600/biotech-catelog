@@ -48,6 +48,8 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 
+import forecast_math as fm          # the Forecast tab's arithmetic (the alerts' forecast filter, the monthly plans)
+
 import ebay_sweep as es
 import account
 import pchist                                                # PriceCharting's own monthly history, off each card's page
@@ -801,7 +803,11 @@ def clean_cfg(c):
                 "pmin": max(0.0, float(c.get("pmin", 25))), "pmax": max(1.0, float(c.get("pmax", 500))),
                 "hits": bool(c.get("hits", True)), "leads": bool(c.get("leads", False)), "watch": bool(c.get("watch", True)),
                 "auctions": bool(c.get("auctions", True)), "suspects": bool(c.get("suspects", False)),
-                "quiet": bool(c.get("quiet", False)), "q_from": int(c.get("q_from", 23)) % 24, "q_to": int(c.get("q_to", 7)) % 24}
+                "quiet": bool(c.get("quiet", False)), "q_from": int(c.get("q_from", 23)) % 24, "q_to": int(c.get("q_to", 7)) % 24,
+                # the forecast filter (2026-10-23): pushes only for listings whose price gives the card a chance of profit
+                # at or above the bar, for the hold - the Raw Data tab's Forecast % column, on the phone
+                "fc_only": bool(c.get("fc_only", False)), "fc_h": int(c.get("fc_h", 1)) if int(c.get("fc_h", 1)) in (1, 3, 6) else 1,
+                "fc_minp": min(95.0, max(0.0, float(c.get("fc_minp", 50))))}
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -839,7 +845,8 @@ def apply_settings(state):
             f"profit from ${cfg['min_profit']:g}, price ${cfg['pmin']:g}-${cfg['pmax']:g}, scam-watch "
             f"{'included' if cfg['watch'] else 'left out'}, suspects {'alerted' if cfg.get('suspects') else 'blocked'}, "
             f"auctions {'on' if cfg.get('auctions', True) else 'off'}, quiet hours "
-            + (f"{cfg['q_from']}:00-{cfg['q_to']}:00" if cfg["quiet"] else "off"))
+            + (f"{cfg['q_from']}:00-{cfg['q_to']}:00" if cfg["quiet"] else "off")
+            + (f", forecast hits only ({cfg.get('fc_h', 1)} mo, {cfg.get('fc_minp', 50):g}% or better)" if cfg.get("fc_only") else ", forecast filter off"))
     return cfg
 
 
@@ -1132,6 +1139,62 @@ def read_requests(state):
 
 # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
 FORECAST_KEEP = 100              # records kept (newest), each with its picks and, once mature, the realized result
+FC_URL = "https://bretts600.github.io/biotech-catelog/forecast.bin"   # the model file the site workflow builds daily
+FC_FETCH_S = 3600                # re-read this often (the page does the same)
+FC_RETRY_S = 300                 # after a failed read
+FC_AUTO_KEEP_MONTHS = 24         # the monthly archive of the standard plans: this many months x 30 plans
+_fc = {"doc": None, "ix": None, "t": 0.0, "stamp": None}
+
+
+def forecast_doc():
+    """The Forecast tab's model file from the site (forecast.bin: the scores, the regime, the calibration tables),
+    decrypted with the live key, re-read every hour; None until it has been read once. Everything the Forecast tab
+    computes on the page can then be computed here with forecast_math - the same numbers."""
+    now = time.time()
+    if _fc["doc"] is not None and now - _fc["t"] < FC_FETCH_S:
+        return _fc["doc"]
+    if _fc["doc"] is None and now - _fc["t"] < FC_RETRY_S:
+        return None
+    _fc["t"] = now
+    if not es.PASSWORD:
+        return None
+    try:
+        r = requests.get(FC_URL, params={"t": int(now // 3600)}, timeout=60, headers={"Cache-Control": "no-cache"})
+        r.raise_for_status()
+        doc = fm.decrypt_doc(r.content, es.live_key(es.PASSWORD))
+        if not (doc.get("cards") and doc.get("calib") and doc.get("regime") and doc.get("cols")):
+            raise ValueError("not a forecast file")
+        if doc.get("t") != _fc["stamp"]:
+            log(f"Forecast: model of {doc.get('month')} built {doc.get('t')}, {len(doc['cards']):,} cards scored, "
+                f"{'strong' if doc['regime'].get('strong') else 'other'} market")
+        _fc["doc"], _fc["ix"], _fc["stamp"] = doc, fm.col_index(doc), doc.get("t")
+    except Exception as e:
+        if _fc["doc"] is None:
+            log(f"Forecast: the model file could not be read ({str(e)[:120]}); the alerts' forecast filter and the monthly plans wait for it")
+    return _fc["doc"]
+
+
+def forecast_fees(cfg):
+    """The fee arithmetic of the Forecast tab with the Alerts tab's buy tax (the page uses the Raw Data box)."""
+    return {"fee": es.FEE_PCT * (1 + es.BUYER_TAX), "fixed": es.FEE_FIXED, "shipOut": es.SHIP_OUT, "supplies": es.SUPPLIES, "tax": cfg["tax"] / 100}
+
+
+def forecast_chance(cards, cfg, cid, total, iid):
+    """The chance of a profit buying this listing at this total and holding the Alerts tab's forecast hold: the Raw Data
+    tab's Forecast % column, computed here for the phone. None when the model has no score for the card (or no file)."""
+    doc = forecast_doc()
+    if not doc:
+        return None
+    try:
+        return fm.listing_chance(doc, _fc["ix"], cards, cid, total, iid, cfg.get("fc_h", 1), forecast_fees(cfg), es.ANCHOR_MIN)
+    except Exception as e:
+        log(f"Forecast: chance failed for {iid} ({str(e)[:100]})")
+        return None
+
+
+def forecast_gate(cfg, fcp):
+    """With the forecast filter on, a push needs the chance at or above the bar; with it off, every push goes."""
+    return not cfg.get("fc_only") or (fcp is not None and fcp * 100 >= cfg.get("fc_minp", 50))
 
 
 def forecast_record(v, msg, t):
@@ -1143,6 +1206,7 @@ def forecast_record(v, msg, t):
         h = int(msg.get("h") or 1)
         fees = msg.get("fees") or {}
         rec = {"t": t, "h": h if h in (1, 3, 6) else 1, "cap": round(float(msg.get("cap") or 0), 2), "disc": round(float(msg.get("disc") or 0), 4),
+               "spent": round(float(msg.get("spent") or 0), 2) or None,
                "fees": {k: round(float(fees.get(k, d)), 6) for k, d in (("fee", 0.1411), ("fixed", 0.4), ("shipOut", 4.5), ("supplies", 0.3), ("tax", 0.0))},
                "picks": [[int(p[0]), int(p[1]), round(float(p[2]), 2), round(float(p[3]), 2)] for p in (msg.get("picks") or [])[:60] if int(p[1]) > 0],
                "exp": round(float(msg.get("exp") or 0), 2), "lo": round(float(msg.get("lo") or 0), 2), "hi": round(float(msg.get("hi") or 0), 2),
@@ -1160,24 +1224,68 @@ def forecast_record(v, msg, t):
 
 def forecast_score(v, cat, cards=None):
     """A record whose hold is up (t + h x 30 days) is scored once with what the card sells for on eBay now - the sold
-    median A from the card stats, PriceCharting's price for a card without one (the tab projects the sale the same
-    way): realized net per copy = P1 x (1 - fee) - fixed - shipping - supplies - buy x (1 - discount) x (1 + tax)."""
+    median A from the card stats when at least ANCHOR_MIN sales stand behind it (the first guard of 2026-10-23: a
+    median on two sales is not a price), PriceCharting's price otherwise (the tab projects the sale the same way):
+    realized net per copy = P1 x (1 - fee) - fixed - shipping - supplies - buy x (1 - discount) x (1 + tax). Scores
+    both the baskets Brett recorded (v["forecasts"]) and the monthly archive of the standard plans (v["fc_auto"])."""
     now_ms = time.time() * 1000
-    for rec in v.get("forecasts", []):
-        if rec.get("done") or now_ms < rec["t"] + rec["h"] * 30 * 86400000:
-            continue
-        f, total, rows = rec["fees"], 0.0, []
-        for cid, qty, buy, exp in rec["picks"]:
-            p1 = ((cards or {}).get(str(cid)) or {}).get("A") or (cat.by_id.get(cid) or {}).get("pc")
-            if not p1:
-                rows.append([cid, None, None])
+    for which in ("forecasts", "fc_auto"):
+        for rec in v.get(which) or []:
+            if rec.get("done") or now_ms < rec["t"] + rec["h"] * 30 * 86400000:
                 continue
-            net = p1 * (1 - f["fee"]) - f["fixed"] - f["shipOut"] - f["supplies"] - buy * (1 - rec["disc"]) * (1 + f["tax"])
-            rows.append([cid, round(p1, 2), round(net, 2)])
-            total += net * qty
-        rec["done"], rec["actual"], rec["res"] = es.ts(es.NOW), round(total, 2), rows
-        v["forecast_t"] = int(now_ms)
-        log(f"Forecast scored: recorded {rec['t']}, expected net ${rec['exp']:.0f}, realized ${total:.0f}")
+            f, total, rows = rec["fees"], 0.0, []
+            for cid, qty, buy, exp in rec["picks"]:
+                cs = (cards or {}).get(str(cid)) or {}
+                p1 = cs.get("A") if cs.get("A") and (cs.get("A_n") or 0) >= es.ANCHOR_MIN else None
+                p1 = p1 or (cat.by_id.get(cid) or {}).get("pc")
+                if not p1:
+                    rows.append([cid, None, None])
+                    continue
+                net = p1 * (1 - f["fee"]) - f["fixed"] - f["shipOut"] - f["supplies"] - buy * (1 - rec["disc"]) * (1 + f["tax"])
+                rows.append([cid, round(p1, 2), round(net, 2)])
+                total += net * qty
+            rec["done"], rec["actual"], rec["res"] = es.ts(es.NOW), round(total, 2), rows
+            spent = rec.get("spent") or sum(q * b * (1 - rec["disc"]) * (1 + f["tax"]) for _, q, b, _ in rec["picks"])
+            rec["roi"] = round(total / spent, 4) if spent else None
+            v["forecast_t" if which == "forecasts" else "fc_auto_t"] = int(now_ms)
+            log(f"Forecast scored: {'the standard plan' if which == 'fc_auto' else 'recorded'} {rec.get('month', '')} {rec['h']} mo "
+                f"${rec['cap']:.0f}{' bought ' + str(round(rec['disc'] * 100)) + '% under' if rec.get('disc') else ''}: "
+                f"expected net ${rec['exp']:.0f}, realized ${total:.0f}")
+
+
+def fc_auto_tick(state, cat, cards, band):
+    """The monthly archive of the standard plans (Brett, 2026-10-23, the Forecast history tab): once a calendar month,
+    the first cycle with the model file in hand builds the 30 standard plans of the Forecast tab - every capital
+    ($500 ... $25,000) x hold (1 / 3 / 6 months) x discount (0 and 20% under) at the fixed constants (fees 14.1% + $5.20,
+    no buy tax, $50-500, 20% per card, the 50% bar) - with the live floors and medians of that moment, exactly as the
+    tab would have shown them, and keeps them like Brett's own records; forecast_score() scores each when its hold is
+    up. Published as live["fc_auto"]; the oldest months go after FC_AUTO_KEEP_MONTHS."""
+    v = state["vps"]
+    month = es.ts(es.NOW)[:7]
+    if v.get("fc_auto_month") == month:
+        return 0
+    doc = forecast_doc()
+    if not doc:
+        return 0
+    try:
+        plans = fm.standard_plans(doc, cards, band, es.ANCHOR_MIN)
+    except Exception as e:
+        log(f"Forecast: the standard plans failed ({str(e)[:120]})")
+        v["fc_auto_month"] = month                       # not again this cycle after cycle; next month tries afresh
+        return 0
+    t = int(time.time() * 1000)
+    recs = v.setdefault("fc_auto", [])
+    for rec in plans:
+        rec.update({"t": t, "auto": 1, "cal": month, "done": None})
+        recs.append(rec)
+    keep = sorted({r["cal"] for r in recs})[-FC_AUTO_KEEP_MONTHS:]
+    recs[:] = [r for r in recs if r["cal"] in keep]
+    v["fc_auto_month"], v["fc_auto_t"] = month, t
+    buys = [r for r in plans if r["picks"]]
+    log(f"Forecast: the standard plans of {month} archived ({len(plans)} plans, {len(buys)} with buys; model of {doc.get('month')}, "
+        f"{'strong' if doc['regime'].get('strong') else 'other'} market; e.g. $5,000 for 1 month at the standard price: "
+        + next((f"{len(r['picks'])} cards, expected net ${r['exp']:.0f}" for r in plans if r['h'] == 1 and r['cap'] == 5000 and r['disc'] == 0), "no buys") + ")")
+    return len(plans)
 
 
 SITE_READS_PER_HOUR = 60         # Review pressed on the site: one full look per press, at most this many an hour
@@ -1997,6 +2105,9 @@ def alert_hits(state, cat, cards, live, cfg):
         d = hit_payload(rec, cs, cat, kind)
         if d["nm"][2] is None or d["nm"][2] < cfg["min_profit"]:
             return 0
+        fcp = forecast_chance(cards, cfg, rec["card"], rec["total"], iid)   # the Forecast tab's chance at this price (None: no score)
+        if not forecast_gate(cfg, fcp):                 # held back, not marked as sent: it can still alert if the filter changes
+            return 0
         d["tk"], d["rq"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back
         d["pci"] = pc_image(state, d["pid"])
         alert_extras(state, d, rec)
@@ -2005,6 +2116,7 @@ def alert_hits(state, cat, cards, live, cfg):
             d["risk"] = tier_risk(state, rec["tier"])
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
+               + (f"\nForecast: {fcp * 100:.0f}% chance of a profit at this price, {cfg.get('fc_h', 1)}-month hold" if fcp is not None else "")
                + (f"\n{'SUSPECT' if suspect else 'Scam watch'}: {scam_words(rec)}" if flagged else "")
                + (f"\nA cheaper reprint has this number ({d['rp'][0][0]}): look for the stamp" if d.get("rp") else "")
                + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings" + (" - ID conflict?" if d["idv"] == "conflict" else ""))
@@ -2019,7 +2131,7 @@ def alert_hits(state, cat, cards, live, cfg):
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": (rec.get("title") or "")[:70],
                      "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2],
                      "kd": kind + ("-suspect" if suspect else "") + ("-drop" if drop else ""),
-                     "tr": rec.get("tier", "clean"), "card": rec["card"], "cs": d.get("s")})
+                     "tr": rec.get("tier", "clean"), "card": rec["card"], "cs": d.get("s"), "fc": fcp})
         if kind == "hit":
             v.setdefault("hit_hist", []).append(hit_snapshot(rec, d, hist[-1]["kd"], cs))
         return 1
@@ -2051,7 +2163,7 @@ def alert_status(state, cfg):
         if e["kd"].startswith("auction"):
             out = f"closed at ${e['fin']:.2f}; your max bid was ${e.get('mb', 0):.2f}" if e.get("fin") is not None else "auction not finished yet"
         hrs = round(es.hours_between(es.parse_ts(e["t"]), es.parse_ts(r["closed"])), 1) if r and r.get("closed") else None
-        hist.append([e["t"], e["c"], e["ti"], e["u"], e["tot"], e["p"], e["kd"], e.get("dec"), out, hrs, e["i"], e.get("card")])   # 10-11: item id, card id (the star on the site)
+        hist.append([e["t"], e["c"], e["ti"], e["u"], e["tot"], e["p"], e["kd"], e.get("dec"), out, hrs, e["i"], e.get("card"), e.get("fc")])   # 10-11: item id, card id (the star on the site); 12: the forecast chance when it was sent
     return {"cfg": cfg, "t": v.get("alert_t", 0), "on": bool(NTFY_TOPIC), "test_t": v.get("test_t", 0),
             "sent24": sum(1 for t in times if t >= day_ago), "last": times[-1] if times else None,
             "quiet_now": quiet_now(cfg), "hist": hist}
@@ -2208,6 +2320,9 @@ def auction_alerts(state, cat, cards, cfg):
             return [s2, round(mb2, 2), round(net2 - mb2, 2), round((net2 - mb2) / mb2 * 100, 1),
                     math.floor((mb2 - rec["ship"]) / (1 + es.TAX) * 100) / 100]
         d["nm"], d["lp"] = side("NM"), side("LP")
+        fcp = forecast_chance(cards, cfg, rec["card"], d["nm"][4] + (rec.get("ship") or 0), iid)   # at the most he would pay: the max bid plus shipping
+        if not forecast_gate(cfg, fcp):
+            continue
         d["au"] = {"e": end, "b": rec["item"], "n": watch[iid].get("bids") or 0}
         d["tk"], d["rq"], d["pci"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back, pc_image(state, d["pid"])
         alert_extras(state, d, rec)
@@ -2216,6 +2331,7 @@ def auction_alerts(state, cat, cards, cfg):
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Now ${rec['item']:.2f} + ${rec['ship']:.2f} shipping, {d['au']['n']} bids. Bid up to ${d['nm'][4]:.2f} for a near-mint copy"
                + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
+               + (f"\nForecast: {fcp * 100:.0f}% chance of a profit at your max bid, {cfg.get('fc_h', 1)}-month hold" if fcp is not None else "")
                + (f"\nA cheaper reprint has this number ({d['rp'][0][0]}): look for the stamp" if d.get("rp") else "")
                + (f"\nScam watch: {scam_words(rec)}" if rec["tier"] == "watch" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
         title = f"Auction ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
@@ -2228,7 +2344,7 @@ def auction_alerts(state, cat, cards, cfg):
         watch[iid]["al"] = True
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": rec["title"][:70], "u": rec["url"],
                      "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4],
-                     "tr": rec["tier"], "card": rec["card"], "cs": d.get("s")})
+                     "tr": rec["tier"], "card": rec["card"], "cs": d.get("s"), "fc": fcp})
         # the Raw Data tab's auction view: the bid when the phone was pinged, and everything needed to re-judge the
         # row later under whatever the Alerts tab then says. The sell side (net) is frozen here; margin and tax are not
         v.setdefault("au_hist", []).append({
@@ -2815,6 +2931,11 @@ def cycle(state, cat, sched, counters):
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     forecast_score(v, cat, cards)
     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
+    try:
+        fc_auto_tick(state, cat, cards, live.get("band") or es.TAB_PRICE)
+    except Exception as e:
+        log(f"Forecast: the monthly archive failed ({str(e)[:120]})")
+    live["fc_auto"] = {"t": v.get("fc_auto_t", 0), "recs": v.get("fc_auto") or []}   # the standard plans, month by month (the Forecast history tab)
     live["favs"] = fav_live(state, cards, {x[0] for x in live["live"]})   # the stars (Favorites tab), with rows for starred listings past 24 h
     live["source"] = "vps"
     raw = es.json_gz(live)
@@ -2824,7 +2945,7 @@ def cycle(state, cat, sched, counters):
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0),
-           v.get("read_t", 0), v.get("fav_t", 0))   # a change on the Alerts tab, a listing read for the Review screen or a star is published at once
+           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0))   # a change on the Alerts tab, a listing read for the Review screen or a star is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
