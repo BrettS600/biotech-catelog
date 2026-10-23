@@ -1002,6 +1002,58 @@ def wrong_rows(v):
             for w in reversed(v["wrong"])]
 
 
+# ---------------- Favorites (Brett, 2026-10-23: a star on every row; the starred rows gathered on a Favorites tab) ----------------
+FAV_MAX = 400                    # favorites kept (the oldest star goes when a new one would be one too many)
+FAV_SRC = ("pc", "ec", "er", "fc", "um")   # where a star can come from: the catalog tabs, a listing, a Forecast pick, an unmatched title
+
+
+def fav_set(state, msg, t):
+    """A star clicked on the site: {type: 'fav', t, s: source, k: key (card id, item id), c: card id or null, v: 1 on /
+    0 off, m: a few words kept for rows that may leave the data (title, link, price; the Forecast's horizon and
+    numbers)}. Kept in v["favs"] as {s:k -> {s, k, c, t, m}}; the live file carries the list (fav_live) and the page
+    shows a star at once, confirmed by fav_t. A starred listing's record and photos survive the prune (ebay_sweep:
+    fav_listing_ids) and its alert history is never trimmed, so the Favorites tab can always show it."""
+    v = state["vps"]
+    favs = v.setdefault("favs", {})
+    s, k = str(msg.get("s") or "")[:4], str(msg.get("k") if msg.get("k") is not None else "")[:60]
+    if s not in FAV_SRC or not k:
+        return
+    key = f"{s}:{k}"
+    if msg.get("v"):
+        m = msg.get("m") if isinstance(msg.get("m"), dict) else {}
+        m = {str(mk)[:12]: (mv[:120] if isinstance(mv, str) else mv) for mk, mv in list(m.items())[:16] if isinstance(mv, (str, int, float)) or mv is None}
+        c = msg.get("c")
+        try:
+            c = int(c) if c is not None else None
+        except (TypeError, ValueError):
+            c = None
+        favs[key] = {"s": s, "k": k, "c": c, "t": t, "m": m}
+        for old in sorted(favs, key=lambda kk: favs[kk]["t"])[:max(0, len(favs) - FAV_MAX)]:
+            del favs[old]
+    else:
+        favs.pop(key, None)
+    v["fav_t"] = t
+    log(f"Favorite {'added' if msg.get('v') else 'removed'} on the site: {key} ({len(favs)} on file)")
+
+
+def fav_live(state, cards, live_ids):
+    """The Favorites block of the live file: t = the last star taken, list = [[s, k, c, t, m], ...] oldest first, rows =
+    the Raw Data row (ebay_sweep.live_row) of every starred listing that is not in the 24-hour table any more, so the
+    Favorites tab can show it judged like the rest."""
+    v = state["vps"]
+    favs = v.get("favs") or {}
+    out = {"t": v.get("fav_t", 0), "list": [[f["s"], f["k"], f.get("c"), f["t"], f.get("m") or None] for f in sorted(favs.values(), key=lambda f: f["t"])], "rows": {}}
+    for f in favs.values():
+        if f["s"] == "er" and f["k"] not in live_ids:
+            rec = find_rec(state, f["k"])
+            if rec is not None:
+                try:
+                    out["rows"][f["k"]] = es.live_row(rec, cards.get(str(rec["card"])))
+                except Exception:
+                    pass                                     # a record the row builder cannot read: the page falls back to the words saved with the star
+    return out
+
+
 def read_requests(state):
     """What the Alerts tab sent since the last look: new settings, or a request for a test alert. A message counts
     only when its signature is right and it is newer than the last one acted on."""
@@ -1069,6 +1121,8 @@ def read_requests(state):
             q = v.setdefault("site_read_q", [])
             if str(msg["i"])[:60] not in q:
                 q.append(str(msg["i"])[:60])
+        elif msg.get("type") == "fav" and msg.get("k") is not None:   # a star clicked on the site (Favorites)
+            fav_set(state, msg, t)
 
 
 # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
@@ -1988,7 +2042,7 @@ def alert_status(state, cfg):
         if e["kd"].startswith("auction"):
             out = f"closed at ${e['fin']:.2f}; your max bid was ${e.get('mb', 0):.2f}" if e.get("fin") is not None else "auction not finished yet"
         hrs = round(es.hours_between(es.parse_ts(e["t"]), es.parse_ts(r["closed"])), 1) if r and r.get("closed") else None
-        hist.append([e["t"], e["c"], e["ti"], e["u"], e["tot"], e["p"], e["kd"], e.get("dec"), out, hrs])
+        hist.append([e["t"], e["c"], e["ti"], e["u"], e["tot"], e["p"], e["kd"], e.get("dec"), out, hrs, e["i"], e.get("card")])   # 10-11: item id, card id (the star on the site)
     return {"cfg": cfg, "t": v.get("alert_t", 0), "on": bool(NTFY_TOPIC), "test_t": v.get("test_t", 0),
             "sent24": sum(1 for t in times if t >= day_ago), "last": times[-1] if times else None,
             "quiet_now": quiet_now(cfg), "hist": hist}
@@ -2230,8 +2284,8 @@ def hh_backfill(state, cat):
 def hh_rows(state):
     """The hit history for the site, kept HIT_HIST_KEEP_D days, each row with what has become of the listing."""
     v = state["vps"]
-    cut = es.ts(es.NOW - timedelta(days=HIT_HIST_KEEP_D))
-    v["hit_hist"] = [r for r in v.get("hit_hist", []) if r["t"] >= cut]
+    cut, favs = es.ts(es.NOW - timedelta(days=HIT_HIST_KEEP_D)), es.fav_listing_ids(state)
+    v["hit_hist"] = [r for r in v.get("hit_hist", []) if r["t"] >= cut or r["i"] in favs]   # a starred hit stays (Favorites)
     want = {r["i"] for r in v["hit_hist"]}
     closed = {r["id"]: r for r in state["closed"] if r["id"] in want}
     rows = []
@@ -2282,8 +2336,8 @@ def au_backfill(state, cat):
 def au_rows(state):
     """The auction view's rows for the live file, oldest dropped after AU_HIST_KEEP_D days."""
     v = state["vps"]
-    cut = es.ts(es.NOW - timedelta(days=AU_HIST_KEEP_D))
-    v["au_hist"] = [r for r in v.get("au_hist", []) if r["t"] >= cut]
+    cut, favs = es.ts(es.NOW - timedelta(days=AU_HIST_KEEP_D)), es.fav_listing_ids(state)
+    v["au_hist"] = [r for r in v.get("au_hist", []) if r["t"] >= cut or r["i"] in favs]   # a starred auction stays (Favorites)
     want = {r["i"] for r in v["au_hist"] if not r.get("img")}             # older records: the photo from the listing itself
     closed = {r["id"]: r for r in state["closed"] if r["id"] in want}
     rec_of = lambda r: state["open"].get(r["i"]) or closed.get(r["i"]) or {}
@@ -2752,6 +2806,7 @@ def cycle(state, cat, sched, counters):
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     forecast_score(v, cat, cards)
     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
+    live["favs"] = fav_live(state, cards, {x[0] for x in live["live"]})   # the stars (Favorites tab), with rows for starred listings past 24 h
     live["source"] = "vps"
     raw = es.json_gz(live)
     state["runs"] = state.get("runs", 0) + 1
@@ -2760,7 +2815,7 @@ def cycle(state, cat, sched, counters):
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0),
-           v.get("read_t", 0))   # a change on the Alerts tab, or a listing read for the Review screen, is published at once
+           v.get("read_t", 0), v.get("fav_t", 0))   # a change on the Alerts tab, a listing read for the Review screen or a star is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
