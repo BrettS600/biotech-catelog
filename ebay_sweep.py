@@ -1022,6 +1022,12 @@ def json_gz(obj, level=6):
 
 
 # ---------------- 2. TRACK ----------------
+def fav_listing_ids(state):
+    """The item ids Brett starred (Favorites, 2026-10-23): their records and photos stay past the usual prune, so the
+    Favorites tab can always show them."""
+    return {f["k"] for f in ((state.get("vps") or {}).get("favs") or {}).values() if f.get("s") == "er"}
+
+
 def close_listing(state, iid, rec, outcome, when, total=None):
     first = parse_ts(rec["first"]) or NOW
     origin = parse_ts(rec.get("origin") or "") or first
@@ -1040,7 +1046,7 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
         **({"tier": rec["tier"]} if "tier" in rec else {}),
         **{k: rec[k] for k in ("pc", "pcm", "idv", "idr", "ef", "epid", "ec", "ecc") if k in rec},   # identity checks, eBay's facts and condition, as they stood
-        **({"imgs": rec["imgs"][:IMGS_KEEP]} if rec.get("imgs") and iid in (state.get("vps") or {}).get("alerted", {}) else {}),   # photos for the
+        **({"imgs": rec["imgs"][:IMGS_KEEP]} if rec.get("imgs") and (iid in (state.get("vps") or {}).get("alerted", {}) or iid in fav_listing_ids(state)) else {}),   # photos for the
     })                                                      # Review screen after an ALERTED listing has gone (the hit history falls back to them)
     del state["open"][iid]
 
@@ -2781,6 +2787,29 @@ def card_facts(state):
                      n[c], far[c]] for c in n}
 
 
+def live_row(r, cs):
+    """One listing as the page's Raw Data tab receives it (the row the page judges again with its own settings): the
+    24-hour table (build_live), and a starred listing that has left it (the collector's fav block, 2026-10-23)."""
+    v, allin = verdict(r, cs)
+    origin = parse_ts(r.get("origin") or r["first"]) or parse_ts(r["first"])
+    s_own = listing_decision(r, cs)[0]
+    return [r["id"], r["card"], r["first"], round(hours_between(origin, NOW), 1), r["title"],
+            r["item"], r["ship"], r["total"], allin,
+            cs["price"] if cs else None,
+            None if not cs or not cs.get("price") or r["total"] is None else round((r["total"] / cs["price"] - 1) * 100, 1),
+            listing_decision(r, cs)[2], v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
+            r.get("out") or "open", r["url"], r.get("img"), r.get("how"),
+            r.get("hrs") if r.get("out") else None,          # 21: hours from listing to outcome
+            r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", []),   # 22-25: photos, tier, score, signals
+            s_own,                                                                      # 26: this listing's own sell price
+            r.get("pc"), r.get("pcm") or "",             # 27-28: PriceCharting ungraded price, mismatch flag (low/high)
+            r.get("idv") or "", r.get("idr") or [],      # 29-30: item-specifics check (ok/conflict/none), what it found
+            1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
+            (r.get("imgs") or [])[1:4],                    # 33: the listing's other photos (the first is 20), for the Review screen
+            facts_row(r),                                  # 34: eBay's facts (None = not looked up, [] = none on the listing)
+            r.get("ec") or ""]                             # 35: the condition eBay states on the listing ("" = not read / none)
+
+
 def build_live(state, cards, lp):
     day_ago = NOW - timedelta(hours=24)
     live = []
@@ -2788,25 +2817,7 @@ def build_live(state, cards, lp):
     for r in recs:
         if parse_ts(r["first"]) < day_ago:
             continue
-        cs = cards.get(str(r["card"]))
-        v, allin = verdict(r, cs)
-        origin = parse_ts(r.get("origin") or r["first"]) or parse_ts(r["first"])
-        s_own = listing_decision(r, cs)[0]
-        live.append([r["id"], r["card"], r["first"], round(hours_between(origin, NOW), 1), r["title"],
-                     r["item"], r["ship"], r["total"], allin,
-                     cs["price"] if cs else None,
-                     None if not cs or not cs.get("price") or r["total"] is None else round((r["total"] / cs["price"] - 1) * 100, 1),
-                     listing_decision(r, cs)[2], v, r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
-                     r.get("out") or "open", r["url"], r.get("img"), r.get("how"),
-                     r.get("hrs") if r.get("out") else None,          # 21: hours from listing to outcome
-                     r.get("n_img"), r.get("tier", "clean"), r.get("sc", 0), r.get("scr", []),   # 22-25: photos, tier, score, signals
-                     s_own,                                                                      # 26: this listing's own sell price
-                     r.get("pc"), r.get("pcm") or "",             # 27-28: PriceCharting ungraded price, mismatch flag (low/high)
-                     r.get("idv") or "", r.get("idr") or [],      # 29-30: item-specifics check (ok/conflict/none), what it found
-                     1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
-                     (r.get("imgs") or [])[1:4],                    # 33: the listing's other photos (the first is 20), for the Review screen
-                     facts_row(r),                                  # 34: eBay's facts (None = not looked up, [] = none on the listing)
-                     r.get("ec") or ""])                            # 35: the condition eBay states on the listing ("" = not read / none)
+        live.append(live_row(r, cards.get(str(r["card"]))))
     live.sort(key=lambda x: x[2], reverse=True)
     unmatched = [u for u in state["unmatched"] if parse_ts(u[0]) >= day_ago][-300:]
     passes = sum(1 for x in live if x[12] == "PASS")
@@ -2832,11 +2843,12 @@ def build_live(state, cards, lp):
 def prune(state):
     keep_from = NOW - timedelta(days=KEEP_CLOSED_D)
     stale_from = NOW - timedelta(days=KEEP_STALE_D)
-    state["closed"] = [r for r in state["closed"] if parse_ts(r["closed"]) >= keep_from
-                       and (r.get("out") != "stale" or parse_ts(r["closed"]) >= stale_from)]
+    favs = fav_listing_ids(state)                            # a starred listing stays, whatever its age (Favorites, 2026-10-23)
+    state["closed"] = [r for r in state["closed"] if r.get("id") in favs or (parse_ts(r["closed"]) >= keep_from
+                       and (r.get("out") != "stale" or parse_ts(r["closed"]) >= stale_from))]
     alerted = (state.get("vps") or {}).get("alerted", {})
-    for r in state["closed"]:                                # photos stay only on alerted listings (the 2026-10-21 diet)
-        if "imgs" in r and r.get("id") not in alerted:
+    for r in state["closed"]:                                # photos stay only on alerted and starred listings (the 2026-10-21 diet)
+        if "imgs" in r and r.get("id") not in alerted and r.get("id") not in favs:
             del r["imgs"]
     for r in state["open"].values():
         if len(r.get("imgs") or []) > IMGS_KEEP:
