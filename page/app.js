@@ -53,6 +53,11 @@ function pcSalesCell(v, m) {
   const tip = 'Sold in ' + monthName(m) + ' by PriceCharting\'s count, every grade: the last complete month on the card\'s page' + (late ? '. The page was last read before ' + monthName(prevMonth()) + ' ended, so this is an older month; cards with eBay data are re-read within days of the 1st' : '');
   return '<td class="num" title="' + esc(tip) + '">' + fmtInt(v) + (late ? ' <span class="dim">' + MONTHS_S[((m % 12) + 12) % 12] + '</span>' : '') + '</td>';
 }
+// the Trends band's blanks say what they wait for (2026-10-23, Brett: "the volume drift, 30%, and slope 30% column should
+// show data because we have been collecting data for at least a month" - it was 26 days): each column has a minimum of
+// daily history, counted from the card's first day in the collector's rollup, and the cell says so with the card's count
+const trDays = cid => { const c = LIVE.dec && LIVE.dec[cid]; return c && c.tr && c.tr.days != null ? c.tr.days : null; };
+const trendDash = (days, need, why) => '<span class="dim" title="' + esc(days != null && days < need ? 'needs ' + need + ' days of eBay history; this card has ' + days + ' (the collector has recorded since ' + ((LIVE.data && LIVE.data.since) || 'late September') + ')' : why) + '">\u2014</span>';
 const kmCell = v => v == null ? '<td class="num"><span class="dim" title="' + esc(sinceNote()) + '">\u2014</span></td>' : '<td class="num">' + fmtInt(v) + '</td>';
 const hitsCell = v => '<td class="num">' + (v ? '<b>' + fmtInt(v) + '</b>' : v === 0 ? '0' : dash) + '</td>';
 const hitPctCell = (v, n) => '<td class="num"' + (n ? ' title="' + esc(n + ' listing' + (n === 1 ? '' : 's') + ' of this card seen in 30 days') + '"' : '') + '>' + (v == null ? '<span class="dim" title="no listings of this card seen in 30 days">\u2014</span>' : fmtPct(v, false, 0)) + '</td>';
@@ -285,11 +290,11 @@ const TABLES = {
       '<td>' + (r[26] === 'confirmed' ? badge('Hot ✓', 'hot2') : r[26] === 'candidate' ? badge('Hot ' + r[28] + '/3', 'hot') : r[29] && r[29].length && r[5] >= 5 ? '<span class="dim" title="' + esc(r[29].join(', ')) + '">fails ' + r[29].length + '</span>' : dash) + '</td>' +
       hitsCell(r[44]) + hitPctCell(r[52], r[51]) +
       '<td class="num">' + fmtPct(r[31]) + '</td>' +
-      '<td class="num">' + fmtPct(r[32]) + '</td>' +
-      '<td class="num">' + fmtPct(r[33], false, 0) + '</td>' +
-      '<td class="num">' + (r[35] == null ? dash : '<span class="' + (r[35] > 0 ? 'up' : r[35] < 0 ? 'down' : '') + '">' + (r[35] > 0 ? '+' : '') + r[35] + (r[34] == null ? '' : ' (' + (r[34] > 0 ? '+' : '') + r[34].toFixed(1) + '%)') + '</span>') + '</td>' +
-      '<td class="num">' + fmtPct(r[36], false, 2) + '</td>' +
-      '<td class="num">' + fmtPct(r[37]) + '</td>' +
+      '<td class="num">' + (r[32] == null ? trendDash(trDays(r[0]), 31, 'no 7-day median with 3+ sales 30 days ago') : fmtPct(r[32])) + '</td>' +
+      '<td class="num">' + (r[33] == null ? trendDash(trDays(r[0]), 60, 'fewer than 10 priced days (7-day medians of 3+ sales) in 90 days') : fmtPct(r[33], false, 0)) + '</td>' +
+      '<td class="num">' + (r[35] == null ? trendDash(trDays(r[0]), 60, 'last 30 days vs the 30 before') : '<span class="' + (r[35] > 0 ? 'up' : r[35] < 0 ? 'down' : '') + '">' + (r[35] > 0 ? '+' : '') + r[35] + (r[34] == null ? '' : ' (' + (r[34] > 0 ? '+' : '') + r[34].toFixed(1) + '%)') + '</span>') + '</td>' +
+      '<td class="num">' + (r[36] == null ? trendDash(null, 0, 'fewer than 3 moves of the 7-day median in 90 days') : fmtPct(r[36], false, 2)) + '</td>' +
+      '<td class="num">' + (r[37] == null ? trendDash(null, 0, 'needs 10 priced days (7-day medians of 3+ sales) spanning two weeks') : fmtPct(r[37])) + '</td>' +
       '<td><button class="tbtn ebtn" data-id="' + r[0] + '">Trend</button></td>' +
       '<td><button class="tbtn bbtn" data-id="' + r[0] + '">Book</button></td>'},
   // eBay Raw Data row: 0 cardId 1 card 2 set 3 # 4 released 5 hours 6 title 7 item 8 ship 9 total 10 allin 11 cardPrice 12 vs% 13 maxbuy
@@ -1981,11 +1986,11 @@ function renderStatsEbay() {
   let h = '';
   h += cell('Sales/month', s.spm == null ? '—' : s.spm, 'raw sales in the last 30 days');
   h += cell('Δ 7d', fmtPct(s.d7), 'vs 7 days ago');
-  h += cell('Δ 30d', fmtPct(s.d30), s.days < 30 ? 'needs 30 days (' + s.days + ' so far)' : 'vs 30 days ago');
+  h += cell('Δ 30d', fmtPct(s.d30), s.days <= 30 ? 'needs 31 days (' + s.days + ' so far)' : 'vs 30 days ago');
   h += cell('Range 90d', pctPlain(s.pos, 0, false), s.lo != null ? 'low ' + fmtMoneyPlain(s.lo) + ' · high ' + fmtMoneyPlain(s.hi) : 'needs 60 days (' + s.days + ' so far)');
   h += cell('Volatility', pctPlain(s.vol, 2, false), 'typical daily move of the 7d median');
   h += cell('Volume drift 30d', s.vd == null ? '—' : (s.vd > 0 ? '+' : '') + s.vd + (s.vdp == null ? '' : ' (' + pctPlain(s.vdp) + ')'), s.days < 60 ? 'needs 60 days (' + s.days + ' so far)' : 'last 30 days vs the 30 before');
-  h += cell('Slope 30d', pctPlain(s.ts), s.ts != null ? 'Theil–Sen · middle half ' + pctPlain(s.tsq1) + ' to ' + pctPlain(s.tsq3) + ' /mo' : 'needs 30 days and 10 points');
+  h += cell('Slope 30d', pctPlain(s.ts), s.ts != null ? 'Theil–Sen · middle half ' + pctPlain(s.tsq1) + ' to ' + pctPlain(s.tsq3) + ' /mo' : 'needs 10 priced days spanning two weeks');
   h += cell('λ', c.lam == null ? '—' : c.lam.toFixed(2) + '/day', c.k + ' sales in ' + c.D + ' d');
   h += cell('Sell · Anchor', fmtMoneyPlain(c.sell) + ' · ' + fmtMoneyPlain(c.A), 'floor ' + fmtMoneyPlain(c.L) + ' · ' + (c.liquid ? 'liquid' : 'not liquid'));
   h += cell('Max buy', fmtMoneyPlain(c.maxbuy), 'net ' + fmtMoneyPlain(c.net));
