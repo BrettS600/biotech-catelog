@@ -1,0 +1,303 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 56e9a5e..f67e6ea 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -791,4 +791,23 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   after the first deploy: eBay's exact JSON shape for trading-card descriptors was not verifiable from the docs, so
+   the reader accepts both shapes and the log confirms which one arrives. Tests: ut/test_cond.py, t/test_risk.js.
++- REVIEW READS THE LISTING ON DEMAND; ALERT HISTORIES KEEP THEIR FACTS (2026-10-23, Brett: "some of the ebay auction
++  pictures are not showing in the review button", "a lot of the set names and raritys say not read??? why", "many
++  cards that are 'read' report n/s but the item specifics report the condition"). Why "not read": a full look is one
++  of the 5,000 eBay calls a day and discovery / re-reads / confirmations come first, so most listings never get one
++  (17K of 27K open listings had facts on 2026-10-21, inherited mostly); the auction and hit alerts DID read the
++  listing (identity check with PRODUCT) but threw the facts away, so every auction row said "not read". Now: (1)
++  au_hist / hit_snapshot records keep "ec" and "ef" (only when the rec has it - None must stay "not read", [] is
++  "nothing on the listing"); au_rows publishes facts row + ec at 29-30, hh_rows at 31-32; the page's histFacts()
++  fills row 48/49/50/55 from them when the listing is not in the live table. (2) site_read(state, cat, iid)
++  (collector): a {type: "read", i} request from the page (main channel; queued in v["site_read_q"] by read_requests,
++  run at the top of cycle()) does ONE getItem with PRODUCT for an open listing (item_facts + learn_facts, a sold
++  one closes), a closed record, or a history entry (a probe dict with the card), fills photos / condition / facts on
++  whatever holds the listing, answers on the reply topic (site_reply, same signature as the picture answers) and
++  publishes this cycle (v["read_t"] in the publish signature); SITE_READS_PER_HOUR 60. PAGE: openReview() asks
++  (readAsk, once per 5 min per listing, READ_DONE remembers an answer) when the eBay side is incomplete - no photo,
++  ef == null, or n/s with no eBay condition text - and shows the "being read now" note; readWait() polls -pcr every
++  5 s for up to 3 min while the popup stays on that listing; applyRead() patches the live row (x[19/33/34/35/13]),
++  the au entry (27-30, 9) and the hh entry (29-32, 9), rebuilds, and the popup re-renders. Tests: ut/test_siteread.py,
++  t/test_read.js (+ test_risk.js, test_page.js, test_tabs.js, test_review.js, test_ui5.js still pass).
+ - THE DROPLET RAN OUT OF MEMORY (found 2026-10-23: the collector died every ~40 minutes through the night of
+   2026-10-20/21 - "Collector starting" with no "Cycle failed" or "Restarting on the new code" before it, process lives
+diff --git a/collector.py b/collector.py
+index 1e05af6..19d9321 100644
+--- a/collector.py
++++ b/collector.py
+@@ -1066,4 +1066,8 @@ def read_requests(state):
+         elif msg.get("type") == "forecast":
+             forecast_record(v, msg, t)
++        elif msg.get("type") == "read" and msg.get("i"):            # Review pressed on a listing with an incomplete eBay record
++            q = v.setdefault("site_read_q", [])
++            if str(msg["i"])[:60] not in q:
++                q.append(str(msg["i"])[:60])
+ 
+ 
+@@ -1118,4 +1122,88 @@ def forecast_score(v, cat, cards=None):
+ 
+ 
++SITE_READS_PER_HOUR = 60         # Review pressed on the site: one full look per press, at most this many an hour
++
++
++def site_reply(obj):
++    """An answer for the page on the channel's reply topic (<channel>-pcr), signed like everything else on it."""
++    if DRY_RUN or not es.PASSWORD:
++        return
++    topic, key = alert_channel()
++    body = json.dumps(dict(obj, t=int(time.time() * 1000)), separators=(",", ":"))
++    try:
++        requests.post(f"{NTFY_SERVER}/{topic}-pcr", data=json.dumps({"m": body, "s": hmac.new(key, body.encode(), "sha256").hexdigest()}).encode(), timeout=5)
++    except Exception:
++        pass
++
++
++def site_read(state, cat, iid):
++    """Review pressed on the site for a listing whose eBay record is incomplete (Brett, 2026-10-23: "no photo on file",
++    "not read", n/s where the listing states its condition): one full getItem now, whatever the listing's state - open
++    (the record learns like any confirmation and a sold listing closes), closed, or an alerted auction / hit kept only
++    in the histories - and the answer goes straight back to the page on the reply topic (the live file follows at the
++    next publish). One call per press; SITE_READS_PER_HOUR caps it. -> True when something was read."""
++    v = state["vps"]
++    box = v.setdefault("site_reads", {})
++    if box.get("hour") != es.ts(es.NOW)[:13]:
++        box["hour"], box["n"] = es.ts(es.NOW)[:13], 0
++    if box["n"] >= SITE_READS_PER_HOUR:
++        return False
++    box["n"] += 1
++    rec = state["open"].get(iid)
++    hist = [e for e in v.get("au_hist", []) + v.get("hit_hist", []) if e.get("i") == iid]
++    closed = None if rec is not None else next((r for r in state["closed"] if r.get("id") == iid), None)
++    if rec is None and closed is None and not hist:
++        return False
++    if DRY_RUN:
++        it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
++    else:
++        try:
++            it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "PRODUCT"}, ok_404=True)
++        except RuntimeError as e:
++            log(f"Site read: lookup failed for {iid} ({e})")
++            return False
++    if it is None:
++        site_reply({"type": "read", "i": iid, "gone": 1})
++        log(f"Site read: {iid} is no longer on eBay")
++        return True
++    src = rec if rec is not None else closed
++    probe = rec if rec is not None else {"id": iid, "card": (src or hist[0]).get("card"), "title": (src or {}).get("title") or hist[0].get("ti") or "",
++                                        "epid": (src or {}).get("epid") or "", "tcond": (src or {}).get("tcond") or hist[0].get("tc") or "UNK"}
++    es.item_facts(probe, it)                                 # photos, photo count, quantity, returns, eBay's condition
++    if probe.get("card") is not None:
++        try:
++            es.learn_facts(state, cat, probe, it)            # eBay's set / rarity / finish, compared with the card
++        except Exception as e:
++            log(f"Site read: facts failed for {iid} ({e})")
++    fields = {"img": probe.get("img") or ((it.get("image") or {}).get("imageUrl")), "imgs": (probe.get("imgs") or [])[:es.IMGS_KEEP],
++              "tc": probe.get("tcond", "UNK"), "ec": probe.get("ec", ""), "ef": es.facts_row(probe), "ph": probe.get("n_img")}
++    if rec is not None:
++        rec["checked"], rec["cond_tried"] = es.ts(es.NOW), 1
++        rec.setdefault("img", fields["img"])
++        kind, price, end = es.classify(it)
++        if kind in ("sold", "ended"):                        # the look doubles as a confirmation
++            es.close_listing(state, iid, rec, kind, end or es.NOW, None if price is None else round(price + (rec.get("ship") or 0), 2))
++    if closed is not None:
++        closed.update({k: probe[k] for k in ("ef", "ec", "ecc", "tcond", "n_img") if k in probe})
++        closed["img"] = closed.get("img") or fields["img"]
++        if fields["imgs"]:
++            closed["imgs"] = fields["imgs"]
++    for e in hist:                                           # the auction / hit history rows: photos, condition, facts
++        e["img"] = e.get("img") or fields["img"]
++        if fields["imgs"]:
++            e["imgs"] = fields["imgs"]
++        if fields["tc"] != "UNK":
++            e["tc"] = fields["tc"]
++        e["ec"] = fields["ec"]
++        if "ef" in probe:
++            e["ef"] = probe["ef"]
++        if fields["ph"] is not None:
++            e["ph"] = fields["ph"]
++    site_reply(dict(fields, type="read", i=iid))
++    log(f"Site read: {iid} ({probe.get('title', '')[:50]}) - {len(fields['imgs'])} photos, condition {fields['tc']}"
++        f"{' (' + fields['ec'] + ')' if fields['ec'] else ''}, facts {'read' if fields['ef'] else 'none'}")
++    return True
++
++
+ def quiet_now(cfg):
+     if not cfg.get("quiet") or cfg["q_from"] == cfg["q_to"]:
+@@ -2086,5 +2174,6 @@ def auction_alerts(state, cat, cards, cfg):
+             "fb": rec.get("fb"), "pct": rec.get("pct"), "kd": kind, "s": d["nm"][0], "net": [nets.get("NM"), nets.get("LP")],
+             "tier": rec["tier"], "sc": rec["sc"], "scr": rec["scr"], "ph": rec.get("n_img"),
+-            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4]})   # its photos, for the Review screen after the auction
++            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4],    # its photos, for the Review screen after the auction
++            "ec": rec.get("ec", ""), **({"ef": rec["ef"]} if "ef" in rec else {})})   # eBay's condition text and facts, read for the alert (2026-10-23)
+     return n
+ 
+@@ -2104,5 +2193,6 @@ def hit_snapshot(rec, d, kd, cs):
+             "sc": rec.get("sc", 0), "scr": rec.get("scr") or [], "idv": rec.get("idv") or "", "A": cs.get("A"),
+             "s": d["nm"][0], "mb": d["nm"][1], "p": d["nm"][2], "roi": d["nm"][3], "tax": d.get("tax"),
+-            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4]}   # its photos, for the Review screen once it has left the table
++            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4],   # its photos, for the Review screen once it has left the table
++            "ec": rec.get("ec", ""), **({"ef": rec["ef"]} if "ef" in rec else {})}   # eBay's condition text and facts as read for the alert (2026-10-23)
+ 
+ 
+@@ -2153,5 +2243,6 @@ def hh_rows(state):
+                      r.get("idv") or "", r.get("A"), r.get("s"), r.get("mb"), r.get("p"), r.get("roi"), r.get("tax"), r.get("kd"),
+                      r.get("dec"), 1 if (r.get("um") or (rec or {}).get("um")) else 0, out, r.get("old", 0),
+-                     r.get("img") or (rec or {}).get("img"), (r.get("imgs") or (rec or {}).get("imgs") or [])[:4]])   # 29-30: photos for the Review screen
++                     r.get("img") or (rec or {}).get("img"), (r.get("imgs") or (rec or {}).get("imgs") or [])[:4],   # 29-30: photos for the Review screen
++                     es.facts_row(r if "ef" in r else (rec or {})), r.get("ec") or (rec or {}).get("ec") or ""])      # 31-32: eBay's facts and condition text
+     return rows
+ 
+@@ -2202,5 +2293,6 @@ def au_rows(state):
+              r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0"), 1 if r.get("um") else 0,
+              r.get("img") or rec_of(r).get("img"),                                           # 27-28: photos for the Review screen
+-             (r.get("imgs") or rec_of(r).get("imgs") or [])[:4]] for r in v["au_hist"]]
++             (r.get("imgs") or rec_of(r).get("imgs") or [])[:4],
++             es.facts_row(r if "ef" in r else rec_of(r)), r.get("ec") or rec_of(r).get("ec") or ""] for r in v["au_hist"]]   # 29-30: facts, condition text
+ 
+ 
+@@ -2413,4 +2505,10 @@ def cycle(state, cat, sched, counters):
+     v = state.setdefault("vps", {})
+     t = time.time()
++    for iid in v.pop("site_read_q", []):                     # Review pressed on the site: read the listing now (site_read)
++        try:
++            if site_read(state, cat, iid):
++                v["read_t"] = int(t * 1000)                  # publish this cycle (part of the signature below)
++        except Exception as e:
++            log(f"Site read: {iid} failed ({str(e)[:120]})")
+ 
+     def due(key, every):
+@@ -2662,5 +2760,6 @@ def cycle(state, cat, sched, counters):
+     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
+     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
+-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0))   # a change on the Alerts tab is published at once
++           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0),
++           v.get("read_t", 0))   # a change on the Alerts tab, or a listing read for the Review screen, is published at once
+     changed = sig != v.get("pub_sig") or urgent > 0
+     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
+diff --git a/page/app.js b/page/app.js
+index eb297da..9db028e 100644
+--- a/page/app.js
++++ b/page/app.js
+@@ -270,4 +270,11 @@ const TABLES = {
+    about what was sent). What selling the card brings in is the figure frozen when the alert went out. */
+ function AU_ON() { const e = document.getElementById('au-er'); return !!(e && e.checked); }
++// eBay's facts (48: the facts row, 49-50: its set / rarity-finish text) and condition text (55) on an auction or hit row:
++// the live row's while the listing is in the 24-hour table, else what the alert's own record kept (2026-10-23: the
++// alert had read them and thrown them away, so every auction said "not read")
++function histFacts(row, lv, ef, ec) {
++  row[48] = lv ? lv[48] : ef === undefined ? null : ef; row[55] = lv ? lv[55] || '' : ec || '';
++  row[49] = row[48] && row[48].length ? row[48][0] || '' : ''; row[50] = row[48] && row[48].length ? rfText([row[48][1], row[48][2]]) : '';
++}
+ function auRows(live) {
+   const A = (live.alert && live.alert.au) || [], c = Object.assign({}, AL_DEFAULT, (live.alert && live.alert.cfg) || {});
+@@ -275,5 +282,5 @@ function auRows(live) {
+   const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+   return A.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((a, i) => {
+-    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag, img, imgs] = a;
++    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag, img, imgs, ef, ec] = a;
+     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {};
+     const lp = dec === 'lp' || (dec !== 'nm' && tc === 'LP'), net = lp ? netLP : netNM;
+@@ -295,5 +302,5 @@ function auRows(live) {
+       bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
+     row[46] = mtOf(cid);
+-    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
++    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); histFacts(row, lv, ef, ec);   // eBay's facts: the live row's, else the alert's own record
+     row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
+     row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um; row.pics = (imgs || []).slice(1);
+@@ -998,5 +1005,5 @@ function hhRows(live) {
+   const H = (live.alert && live.alert.hh) || [], now = Date.now();
+   return H.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((h, i) => {
+-    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old, img, imgs] = h;
++    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old, img, imgs, ef, ec] = h;
+     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {}, pc = base[6] == null ? null : base[6];
+     const marked = umOf(iid, um);
+@@ -1007,5 +1014,5 @@ function hhRows(live) {
+       null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
+     row[46] = mtOf(cid);
+-    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
++    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); histFacts(row, lv, ef, ec);   // eBay's facts: the live row's, else the hit's own record
+     row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
+     row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null; row.pics = (imgs || []).slice(1);
+@@ -1122,4 +1129,51 @@ function reviewPicRefresh() {
+   box.outerHTML = '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>';
+ }
++// Review on a listing whose eBay record is incomplete: ask the collector for one full look now (the main channel, read
++// once a cycle), then watch the reply topic for its answer and put what it read into the rows and the open popup
++const READ_ASKED = {}, READ_DONE = {};
++function readAsk(iid) {
++  if (!iid || !HKEY) return false;
++  if (READ_ASKED[iid] > Date.now() - 300000) return true;
++  const t = Date.now(); READ_ASKED[iid] = t;
++  alSend({type: 'read', t, i: iid}).then(() => readWait(iid, t)).catch(() => { delete READ_ASKED[iid]; });
++  return true;
++}
++async function readWait(iid, t0) {
++  const ch = await alChannel(), enc = new TextEncoder();
++  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
++  let since = Math.floor(t0 / 1000) - 5;
++  for (let i = 0; i < 40; i++) {                   // the collector reads its requests once a minute: up to about three minutes
++    await new Promise(r => setTimeout(r, 5000));
++    if (!$('bov').classList.contains('open') || LIVE.rvItem !== iid) return;
++    let lines = [];
++    try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-pcr/json?poll=1&since=' + since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { continue; }
++    for (const line of lines) {
++      try {
++        const ev = JSON.parse(line); if (ev.event !== 'message') continue;
++        since = ev.id;
++        const env = JSON.parse(ev.message);
++        if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
++        const msg = JSON.parse(env.m);
++        if (msg.type !== 'read' || msg.i !== iid) continue;
++        READ_DONE[iid] = msg.gone ? 'gone' : true;
++        if (!msg.gone) applyRead(iid, msg);
++        if ($('bov').classList.contains('open') && LIVE.rvItem === iid) openReview(iid);
++        return;
++      } catch (e) { continue; }
++    }
++  }
++}
++// what the collector read goes into the live data the rows are built from (the next live file carries it anyway)
++function applyRead(iid, m) {
++  if (!LIVE.data) return;
++  const pics = m.imgs || [], tc = m.tc && m.tc !== 'UNK' ? m.tc : null;
++  const x = (LIVE.data.live || []).find(z => z[0] === iid);
++  if (x) { if (m.img) x[19] = m.img; x[33] = pics.slice(1); x[34] = m.ef === undefined ? null : m.ef; x[35] = m.ec || ''; if (tc) x[13] = tc; }
++  const a = ((LIVE.data.alert || {}).au || []).find(z => z[0] === iid);
++  if (a) { if (m.img) a[27] = m.img; if (pics.length) a[28] = pics; a[29] = m.ef === undefined ? null : m.ef; a[30] = m.ec || ''; if (tc) a[9] = tc; }
++  const h = ((LIVE.data.alert || {}).hh || []).find(z => z[0] === iid);
++  if (h) { if (m.img) h[29] = m.img; if (pics.length) h[30] = pics; h[31] = m.ef === undefined ? null : m.ef; h[32] = m.ec || ''; if (tc) h[9] = tc; }
++  rebuildLive();
++}
+ function openReview(iid) {
+   // the row may be a live listing, an auction sent to the phone or a hit from the history - those two outlive the
+@@ -1132,5 +1186,5 @@ function openReview(iid) {
+   const pics = [r[21]].concat(x[33] && x[33].length ? x[33] : r.pics || []).filter(Boolean);
+   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
+-  LIVE.rvCard = r[0];
++  LIVE.rvCard = r[0]; LIVE.rvItem = iid;
+   if (!pcu) pcAsk(r[0]);                           // the collector reads that one page now; the picture lands here within a minute or two
+   const m = /(\d+)\s*\/\s*(\d+)/.exec(r[6] || '');
+@@ -1143,4 +1197,8 @@ function openReview(iid) {
+   // build) and eBay's record of this listing (row 48) - red when they name another card, amber when one tier apart
+   const p = pcRF(base) || ['', ''], ef = r[48];
++  // an incomplete eBay side - no photo, facts never read, or n/s with eBay's condition field unread - is read now: the
++  // collector does one full look at the listing (open, sold or long gone) and answers on the channel (readAsk, 2026-10-23)
++  const incomplete = !pics.length || ef == null || (r[15] === 'UNK' && !r[55]);
++  const reading = incomplete && !READ_DONE[iid] ? readAsk(iid) : false;
+   const pcv = v => v ? '<b class="fit">' + esc(v) + '</b>' : '<b class="fit mute">unknown</b>';
+   const ebv = (i, cmp) => ef == null ? '<b class="fit mute">not read</b>' : !ef.length || !ef[i] ? '<b class="fit mute">not stated</b>'
+@@ -1170,5 +1228,8 @@ function openReview(iid) {
+     '<div class="rrow"><div><span class="lab">Title</span><small>' + esc(r[6]) + '</small></div><div><span class="lab">Verdict</span><b>' + esc(r[14]) + '</b></div></div></div>';
+   h += '<div class="rvbtns"><button class="rvno" id="rv-no">Not the same card<small>leaves the statistics; the matcher learns from it</small></button><button class="rvyes" id="rv-yes">Same card<small>a confirmed match</small></button></div>' +
+-       (v != null || r.um ? '<div class="rvundo"><button class="linkbtn" id="rv-undo">Withdraw my answer</button></div>' : '') + '<div id="rvmsg" class="dim"></div>';
++       (v != null || r.um ? '<div class="rvundo"><button class="linkbtn" id="rv-undo">Withdraw my answer</button></div>' : '') +
++       (reading ? '<div id="rvread" class="dim">eBay’s details for this listing are being read now (' + (!pics.length ? 'photos, ' : '') + 'condition, set and rarity) — they appear here within a minute or two.</div>'
++                : READ_DONE[iid] === 'gone' ? '<div id="rvread" class="dim">eBay no longer has this listing, so nothing more can be read about it.</div>' : '') +
++       '<div id="rvmsg" class="dim"></div>';
+   $('bbody').innerHTML = h;
+   $('bov').classList.add('open');
