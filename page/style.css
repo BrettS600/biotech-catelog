@@ -367,7 +367,9 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
 .fh .fc-stats { grid-template-columns:repeat(3, minmax(240px, 360px)); }
 .fh .fc-stats .stat .v { font-size:15px; }
 .fh .fh-box table { font-size:12px; }
-.fh .fh-box td, .fh .fh-box th { white-space:nowrap; padding:4px 7px; }
+.fh .fh-box td, .fh .fh-box th { white-space:nowrap; padding:4px 5px; }
+.fh .fh-box td:first-child { min-width:0; white-space:nowrap; }     /* the Forecast tab's 170px card column does not apply here (the panel carries .fc for its look) */
+.fh .fh-box tr.fh-detail > td:first-child { white-space:normal; }
 .fh .fh-box th.band { text-align:center; background:var(--band); }
 .fh tr.fh-row { cursor:pointer; }
 .fh tr.fh-row.open td { font-weight:600; }
