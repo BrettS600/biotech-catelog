@@ -1,0 +1,376 @@
+pricecharting_id,series_name,card_name,set_name,price_rank,ungraded_price,change_30d_pct,image_url,cohort_month
+956382,Black & White,Rayquaza,Dragons Exalted,1,742.28,-0.111489,https://storage.googleapis.com/pokeviews-prod/img/800/88630.webp,2026-10-01
+956933,Black & White,Charizard,Plasma Storm,2,935.45,0.476568,https://storage.googleapis.com/pokeviews-prod/img/800/84193.webp,2026-10-01
+956156,Black & White,Gardevoir,Dark Explorers,3,600.0,-0.152327,https://storage.googleapis.com/pokeviews-prod/img/800/85638.webp,2026-10-01
+957176,Black & White,Ultra Ball,Plasma Freeze,4,649.39,0.159501,https://storage.googleapis.com/pokeviews-prod/img/800/90135.webp,2026-10-01
+957174,Black & White,Garchomp,Plasma Freeze,5,479.86,0.008194,https://storage.googleapis.com/pokeviews-prod/img/800/85626.webp,2026-10-01
+956931,Black & White,Lugia EX,Plasma Storm,6,398.17,0.021499,https://storage.googleapis.com/pokeviews-prod/img/800/86916.webp,2026-10-01
+957165,Black & White,Deoxys EX,Plasma Freeze,7,476.25,0.563834,https://storage.googleapis.com/pokeviews-prod/img/800/84777.webp,2026-10-01
+957171,Black & White,Empoleon,Plasma Freeze,8,465.74,0.365326,https://storage.googleapis.com/pokeviews-prod/img/800/85203.webp,2026-10-01
+956934,Black & White,Blastoise,Plasma Storm,9,406.45,0.333104,https://storage.googleapis.com/pokeviews-prod/img/800/83897.webp,2026-10-01
+956154,Black & White,Darkrai EX,Dark Explorers,10,350.24,0.155869,https://storage.googleapis.com/pokeviews-prod/img/800/84709.webp,2026-10-01
+956377,Black & White,Rayquaza EX,Dragons Exalted,11,284.19,0.059422,https://storage.googleapis.com/pokeviews-prod/img/800/88648.webp,2026-10-01
+957402,Black & White,Palkia EX,Plasma Blast,12,420.19,0.500679,https://storage.googleapis.com/pokeviews-prod/img/800/87916.webp,2026-10-01
+956374,Black & White,Mew EX,Dragons Exalted,13,261.22,0.041921,https://storage.googleapis.com/pokeviews-prod/img/800/87412.webp,2026-10-01
+956660,Black & White,Black Kyurem EX,Boundaries Crossed,14,269.0,0.567325,https://storage.googleapis.com/pokeviews-prod/img/800/83857.webp,2026-10-01
+956378,Black & White,Giratina EX,Dragons Exalted,15,290.96,0.4548,https://storage.googleapis.com/pokeviews-prod/img/800/85741.webp,2026-10-01
+956153,Black & White,Groudon EX,Dark Explorers,16,278.99,0.39495,https://storage.googleapis.com/pokeviews-prod/img/800/85933.webp,2026-10-01
+957401,Black & White,Dialga EX,Plasma Blast,17,215.19,-0.110086,https://storage.googleapis.com/pokeviews-prod/img/800/84809.webp,2026-10-01
+956151,Black & White,Kyogre EX,Dark Explorers,18,236.48,0.080755,https://storage.googleapis.com/pokeviews-prod/img/800/86560.webp,2026-10-01
+956929,Black & White,Articuno EX,Plasma Storm,19,260.22,0.143824,https://storage.googleapis.com/pokeviews-prod/img/800/83657.webp,2026-10-01
+957173,Black & White,Garbodor,Plasma Freeze,20,205.0,0.093333,https://storage.googleapis.com/pokeviews-prod/img/800/85617.webp,2026-10-01
+956152,Black & White,Raikou EX,Dark Explorers,21,208.02,0.0401,https://storage.googleapis.com/pokeviews-prod/img/800/88542.webp,2026-10-01
+955950,Black & White,Mewtwo EX,Next Destinies,22,183.86,0.523281,https://storage.googleapis.com/pokeviews-prod/img/800/87432.webp,2026-10-01
+955954,Black & White,Zoroark,Next Destinies,23,202.97,0.080835,https://storage.googleapis.com/pokeviews-prod/img/800/90753.webp,2026-10-01
+957608,Black & White,Reshiram,Legendary Treasures,24,219.57,0.127735,https://storage.googleapis.com/pokeviews-prod/img/800/88711.webp,2026-10-01
+955756,Black & White,N,Noble Victories,25,125.31,-0.377929,https://storage.googleapis.com/pokeviews-prod/img/800/87678.webp,2026-10-01
+921460,Diamond & Pearl,Glaceon LV.X,Majestic Dawn,1,425.0,0.015216,https://storage.googleapis.com/pokeviews-prod/img/800/85750.webp,2026-10-01
+921461,Diamond & Pearl,Leafeon LV.X,Majestic Dawn,2,360.96,0.119256,https://storage.googleapis.com/pokeviews-prod/img/800/86684.webp,2026-10-01
+925879,Diamond & Pearl,Charizard,Stormfront,3,324.87,0.105602,https://storage.googleapis.com/pokeviews-prod/img/800/84190.webp,2026-10-01
+921259,Diamond & Pearl,Dialga LV. X,Great Encounters,4,154.61,-0.22695,https://storage.googleapis.com/pokeviews-prod/img/800/84812.webp,2026-10-01
+921459,Diamond & Pearl,Garchomp LV.X,Majestic Dawn,5,172.44,0.153059,https://storage.googleapis.com/pokeviews-prod/img/800/85631.webp,2026-10-01
+921260,Diamond & Pearl,Palkia LV. X,Great Encounters,6,181.77,0.163179,https://storage.googleapis.com/pokeviews-prod/img/800/pc_921260.webp,2026-10-01
+924933,Diamond & Pearl,Dragonite,Legends Awakened,7,150.56,0.369101,https://storage.googleapis.com/pokeviews-prod/img/800/84913.webp,2026-10-01
+921462,Diamond & Pearl,Porygon-Z LV.X,Majestic Dawn,8,93.36,0.014783,https://storage.googleapis.com/pokeviews-prod/img/800/88321.webp,2026-10-01
+925302,Diamond & Pearl,Raichu LV. X,Stormfront,9,93.85,-0.009394,https://storage.googleapis.com/pokeviews-prod/img/800/pc_925302.webp,2026-10-01
+920893,Diamond & Pearl,Charizard,Secret Wonders,10,126.41,0.170463,https://storage.googleapis.com/pokeviews-prod/img/800/84189.webp,2026-10-01
+925304,Diamond & Pearl,Duskull,Stormfront,11,122.5,0.633333,https://storage.googleapis.com/pokeviews-prod/img/800/85054.webp,2026-10-01
+925301,Diamond & Pearl,Charmander,Stormfront,12,107.5,0.059009,https://storage.googleapis.com/pokeviews-prod/img/800/84216.webp,2026-10-01
+924945,Diamond & Pearl,Rayquaza,Legends Awakened,13,81.69,0.275609,https://storage.googleapis.com/pokeviews-prod/img/800/88627.webp,2026-10-01
+4230473,Diamond & Pearl,Torterra LV. X,Diamond & Pearl,14,92.25,0.153125,https://storage.googleapis.com/pokeviews-prod/img/800/pc_4230473.webp,2026-10-01
+924942,Diamond & Pearl,Mewtwo,Legends Awakened,15,61.0,-0.282353,https://storage.googleapis.com/pokeviews-prod/img/800/87422.webp,2026-10-01
+921340,Diamond & Pearl,Mudkip (Reverse Holo),Great Encounters,16,88.79,0.109875,https://storage.googleapis.com/pokeviews-prod/img/800/87614.webp,2026-10-01
+920906,Diamond & Pearl,Mew,Secret Wonders,17,93.07,0.240933,https://storage.googleapis.com/pokeviews-prod/img/800/87403.webp,2026-10-01
+925075,Diamond & Pearl,Mewtwo LV. X,Legends Awakened,18,173.05,1.114233,https://storage.googleapis.com/pokeviews-prod/img/800/pc_925075.webp,2026-10-01
+763185,Diamond & Pearl,Gengar (Reverse Holo),Diamond & Pearl,19,97.06,0.092157,https://storage.googleapis.com/pokeviews-prod/img/800/85675.webp,2026-10-01
+925320,Diamond & Pearl,Gengar (Reverse Holo),Stormfront,20,102.94,0.270864,https://storage.googleapis.com/pokeviews-prod/img/800/85676.webp,2026-10-01
+921342,Diamond & Pearl,Slowpoke (Reverse Holo),Great Encounters,21,68.75,0.057692,https://storage.googleapis.com/pokeviews-prod/img/800/89331.webp,2026-10-01
+921367,Diamond & Pearl,Glaceon,Majestic Dawn,22,91.35,0.141875,https://storage.googleapis.com/pokeviews-prod/img/800/85744.webp,2026-10-01
+925079,Diamond & Pearl,Dragonite (Reverse Holo),Legends Awakened,23,88.0,0.175685,https://storage.googleapis.com/pokeviews-prod/img/800/84913.webp,2026-10-01
+920905,Diamond & Pearl,Lugia,Secret Wonders,24,47.21,-0.21954,https://storage.googleapis.com/pokeviews-prod/img/800/86908.webp,2026-10-01
+925077,Diamond & Pearl,Uxie LV. X,Legends Awakened,25,73.24,-0.01027,https://storage.googleapis.com/pokeviews-prod/img/800/pc_925077.webp,2026-10-01
+842791,E-Card,Charizard,Skyridge,1,6040.9,0.04207,https://storage.googleapis.com/pokeviews-prod/img/800/pc_842791.webp,2026-10-01
+888021,E-Card,Gengar,Skyridge,2,3399.5,0.085419,https://storage.googleapis.com/pokeviews-prod/img/800/85668.webp,2026-10-01
+842664,E-Card,Lugia,Aquapolis,3,4031.65,0.430297,https://storage.googleapis.com/pokeviews-prod/img/800/pc_842664.webp,2026-10-01
+2250668,E-Card,Charizard (Reverse Holo),Skyridge,4,1674.77,0.015628,https://storage.googleapis.com/pokeviews-prod/img/800/84186.webp,2026-10-01
+842793,E-Card,Ho-Oh,Skyridge,5,1969.46,0.299296,https://storage.googleapis.com/pokeviews-prod/img/800/pc_842793.webp,2026-10-01
+888013,E-Card,Umbreon,Skyridge,6,1840.77,-0.046035,https://storage.googleapis.com/pokeviews-prod/img/800/90140.webp,2026-10-01
+887958,E-Card,Umbreon,Aquapolis,7,1025.7,-0.140854,https://storage.googleapis.com/pokeviews-prod/img/800/90139.webp,2026-10-01
+842790,E-Card,Celebi,Skyridge,8,1100.33,0.222589,https://storage.googleapis.com/pokeviews-prod/img/800/84144.webp,2026-10-01
+2252610,E-Card,Gengar (Reverse Holo),Skyridge,9,1025.6,0.143724,https://storage.googleapis.com/pokeviews-prod/img/800/85669.webp,2026-10-01
+887991,E-Card,Gyarados,Skyridge,10,860.42,0.16778,https://storage.googleapis.com/pokeviews-prod/img/800/85987.webp,2026-10-01
+2293995,E-Card,Psyduck (Reverse Holo),Aquapolis,11,849.56,-0.000506,https://storage.googleapis.com/pokeviews-prod/img/800/88435.webp,2026-10-01
+887936,E-Card,Nidoking,Aquapolis,12,846.68,0.172719,https://storage.googleapis.com/pokeviews-prod/img/800/87695.webp,2026-10-01
+887989,E-Card,Kabutops,Skyridge,13,505.21,-0.28405,https://storage.googleapis.com/pokeviews-prod/img/800/86396.webp,2026-10-01
+2252699,E-Card,Snorlax (Reverse Holo),Skyridge,14,722.66,-0.018752,https://storage.googleapis.com/pokeviews-prod/img/800/89387.webp,2026-10-01
+887990,E-Card,Alakazam,Skyridge,15,700.0,-0.196538,https://storage.googleapis.com/pokeviews-prod/img/800/83498.webp,2026-10-01
+887939,E-Card,Houndoom,Aquapolis,16,534.32,-0.000617,https://storage.googleapis.com/pokeviews-prod/img/800/86199.webp,2026-10-01
+842792,E-Card,Golem,Skyridge,17,550.0,0.009156,https://storage.googleapis.com/pokeviews-prod/img/800/pc_842792.webp,2026-10-01
+2252682,E-Card,Pikachu (Reverse Holo),Skyridge,18,549.29,0.129878,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2252682.webp,2026-10-01
+887992,E-Card,Houndoom,Skyridge,19,449.77,-0.046188,https://storage.googleapis.com/pokeviews-prod/img/800/86200.webp,2026-10-01
+887988,E-Card,Crobat,Skyridge,20,586.4,0.09628,https://storage.googleapis.com/pokeviews-prod/img/800/84485.webp,2026-10-01
+888019,E-Card,Flareon,Skyridge,21,621.04,0.526384,https://storage.googleapis.com/pokeviews-prod/img/800/85490.webp,2026-10-01
+10609097,E-Card,Electric Garden Theme Deck,Expedition,22,440.66,-0.071943,https://storage.googleapis.com/pokeviews-prod/img/800/234504.webp,2026-10-01
+2252673,E-Card,Magikarp (Reverse Holo),Skyridge,23,359.85,-0.108819,https://storage.googleapis.com/pokeviews-prod/img/800/87023.webp,2026-10-01
+2252649,E-Card,Ditto (Reverse Holo),Skyridge,24,396.35,-0.13258,https://storage.googleapis.com/pokeviews-prod/img/800/84830.webp,2026-10-01
+2252747,E-Card,Ho-Oh (Reverse Holo),Skyridge,25,440.45,-0.119399,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2252747.webp,2026-10-01
+888127,EX,Rayquaza (Gold Star),Deoxys,1,8335.4,0.115634,https://storage.googleapis.com/pokeviews-prod/img/800/88636.webp,2026-10-01
+889574,EX,Charizard (Gold Star),Dragon Frontiers,2,4275.0,0.352245,https://storage.googleapis.com/pokeviews-prod/img/800/84198.webp,2026-10-01
+886441,EX,Mudkip (Gold Star),Team Rocket Returns,3,3009.31,0.015801,https://storage.googleapis.com/pokeviews-prod/img/800/87616.webp,2026-10-01
+889184,EX,Pikachu (Gold Star),Holon Phantoms,4,3791.6,0.317031,https://storage.googleapis.com/pokeviews-prod/img/800/88111.webp,2026-10-01
+886442,EX,Torchic (Gold Star),Team Rocket Returns,5,3324.42,0.219971,https://storage.googleapis.com/pokeviews-prod/img/800/89965.webp,2026-10-01
+886443,EX,Treecko (Gold Star),Team Rocket Returns,6,3365.22,0.383526,https://storage.googleapis.com/pokeviews-prod/img/800/90046.webp,2026-10-01
+889575,EX,Mew (Gold Star),Dragon Frontiers,7,3276.97,0.338079,https://storage.googleapis.com/pokeviews-prod/img/800/87408.webp,2026-10-01
+889183,EX,Mewtwo (Gold Star),Holon Phantoms,8,2413.78,0.149419,https://storage.googleapis.com/pokeviews-prod/img/800/87427.webp,2026-10-01
+888126,EX,Latios (Gold Star),Deoxys,9,1923.95,-0.035411,https://storage.googleapis.com/pokeviews-prod/img/800/86672.webp,2026-10-01
+888774,EX,Kyogre (Gold Star),Delta Species,10,2076.87,0.362114,https://storage.googleapis.com/pokeviews-prod/img/800/86552.webp,2026-10-01
+889182,EX,Gyarados (Gold Star),Holon Phantoms,11,2878.68,0.63346,https://storage.googleapis.com/pokeviews-prod/img/800/86003.webp,2026-10-01
+888125,EX,Latias (Gold Star),Deoxys,12,1475.0,0.287142,https://storage.googleapis.com/pokeviews-prod/img/800/86658.webp,2026-10-01
+888775,EX,Metagross (Gold Star),Delta Species,13,1778.09,0.205485,https://storage.googleapis.com/pokeviews-prod/img/800/87345.webp,2026-10-01
+888773,EX,Groudon (Gold Star),Delta Species,14,1474.5,0.022822,https://storage.googleapis.com/pokeviews-prod/img/800/85927.webp,2026-10-01
+889765,EX,Jolteon (Gold Star),Power Keepers,15,1210.8,0.103154,https://storage.googleapis.com/pokeviews-prod/img/800/86351.webp,2026-10-01
+850075,EX,Gengar EX,Fire Red & Leaf Green,16,1279.0,-0.015396,https://storage.googleapis.com/pokeviews-prod/img/800/85680.webp,2026-10-01
+889386,EX,Alakazam (Gold Star),Crystal Guardians,17,1401.18,0.179941,https://storage.googleapis.com/pokeviews-prod/img/800/83502.webp,2026-10-01
+889387,EX,Celebi (Gold Star),Crystal Guardians,18,1168.45,0.244674,https://storage.googleapis.com/pokeviews-prod/img/800/84149.webp,2026-10-01
+888974,EX,Registeel (Gold Star),Legend Maker,19,1248.51,0.17154,https://storage.googleapis.com/pokeviews-prod/img/800/88678.webp,2026-10-01
+888533,EX,Raikou (Gold Star),Unseen Forces,20,1341.6,0.166609,https://storage.googleapis.com/pokeviews-prod/img/800/88537.webp,2026-10-01
+889764,EX,Flareon (Gold Star),Power Keepers,21,1089.05,-0.049031,https://storage.googleapis.com/pokeviews-prod/img/800/85503.webp,2026-10-01
+888534,EX,Suicune (Gold Star),Unseen Forces,22,1013.76,0.027435,https://storage.googleapis.com/pokeviews-prod/img/800/89608.webp,2026-10-01
+889766,EX,Vaporeon (Gold Star),Power Keepers,23,1072.75,-0.047384,https://storage.googleapis.com/pokeviews-prod/img/800/90292.webp,2026-10-01
+888532,EX,Entei (Gold Star),Unseen Forces,24,971.2,-0.089784,https://storage.googleapis.com/pokeviews-prod/img/800/85275.webp,2026-10-01
+888525,EX,Lugia EX,Unseen Forces,25,1062.82,0.001602,https://storage.googleapis.com/pokeviews-prod/img/800/86912.webp,2026-10-01
+926355,HeartGold & SoulSilver,Lugia,Call of Legends,1,777.59,0.804865,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926355.webp,2026-10-01
+926151,HeartGold & SoulSilver,Gengar,Triumphant,2,624.0,-0.039305,https://storage.googleapis.com/pokeviews-prod/img/800/85679.webp,2026-10-01
+926348,HeartGold & SoulSilver,Rayquaza,Call of Legends,3,693.72,-0.043145,https://storage.googleapis.com/pokeviews-prod/img/800/88629.webp,2026-10-01
+925973,HeartGold & SoulSilver,Umbreon,Undaunted,4,399.12,0.017359,https://storage.googleapis.com/pokeviews-prod/img/800/90146.webp,2026-10-01
+926352,HeartGold & SoulSilver,Groudon,Call of Legends,5,406.88,0.356267,https://storage.googleapis.com/pokeviews-prod/img/800/85926.webp,2026-10-01
+926347,HeartGold & SoulSilver,Deoxys,Call of Legends,6,306.57,0.146656,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926347.webp,2026-10-01
+926154,HeartGold & SoulSilver,Mew,Triumphant,7,325.0,0.065574,https://storage.googleapis.com/pokeviews-prod/img/800/87405.webp,2026-10-01
+926354,HeartGold & SoulSilver,Kyogre,Call of Legends,8,290.0,0.446168,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926354.webp,2026-10-01
+925976,HeartGold & SoulSilver,Rayquaza & Deoxys LEGEND,Undaunted,9,287.5,0.144233,https://storage.googleapis.com/pokeviews-prod/img/800/88638.webp,2026-10-01
+926353,HeartGold & SoulSilver,Ho-Oh,Call of Legends,10,331.0,0.742105,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926353.webp,2026-10-01
+926349,HeartGold & SoulSilver,Suicune,Call of Legends,11,333.13,0.750644,https://storage.googleapis.com/pokeviews-prod/img/800/89606.webp,2026-10-01
+926350,HeartGold & SoulSilver,Dialga,Call of Legends,12,238.61,0.325685,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926350.webp,2026-10-01
+926356,HeartGold & SoulSilver,Palkia,Call of Legends,13,250.0,0.508933,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926356.webp,2026-10-01
+925977,HeartGold & SoulSilver,Rayquaza & Deoxys LEGEND,Undaunted,14,201.25,0.114958,https://storage.googleapis.com/pokeviews-prod/img/800/88637.webp,2026-10-01
+926156,HeartGold & SoulSilver,Darkrai & Cresselia LEGEND,Triumphant,15,144.81,-0.084755,https://storage.googleapis.com/pokeviews-prod/img/800/84705.webp,2026-10-01
+926351,HeartGold & SoulSilver,Entei,Call of Legends,16,188.5,0.007536,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926351.webp,2026-10-01
+926271,HeartGold & SoulSilver,Rayquaza,Call of Legends,17,163.31,0.012775,https://storage.googleapis.com/pokeviews-prod/img/800/88628.webp,2026-10-01
+886678,HeartGold & SoulSilver,Lugia Legend,HeartGold & SoulSilver,18,200.0,-0.152003,https://storage.googleapis.com/pokeviews-prod/img/800/86917.webp,2026-10-01
+1287430,HeartGold & SoulSilver,Tyranitar,Unleashed,19,219.0,0.592496,https://storage.googleapis.com/pokeviews-prod/img/800/90122.webp,2026-10-01
+925968,HeartGold & SoulSilver,Espeon,Undaunted,20,269.49,0.78873,https://storage.googleapis.com/pokeviews-prod/img/800/85323.webp,2026-10-01
+926266,HeartGold & SoulSilver,Lugia,Call of Legends,21,233.16,0.615465,https://storage.googleapis.com/pokeviews-prod/img/800/86910.webp,2026-10-01
+886676,HeartGold & SoulSilver,Lugia Legend,HeartGold & SoulSilver,22,129.42,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/86918.webp,2026-10-01
+926234,HeartGold & SoulSilver,Psyduck (Reverse Holo),Triumphant,23,183.05,0.126462,https://storage.googleapis.com/pokeviews-prod/img/800/88440.webp,2026-10-01
+925969,HeartGold & SoulSilver,Houndoom,Undaunted,24,201.33,0.547978,https://storage.googleapis.com/pokeviews-prod/img/800/86210.webp,2026-10-01
+926357,HeartGold & SoulSilver,Raikou,Call of Legends,25,205.52,0.42544,https://storage.googleapis.com/pokeviews-prod/img/800/pc_926357.webp,2026-10-01
+14011719,Legendary Collection,Lava Theme Deck,Legendary Collection,1,4305.0,0.0,https://tcgplayer-cdn.tcgplayer.com/product/450748_200w.jpg,2026-10-01
+2253687,Legendary Collection,Charizard (Reverse Holo),Legendary Collection,2,2667.65,0.194916,https://storage.googleapis.com/pokeviews-prod/img/800/84196.webp,2026-10-01
+2253695,Legendary Collection,Gengar (Reverse Holo),Legendary Collection,3,2221.62,0.51252,https://storage.googleapis.com/pokeviews-prod/img/800/85670.webp,2026-10-01
+2250824,Legendary Collection,Pikachu (Reverse Holo),Legendary Collection,4,1649.5,0.843017,https://storage.googleapis.com/pokeviews-prod/img/800/88075.webp,2026-10-01
+2253712,Legendary Collection,Mewtwo (Reverse Holo),Legendary Collection,5,1007.31,0.171291,https://storage.googleapis.com/pokeviews-prod/img/800/87419.webp,2026-10-01
+2253747,Legendary Collection,Snorlax (Reverse Holo),Legendary Collection,6,743.02,0.117206,https://storage.googleapis.com/pokeviews-prod/img/800/89386.webp,2026-10-01
+2253689,Legendary Collection,Dark Dragonite (Reverse Holo),Legendary Collection,7,675.0,-0.043069,https://storage.googleapis.com/pokeviews-prod/img/800/84585.webp,2026-10-01
+2253768,Legendary Collection,Psyduck (Reverse Holo),Legendary Collection,8,761.91,0.493824,https://storage.googleapis.com/pokeviews-prod/img/800/88434.webp,2026-10-01
+2253688,Legendary Collection,Dark Blastoise (Reverse Holo),Legendary Collection,9,500.0,-0.080544,https://storage.googleapis.com/pokeviews-prod/img/800/84569.webp,2026-10-01
+2253776,Legendary Collection,Squirtle (Reverse Holo),Legendary Collection,10,425.23,0.014506,https://storage.googleapis.com/pokeviews-prod/img/800/89485.webp,2026-10-01
+2253721,Legendary Collection,Dark Dragonair (Reverse Holo),Legendary Collection,11,405.0,0.367596,https://storage.googleapis.com/pokeviews-prod/img/800/84581.webp,2026-10-01
+2156351,Legendary Collection,Eevee (Reverse Holo),Legendary Collection,12,454.1,0.279155,https://storage.googleapis.com/pokeviews-prod/img/800/85079.webp,2026-10-01
+2253691,Legendary Collection,Dark Raichu (Reverse Holo),Legendary Collection,13,327.63,-0.029963,https://storage.googleapis.com/pokeviews-prod/img/800/84646.webp,2026-10-01
+2253753,Legendary Collection,Charmander (Reverse Holo),Legendary Collection,14,630.0,0.794258,https://storage.googleapis.com/pokeviews-prod/img/800/84205.webp,2026-10-01
+2253685,Legendary Collection,Alakazam (Reverse Holo),Legendary Collection,15,507.29,0.371536,https://storage.googleapis.com/pokeviews-prod/img/800/83496.webp,2026-10-01
+2253702,Legendary Collection,Zapdos (Reverse Holo),Legendary Collection,16,427.81,0.270937,https://storage.googleapis.com/pokeviews-prod/img/800/90712.webp,2026-10-01
+2253735,Legendary Collection,Magikarp (Reverse Holo),Legendary Collection,17,425.0,0.311324,https://storage.googleapis.com/pokeviews-prod/img/800/87022.webp,2026-10-01
+2253729,Legendary Collection,Haunter (Reverse Holo),Legendary Collection,18,381.51,0.283638,https://storage.googleapis.com/pokeviews-prod/img/800/86022.webp,2026-10-01
+2253684,Legendary Collection,Venusaur (Reverse Holo),Legendary Collection,19,442.72,0.209353,https://storage.googleapis.com/pokeviews-prod/img/800/90313.webp,2026-10-01
+2253696,Legendary Collection,Gyarados (Reverse Holo),Legendary Collection,20,324.58,-0.072629,https://storage.googleapis.com/pokeviews-prod/img/800/85989.webp,2026-10-01
+2253693,Legendary Collection,Dark Vaporeon (Reverse Holo),Legendary Collection,21,425.0,0.509876,https://storage.googleapis.com/pokeviews-prod/img/800/84664.webp,2026-10-01
+2253774,Legendary Collection,Slowpoke (Reverse Holo),Legendary Collection,22,323.73,0.28935,https://storage.googleapis.com/pokeviews-prod/img/800/89324.webp,2026-10-01
+2253719,Legendary Collection,Arcanine (Reverse Holo),Legendary Collection,23,361.19,0.105469,https://storage.googleapis.com/pokeviews-prod/img/800/83581.webp,2026-10-01
+2253698,Legendary Collection,Jolteon (Reverse Holo),Legendary Collection,24,265.0,-0.03982,https://storage.googleapis.com/pokeviews-prod/img/800/86339.webp,2026-10-01
+2253694,Legendary Collection,Flareon (Reverse Holo),Legendary Collection,25,314.72,0.26206,https://storage.googleapis.com/pokeviews-prod/img/800/85492.webp,2026-10-01
+14486870,Mega Evolution,Mew R/RGB,30th Celebration,1,4295.18,0.073795,https://storage.googleapis.com/pokeviews-prod/img/800/10fe5595966b.webp,2026-10-01
+14486869,Mega Evolution,Mew B/RGB,30th Celebration,2,4000.0,0.082556,https://storage.googleapis.com/pokeviews-prod/img/800/5c3583119796.webp,2026-10-01
+14486871,Mega Evolution,Mew G/RGB,30th Celebration,3,3599.0,-0.077179,https://storage.googleapis.com/pokeviews-prod/img/800/e8c7df671c82.webp,2026-10-01
+11816195,Mega Evolution,Mega Gengar ex,Ascended Heroes,4,760.91,-0.11117,https://storage.googleapis.com/pokeviews-prod/img/800/9aed79d2d465.webp,2026-10-01
+11816194,Mega Evolution,Pikachu ex,Ascended Heroes,5,724.55,-0.137112,https://storage.googleapis.com/pokeviews-prod/img/800/19cbb937c0b0.webp,2026-10-01
+11069001,Mega Evolution,Mega Charizard X ex,Phantasmal Flames,6,679.79,-0.007606,https://storage.googleapis.com/pokeviews-prod/img/800/662184.webp,2026-10-01
+11816201,Mega Evolution,Mega Dragonite ex,Ascended Heroes,7,441.22,-0.216681,https://storage.googleapis.com/pokeviews-prod/img/800/88110d6d66b1.webp,2026-10-01
+14470808,Mega Evolution,Lugia,30th Celebration,8,215.41,-0.102458,https://storage.googleapis.com/pokeviews-prod/img/800/a1ae48516406.webp,2026-10-01
+11816206,Mega Evolution,Mega Charizard Y ex,Ascended Heroes,9,261.05,-0.232454,https://storage.googleapis.com/pokeviews-prod/img/800/0774e94365aa.webp,2026-10-01
+11816196,Mega Evolution,Pikachu ex,Ascended Heroes,10,267.43,-0.152764,https://storage.googleapis.com/pokeviews-prod/img/800/ca1ca09bb633.webp,2026-10-01
+11830155,Mega Evolution,Team Rocket's Mewtwo Ex,Ascended Heroes,11,236.0,-0.125764,https://storage.googleapis.com/pokeviews-prod/img/800/09addcd29e88.webp,2026-10-01
+14605654,Mega Evolution,Pikachu Ex/30TH-P,30th Celebration,12,238.99,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/17024b3db9b6.webp,2026-10-01
+10669978,Mega Evolution,Mega Lucario Ex,Mega Evolution,13,214.69,-0.09099,https://storage.googleapis.com/pokeviews-prod/img/800/654527.webp,2026-10-01
+11069012,Mega Evolution,Mega Charizard X ex,Phantasmal Flames,14,215.11,-0.170196,https://storage.googleapis.com/pokeviews-prod/img/800/662185.webp,2026-10-01
+14470806,Mega Evolution,Charizard,30th Celebration,15,180.0,-0.06639,https://storage.googleapis.com/pokeviews-prod/img/800/d946483f61c6.webp,2026-10-01
+11816202,Mega Evolution,Mega Dragonite ex,Ascended Heroes,16,173.54,-0.177536,https://storage.googleapis.com/pokeviews-prod/img/800/d3186e4c7684.webp,2026-10-01
+10669976,Mega Evolution,Mega Gardevoir Ex,Mega Evolution,17,155.66,-0.142841,https://storage.googleapis.com/pokeviews-prod/img/800/654526.webp,2026-10-01
+10669966,Mega Evolution,Mega Lucario Ex,Mega Evolution,18,164.96,-0.083505,https://storage.googleapis.com/pokeviews-prod/img/800/654518.webp,2026-10-01
+13025578,Mega Evolution,Mega Greninja ex,Chaos Rising,19,154.54,-0.142873,https://storage.googleapis.com/pokeviews-prod/img/800/01365269d384.webp,2026-10-01
+14486846,Mega Evolution,Mew Ex,30th Celebration,20,91.55,-0.518133,https://storage.googleapis.com/pokeviews-prod/img/800/ed71aac6e2ca.webp,2026-10-01
+10616265,Mega Evolution,Mega Gardevoir ex,Mega Evolution,21,159.95,-0.035981,https://storage.googleapis.com/pokeviews-prod/img/800/654517.webp,2026-10-01
+13025579,Mega Evolution,Mega Greninja ex,Chaos Rising,22,129.0,-0.171377,https://storage.googleapis.com/pokeviews-prod/img/800/98ca03e842e7.webp,2026-10-01
+11830154,Mega Evolution,Lillie's Clefairy Ex,Ascended Heroes,23,116.07,-0.199517,https://storage.googleapis.com/pokeviews-prod/img/800/ba9e9a7b09dd.webp,2026-10-01
+11816197,Mega Evolution,N's Zoroark ex,Ascended Heroes,24,118.93,-0.165404,https://storage.googleapis.com/pokeviews-prod/img/800/538bee14f276.webp,2026-10-01
+10669964,Mega Evolution,Mega Venusaur Ex,Mega Evolution,25,125.49,-0.070444,https://storage.googleapis.com/pokeviews-prod/img/800/654516.webp,2026-10-01
+2183378,Neo,Shining Charizard (1st Edition),Neo Destiny,1,4281.03,0.542436,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2183378.webp,2026-10-01
+2183380,Neo,Shining Mewtwo (1st Edition),Neo Destiny,2,2272.22,0.269148,https://storage.googleapis.com/pokeviews-prod/img/800/f8b559e68954.webp,2026-10-01
+2427439,Neo,Shining Gyarados (1st Edition),Neo Revelation,3,1689.19,-0.148881,https://storage.googleapis.com/pokeviews-prod/img/800/b7c99288c12d.webp,2026-10-01
+2324884,Neo,Lugia (1st Edition),Neo Genesis,4,1697.5,-0.042848,https://storage.googleapis.com/pokeviews-prod/img/800/24ef2d1a7777.webp,2026-10-01
+2158482,Neo,Umbreon (1st Edition),Neo Discovery,5,1243.38,-0.180148,https://storage.googleapis.com/pokeviews-prod/img/800/bfe16ab1538c.webp,2026-10-01
+762638,Neo,Shining Charizard,Neo Destiny,6,1322.73,-0.180135,https://storage.googleapis.com/pokeviews-prod/img/800/89163.webp,2026-10-01
+2183384,Neo,Shining Tyranitar (1st Edition),Neo Destiny,7,1140.5,-0.06898,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2183384.webp,2026-10-01
+2183307,Neo,Dark Gengar (1st Edition),Neo Destiny,8,1174.99,0.110188,https://storage.googleapis.com/pokeviews-prod/img/800/597a54e2569e.webp,2026-10-01
+2183382,Neo,Shining Raichu (1st Edition),Neo Destiny,9,787.24,0.121425,https://storage.googleapis.com/pokeviews-prod/img/800/8fcfa89dd6c2.webp,2026-10-01
+762640,Neo,Shining Mewtwo,Neo Destiny,10,892.66,0.097699,https://storage.googleapis.com/pokeviews-prod/img/800/89167.webp,2026-10-01
+2427440,Neo,Shining Magikarp (1st Edition),Neo Revelation,11,1112.08,0.372091,https://storage.googleapis.com/pokeviews-prod/img/800/fa4009695a4e.webp,2026-10-01
+2183377,Neo,Shining Celebi (1st Edition),Neo Destiny,12,750.0,0.072532,https://storage.googleapis.com/pokeviews-prod/img/800/8c037a606961.webp,2026-10-01
+2183383,Neo,Shining Steelix (1st Edition),Neo Destiny,13,750.0,0.122217,https://storage.googleapis.com/pokeviews-prod/img/800/895a9e6a7d14.webp,2026-10-01
+2183381,Neo,Shining Noctowl (1st Edition),Neo Destiny,14,805.0,0.228426,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2183381.webp,2026-10-01
+762534,Neo,Shining Gyarados,Neo Revelation,15,710.0,0.092308,https://storage.googleapis.com/pokeviews-prod/img/800/89164.webp,2026-10-01
+2183341,Neo,Light Arcanine (1st Edition),Neo Destiny,16,630.63,0.01241,https://storage.googleapis.com/pokeviews-prod/img/800/73a139f0cfd9.webp,2026-10-01
+2183345,Neo,Light Dragonite (1st Edition),Neo Destiny,17,630.29,0.016597,https://storage.googleapis.com/pokeviews-prod/img/800/c022466a0fc6.webp,2026-10-01
+2427452,Neo,Suicune (1st Edition),Neo Revelation,18,485.0,-0.191384,https://storage.googleapis.com/pokeviews-prod/img/800/24605d1ea768.webp,2026-10-01
+2183379,Neo,Shining Kabutops (1st Edition),Neo Destiny,19,522.92,-0.057462,https://storage.googleapis.com/pokeviews-prod/img/800/4dc9beaa0225.webp,2026-10-01
+2183317,Neo,Dark Scizor (1st Edition),Neo Destiny,20,449.54,-0.00698,https://storage.googleapis.com/pokeviews-prod/img/800/af4af7ffca7e.webp,2026-10-01
+762458,Neo,Umbreon,Neo Discovery,21,420.0,-0.08393,https://storage.googleapis.com/pokeviews-prod/img/800/90137.webp,2026-10-01
+2427414,Neo,Houndoom (1st Edition),Neo Revelation,22,450.39,0.046567,https://storage.googleapis.com/pokeviews-prod/img/800/549af567dc0c.webp,2026-10-01
+762644,Neo,Shining Tyranitar,Neo Destiny,23,612.5,-0.019843,https://storage.googleapis.com/pokeviews-prod/img/800/89171.webp,2026-10-01
+2427413,Neo,Ho-oh (1st Edition),Neo Revelation,24,391.86,-0.032444,https://storage.googleapis.com/pokeviews-prod/img/800/8aecc017ace4.webp,2026-10-01
+2183320,Neo,Dark Tyranitar (1st Edition),Neo Destiny,25,459.38,0.011538,https://storage.googleapis.com/pokeviews-prod/img/800/4157718b57c2.webp,2026-10-01
+715593,Original,Charizard (1st Edition),Base Set,1,9057.92,-0.038936,https://storage.googleapis.com/pokeviews-prod/img/800/89145dc2758e.webp,2026-10-01
+2365260,Original,Blastoise (Trainer Deck B),Base Set,2,1599.99,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2365260.webp,2026-10-01
+2156445,Original,Sabrina's Gengar (1st Edition),Gym Heroes,3,1475.0,0.068477,https://storage.googleapis.com/pokeviews-prod/img/800/1f8d7965785f.webp,2026-10-01
+715591,Original,Blastoise (1st Edition),Base Set,4,1025.0,-0.202539,https://storage.googleapis.com/pokeviews-prod/img/800/7d569826ba44.webp,2026-10-01
+2365261,Original,Squirtle (Trainer Deck B),Base Set,5,787.5,-0.329787,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2365261.webp,2026-10-01
+715604,Original,Venusaur (1st Edition),Base Set,6,1037.5,-0.095947,https://storage.googleapis.com/pokeviews-prod/img/800/pc_715604.webp,2026-10-01
+715695,Original,Charizard (Shadowless),Base Set,7,991.22,-0.022947,https://storage.googleapis.com/pokeviews-prod/img/800/106999.webp,2026-10-01
+1341346,Original,Dark Charizard (1st Edition),Team Rocket,8,841.06,0.06466,https://storage.googleapis.com/pokeviews-prod/img/800/09f3d27c3b3f.webp,2026-10-01
+1450197,Original,Blaine's Charizard (1st Edition),Gym Challenge,9,782.5,-0.154675,https://storage.googleapis.com/pokeviews-prod/img/800/6c41780e8f9e.webp,2026-10-01
+715590,Original,Alakazam (1st Edition),Base Set,10,770.0,0.204725,https://storage.googleapis.com/pokeviews-prod/img/800/51592645ec50.webp,2026-10-01
+2021480,Original,Pikachu (E3 Red Cheeks),Base Set,11,783.75,0.287474,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2021480.webp,2026-10-01
+7531686,Original,Dragonite (1999-2000),Fossil,12,410.0,-0.24022,https://storage.googleapis.com/pokeviews-prod/img/800/pc_7531686.webp,2026-10-01
+7096109,Original,Charizard (1999-2000),Base Set,13,477.97,-0.017897,https://storage.googleapis.com/pokeviews-prod/img/800/pc_7096109.webp,2026-10-01
+1450208,Original,Rocket's Mewtwo (1st Edition),Gym Challenge,14,505.35,0.25759,https://storage.googleapis.com/pokeviews-prod/img/800/05205a7ad178.webp,2026-10-01
+715595,Original,Gyarados (1st Edition),Base Set,15,524.28,0.26138,https://storage.googleapis.com/pokeviews-prod/img/800/96762dca2061.webp,2026-10-01
+2386888,Original,Machop (Trainer Deck A),Base Set,16,450.0,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2386888.webp,2026-10-01
+715600,Original,Nidoking (1st Edition),Base Set,17,404.23,-0.130482,https://storage.googleapis.com/pokeviews-prod/img/800/70263f97f249.webp,2026-10-01
+1450207,Original,Misty's Gyarados (1st Edition),Gym Challenge,18,400.0,-0.006211,https://storage.googleapis.com/pokeviews-prod/img/800/cd5947f4a886.webp,2026-10-01
+715601,Original,Ninetales (1st Edition),Base Set,19,456.58,0.098869,https://storage.googleapis.com/pokeviews-prod/img/800/8c6c0e1d069a.webp,2026-10-01
+762208,Original,Blaine's Charizard,Gym Challenge,20,398.85,-0.103708,https://storage.googleapis.com/pokeviews-prod/img/800/2098b1d3af1a.webp,2026-10-01
+1099499,Original,Gengar (1st Edition),Fossil,21,365.53,0.041396,https://storage.googleapis.com/pokeviews-prod/img/800/59cca2e9b0a8.webp,2026-10-01
+1089418,Original,Pikachu (1st Edition Red Cheeks),Base Set,22,438.5,0.019767,https://storage.googleapis.com/pokeviews-prod/img/800/bd470d329f18.webp,2026-10-01
+715592,Original,Chansey (1st Edition),Base Set,23,351.8,-0.1205,https://storage.googleapis.com/pokeviews-prod/img/800/2b026d19e6d6.webp,2026-10-01
+13279833,Original,Lapras (1999-2000),Fossil,24,329.33,-0.101688,https://storage.googleapis.com/pokeviews-prod/img/800/e4e2d021ec8c.webp,2026-10-01
+715602,Original,Poliwrath (1st Edition),Base Set,25,360.0,0.043357,https://storage.googleapis.com/pokeviews-prod/img/800/c3d50708e8f5.webp,2026-10-01
+13644139,Pitch Black,Mega Darkrai ex,Pitch Black,1,161.0,-0.165327,https://storage.googleapis.com/pokeviews-prod/img/800/b876b601b9c1.webp,2026-10-01
+13644141,Pitch Black,Mega Darkrai ex,Pitch Black,2,139.64,-0.122864,https://storage.googleapis.com/pokeviews-prod/img/800/9c9b2f73f417.webp,2026-10-01
+13644140,Pitch Black,Morpeko ex,Pitch Black,3,71.88,-0.125441,https://storage.googleapis.com/pokeviews-prod/img/800/5a721f6cf830.webp,2026-10-01
+13644136,Pitch Black,Mega Zeraora ex,Pitch Black,4,44.34,-0.106769,https://storage.googleapis.com/pokeviews-prod/img/800/86eae7cdd7e1.webp,2026-10-01
+13644137,Pitch Black,Mega Chandelure ex,Pitch Black,5,32.91,-0.156154,https://storage.googleapis.com/pokeviews-prod/img/800/09a9ea95452d.webp,2026-10-01
+13644143,Pitch Black,Gwynn,Pitch Black,6,29.86,-0.117873,https://storage.googleapis.com/pokeviews-prod/img/800/7c3fb23be3e8.webp,2026-10-01
+13700651,Pitch Black,Armarouge (Best Buy Exclusive),Pitch Black,7,28.99,0.134194,https://storage.googleapis.com/pokeviews-prod/img/800/5093fb043384.webp,2026-10-01
+13644142,Pitch Black,Gladion's Final Battle,Pitch Black,8,22.87,-0.193298,https://storage.googleapis.com/pokeviews-prod/img/800/f0fceb48ad34.webp,2026-10-01
+13644131,Pitch Black,Misty's Vitality,Pitch Black,9,14.98,-0.001333,https://storage.googleapis.com/pokeviews-prod/img/800/29e447e76387.webp,2026-10-01
+13644112,Pitch Black,Slowbro,Pitch Black,10,9.65,-0.185654,https://storage.googleapis.com/pokeviews-prod/img/800/242e6956c0b9.webp,2026-10-01
+13644122,Pitch Black,Mega Darkrai ex,Pitch Black,11,9.02,-0.240741,https://storage.googleapis.com/pokeviews-prod/img/800/d9620ad35f47.webp,2026-10-01
+13644120,Pitch Black,Mega Chandelure ex,Pitch Black,12,7.34,-0.170621,https://storage.googleapis.com/pokeviews-prod/img/800/e392cdb9eabc.webp,2026-10-01
+13644146,Pitch Black,Gwynn,Pitch Black,13,7.35,-0.194962,https://storage.googleapis.com/pokeviews-prod/img/800/c98525ceef0e.webp,2026-10-01
+13644110,Pitch Black,Goldeen,Pitch Black,14,7.98,-0.02445,https://storage.googleapis.com/pokeviews-prod/img/800/9ff1b98244db.webp,2026-10-01
+13644124,Pitch Black,Mega Excadrill ex,Pitch Black,15,7.59,-0.061805,https://storage.googleapis.com/pokeviews-prod/img/800/2af061773aa5.webp,2026-10-01
+13644118,Pitch Black,Mega Zeraora ex,Pitch Black,16,7.45,0.155039,https://storage.googleapis.com/pokeviews-prod/img/800/e63c3de978e3.webp,2026-10-01
+13644123,Pitch Black,Morpeko ex,Pitch Black,17,5.72,-0.12,https://storage.googleapis.com/pokeviews-prod/img/800/be953e644046.webp,2026-10-01
+13644126,Pitch Black,Crushing Hammer,Pitch Black,18,5.08,-0.191083,https://storage.googleapis.com/pokeviews-prod/img/800/53748ced795d.webp,2026-10-01
+13644119,Pitch Black,Wailord ex,Pitch Black,19,4.75,-0.048096,https://storage.googleapis.com/pokeviews-prod/img/800/02f8c16772df.webp,2026-10-01
+13644109,Pitch Black,Armarouge,Pitch Black,20,3.49,-0.364299,https://storage.googleapis.com/pokeviews-prod/img/800/fe0462392aa3.webp,2026-10-01
+13644125,Pitch Black,Brave Bangle,Pitch Black,21,3.26,-0.197044,https://storage.googleapis.com/pokeviews-prod/img/800/62c8da949abd.webp,2026-10-01
+13644114,Pitch Black,Dhelmise,Pitch Black,22,3.5,-0.191686,https://storage.googleapis.com/pokeviews-prod/img/800/2207c501fc05.webp,2026-10-01
+13644111,Pitch Black,Primarina,Pitch Black,23,4.1,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/77dbf7ce39a9.webp,2026-10-01
+13644121,Pitch Black,Rampardos ex,Pitch Black,24,4.45,0.115288,https://storage.googleapis.com/pokeviews-prod/img/800/91e93b9cc8b7.webp,2026-10-01
+13644115,Pitch Black,Toucannon,Pitch Black,25,2.59,-0.212766,https://storage.googleapis.com/pokeviews-prod/img/800/32bb91e11393.webp,2026-10-01
+925716,Platinum,Gengar LV. X,Arceus,1,396.8,0.048072,https://storage.googleapis.com/pokeviews-prod/img/800/pc_925716.webp,2026-10-01
+925507,Platinum,Snorlax LV.X,Rising Rivals,2,399.96,0.126648,https://storage.googleapis.com/pokeviews-prod/img/800/89397.webp,2026-10-01
+1287191,Platinum,Charizard G LV. X,Supreme Victors,3,273.63,0.040102,https://storage.googleapis.com/pokeviews-prod/img/800/pc_1287191.webp,2026-10-01
+925508,Platinum,Pikachu,Rising Rivals,4,250.0,0.052942,https://storage.googleapis.com/pokeviews-prod/img/800/88091.webp,2026-10-01
+1287194,Platinum,Rayquaza C LV. X,Supreme Victors,5,215.22,-0.018381,https://storage.googleapis.com/pokeviews-prod/img/800/pc_1287194.webp,2026-10-01
+1287196,Platinum,Articuno,Supreme Victors,6,183.09,-0.103774,https://storage.googleapis.com/pokeviews-prod/img/800/83651.webp,2026-10-01
+925499,Platinum,Alakazam LV.X,Rising Rivals,7,252.16,0.253343,https://storage.googleapis.com/pokeviews-prod/img/800/pc_925499.webp,2026-10-01
+925504,Platinum,Infernape LV.X,Rising Rivals,8,198.5,0.06383,https://storage.googleapis.com/pokeviews-prod/img/800/pc_925504.webp,2026-10-01
+1287198,Platinum,Zapdos,Supreme Victors,9,200.0,0.016622,https://storage.googleapis.com/pokeviews-prod/img/800/90719.webp,2026-10-01
+925510,Platinum,Surfing Pikachu,Rising Rivals,10,223.07,0.53693,https://storage.googleapis.com/pokeviews-prod/img/800/89644.webp,2026-10-01
+1287197,Platinum,Moltres,Supreme Victors,11,174.73,-0.001543,https://storage.googleapis.com/pokeviews-prod/img/800/87563.webp,2026-10-01
+925729,Platinum,Ponyta,Arceus,12,143.0,-0.057164,https://storage.googleapis.com/pokeviews-prod/img/800/88291.webp,2026-10-01
+1287199,Platinum,Milotic,Supreme Victors,13,196.95,0.193636,https://storage.googleapis.com/pokeviews-prod/img/800/87456.webp,2026-10-01
+925747,Platinum,Gengar (Reverse Holo),Arceus,14,106.42,-0.232179,https://storage.googleapis.com/pokeviews-prod/img/800/85678.webp,2026-10-01
+925730,Platinum,Shinx,Arceus,15,149.99,0.19992,https://storage.googleapis.com/pokeviews-prod/img/800/89178.webp,2026-10-01
+925728,Platinum,Bagon,Arceus,16,108.7,-0.094167,https://storage.googleapis.com/pokeviews-prod/img/800/83700.webp,2026-10-01
+5923908,Platinum,Rayquaza C (Cracked Ice),Supreme Victors,17,175.0,0.548673,https://storage.googleapis.com/pokeviews-prod/img/800/pc_5923908.webp,2026-10-01
+886668,Platinum,Vulpix,Platinum,18,111.74,0.03809,https://storage.googleapis.com/pokeviews-prod/img/800/90443.webp,2026-10-01
+805954,Platinum,Giratina LV. X,Platinum,19,129.59,0.993999,https://storage.googleapis.com/pokeviews-prod/img/800/pc_805954.webp,2026-10-01
+925714,Platinum,Arceus LV. X,Arceus,20,97.05,0.307951,https://storage.googleapis.com/pokeviews-prod/img/800/83603.webp,2026-10-01
+886655,Platinum,Giratina,Platinum,21,119.23,0.518467,https://storage.googleapis.com/pokeviews-prod/img/800/85736.webp,2026-10-01
+806049,Platinum,Psyduck (Reverse Holo),Platinum,22,136.86,0.351704,https://storage.googleapis.com/pokeviews-prod/img/800/88439.webp,2026-10-01
+1287190,Platinum,Blaziken FB LV. X,Supreme Victors,23,96.87,0.080054,https://storage.googleapis.com/pokeviews-prod/img/800/pc_1287190.webp,2026-10-01
+925746,Platinum,Gengar (Reverse Holo),Arceus,24,92.5,0.069364,https://storage.googleapis.com/pokeviews-prod/img/800/85677.webp,2026-10-01
+925509,Platinum,Flying Pikachu,Rising Rivals,25,102.02,0.233615,https://storage.googleapis.com/pokeviews-prod/img/800/85535.webp,2026-10-01
+8244604,Scarlet & Violet,Umbreon ex,Prismatic Evolutions,1,966.61,-0.149762,https://storage.googleapis.com/pokeviews-prod/img/800/610516.webp,2026-10-01
+6277151,Scarlet & Violet,Mew ex,Paldean Fates,2,847.0,-0.067879,https://storage.googleapis.com/pokeviews-prod/img/800/534919.webp,2026-10-01
+10031761,Scarlet & Violet,Victini,Black Bolt,3,585.66,-0.0239,https://storage.googleapis.com/pokeviews-prod/img/800/642546.webp,2026-10-01
+10031762,Scarlet & Violet,Zekrom ex,Black Bolt,4,539.07,-0.112671,https://storage.googleapis.com/pokeviews-prod/img/800/642623.webp,2026-10-01
+10026831,Scarlet & Violet,Victini,White Flare,5,492.96,-0.078218,https://storage.googleapis.com/pokeviews-prod/img/800/644350.webp,2026-10-01
+10026832,Scarlet & Violet,Reshiram ex,White Flare,6,470.08,0.024564,https://storage.googleapis.com/pokeviews-prod/img/800/642289.webp,2026-10-01
+8244599,Scarlet & Violet,Sylveon ex,Prismatic Evolutions,7,366.0,-0.217949,https://storage.googleapis.com/pokeviews-prod/img/800/610511.webp,2026-10-01
+9432938,Scarlet & Violet,Team Rocket's Mewtwo ex,Destined Rivals,8,372.49,-0.126369,https://storage.googleapis.com/pokeviews-prod/img/800/633031.webp,2026-10-01
+5809582,Scarlet & Violet,Charizard ex,Scarlet & Violet 151,9,305.0,-0.067506,https://storage.googleapis.com/pokeviews-prod/img/800/517045.webp,2026-10-01
+5287492,Scarlet & Violet,Magikarp,Paldea Evolved,10,286.8,-0.180571,https://storage.googleapis.com/pokeviews-prod/img/800/497606.webp,2026-10-01
+8244587,Scarlet & Violet,Leafeon ex,Prismatic Evolutions,11,273.76,-0.030835,https://storage.googleapis.com/pokeviews-prod/img/800/610499.webp,2026-10-01
+8244598,Scarlet & Violet,Espeon ex,Prismatic Evolutions,12,225.14,-0.158355,https://storage.googleapis.com/pokeviews-prod/img/800/610510.webp,2026-10-01
+10031754,Scarlet & Violet,Zekrom ex,Black Bolt,13,228.59,-0.094478,https://storage.googleapis.com/pokeviews-prod/img/800/642618.webp,2026-10-01
+7800271,Scarlet & Violet,Pikachu ex,Surging Sparks,14,249.99,-0.086394,https://storage.googleapis.com/pokeviews-prod/img/800/590027.webp,2026-10-01
+6277153,Scarlet & Violet,Charizard ex,Paldean Fates,15,250.62,-0.037077,https://storage.googleapis.com/pokeviews-prod/img/800/535090.webp,2026-10-01
+6775731,Scarlet & Violet,Greninja ex,Twilight Masquerade,16,249.36,-0.229181,https://storage.googleapis.com/pokeviews-prod/img/800/550258.webp,2026-10-01
+8244592,Scarlet & Violet,Vaporeon ex,Prismatic Evolutions,17,218.23,-0.175308,https://storage.googleapis.com/pokeviews-prod/img/800/610504.webp,2026-10-01
+8244593,Scarlet & Violet,Glaceon ex,Prismatic Evolutions,18,214.99,-0.153583,https://storage.googleapis.com/pokeviews-prod/img/800/610505.webp,2026-10-01
+10031597,Scarlet & Violet,Seismitoad,Black Bolt,19,187.03,-0.145787,https://storage.googleapis.com/pokeviews-prod/img/800/642558.webp,2026-10-01
+9432939,Scarlet & Violet,Cynthia's Garchomp ex,Destined Rivals,20,174.99,-0.166675,https://storage.googleapis.com/pokeviews-prod/img/800/633032.webp,2026-10-01
+10026819,Scarlet & Violet,Reshiram ex,White Flare,21,168.0,-0.11565,https://storage.googleapis.com/pokeviews-prod/img/800/642283.webp,2026-10-01
+8244596,Scarlet & Violet,Jolteon ex,Prismatic Evolutions,22,158.75,-0.118056,https://storage.googleapis.com/pokeviews-prod/img/800/610508.webp,2026-10-01
+7800272,Scarlet & Violet,Latias ex,Surging Sparks,23,170.0,-0.030621,https://storage.googleapis.com/pokeviews-prod/img/800/589985.webp,2026-10-01
+6277152,Scarlet & Violet,Gardevoir ex,Paldean Fates,24,150.0,-0.041656,https://storage.googleapis.com/pokeviews-prod/img/800/535085.webp,2026-10-01
+8244589,Scarlet & Violet,Flareon ex,Prismatic Evolutions,25,163.47,-0.18265,https://storage.googleapis.com/pokeviews-prod/img/800/610501.webp,2026-10-01
+962968,Sun & Moon,Latias & Latios GX,Team Up,1,1850.0,-0.412695,https://storage.googleapis.com/pokeviews-prod/img/800/183899.webp,2026-10-01
+962963,Sun & Moon,Gengar & Mimikyu GX,Team Up,2,1575.99,0.260792,https://storage.googleapis.com/pokeviews-prod/img/800/183830.webp,2026-10-01
+962959,Sun & Moon,Magikarp & Wailord GX,Team Up,3,814.79,0.013975,https://storage.googleapis.com/pokeviews-prod/img/800/183964.webp,2026-10-01
+963361,Sun & Moon,Gardevoir & Sylveon GX,Unbroken Bonds,4,701.62,-0.122975,https://storage.googleapis.com/pokeviews-prod/img/800/189316.webp,2026-10-01
+964133,Sun & Moon,Charizard GX,Hidden Fates,5,599.75,-0.068132,https://storage.googleapis.com/pokeviews-prod/img/800/197780.webp,2026-10-01
+961147,Sun & Moon,Mewtwo GX,Shining Legends,6,675.0,0.001172,https://storage.googleapis.com/pokeviews-prod/img/800/146698.webp,2026-10-01
+964459,Sun & Moon,Arceus & Dialga & Palkia GX,Cosmic Eclipse,7,417.25,-0.227315,https://storage.googleapis.com/pokeviews-prod/img/800/201338.webp,2026-10-01
+964460,Sun & Moon,Reshiram & Zekrom GX,Cosmic Eclipse,8,375.83,-0.060425,https://storage.googleapis.com/pokeviews-prod/img/800/201339.webp,2026-10-01
+962984,Sun & Moon,Gengar & Mimikyu GX,Team Up,9,430.0,0.04878,https://storage.googleapis.com/pokeviews-prod/img/800/183831.webp,2026-10-01
+960934,Sun & Moon,Charizard GX,Burning Shadows,10,355.62,0.252448,https://storage.googleapis.com/pokeviews-prod/img/800/138497.webp,2026-10-01
+964453,Sun & Moon,Blastoise & Piplup GX,Cosmic Eclipse,11,431.24,0.178767,https://storage.googleapis.com/pokeviews-prod/img/800/201334.webp,2026-10-01
+963787,Sun & Moon,Raichu & Alolan Raichu GX,Unified Minds,12,413.25,0.242857,https://storage.googleapis.com/pokeviews-prod/img/800/194979.webp,2026-10-01
+963808,Sun & Moon,Mewtwo & Mew GX,Unified Minds,13,320.0,-0.099251,https://storage.googleapis.com/pokeviews-prod/img/800/194999.webp,2026-10-01
+963792,Sun & Moon,Mega Sableye & Tyranitar GX,Unified Minds,14,350.88,-0.011606,https://storage.googleapis.com/pokeviews-prod/img/800/195290.webp,2026-10-01
+963357,Sun & Moon,Greninja & Zoroark GX,Unbroken Bonds,15,315.0,-0.112676,https://storage.googleapis.com/pokeviews-prod/img/800/189310.webp,2026-10-01
+961514,Sun & Moon,Lillie,Ultra Prism,16,257.55,-0.195156,https://storage.googleapis.com/pokeviews-prod/img/800/157767.webp,2026-10-01
+963784,Sun & Moon,Psyduck & Slowpoke GX,Unified Minds,17,357.92,0.168718,https://storage.googleapis.com/pokeviews-prod/img/800/194955.webp,2026-10-01
+2572271,Sun & Moon,Misty's Favor,Unified Minds,18,294.14,-0.036617,https://storage.googleapis.com/pokeviews-prod/img/800/195296.webp,2026-10-01
+964454,Sun & Moon,Solgaleo & Lunala GX,Cosmic Eclipse,19,290.25,-0.016102,https://storage.googleapis.com/pokeviews-prod/img/800/201250.webp,2026-10-01
+962851,Sun & Moon,Gengar & Mimikyu GX,Team Up,20,364.81,0.065108,https://storage.googleapis.com/pokeviews-prod/img/800/183828.webp,2026-10-01
+11324577,Sun & Moon,Sealed Prerelease Kit,Sun & Moon,21,275.0,0.0,https://tcgplayer-cdn.tcgplayer.com/product/206409_200w.jpg,2026-10-01
+962989,Sun & Moon,Eevee & Snorlax GX,Team Up,22,255.25,-0.088393,https://storage.googleapis.com/pokeviews-prod/img/800/183909.webp,2026-10-01
+964155,Sun & Moon,Umbreon GX,Hidden Fates,23,228.43,-0.095327,https://storage.googleapis.com/pokeviews-prod/img/800/197823.webp,2026-10-01
+10085367,Sun & Moon,Sealed Mini Portfolio,Forbidden Light,24,244.49,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/pc_10085367.webp,2026-10-01
+962962,Sun & Moon,Gengar & Mimikyu GX,Team Up,25,294.01,-0.050386,https://storage.googleapis.com/pokeviews-prod/img/800/183829.webp,2026-10-01
+2513024,Sword & Shield,Umbreon VMAX,Evolving Skies,1,1725.0,-0.080574,https://storage.googleapis.com/pokeviews-prod/img/800/246723.webp,2026-10-01
+2513027,Sword & Shield,Rayquaza VMAX,Evolving Skies,2,1000.0,-0.047619,https://storage.googleapis.com/pokeviews-prod/img/800/246733.webp,2026-10-01
+13170584,Sword & Shield,Gengar (Prize Pack),Sword & Shield,3,805.0,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/ff4688eb4f55.webp,2026-10-01
+2771297,Sword & Shield,Gengar VMAX,Fusion Strike,4,834.56,-0.072711,https://storage.googleapis.com/pokeviews-prod/img/800/253266.webp,2026-10-01
+4050103,Sword & Shield,Giratina V,Lost Origin,5,792.64,-0.0092,https://storage.googleapis.com/pokeviews-prod/img/800/284137.webp,2026-10-01
+2513002,Sword & Shield,Rayquaza V,Evolving Skies,6,399.99,-0.086948,https://storage.googleapis.com/pokeviews-prod/img/800/246728.webp,2026-10-01
+2513001,Sword & Shield,Dragonite V,Evolving Skies,7,396.0,-0.138662,https://storage.googleapis.com/pokeviews-prod/img/800/246758.webp,2026-10-01
+4277307,Sword & Shield,Lugia V,Silver Tempest,8,430.0,-0.081883,https://storage.googleapis.com/pokeviews-prod/img/800/451834.webp,2026-10-01
+5830336,Sword & Shield,Umbreon VMAX (Prize Pack),Evolving Skies,9,366.86,0.000818,https://storage.googleapis.com/pokeviews-prod/img/800/pc_5830336.webp,2026-10-01
+2513021,Sword & Shield,Sylveon VMAX,Evolving Skies,10,315.9,-0.04792,https://storage.googleapis.com/pokeviews-prod/img/800/246704.webp,2026-10-01
+2513014,Sword & Shield,Leafeon VMAX,Evolving Skies,11,347.97,0.008609,https://storage.googleapis.com/pokeviews-prod/img/800/246696.webp,2026-10-01
+2513182,Sword & Shield,Umbreon V,Evolving Skies,12,349.7,0.07214,https://storage.googleapis.com/pokeviews-prod/img/800/246719.webp,2026-10-01
+6782121,Sword & Shield,Mew V (Prize Pack),Fusion Strike,13,323.57,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/pc_6782121.webp,2026-10-01
+7136071,Sword & Shield,Radiant Charizard (Prize Pack),Crown Zenith,14,304.26,-0.008344,https://storage.googleapis.com/pokeviews-prod/img/800/pc_7136071.webp,2026-10-01
+4637125,Sword & Shield,Giratina VSTAR,Crown Zenith,15,261.33,-0.133808,https://storage.googleapis.com/pokeviews-prod/img/800/478100.webp,2026-10-01
+2254005,Sword & Shield,Blaziken VMAX,Chilling Reign,16,280.0,-0.058507,https://storage.googleapis.com/pokeviews-prod/img/800/241673.webp,2026-10-01
+2771296,Sword & Shield,Espeon VMAX,Fusion Strike,17,295.0,-0.025245,https://storage.googleapis.com/pokeviews-prod/img/800/253265.webp,2026-10-01
+2513018,Sword & Shield,Glaceon VMAX,Evolving Skies,18,281.0,0.080769,https://storage.googleapis.com/pokeviews-prod/img/800/246756.webp,2026-10-01
+3188378,Sword & Shield,Charizard V,Brilliant Stars,19,270.0,-0.03829,https://storage.googleapis.com/pokeviews-prod/img/800/263873.webp,2026-10-01
+4637100,Sword & Shield,Mewtwo VSTAR,Crown Zenith,20,243.29,0.057783,https://storage.googleapis.com/pokeviews-prod/img/800/477057.webp,2026-10-01
+2512991,Sword & Shield,Espeon V,Evolving Skies,21,196.04,-0.099164,https://storage.googleapis.com/pokeviews-prod/img/800/246689.webp,2026-10-01
+1673335,Sword & Shield,Tyranitar V,Battle Styles,22,196.39,-0.084429,https://storage.googleapis.com/pokeviews-prod/img/800/234060.webp,2026-10-01
+5963740,Sword & Shield,Charizard V (Prize Pack),Brilliant Stars,23,74.5,-0.6275,https://storage.googleapis.com/pokeviews-prod/img/800/pc_5963740.webp,2026-10-01
+6781821,Sword & Shield,Gengar V (Prize Pack),Fusion Strike,24,199.8,0.0,https://storage.googleapis.com/pokeviews-prod/img/800/pc_6781821.webp,2026-10-01
+2253981,Sword & Shield,Galarian Moltres V,Chilling Reign,25,184.78,-0.042591,https://storage.googleapis.com/pokeviews-prod/img/800/241768.webp,2026-10-01
+959116,XY,M Rayquaza EX,Ancient Origins,1,542.5,0.172973,https://storage.googleapis.com/pokeviews-prod/img/800/101520.webp,2026-10-01
+958315,XY,Dialga EX,Phantom Forces,2,422.04,-0.089607,https://storage.googleapis.com/pokeviews-prod/img/800/94689.webp,2026-10-01
+958307,XY,Gengar EX,Phantom Forces,3,464.61,0.074243,https://storage.googleapis.com/pokeviews-prod/img/800/94683.webp,2026-10-01
+958759,XY,Team Aqua's Kyogre EX,Double Crisis,4,299.99,0.055522,https://storage.googleapis.com/pokeviews-prod/img/800/97052.webp,2026-10-01
+958768,XY,Team Magma's Groudon EX,Double Crisis,5,308.47,0.311466,https://storage.googleapis.com/pokeviews-prod/img/800/97061.webp,2026-10-01
+958928,XY,M Rayquaza EX,Roaring Skies,6,237.5,-0.05,https://storage.googleapis.com/pokeviews-prod/img/800/98141.webp,2026-10-01
+957855,XY,M Charizard EX,Flashfire,7,219.64,-0.034549,https://storage.googleapis.com/pokeviews-prod/img/800/91246.webp,2026-10-01
+959115,XY,Primal Groudon ex,Ancient Origins,8,248.44,0.25608,https://storage.googleapis.com/pokeviews-prod/img/800/101519.webp,2026-10-01
+959114,XY,Primal Kyogre EX,Ancient Origins,9,215.8,0.072298,https://storage.googleapis.com/pokeviews-prod/img/800/101518.webp,2026-10-01
+959112,XY,Lugia EX,Ancient Origins,10,195.0,0.218826,https://storage.googleapis.com/pokeviews-prod/img/800/101516.webp,2026-10-01
+958314,XY,M Gengar EX,Phantom Forces,11,178.12,-0.14159,https://storage.googleapis.com/pokeviews-prod/img/800/94688.webp,2026-10-01
+959615,XY,Gyarados EX,BREAKpoint,12,194.99,0.455366,https://storage.googleapis.com/pokeviews-prod/img/800/111531.webp,2026-10-01
+959976,XY,Umbreon EX,Fates Collide,13,101.45,-0.100222,https://storage.googleapis.com/pokeviews-prod/img/800/117891.webp,2026-10-01
+957847,XY,Charizard EX,Flashfire,14,175.75,0.106181,https://storage.googleapis.com/pokeviews-prod/img/800/91238.webp,2026-10-01
+959352,XY,Mewtwo EX,BREAKthrough,15,142.4,-0.033003,https://storage.googleapis.com/pokeviews-prod/img/800/107282.webp,2026-10-01
+958927,XY,Rayquaza EX,Roaring Skies,16,179.98,0.636182,https://storage.googleapis.com/pokeviews-prod/img/800/98140.webp,2026-10-01
+959818,XY,Sylveon EX,Generations,17,156.25,0.470588,https://storage.googleapis.com/pokeviews-prod/img/800/113764.webp,2026-10-01
+2390415,XY,Na,Fates Collide,18,119.82,0.046463,https://storage.googleapis.com/pokeviews-prod/img/800/pc_2390415.webp,2026-10-01
+958606,XY,Primal Kyogre EX,Primal Clash,19,96.39,-0.123727,https://storage.googleapis.com/pokeviews-prod/img/800/96047.webp,2026-10-01
+959353,XY,Mewtwo EX,BREAKthrough,20,134.73,0.07784,https://storage.googleapis.com/pokeviews-prod/img/800/107283.webp,2026-10-01
+957854,XY,M Charizard EX,Flashfire,21,140.0,0.166667,https://storage.googleapis.com/pokeviews-prod/img/800/91245.webp,2026-10-01
+959814,XY,Flareon EX,Generations,22,149.5,0.11985,https://storage.googleapis.com/pokeviews-prod/img/800/113748.webp,2026-10-01
+957816,XY,M Charizard EX,Flashfire,23,86.16,-0.147353,https://storage.googleapis.com/pokeviews-prod/img/800/91206.webp,2026-10-01
+960380,XY,M Charizard EX,Evolutions,24,117.5,0.327984,https://storage.googleapis.com/pokeviews-prod/img/800/124114.webp,2026-10-01
+958608,XY,Primal Groudon EX,Primal Clash,25,113.25,0.134883,https://storage.googleapis.com/pokeviews-prod/img/800/96049.webp,2026-10-01
