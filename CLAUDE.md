@@ -1055,7 +1055,11 @@ patch files, pushes, and starts the site workflow when page/, the build scripts,
 changed. A diff that does not apply fails the run and stays in patches/ untouched. Build the diff in a scratch repo
 whose first commit is main's blobs (`git show FETCH_HEAD:<path>`), copy the tested files over and `git diff`; test it
 with the same script the workflow runs (ut/test_applypatch.sh [branch]). The connector's token CANNOT create or
-change workflow files (403 Forbidden): those need the editor.
+change workflow files (403 Forbidden): those need the editor. First real run 2026-10-23 (CLAUDE.md + collector.py +
+page/app.js, 22 KB diff): applied and committed 7 s after the push, site build dispatched. Two lessons: content
+pushed through the connector has backslash-u escapes UNESCAPED (`\u2019` in a JS string arrived as the character
+itself - harmless there, but the blob sha differs from the local file, so compare and re-align the local copy), and
+long lines with non-ASCII characters (help.js) are safer through the editor, where the ops are small.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
