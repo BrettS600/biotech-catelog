@@ -1065,6 +1065,10 @@ def read_requests(state):
                 pass
         elif msg.get("type") == "forecast":
             forecast_record(v, msg, t)
+        elif msg.get("type") == "read" and msg.get("i"):            # Review pressed on a listing with an incomplete eBay record
+            q = v.setdefault("site_read_q", [])
+            if str(msg["i"])[:60] not in q:
+                q.append(str(msg["i"])[:60])
 
 
 # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
@@ -1115,6 +1119,90 @@ def forecast_score(v, cat, cards=None):
         rec["done"], rec["actual"], rec["res"] = es.ts(es.NOW), round(total, 2), rows
         v["forecast_t"] = int(now_ms)
         log(f"Forecast scored: recorded {rec['t']}, expected net ${rec['exp']:.0f}, realized ${total:.0f}")
+
+
+SITE_READS_PER_HOUR = 60         # Review pressed on the site: one full look per press, at most this many an hour
+
+
+def site_reply(obj):
+    """An answer for the page on the channel's reply topic (<channel>-pcr), signed like everything else on it."""
+    if DRY_RUN or not es.PASSWORD:
+        return
+    topic, key = alert_channel()
+    body = json.dumps(dict(obj, t=int(time.time() * 1000)), separators=(",", ":"))
+    try:
+        requests.post(f"{NTFY_SERVER}/{topic}-pcr", data=json.dumps({"m": body, "s": hmac.new(key, body.encode(), "sha256").hexdigest()}).encode(), timeout=5)
+    except Exception:
+        pass
+
+
+def site_read(state, cat, iid):
+    """Review pressed on the site for a listing whose eBay record is incomplete (Brett, 2026-10-23: "no photo on file",
+    "not read", n/s where the listing states its condition): one full getItem now, whatever the listing's state - open
+    (the record learns like any confirmation and a sold listing closes), closed, or an alerted auction / hit kept only
+    in the histories - and the answer goes straight back to the page on the reply topic (the live file follows at the
+    next publish). One call per press; SITE_READS_PER_HOUR caps it. -> True when something was read."""
+    v = state["vps"]
+    box = v.setdefault("site_reads", {})
+    if box.get("hour") != es.ts(es.NOW)[:13]:
+        box["hour"], box["n"] = es.ts(es.NOW)[:13], 0
+    if box["n"] >= SITE_READS_PER_HOUR:
+        return False
+    box["n"] += 1
+    rec = state["open"].get(iid)
+    hist = [e for e in v.get("au_hist", []) + v.get("hit_hist", []) if e.get("i") == iid]
+    closed = None if rec is not None else next((r for r in state["closed"] if r.get("id") == iid), None)
+    if rec is None and closed is None and not hist:
+        return False
+    if DRY_RUN:
+        it = json.load(open(os.path.join("fixtures", "items.json"))).get(iid)
+    else:
+        try:
+            it = es.api_get(state, f"/buy/browse/v1/item/{iid}", {"fieldgroups": "PRODUCT"}, ok_404=True)
+        except RuntimeError as e:
+            log(f"Site read: lookup failed for {iid} ({e})")
+            return False
+    if it is None:
+        site_reply({"type": "read", "i": iid, "gone": 1})
+        log(f"Site read: {iid} is no longer on eBay")
+        return True
+    src = rec if rec is not None else closed
+    probe = rec if rec is not None else {"id": iid, "card": (src or hist[0]).get("card"), "title": (src or {}).get("title") or hist[0].get("ti") or "",
+                                        "epid": (src or {}).get("epid") or "", "tcond": (src or {}).get("tcond") or hist[0].get("tc") or "UNK"}
+    es.item_facts(probe, it)                                 # photos, photo count, quantity, returns, eBay's condition
+    if probe.get("card") is not None:
+        try:
+            es.learn_facts(state, cat, probe, it)            # eBay's set / rarity / finish, compared with the card
+        except Exception as e:
+            log(f"Site read: facts failed for {iid} ({e})")
+    fields = {"img": probe.get("img") or ((it.get("image") or {}).get("imageUrl")), "imgs": (probe.get("imgs") or [])[:es.IMGS_KEEP],
+              "tc": probe.get("tcond", "UNK"), "ec": probe.get("ec", ""), "ef": es.facts_row(probe), "ph": probe.get("n_img")}
+    if rec is not None:
+        rec["checked"], rec["cond_tried"] = es.ts(es.NOW), 1
+        rec.setdefault("img", fields["img"])
+        kind, price, end = es.classify(it)
+        if kind in ("sold", "ended"):                        # the look doubles as a confirmation
+            es.close_listing(state, iid, rec, kind, end or es.NOW, None if price is None else round(price + (rec.get("ship") or 0), 2))
+    if closed is not None:
+        closed.update({k: probe[k] for k in ("ef", "ec", "ecc", "tcond", "n_img") if k in probe})
+        closed["img"] = closed.get("img") or fields["img"]
+        if fields["imgs"]:
+            closed["imgs"] = fields["imgs"]
+    for e in hist:                                           # the auction / hit history rows: photos, condition, facts
+        e["img"] = e.get("img") or fields["img"]
+        if fields["imgs"]:
+            e["imgs"] = fields["imgs"]
+        if fields["tc"] != "UNK":
+            e["tc"] = fields["tc"]
+        e["ec"] = fields["ec"]
+        if "ef" in probe:
+            e["ef"] = probe["ef"]
+        if fields["ph"] is not None:
+            e["ph"] = fields["ph"]
+    site_reply(dict(fields, type="read", i=iid))
+    log(f"Site read: {iid} ({probe.get('title', '')[:50]}) - {len(fields['imgs'])} photos, condition {fields['tc']}"
+        f"{' (' + fields['ec'] + ')' if fields['ec'] else ''}, facts {'read' if fields['ef'] else 'none'}")
+    return True
 
 
 def quiet_now(cfg):
@@ -2085,7 +2173,8 @@ def auction_alerts(state, cat, cards, cfg):
             "bid": rec["item"], "ship": rec["ship"], "nb": watch[iid].get("bids") or 0, "end": end, "tc": rec["tcond"],
             "fb": rec.get("fb"), "pct": rec.get("pct"), "kd": kind, "s": d["nm"][0], "net": [nets.get("NM"), nets.get("LP")],
             "tier": rec["tier"], "sc": rec["sc"], "scr": rec["scr"], "ph": rec.get("n_img"),
-            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4]})   # its photos, for the Review screen after the auction
+            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4],    # its photos, for the Review screen after the auction
+            "ec": rec.get("ec", ""), **({"ef": rec["ef"]} if "ef" in rec else {})})   # eBay's condition text and facts, read for the alert (2026-10-23)
     return n
 
 
@@ -2103,7 +2192,8 @@ def hit_snapshot(rec, d, kd, cs):
             "bo": 1 if rec.get("bo") else 0, "fb": rec.get("fb"), "pct": rec.get("pct"), "ph": rec.get("n_img"),
             "sc": rec.get("sc", 0), "scr": rec.get("scr") or [], "idv": rec.get("idv") or "", "A": cs.get("A"),
             "s": d["nm"][0], "mb": d["nm"][1], "p": d["nm"][2], "roi": d["nm"][3], "tax": d.get("tax"),
-            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4]}   # its photos, for the Review screen once it has left the table
+            "img": rec.get("img"), "imgs": (rec.get("imgs") or [])[:4],   # its photos, for the Review screen once it has left the table
+            "ec": rec.get("ec", ""), **({"ef": rec["ef"]} if "ef" in rec else {})}   # eBay's condition text and facts as read for the alert (2026-10-23)
 
 
 def hh_backfill(state, cat):
@@ -2152,7 +2242,8 @@ def hh_rows(state):
                      r.get("tc"), r.get("bo", 0), r.get("fb"), r.get("pct"), r.get("ph"), r.get("tr"), r.get("sc", 0), r.get("scr") or [],
                      r.get("idv") or "", r.get("A"), r.get("s"), r.get("mb"), r.get("p"), r.get("roi"), r.get("tax"), r.get("kd"),
                      r.get("dec"), 1 if (r.get("um") or (rec or {}).get("um")) else 0, out, r.get("old", 0),
-                     r.get("img") or (rec or {}).get("img"), (r.get("imgs") or (rec or {}).get("imgs") or [])[:4]])   # 29-30: photos for the Review screen
+                     r.get("img") or (rec or {}).get("img"), (r.get("imgs") or (rec or {}).get("imgs") or [])[:4],   # 29-30: photos for the Review screen
+                     es.facts_row(r if "ef" in r else (rec or {})), r.get("ec") or (rec or {}).get("ec") or ""])      # 31-32: eBay's facts and condition text
     return rows
 
 
@@ -2201,7 +2292,8 @@ def au_rows(state):
              (r.get("net") or [None, None])[1], r.get("tier"), r.get("sc"), r.get("scr") or [], r.get("ph"), r.get("fin"),
              r.get("fb2"), r.get("fst"), r.get("dec"), r.get("old", 0), r.get("tot0"), 1 if r.get("um") else 0,
              r.get("img") or rec_of(r).get("img"),                                           # 27-28: photos for the Review screen
-             (r.get("imgs") or rec_of(r).get("imgs") or [])[:4]] for r in v["au_hist"]]
+             (r.get("imgs") or rec_of(r).get("imgs") or [])[:4],
+             es.facts_row(r if "ef" in r else rec_of(r)), r.get("ec") or rec_of(r).get("ec") or ""] for r in v["au_hist"]]   # 29-30: facts, condition text
 
 
 def auction_finish(state, cards, n):
@@ -2412,6 +2504,12 @@ def cycle(state, cat, sched, counters):
     now = clock(state)
     v = state.setdefault("vps", {})
     t = time.time()
+    for iid in v.pop("site_read_q", []):                     # Review pressed on the site: read the listing now (site_read)
+        try:
+            if site_read(state, cat, iid):
+                v["read_t"] = int(t * 1000)                  # publish this cycle (part of the signature below)
+        except Exception as e:
+            log(f"Site read: {iid} failed ({str(e)[:120]})")
 
     def due(key, every):
         if t - sched.get(key, 0) >= every:
@@ -2661,7 +2759,8 @@ def cycle(state, cat, sched, counters):
         save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0))   # a change on the Alerts tab is published at once
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0),
+           v.get("read_t", 0))   # a change on the Alerts tab, or a listing read for the Review screen, is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t

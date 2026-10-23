@@ -269,12 +269,19 @@ const TABLES = {
    Margin and buy tax come from the SAVED Notification Settings settings, never from the boxes at the top (Brett: the view is
    about what was sent). What selling the card brings in is the figure frozen when the alert went out. */
 function AU_ON() { const e = document.getElementById('au-er'); return !!(e && e.checked); }
+// eBay's facts (48: the facts row, 49-50: its set / rarity-finish text) and condition text (55) on an auction or hit row:
+// the live row's while the listing is in the 24-hour table, else what the alert's own record kept (2026-10-23: the
+// alert had read them and thrown them away, so every auction said "not read")
+function histFacts(row, lv, ef, ec) {
+  row[48] = lv ? lv[48] : ef === undefined ? null : ef; row[55] = lv ? lv[55] || '' : ec || '';
+  row[49] = row[48] && row[48].length ? row[48][0] || '' : ''; row[50] = row[48] && row[48].length ? rfText([row[48][1], row[48][2]]) : '';
+}
 function auRows(live) {
   const A = (live.alert && live.alert.au) || [], c = Object.assign({}, AL_DEFAULT, (live.alert && live.alert.cfg) || {});
   const margin = Math.min(0.5, Math.max(0, c.margin / 100)), tax = Math.min(0.15, Math.max(0, c.tax / 100)), now = Date.now();
   const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
   return A.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((a, i) => {
-    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag, img, imgs] = a;
+    const [iid, t, cid, ti, u, bid, ship, nb, end, tc, fb, pct, kd, s, netNM, netLP, tier, sc, scr, ph, fin, fb2, fst, dec, old, tot0, umFlag, img, imgs, ef, ec] = a;
     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {};
     const lp = dec === 'lp' || (dec !== 'nm' && tc === 'LP'), net = lp ? netLP : netNM;
     const maxbuy = net == null ? null : r2(net / (1 + margin)), sh = ship == null ? 0 : ship;
@@ -294,7 +301,7 @@ function auRows(live) {
       pc, sold && pc ? r1((ftot / pc - 1) * 100) : null, '', '', [], base[PC_LIVE.pcm], base[PC_LIVE.km],
       bid, sold ? fin : null, sold && net != null ? r2(net - fall) : null, sold && net != null && fall > 0 ? r1((net - fall) / fall * 100) : null, i];
     row[46] = mtOf(cid);
-    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
+    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); histFacts(row, lv, ef, ec);   // eBay's facts: the live row's, else the alert's own record
     row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
     row.au = {fst, kd, dec, old, nb, fb2, end, tot0, res, res0}; row.um = um; row.pics = (imgs || []).slice(1);
     return row;
@@ -997,7 +1004,7 @@ const COMPARABLE = new Set(['NM', 'LP', 'UNK']);
 function hhRows(live) {
   const H = (live.alert && live.alert.hh) || [], now = Date.now();
   return H.slice().sort((x, y) => (x[1] < y[1] ? 1 : -1)).map((h, i) => {
-    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old, img, imgs] = h;
+    const [iid, t, cid, ti, u, first, item, ship, tot, tc, bo, fb, pct, ph, tier, sc, scr, idv, A, s, mb, p, roi, tax, kd, dec, um, out, old, img, imgs, ef, ec] = h;
     const base = idRow.get(cid) || [], cs = (live.cards || {})[String(cid)] || {}, pc = base[6] == null ? null : base[6];
     const marked = umOf(iid, um);
     const row = [cid, base[1] || ti || '', base[2] || '', base[3] || '', base[4] || '', first ? r1((now - Date.parse(first)) / 36e5) : null, ti || '', item, ship, tot,
@@ -1006,7 +1013,7 @@ function hhRows(live) {
       pc, pc && tot ? r1((tot / pc - 1) * 100) : null, '', idv || '', [], base[PC_LIVE.pcm], base[PC_LIVE.km],
       null, null, null, null, i - 100000];                 // ahead of the live rows, newest alert first
     row[46] = mtOf(cid);
-    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); row[48] = lv ? lv[48] : null; row[49] = lv ? lv[49] : ''; row[50] = lv ? lv[50] : '';
+    const lv = LIVE.erMap && LIVE.erMap.get(iid); row[47] = rfText(pcRF(base)); histFacts(row, lv, ef, ec);   // eBay's facts: the live row's, else the hit's own record
     row[51] = base[PC_LIVE.kt]; row[52] = base[PC_LIVE.hits]; row[53] = base[PC_LIVE.hitpct]; row[54] = base[PC_LIVE.pcmm];
     row.hh = {t, kd, dec, old, out}; row.um = marked; row.lrn = ''; row.tw = null; row.pics = (imgs || []).slice(1);
     return row;
@@ -1121,6 +1128,53 @@ function reviewPicRefresh() {
   const pcPage = 'https://www.pricecharting.com/game/' + LIVE.rvCard;
   box.outerHTML = '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>';
 }
+// Review on a listing whose eBay record is incomplete: ask the collector for one full look now (the main channel, read
+// once a cycle), then watch the reply topic for its answer and put what it read into the rows and the open popup
+const READ_ASKED = {}, READ_DONE = {};
+function readAsk(iid) {
+  if (!iid || !HKEY) return false;
+  if (READ_ASKED[iid] > Date.now() - 300000) return true;
+  const t = Date.now(); READ_ASKED[iid] = t;
+  alSend({type: 'read', t, i: iid}).then(() => readWait(iid, t)).catch(() => { delete READ_ASKED[iid]; });
+  return true;
+}
+async function readWait(iid, t0) {
+  const ch = await alChannel(), enc = new TextEncoder();
+  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
+  let since = Math.floor(t0 / 1000) - 5;
+  for (let i = 0; i < 40; i++) {                   // the collector reads its requests once a minute: up to about three minutes
+    await new Promise(r => setTimeout(r, 5000));
+    if (!$('bov').classList.contains('open') || LIVE.rvItem !== iid) return;
+    let lines = [];
+    try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-pcr/json?poll=1&since=' + since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { continue; }
+    for (const line of lines) {
+      try {
+        const ev = JSON.parse(line); if (ev.event !== 'message') continue;
+        since = ev.id;
+        const env = JSON.parse(ev.message);
+        if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
+        const msg = JSON.parse(env.m);
+        if (msg.type !== 'read' || msg.i !== iid) continue;
+        READ_DONE[iid] = msg.gone ? 'gone' : true;
+        if (!msg.gone) applyRead(iid, msg);
+        if ($('bov').classList.contains('open') && LIVE.rvItem === iid) openReview(iid);
+        return;
+      } catch (e) { continue; }
+    }
+  }
+}
+// what the collector read goes into the live data the rows are built from (the next live file carries it anyway)
+function applyRead(iid, m) {
+  if (!LIVE.data) return;
+  const pics = m.imgs || [], tc = m.tc && m.tc !== 'UNK' ? m.tc : null;
+  const x = (LIVE.data.live || []).find(z => z[0] === iid);
+  if (x) { if (m.img) x[19] = m.img; x[33] = pics.slice(1); x[34] = m.ef === undefined ? null : m.ef; x[35] = m.ec || ''; if (tc) x[13] = tc; }
+  const a = ((LIVE.data.alert || {}).au || []).find(z => z[0] === iid);
+  if (a) { if (m.img) a[27] = m.img; if (pics.length) a[28] = pics; a[29] = m.ef === undefined ? null : m.ef; a[30] = m.ec || ''; if (tc) a[9] = tc; }
+  const h = ((LIVE.data.alert || {}).hh || []).find(z => z[0] === iid);
+  if (h) { if (m.img) h[29] = m.img; if (pics.length) h[30] = pics; h[31] = m.ef === undefined ? null : m.ef; h[32] = m.ec || ''; if (tc) h[9] = tc; }
+  rebuildLive();
+}
 function openReview(iid) {
   // the row may be a live listing, an auction sent to the phone or a hit from the history - those two outlive the
   // 24-hour table, so the button failed on them until 2026-10-17 (Brett: "the review button does not work for auctions")
@@ -1131,7 +1185,7 @@ function openReview(iid) {
   const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
   const pics = [r[21]].concat(x[33] && x[33].length ? x[33] : r.pics || []).filter(Boolean);
   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
-  LIVE.rvCard = r[0];
+  LIVE.rvCard = r[0]; LIVE.rvItem = iid;
   if (!pcu) pcAsk(r[0]);                           // the collector reads that one page now; the picture lands here within a minute or two
   const m = /(\d+)\s*\/\s*(\d+)/.exec(r[6] || '');
   const tot = r[9], allin = r[10], taxAmt = allin != null && tot != null ? Math.round((allin - tot) * 100) / 100 : 0;
@@ -1142,6 +1196,10 @@ function openReview(iid) {
   // Set name, rarity and finish, PriceCharting against eBay (the phone's rows, 2026-10-12): the card's own words (daily
   // build) and eBay's record of this listing (row 48) - red when they name another card, amber when one tier apart
   const p = pcRF(base) || ['', ''], ef = r[48];
+  // an incomplete eBay side - no photo, facts never read, or n/s with eBay's condition field unread - is read now: the
+  // collector does one full look at the listing (open, sold or long gone) and answers on the channel (readAsk, 2026-10-23)
+  const incomplete = !pics.length || ef == null || (r[15] === 'UNK' && !r[55]);
+  const reading = incomplete && !READ_DONE[iid] ? readAsk(iid) : false;
   const pcv = v => v ? '<b class="fit">' + esc(v) + '</b>' : '<b class="fit mute">unknown</b>';
   const ebv = (i, cmp) => ef == null ? '<b class="fit mute">not read</b>' : !ef.length || !ef[i] ? '<b class="fit mute">not stated</b>'
     : '<b class="fit' + (cmp === 'far' ? ' bad' : cmp === 'near' ? ' amber' : '') + '">' + esc(ef[i]) + '</b>';
@@ -1169,7 +1227,10 @@ function openReview(iid) {
     row('', fact('Seller', (r[17] == null ? '?' : Number(r[17]).toLocaleString('en-US')) + ' ratings', (r[18] != null ? r[18] + '% positive \u00b7 ' : '') + (r[32] === 99 ? '?' : r[32]) + ' photos')) +
     '<div class="rrow"><div><span class="lab">Title</span><small>' + esc(r[6]) + '</small></div><div><span class="lab">Verdict</span><b>' + esc(r[14]) + '</b></div></div></div>';
   h += '<div class="rvbtns"><button class="rvno" id="rv-no">Not the same card<small>leaves the statistics; the matcher learns from it</small></button><button class="rvyes" id="rv-yes">Same card<small>a confirmed match</small></button></div>' +
-       (v != null || r.um ? '<div class="rvundo"><button class="linkbtn" id="rv-undo">Withdraw my answer</button></div>' : '') + '<div id="rvmsg" class="dim"></div>';
+       (v != null || r.um ? '<div class="rvundo"><button class="linkbtn" id="rv-undo">Withdraw my answer</button></div>' : '') +
+       (reading ? '<div id="rvread" class="dim">eBay’s details for this listing are being read now (' + (!pics.length ? 'photos, ' : '') + 'condition, set and rarity) — they appear here within a minute or two.</div>'
+                : READ_DONE[iid] === 'gone' ? '<div id="rvread" class="dim">eBay no longer has this listing, so nothing more can be read about it.</div>' : '') +
+       '<div id="rvmsg" class="dim"></div>';
   $('bbody').innerHTML = h;
   $('bov').classList.add('open');
   fitRows($('bbody'));

@@ -790,6 +790,25 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   collector, so the last such line comes out with the hourly summary) - CHECK THE LOG
   after the first deploy: eBay's exact JSON shape for trading-card descriptors was not verifiable from the docs, so
   the reader accepts both shapes and the log confirms which one arrives. Tests: ut/test_cond.py, t/test_risk.js.
+- REVIEW READS THE LISTING ON DEMAND; ALERT HISTORIES KEEP THEIR FACTS (2026-10-23, Brett: "some of the ebay auction
+  pictures are not showing in the review button", "a lot of the set names and raritys say not read??? why", "many
+  cards that are 'read' report n/s but the item specifics report the condition"). Why "not read": a full look is one
+  of the 5,000 eBay calls a day and discovery / re-reads / confirmations come first, so most listings never get one
+  (17K of 27K open listings had facts on 2026-10-21, inherited mostly); the auction and hit alerts DID read the
+  listing (identity check with PRODUCT) but threw the facts away, so every auction row said "not read". Now: (1)
+  au_hist / hit_snapshot records keep "ec" and "ef" (only when the rec has it - None must stay "not read", [] is
+  "nothing on the listing"); au_rows publishes facts row + ec at 29-30, hh_rows at 31-32; the page's histFacts()
+  fills row 48/49/50/55 from them when the listing is not in the live table. (2) site_read(state, cat, iid)
+  (collector): a {type: "read", i} request from the page (main channel; queued in v["site_read_q"] by read_requests,
+  run at the top of cycle()) does ONE getItem with PRODUCT for an open listing (item_facts + learn_facts, a sold
+  one closes), a closed record, or a history entry (a probe dict with the card), fills photos / condition / facts on
+  whatever holds the listing, answers on the reply topic (site_reply, same signature as the picture answers) and
+  publishes this cycle (v["read_t"] in the publish signature); SITE_READS_PER_HOUR 60. PAGE: openReview() asks
+  (readAsk, once per 5 min per listing, READ_DONE remembers an answer) when the eBay side is incomplete - no photo,
+  ef == null, or n/s with no eBay condition text - and shows the "being read now" note; readWait() polls -pcr every
+  5 s for up to 3 min while the popup stays on that listing; applyRead() patches the live row (x[19/33/34/35/13]),
+  the au entry (27-30, 9) and the hh entry (29-32, 9), rebuilds, and the popup re-renders. Tests: ut/test_siteread.py,
+  t/test_read.js (+ test_risk.js, test_page.js, test_tabs.js, test_review.js, test_ui5.js still pass).
 - THE DROPLET RAN OUT OF MEMORY (found 2026-10-23: the collector died every ~40 minutes through the night of
   2026-10-20/21 - "Collector starting" with no "Cycle failed" or "Restarting on the new code" before it, process lives
   shrinking from 4 h to 40 min as the state grew - and stopped publishing altogether at 07:13 UTC on the 21st; the
