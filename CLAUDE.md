@@ -948,6 +948,18 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   only the live half can test. Tests: t/pcpop/test_ui12.py (needs /tmp/claude-0/t/forecast_hist.bin, a real replay
   re-keyed to the test page's key, + forecast_hist_local.json), ut/test_fcmath.py; a replay run locally takes ~3.5
   min (`SITE_PASSWORD=... python3 forecast_hist.py --shards <pc dir> --snapshots <dir> --out forecast_hist.bin`).
+- THE EBAY TREND COLUMNS WAIT FOR HISTORY (2026-10-23 night, Brett: "the volume drift, 30%, and slope 30% column should
+  show data because we have been collecting data for at least a month"; also "the ebay sales for last [month] column
+  ... is not showing"). Not bugs: the collector's daily rollup (`state["daily"]`, live.since) began 2026-09-28, so every
+  card had at most 26 days, and `trend_stats()` counts each column's minimum from the card's first day in the rollup
+  (tr.days): Δ30d needs hist_days > 30 and a priced day (7-day median of 3+ sales) 30 days back; Range 90d and Volume
+  drift need 60 (the drift compares the last 30 days with the 30 before - impossible sooner); Volatility 3 moves; the
+  Slope needed 30 days AND 10 priced days - the 30-day floor was redundant and is gone: 10 priced days spanning 14+
+  days (~300 cards qualified that night). "eBay sales last month" (km) stays blank until the collector has watched a
+  whole calendar month (`covered` in rebuildLive: live.since <= the 1st of last month): October is the first, so the
+  column fills on 2026-11-01. The page's blank trend cells now carry the reason on hover (`trendDash(trDays(cid), need,
+  why)`, the card's own day count and live.since; Trend popup notes match). Expect Δ30d and Slope to fill from ~10-28,
+  Range and drift from ~11-27 - say so instead of lowering a minimum.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
