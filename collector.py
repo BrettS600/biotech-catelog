@@ -75,6 +75,8 @@ KW_EVERY_S = 600
 PUBLISH_EVERY_S = 120
 CODE_CHECK_EVERY_S = 300
 STATE_BACKUP_EVERY_S = 3600
+SAVE_EVERY_S = 180               # the state goes to disk this often (and before every restart), not every cycle: writing 85 MB of
+                                 # JSON a minute was most of the droplet's memory churn (2026-10-21); a crash loses 3 minutes
 DISK_MIN_MB = 1500               # below this much free space the live checkout is swept (see sweep_live_repo)
 CATALOG_EVERY_S = 6 * 3600
 RATELIMIT_EVERY_S = 3600
@@ -266,7 +268,7 @@ def load_state():
 
 
 def save_state(state):
-    raw = gzip.compress(json.dumps(state, separators=(",", ":")).encode("utf-8"))
+    raw = es.json_gz(state)                                  # piecewise: no 85 MB JSON string (the 2026-10-21 memory diet)
     if DRY_RUN:
         return raw
     os.makedirs(DATA, exist_ok=True)
@@ -627,8 +629,9 @@ def suspect_queue(state):
     return [iid for _, iid in out]
 
 
-COND_MAX_PER_CYCLE = 3           # the condition pass: full looks at listings whose title names no condition ...
-COND_DAILY_MAX = 400             # ... this many a day at most, paid from the tokens nothing above wanted
+COND_MAX_PER_CYCLE = 1           # the condition pass: a full look at a listing whose title names no condition ...
+COND_EVERY_S = 90                # ... at most one every 90 s (960 a day) ...
+COND_DAILY_MAX = 400             # ... and this many a day at most, 8% of the API budget
 
 
 def cond_queue(state, cfg):
@@ -2490,6 +2493,24 @@ def cycle(state, cat, sched, counters):
         done = es.verify_hits(state, cat, cards, n_id)
         v["tokens"] -= done
         counters["verified"] += done
+    # the condition pass: eBay's own condition field for the "n/s" rows (Brett, 2026-10-17). One full look every
+    # COND_EVERY_S, COND_DAILY_MAX a day, taken here - behind the identity lookups, ahead of the re-reads - because
+    # at the tail of the optional work the bucket never had a token left for it (0 looks in its first hours)
+    cond_day = v.setdefault("cond_day", {})
+    if cond_day.get("d") != es.TODAY:
+        cond_day.clear(); cond_day.update({"d": es.TODAY, "n": 0, "named": 0})
+    if cards and cond_day["n"] < COND_DAILY_MAX and v.get("tokens", 0) >= 2 and due("cond", COND_EVERY_S):
+        for iid in cond_queue(state, alert_cfg(state))[:COND_MAX_PER_CYCLE]:
+            if not spend(state, COST_CONFIRM):
+                break
+            rec = state["open"][iid]
+            rec["cond_tried"] = 1
+            out = confirm(state, iid, rec, "cond", cat)
+            cond_day["n"] += 1
+            counters["cond_" + out] += 1
+            if rec.get("ecc"):
+                cond_day["named"] += 1
+                counters["cond_named"] += 1
     saving = False
     if v.get("window_ok"):
         for last, key, n in due_windows(state, now)[:REREAD_MAX_PER_CYCLE]:
@@ -2550,22 +2571,6 @@ def cycle(state, cat, sched, counters):
                 before = state["calls"].get(es.TODAY, 0)
                 es.enrich(state, n)
                 v["tokens"] -= state["calls"].get(es.TODAY, 0) - before
-        # the condition pass, last of all: eBay's own condition field for the "n/s" rows (Brett, 2026-10-17)
-        cond_day = v.setdefault("cond_day", {})
-        if cond_day.get("d") != es.TODAY:
-            cond_day.clear(); cond_day.update({"d": es.TODAY, "n": 0, "named": 0})
-        if cond_day["n"] < COND_DAILY_MAX:
-            for iid in cond_queue(state, alert_cfg(state))[:COND_MAX_PER_CYCLE]:
-                if cond_day["n"] >= COND_DAILY_MAX or not spend(state, COST_CONFIRM):
-                    break
-                rec = state["open"][iid]
-                rec["cond_tried"] = 1
-                out = confirm(state, iid, rec, "cond", cat)
-                cond_day["n"] += 1
-                counters["cond_" + out] += 1
-                if rec.get("ecc"):
-                    cond_day["named"] += 1
-                    counters["cond_named"] += 1
     # 4. housekeeping, statistics, live file
     if cards and due("settle", 3600):                        # needs the cards' books, so not before the first statistics
         res = close_stale(state, cards)
@@ -2650,9 +2655,10 @@ def cycle(state, cat, sched, counters):
     forecast_score(v, cat, cards)
     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
     live["source"] = "vps"
-    raw = gzip.compress(json.dumps(live, separators=(",", ":")).encode("utf-8"))
+    raw = es.json_gz(live)
     state["runs"] = state.get("runs", 0) + 1
-    state_raw = save_state(state)
+    if due("save", SAVE_EVERY_S):
+        save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0))   # a change on the Alerts tab is published at once
@@ -2666,6 +2672,7 @@ def cycle(state, cat, sched, counters):
         except Exception:
             pass
         if due("backup", STATE_BACKUP_EVERY_S):
+            state_raw = save_state(state)
             files[es.STATE_NAME] = es.encrypt_file_blob(state_raw, es.PASSWORD) if es.PASSWORD else state_raw
         if pchist.dirty_count() and (due("pchist", PC_HIST_PUBLISH_S) or urgent):   # PriceCharting history shards that changed
             try:
@@ -2731,7 +2738,7 @@ def cycle(state, cat, sched, counters):
             f"{es.PC_HIGH:.0%} (kept out of the statistics); item specifics read on {sum(ids.values())} open listings "
             f"({ids['ok']} agree, {ids['conflict']} conflict, {ids['none']} blank), {counters['verified']} read this hour; "
             f"printed totals for {len(cat.totals)} sets")
-        ec = Counter("named" if r.get("ecc") else "stated" if r.get("ec") else "none" for r in state["open"].values() if r.get("cond_tried") or "ef" in r)
+        ec = Counter("named" if r.get("ecc") else "stated" if r.get("ec") else "none" for r in state["open"].values() if "ec" in r)
         day_ago = es.ts(es.NOW - timedelta(hours=24))
         ns = sum(1 for r in state["open"].values() if r["first"] >= day_ago and r.get("tcond", "UNK") == "UNK")
         log(f"Conditions: eBay's condition field read on {sum(ec.values())} open listings ({ec['named']} name a grade, {ec['stated']} say "
@@ -2769,7 +2776,7 @@ def cycle(state, cat, sched, counters):
         line = auction_summary(state)
         if line:
             log(line + f"; trial ends {v.get('auction', {}).get('until', '?')[:10]}")
-        for k in ("Scam screen", "LP correction", "Enrich", "ID check"):
+        for k in ("Scam screen", "LP correction", "Enrich", "ID check", "Condition"):   # Condition: the last raw descriptor payload seen
             if k in _es_last:
                 log(_es_last[k])
         for k in list(counters):
