@@ -85,7 +85,8 @@ SWEEP_RESERVE = 8            # calls one sweep needs (two queries, a few pages e
 CHECK_AGES_D = [3, 10, 30]   # scheduled getItem checks, days since first seen
 KW_FIRST_CHECK_D = 1         # listings found only by the keyword query get an extra day-1 check
 TRACK_GIVE_UP_D = 30         # after the last check the listing counts as unsold ("stale")
-KEEP_CLOSED_D = 60           # closed listings kept in state
+KEEP_CLOSED_D = 35           # closed listings kept in state: the statistics reach back 30 days (+3 for the sell-through pool), and
+                             # the archive takes last month's rows on the 1st; 60 days was 2x the memory on the 1 GB droplet (2026-10-21)
 # ---- the 2-day rule (Brett, 2026-10-06) ----
 # He only flips cards that sell inside his 48-hour window, and 5,000 calls a day could not follow every listing to
 # day 10: about 3,270 disappeared a day against some 1,370 lookups, so half the outcomes were never read. A listing
@@ -94,6 +95,7 @@ KEEP_CLOSED_D = 60           # closed listings kept in state
 # copies stay in the book whatever their age, and suspects get one last look so the scam table still sees takedowns.
 FOLLOW_D = 2.0
 KEEP_STALE_D = 31            # "outlived 2 days" records are kept this long (the reach of the sell-through pool)
+IMGS_KEEP = 4                # photos kept per listing (the check and Review screens show four)
 ST_POOL_MIN_AGE_D = 3        # a listing's 48-hour outcome is known once it is this old
 ST_MIN = 0.25                # liquidity: share of a card's listings that sold within 48 h, once measured. The rule used
                              # to be 50% within 7 days. A steady selling rate would make that 18% within 2 days, but
@@ -885,8 +887,9 @@ def summary_record(s):
         "origin": s.get("itemOriginDate") or s.get("itemCreationDate"), "created": s.get("itemCreationDate"),
         "end": s.get("itemEndDate"),
         "epid": s.get("epid") or "", "img": (s.get("image") or {}).get("imageUrl"),
-        # every photo, straight from the search result: the check screens show them (none = key left out)
-        **({"imgs": [u for u in [(p or {}).get("imageUrl") for p in [s.get("image")] + list(s.get("additionalImages") or [])] if u][:24]}
+        # the first photos, straight from the search result: the check screens show four (none = key left out). Keeping all
+        # 24 eBay allows cost 46 MB of JSON across 27,000 open listings - part of the 2026-10-21 memory trouble
+        **({"imgs": [u for u in [(p or {}).get("imageUrl") for p in [s.get("image")] + list(s.get("additionalImages") or [])] if u][:IMGS_KEEP]}
            if s.get("additionalImages") else {}),
         "url": s.get("itemWebUrl"), "loc": (s.get("itemLocation") or {}).get("stateOrProvince"),
         "promo": bool(s.get("priorityListing")), "top": bool(s.get("topRatedBuyingExperience")),
@@ -987,6 +990,37 @@ def sweep(state, cat, queries=None, overlap_min=SWEEP_OVERLAP_MIN, quiet=False):
     return len(seen_now), new, matched, unmatched
 
 
+def json_gz(obj, level=6):
+    """gzip(JSON) of a big dict without building its JSON string first: a top-level list goes element by element and a
+    big top-level dict entry by entry through the compressor, so the result reads back exactly like
+    json.dumps(obj, separators=(",", ":")) but nothing larger than one record is ever held as text. The state's JSON
+    was 85 MB on 2026-10-21, and json.dumps() of it every minute (170 MB of transient string on top of the state
+    itself) is what pushed the 1 GB droplet into the OOM killer; the live file (20 MB of JSON) goes the same way."""
+    sep = (",", ":")
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=level, mtime=0) as gz:
+        if not isinstance(obj, dict) or any(not isinstance(k, (str, int)) or isinstance(k, bool) for k in obj):
+            gz.write(json.dumps(obj, separators=sep).encode("utf-8"))
+        else:
+            gz.write(b"{")
+            for i, (k, v) in enumerate(obj.items()):
+                gz.write((("," if i else "") + json.dumps(str(k)) + ":").encode("utf-8"))
+                if isinstance(v, list) and len(v) > 1000:
+                    gz.write(b"[")
+                    for j, x in enumerate(v):
+                        gz.write((("," if j else "") + json.dumps(x, separators=sep)).encode("utf-8"))
+                    gz.write(b"]")
+                elif isinstance(v, dict) and len(v) > 1000 and all(isinstance(k2, (str, int)) and not isinstance(k2, bool) for k2 in v):
+                    gz.write(b"{")
+                    for j, (k2, x) in enumerate(v.items()):
+                        gz.write((("," if j else "") + json.dumps(str(k2)) + ":" + json.dumps(x, separators=sep)).encode("utf-8"))
+                    gz.write(b"}")
+                else:
+                    gz.write(json.dumps(v, separators=sep).encode("utf-8"))
+            gz.write(b"}")
+    return buf.getvalue()
+
+
 # ---------------- 2. TRACK ----------------
 def close_listing(state, iid, rec, outcome, when, total=None):
     first = parse_ts(rec["first"]) or NOW
@@ -1006,8 +1040,8 @@ def close_listing(state, iid, rec, outcome, when, total=None):
         "img": rec.get("img"), "top": rec.get("top"), "sc": rec.get("sc"), "scr": rec.get("scr", []),
         **({"tier": rec["tier"]} if "tier" in rec else {}),
         **{k: rec[k] for k in ("pc", "pcm", "idv", "idr", "ef", "epid", "ec", "ecc") if k in rec},   # identity checks, eBay's facts and condition, as they stood
-        **({"imgs": rec["imgs"][:4]} if rec.get("imgs") else {}),   # the first photos, for the Review screen after the listing has gone
-    })
+        **({"imgs": rec["imgs"][:IMGS_KEEP]} if rec.get("imgs") and iid in (state.get("vps") or {}).get("alerted", {}) else {}),   # photos for the
+    })                                                      # Review screen after an ALERTED listing has gone (the hit history falls back to them)
     del state["open"][iid]
 
 
@@ -1484,6 +1518,7 @@ def apply_condition(r, it):
     gate uses when it names one - the seller's structured declaration beats words in the title."""
     code, text = ebay_condition(it)
     if text is None:
+        r.setdefault("ec", "")                        # read, and the listing carries none ("" tells that apart from never read)
         return
     if COND_LOG["n"] < 3 and (it or {}).get("conditionDescriptors"):
         COND_LOG["n"] += 1
@@ -1509,7 +1544,7 @@ def item_facts(r, it):
         r["n_img"] = (1 if it.get("image") else 0) + len(it.get("additionalImages") or [])
     pics = [(p or {}).get("imageUrl") for p in [it.get("image")] + list(it.get("additionalImages") or [])]
     if any(pics):
-        r["imgs"] = [u for u in pics if u][:24]            # every photo (eBay allows 24), for the check and Review screens
+        r["imgs"] = [u for u in pics if u][:IMGS_KEEP]     # the first photos, for the check and Review screens
 
 
 def specifics(it):
@@ -2799,6 +2834,13 @@ def prune(state):
     stale_from = NOW - timedelta(days=KEEP_STALE_D)
     state["closed"] = [r for r in state["closed"] if parse_ts(r["closed"]) >= keep_from
                        and (r.get("out") != "stale" or parse_ts(r["closed"]) >= stale_from)]
+    alerted = (state.get("vps") or {}).get("alerted", {})
+    for r in state["closed"]:                                # photos stay only on alerted listings (the 2026-10-21 diet)
+        if "imgs" in r and r.get("id") not in alerted:
+            del r["imgs"]
+    for r in state["open"].values():
+        if len(r.get("imgs") or []) > IMGS_KEEP:
+            r["imgs"] = r["imgs"][:IMGS_KEEP]
     day_from = (NOW - timedelta(days=STAT_WINDOW_D + ST_POOL_MIN_AGE_D + 1)).date().isoformat()
     state["unsold"] = {c: d2 for c, d2 in ((c, {d: n for d, n in days.items() if d >= day_from})
                                            for c, days in (state.get("unsold") or {}).items()) if d2}
