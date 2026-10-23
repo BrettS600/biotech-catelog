@@ -934,7 +934,11 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   '<sel>:<month>') and keeps the sticky highlight (SEL.set before the repaint, since the document handler runs after
   this one on the old row); the tab's help buttons are drawn dynamically, so the #fh-body click handler opens them
   (openHelp). showTab defers the first render with setTimeout: with #forecast-history in the address at load, FH is
-  declared further down (TDZ). rebuildLive re-renders the live half. WHAT THE REPLAY SAYS (the honest answer to "can
+  declared further down (TDZ). rebuildLive re-renders the live half. WIDTH: 20 columns must fit Brett's 1440 px window
+  (box 1364 px) at every capital and scenario - the range cell stacks lo over "to hi", the header is "Range" (the
+  10-90% explanation on hover; "10-90% range" alone was 103 px), cell padding 4px 5px, and .fh overrides the Forecast
+  tab's `.fc .fc-box td:first-child { min-width: 170px }` (the panel carries .fc for its look); measure
+  `table.scrollWidth` against the box after any column change. WHAT THE REPLAY SAYS (the honest answer to "can
   the model predict 10% in a month?"): at the standard price the 1- and 3-month plans NEVER cleared the 50% bar in
   47 months (best chance 22% / 42%) - with the buy and the sell at the same level eBay's round trip needs ~22% in a
   month and no rank bucket delivers it; the 6-month plan had buys in 18 of 47 months, 9 of 12 scored profitable, mean
