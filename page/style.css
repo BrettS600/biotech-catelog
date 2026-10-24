@@ -327,6 +327,13 @@ button.plb:hover { color:var(--fg); border-color:var(--link); transform:scale(1.
 button.plb.on { background:var(--up); border-color:var(--up); color:#fff; }
 button.plb.sm { width:20px; height:20px; font-size:14px; }
 .fc-bar { align-items:center; gap:10px 18px; }
+/* the inputs card folds away so the picks / the plan get the whole width (2026-10-24, Brett: "i dont have to right scroll") */
+.al.fc.folded { grid-template-columns:1fr; }
+.al.fc.folded #fc-side { display:none; }
+button.fc-fold { font:inherit; font-size:12px; font-weight:600; margin-left:auto; padding:3px 9px; border:1px solid var(--line); border-radius:6px; background:none; color:var(--muted); cursor:pointer; }
+button.fc-fold:hover { color:var(--fg); border-color:var(--link); }
+.fc-bar .fc-unfold { font-weight:600; }
+.fc-bar .fc-unfold .dim { font-weight:400; margin-left:6px; }
 .fc-bar .fc-tools { display:inline-flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-left:auto; }
 .fc-bar label.fc-ua { display:inline-flex; align-items:center; gap:5px; font-size:13px; color:var(--muted); }
 .fc-bar label.fc-ua input { font:inherit; width:62px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
