@@ -55,11 +55,13 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
   machine took over), concurrency group `ebay`. Runs the collector, then
   force-pushes `live/ebay_live.bin` to a one-commit `live` branch (the page fetches it via
   raw.githubusercontent.com, which allows CORS; release assets do not).
-- `forecast.py` (the Forecast tab's model, run by the site workflow), `forecast_math.py` (the tab's plan arithmetic in
+- `forecast.py` (the Forecast tab's model, run by the site workflow; VERSION 2 since 2026-10-24: the reversal rank, the
+  corrected regime and the empirical chance tables, no sklearn), `forecast_math.py` (the tab's plan arithmetic in
   Python, a line-for-line mirror of app.js: `levels`, `plan`, `standard_plans`, `actual_net`; the collector and the
-  replay import it) and `forecast_hist.py` (the Forecast history replay, run by `.github/workflows/forecast_history.yml`
+  replay import it), `forecast_calib.json` (the v2 tables as the replay's static fallback; `forecast.py --write-calib`
+  refreshes it) and `forecast_hist.py` (the Forecast history replay, run by `.github/workflows/forecast_history.yml`
   on the 2nd of each month; writes forecast_hist.bin to the snapshots release, which the site build copies into the
-  page). See THE FORECAST TAB and FORECAST HISTORY below.
+  page). See THE FORECAST TAB, FORECAST HISTORY and THE FORECAST TAB, VERSION 2 below (version 2 wins where they differ).
 - `data_archive.py` + `.github/workflows/data_archive.yml` — the data folder (`data/`, see THE DATA FOLDER below): PokeViews'
   feeds, the PriceCharting panel, the eBay Catalog of the day, committed to main by the workflow daily. `data/README.md` is
   the dictionary; read it before analyzing anything in there.
@@ -711,7 +713,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   200..."), then "Downloaded ✓ N of M cards on file" for 8 s; the file is `pricecharting history YYYY-MM-DD.csv`,
   built from Blob parts (no collector work, nothing new stored). No long (card-month) layout: 44k cards x ~70 months
   is past Excel's row limit; build it only if he asks. Help: the pc README section 3. Test: t/pcpop/test_ui8.py.
-- THE FORECAST TAB (2026-10-17, Brett: "I input my capital that I can spend, then you tell me what cards to buy with
+- THE FORECAST TAB (VERSION 1 - the model, the regime word and the buckets described here were superseded on 2026-10-24
+  by THE FORECAST TAB, VERSION 2 below; the page pieces, the two guards, the records, the archive and the tests stand.
+  2026-10-17, Brett: "I input my capital that I can spend, then you tell me what cards to buy with
   that capital, how many of each to buy, and my estimate range of net profit after I hold for a month and then sell,
   and confidence% ... spend at least 3 hours manipulating the historical price chart data and testing algorithms").
   THE RESEARCH (scripts in the session's /tmp/claude-0/fc/an; 2.3M card-months from the pc/<shard>.bin history,
@@ -908,7 +912,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   one fixture and asserts identical numbers (keep it passing when either side changes). `plan()` accepts a card stub
   {"supply": n} for the replay; `actual_net(picks, S, disc, y_of)` scores a basket. Tests: t/pcpop/test_ui11.py (the
   toggle and the preview), ut/test_forecast_rec.py (guard 1 at scoring, the archive, the gate), ut/test_fcmath.py.
-- FORECAST HISTORY (2026-10-23 evening, Brett: "a forecast history tab. Where it shows the estimate net profit range, and
+- FORECAST HISTORY (the version-1 replay; the replay's model, start month and figures below were superseded on
+  2026-10-24 by THE FORECAST TAB, VERSION 2; the two halves, the file layout, the page and the tests stand. 2026-10-23
+  evening, Brett: "a forecast history tab. Where it shows the estimate net profit range, and
   the actual profit range and the actual %roi. for a 1-month hold, 3-month hold, 6-month hold for $500 ... $25,000 ...
   so for instance, if i wanted to see how much I would have made in march 2025, with a $5000 dollar investment ...
   You can design it how ever you see best"; then "you can include the 0% standard as well as the under 20%"). TWO
@@ -1009,9 +1015,83 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   THE LESSON, binding for every future rule: never let a rule both condition on and transact at the same PriceCharting
   monthly average (the same trap as the set-momentum artifact, E11). THE
   REGIME BUG: computing the regime from cards priced $10+ in the current month biases it up (2022 looked flat-positive);
-  use last month's price (xs.py). NOT YET APPLIED TO THE SITE - Brett will ask for that in a later prompt; FINDINGS.md
-  lists the build order (gate display, reversal rank, discount-centred plan, 3-month default, calibrated chance at the
-  entered discount, fee options).
+  use last month's price (xs.py). APPLIED TO THE SITE THE SAME DAY (Brett: "can you just do it for me? and the build?") -
+  see THE FORECAST TAB, VERSION 2 below; of FINDINGS.md's build list only the fee options (Store rate, buyer-pays-shipping
+  as plan options) are not built. The dry run that preceded the build is `scripts/dryrun_today.py` +
+  `notes/DRYRUN_2026-10-24.md` + `results/DRYRUN_2026-10-24_*.csv` (not in the registry: a check, not an experiment).
+- THE FORECAST TAB, VERSION 2 (2026-10-24, Brett: "before updating the forcast tab and forcast history, i wanted to ask if
+  you needed more time to look at the data" - no; then "can you just do it for me? and the build? like the number of ebay
+  sales and the mis-listed copies obviouslyt need to be considered. wouldnt want the forcast telling me to buy a card,
+  when there is no supply for it"). THE DRY RUN FIRST (the research's rules on that day's data, before any code moved):
+  market up (reg3 +1.7%/mo, reg1 +2.2%), 2,045 band cards with a rank, eBay supply and a chance; 25 cleared 50% at a
+  3-month hold (15 at one month, 282 at six), every one a card whose credible floor sat 15-24% under a sold median with
+  5+ sales (Armored Mewtwo SM228 88%, Umbreon & Darkrai GX SM241 84%, Sabrina's Gengar 84%, M Charizard EX #69/#101
+  76%...), one copy each $2,888 for an expected +$511. It caught three things the research's averages could not: the
+  top of the RAW ranking is junk (prints crashed on one odd sale, promos with one listing and no sales), the v1
+  allocation (20% of the capital per card, capped only by the supply) bought 11 copies of Sabrina's Gengar and 23 of a
+  Charizard at $10,000, and non-credible asks (under 75% of A) must not cap the sell level. Hence, on top of FINDINGS:
+  ONE COPY PER CARD by default (an input, 1-5), a card needs a comparable eBay sale in the collector's 30-day window
+  (c.k >= 1; an input, on by default), and the list is shown in BUY ORDER (chance to the whole percent, then rank).
+  THE MODEL (forecast.py, VERSION "v2 reversal 2026-10-24"; no sklearn, 36 s locally): `features()` adds m12 (the
+  card's own rolling 12-month mean, min 12 months) and dev12 = price / m12 - 1, and the MARKET from cards priced $10+
+  LAST month with 2+ sales this month (price_lag1 >= MIN_PRICE: the research's regime fix - filtering on this month's
+  price let the month's winners define the month); `rank()`: pct = the percentile of -dev12 within the month among
+  cards >= RANK_MIN_PRICE $25 with vol12 >= RANK_MIN_VOL12 6 (deepest below the mean = 1.0; NaN outside - the same
+  rank for every hold, pct1 = pct3 = pct6); `bucket_of`: top10 (>= .9) / b90 (>= .75) / b75 (>= .5) / b50; the regime
+  doc {reg1, reg3, reg6, breadth3, n, up: reg3 > 0, confirm: reg1 > 0, strong, threshold} (strong kept only for the
+  old records' word); `calib()` = THE CHANCE TABLES, rebuilt EVERY RUN from the data: for h in 1/3/6, decision months
+  2022-01 (CALIB_START_M 264) .. last complete - h, y = price_{t+h} / buy_real - 1 clipped (-0.95, 5), cells
+  "h|up/down|bucket" (the regime = the sign of reg3 at the decision month; MIN_CELL 30) plus "h|all|all", each {n,
+  mean, q (5..95%), p_up} - 27 cells. `publish()`: every $10+ card (10,587) with pred{h} = the table mean for its
+  (h, regime, bucket) or null, pct{h}, the 16 old columns + dev12 + m12 (COLS), doc {model, rank_min_price,
+  rank_min_vol12, n_ranked (4,704 on the first live build), calib (the whole tables), meta {model, rank, regime, calib_months, last_complete,
+  research}}; --write-calib writes forecast_calib.json (v2 content on main; the replay's fallback for its first year).
+  `clean()` + allow_nan=False as before. forecast_math.py: BUCKETS, `bucket()`, `regime_word(doc)` (up / down; a
+  version-1 file still reads as strong / other), `table()` keys on it, STD_INPUTS gains copies 1, recent True, gate
+  True; `plan()` caps the quantity at I["copies"], skips a card without an eBay sale in the window unless it is a
+  replay stub ("supply" set), sorts the rows in buy order, and when gate is on and the file says the market is down
+  (a v1 file is never gated) allocates nothing and returns gated=True; standard_plans' records carry reg (the word),
+  model and gated. forecast_hist.py: START_M 264 (2022-01), NO REFITS (the rank needs none), `calib_tables()` = the
+  expanding tables per regime x bucket from the ranked card-months whose outcome is known (static forecast_calib.json
+  under 12 months; a v1 calib file is rebuilt with F.calib), per month a doc with the regime, every cell carries
+  "gated", a gated month records forced_roi / forced_n = THE SAME PLAN WITHOUT THE GATE (an ungated no-buy month: the
+  top-ranked cards with no bar, as before), months carry reg / reg3 / reg1 / calib. Replay of 2026-10-24: 58 months,
+  33 gated (all of 2022-2023 and Feb-Oct 2024: the corrected regime reads those years as falling), 455 plans with
+  buys, 149 KB, 3 min on Actions. WHAT IT SAYS ($5,000): at the standard price the 1- and 3-month plans never clear
+  the bar (unchanged from v1), the 6-month plan bought in 18 months, 12 scored, 12 profitable, mean ROI +15.4%; bought
+  20% under: 1-month 24 of 24 scored profitable, +10.8%; 3-month 22 of 22, +21.1% (every month of 2025 +8 to +50%);
+  6-month 18 of 18, +39.7%; ranges held 20-22 of 22-24. THE GATE'S COST, read off the gated months' forced plans: at
+  20% under / 3 months the 33 gated months would have averaged +9.5% (28 positive; the losers Aug-Nov 2022 and Apr
+  2023) - with the 50% bar at 20% under the plan already keeps to the deepest dips, so the gate mostly costs in this
+  replay (the research's losing 2022 was the whole decile with no bar). It stays ON by default as the research's
+  rule and is one click to override; the tab shows the counterfactual. CAVEAT: every ungated month is a boom month
+  (2024-01, 2024-11 onward), so the profitable rows are the boom. PAGE: app.js fcBucket / FC_BUCKET_WORDS (deepest
+  10% / top 25% / upper half / lower half), `fcRegimeWord()` (reads a v2 or a v1 file), fcTable keys on it; fcInputs
+  adds copies (fc-copies, 1-5, default 1), recent (fc-recent, checked), gate (fc-gate, checked); hold default 3
+  (fc-h option 3 selected; fcStampRows / fcErCell default 3); fcCompute: the recent rule, rows carry k / dev12 / m12 /
+  be (the breakeven), rows sorted in buy order, `gated = I.gate && 'up' in doc.regime && !doc.regime.up` allocates
+  nothing, q = min(share cap, I.copies, supply, money left), FC.gated; fcRenderRegime = a LIGHT (`.fc-light-green`
+  rising + last month up / `-amber` rising but last month down / `-red` falling) with the 95% / 12% persistence
+  sentence and the top10 table; fcWhy = "N% under its 12-mo mean of $X · needs +Y% to break even · age · last month ·
+  PC sales / 12 mo · eBay sales / 30 d"; fcRenderPicks: a gated summary ("Nothing to buy: the market is falling ...
+  untick the box to override"), an IDLE-MONEY note when more than 10% of the capital is left ("only N cards clear your
+  bar today at 1 copy each - the supply of discounted copies, not the capital, is the limit"); fcRecord adds reg (the
+  word) and model; the Forecast history tab's no-buy cell says "gate: falling market · the plan without the gate: +x%";
+  meta-fc / the replay paragraph reworded; body.html the three inputs; style.css .fc-light*; help.js README.fc section
+  2 rewritten as the v2 story (fees, the one signal, the regime, the hold, the tables, supply), README.fh's replay
+  paragraph, entries fc_copies / fc_gate / fc_recent, fc_hold / fc_regime / fc_picks / fh_replay reworded. DEPLOYED
+  2026-10-24 20:07 UTC: the model files by MCP push (b93dff2), the page files through the editor (app.js 62b185c7,
+  body.html 4c45cc88, help.js ee0e5836, style.css 5c88e372), Forecast history run #2 (58 months, 33 gated, 455 plans
+  with buys, identical to the local run), site build #121 (10,587 cards, 4,704 ranked); the live tab at $1,000 said
+  9 cards / 9 copies / $957, 84% basket chance, Armored Mewtwo SM228 first at 87%; at $5,000 34 cards and $872 idle
+  with the note; the history tab's tiles matched the local summary and both tables fit 1364 px exactly. TESTS (all
+  ported to v2, .v1 copies kept beside them in the session's /tmp/claude-0/t and /ut): ut/test_fcmath.py (page =
+  Python on one v2 fixture, incl. the gate: equal pick counts), t/pcpop/test_ui9 / 10 / 11 (the one-month fixtures
+  set the hold to 1 now that 3 is the default; ui11's rounding tolerance 0.51 for Python's half-even vs JS), test_ui12
+  (the v2 replay fixture), ut/test_forecast_pub.py (the new columns / signature), ut/test_forecast_rec.py (fixture
+  cards carry k). The droplet: forecast_math.py changed on main -> the collector's 5-minute pull restarts it; the
+  monthly archive and the alert filter read the v2 file through the same functions (pct the same at every hold, the
+  tables keyed by the regime word). requirements.txt still lists scikit-learn (harmless; nothing imports it now).
 - THE DATA FOLDER (2026-10-23 night, Brett: "save the data, because if I want you to analyze the data in the future, then
   you will have it saved and at your quick and easy disposal ... store the data from the ungraded price and the sales
   volume per month since December 2020 ... all of the data from the ebay catalog data tab ... google trend data ...
