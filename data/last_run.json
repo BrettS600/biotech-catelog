@@ -1,6 +1,6 @@
 {
- "run": "2026-10-23T22:44:44Z",
- "full": true,
+ "run": "2026-10-24T14:07:28Z",
+ "full": false,
  "pokeviews": {
   "top100_index": {
    "rows": 931,
@@ -71,16 +71,10 @@
    "last_date": "2026-10-23"
   }
  },
- "pricecharting": {
-  "snapshot": "pc_catalog_2026-10-23.csv.gz.enc",
-  "cards_with_history": 43955,
-  "card_months": 2309526,
-  "catalog_rows": 43976
- },
  "ebay": {
-  "as_of": "2026-10-23T22:44:12Z",
-  "cards": 6453,
-  "file": "ebay/catalog/2026-10-23.csv.gz",
+  "as_of": "2026-10-24T14:03:31Z",
+  "cards": 6501,
+  "file": "ebay/catalog/2026-10-24.csv.gz",
   "gate": {
    "fee": 0.1325,
    "buyerTax": 0.065,
@@ -111,8 +105,7 @@
    50,
    500
   ],
-  "since": "2026-09-28",
-  "rollup_rows": 42898
+  "since": "2026-09-28"
  },
- "seconds": 25
+ "seconds": 8
 }
