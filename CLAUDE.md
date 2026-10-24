@@ -1092,6 +1092,40 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   cards carry k). The droplet: forecast_math.py changed on main -> the collector's 5-minute pull restarts it; the
   monthly archive and the alert filter read the v2 file through the same functions (pct the same at every hold, the
   tables keyed by the regime word). requirements.txt still lists scikit-learn (harmless; nothing imports it now).
+- THE WARNINGS BUTTON, THE UNDER-ANCHOR CHIP, TREND AND BOOK ON RAW DATA (2026-10-24 night, Brett: "For the ntfy ...
+  when there is a warning, may you have it show a warning button, and when i click it, i can see the what warnings it
+  received and how many points it recieved, similar to the way on the website itself. also may you capital the H in
+  forcast history tab name ... in the ebay raw data tab, can you add a % buy under filter. may you also add the trend
+  column that is in the ebay catelogue tab to the ebay raw data tab ... and also, next to the book column"; the Forecast
+  tab's own "% buy under" input already existed - "I buy at __% under" - so nothing was added there). (1) THE PHONE: a
+  watch / suspect hit alert (and a watch-tier auction alert) carries an ntfy ACTION BUTTON "Warnings" (`push(...,
+  actions=[{"action": "view", "label": WARN_LABEL, "url": link + ".w"}])`; ntfy shows up to three; the plain tap still
+  opens the check screen as before). `warnings_payload(state, rec)` adds to the alert's payload d["scs"] = {signal code:
+  [sold, ended, gone, outlived 2 days]} for the fired codes, from es.scam_calib(state)["signals"] (a code with no closed
+  listings yet is left out), and d["sct"] = [SCAM_WATCH, SCAM_SUSPECT]. hit.html reads an optional flag after a dot in
+  the hash (`#<base64>.w`; base64url never contains a dot) and, for a watch / suspect alert, draws the scam box as a
+  header line + a "Warnings" button that swaps the plain-language list (#wlist) for the site's table (#wtab, class wt):
+  Signal (the site's SCAM_LABELS wording, copied into hit.html as LAB, with the code) | Points | Listings with this
+  signal ("18,664 closed: 3,287 sold (18%), 1,818 ended, 173 gone (1%), 13,386 outlived 2 days", or "no closed listings
+  with this signal yet") | a Total row ("watch: 3 to 4" / "suspect: at or over 5, or the shared photo alone / the
+  seller burst") | the Risk popup's footer sentence; with the ".w" flag the table is open on arrival and scrolled to. The
+  "So far eBay has pulled N of M" line stays. (2) "Forecast History": the tab button, the meta line, README_TITLE.fh,
+  the replay-file error message in app.js. (3) RAW DATA "Under anchor %" chip: makeTable accepts cfg.get = {key: r =>
+  value} for a chip that reads a DERIVED value - the er cfg's ranges / chips gain the string key 'ua' with get.ua = r =>
+  -r[12] (vs anchor % with the sign flipped), labels.ua 'Under anchor %', so "20" keeps listings at least 20% under the
+  sold median; chip id 'rua' in chips-er / chiporder-er; the Favorites Raw Data view inherits it. (4) RAW DATA Trend and
+  Book: two header cells at the end of #p-er's header (positions 43-44; `inserted {v: 15, at: 43, n: 2}` keeps saved
+  orders / eyes / widths valid), `erTrendBook(r)` appended by the listing row, auRow and unmRow (dashes without a card):
+  `<button class="tbtn ebtn" data-id=cid>Trend</button>` and `<button class="tbtn bbtn" data-id=cid data-iid=item
+  id>Book</button>`; the click handler for .ebtn / .bbtn moved from $('rows-ec') to the DOCUMENT, so the eBay Catalog,
+  Raw Data and the Favorites views (whose buttons were dead before) all work; `openBook(cid, iid)` marks the row's own
+  listing in the card's book (tr.mine, "this one", the sub says "the listing you came from is marked"; a note when the
+  listing is not among the ranked copies). Deployed 2026-10-24 ~21:45 UTC through the editor (app.js a0e5faad,
+  body.html 7a9060c7, help.js 6b91508f, style.css 70616f1a, hit.html 0826ce16, collector.py 3c730c27), site build #122;
+  the droplet pulls collector.py on its 5-minute cycle. Tests: ut/test_warn.py (the payload and the ntfy body),
+  t/hit/test_warn.py (the check screen's table, folded / open / the flag / a suspect), t/pcpop/test_ui13.py (the chip,
+  the two columns on every row, the Book marker, the Trend popup, the Catalog's buttons), test_ui6 / test_ui12 ported
+  (the chip order gains 'rua'; the README title).
 - THE DATA FOLDER (2026-10-23 night, Brett: "save the data, because if I want you to analyze the data in the future, then
   you will have it saved and at your quick and easy disposal ... store the data from the ungraded price and the sales
   volume per month since December 2020 ... all of the data from the ebay catalog data tab ... google trend data ...
