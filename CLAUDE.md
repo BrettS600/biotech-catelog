@@ -969,7 +969,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Range and drift from ~11-27 - say so instead of lowering a minimum.
 - THE RESEARCH FOLDER (2026-10-24, Brett: "Spend 3-hours, analyzing all of that data you saved in data/ ... store what you
   learned in the data folder: storing mathematical models that you tried and failed, things that worked ... store it as
-  data ... Do not update the website. Do not apply your findings to the forecast tab"). Sixteen experiments (E01-E16)
+  data ... Do not update the website. Do not apply your findings to the forecast tab"). Twenty-two experiments (E01-E22)
   on the committed data/ folder, recorded in `data/research/` as a registry (experiments.csv), one note per experiment,
   result tables, reproducible scripts (common.py loader, xs.py cross-sectional engine, e##_*.py), a backlog and a sources
   file; `FINDINGS.md` is the synthesis. THE FINDINGS, in short: (1) fees are the first-order problem - a +22% move is
@@ -989,7 +989,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the full 20%; (6) hold 2-3 months with >=20 cards: picks are nearly uncorrelated (market explains 3-6% of pick variance)
   so 20 positions cut the basket loss probability from 40% to 15% at 3 months (E12); 6 months only for near-standard
   buys; (7) execution edges: patient selling at the 80th percentile of sold prices +9-11%, buyer-pays-shipping ~5 points,
-  Store rate ~1 point (E07/E08); deep floors are mildly adversely selected (-4% median drift in 14 days, E13). THE
+  Store rate ~1 point (E07/E08); deep floors are mildly adversely selected (-4% median drift in 14 days, E13). THE SECOND
+  ROUND (E17-E22): the reversal's per-month rate peaks at a 2-4-month hold (E17); its excess over the band is +6 to +10
+  pts per quarter in EVERY year 2022-26, 53/55 months (E18); DILUTION - with $5k and 12% discount availability the pure
+  decile deploys ~15% of the money, the simulated 31%/yr is the return of the best discounted HALF of the dev12 ranking
+  (E17); cap/band grid (E19) CORRECTS the first draft: keep the 20% per-card cap (never below 10%) and the whole $50-500
+  band - narrowing to $50-250 / $100-250 costs 6-10 CAGR points through under-deployment; E20 is an EMPIRICAL CHANCE TABLE
+  (results/E20_chance_table.csv: regime x hold x discount x dev12 rank bucket -> P(net>0), mean, p10/p50/p90; e.g.
+  3-mo, up regime, 20% under, bottom decile 74% / +23%; out-of-sample error ~5 pts) meant to replace the standard-price
+  classifier probabilities; Fama-MacBeth regressions (E21) show dev12 survives every control (12-1 momentum, 12-mo-high
+  distance, volatility, price, liquidity, set age, market beta) and the reversal portfolio's excess is ALPHA NOT BETA
+  (+7%/quarter over the band, t 12, beta -0.2; wider in down months) - cards have no 12-1 momentum premium; in a down
+  market a card that dropped last month keeps dropping another month (mom1 +3.8 pts, t 5.5); S&P/gold/BTC do not lead
+  the card market (E22). THE
   REGIME BUG: computing the regime from cards priced $10+ in the current month biases it up (2022 looked flat-positive);
   use last month's price (xs.py). NOT YET APPLIED TO THE SITE - Brett will ask for that in a later prompt; FINDINGS.md
   lists the build order (gate display, reversal rank, discount-centred plan, 3-month default, calibrated chance at the
