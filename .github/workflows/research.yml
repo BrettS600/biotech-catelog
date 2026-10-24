@@ -1,0 +1,42 @@
+name: Research results
+
+# Regenerates data/research/results/ from the committed data/ folder by running every research script
+# (data/research/scripts/e*.py). Dispatch it by hand after changing a script or when a fresh month of data
+# is in; it commits the results to main. The notes in data/research/notes quote the 2026-10-24 run - results
+# regenerated later differ slightly because data/ is refreshed daily (the current month is partial and the
+# eBay snapshot is newer).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install numpy pandas scipy scikit-learn statsmodels
+      - name: Run the experiments
+        working-directory: data/research/scripts
+        run: |
+          mkdir -p ../results
+          for s in e01_fee_wall e02_signals e03_reversal e04_market_timing e04b_incremental e05_calendar_age e06_ml e06b_ml_variants e07_ebay_micro e08_fee_lever e09_dip_print e10_portfolio_sim e11_pv_set_index e12_risk_hold e13_ebay_daily e15_gate_variants e16_pick_composition; do
+            echo "== $s"
+            python3 $s.py > ../results/$s.log 2>&1 || echo "FAILED $s (see results/$s.log)"
+          done
+          rm -f ../results/E10_sim_cycles.csv
+          date -u +%FT%TZ > ../results/generated_at.txt
+      - name: Commit to main
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/research/results
+          git commit -m "Research results $(date -u +%F)" || exit 0
+          for i in 1 2 3; do git pull --rebase origin main && git push origin main && break || sleep 15; done
