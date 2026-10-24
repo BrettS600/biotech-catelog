@@ -1384,13 +1384,16 @@ def quiet_now(cfg):
     return a <= h < b if a < b else h >= a or h < b
 
 
-def push(title, message, click=None, image=None, priority=5, tags=("moneybag",)):
-    """One notification to the phone. Returns True when ntfy accepted it."""
+def push(title, message, click=None, image=None, priority=5, tags=("moneybag",), actions=None):
+    """One notification to the phone. Returns True when ntfy accepted it. actions: ntfy buttons under the notification,
+    [{"action": "view", "label": ..., "url": ...}] (at most three)."""
     if not NTFY_TOPIC or DRY_RUN:
         return False
     body = {"topic": NTFY_TOPIC, "title": title, "message": message, "priority": priority, "tags": list(tags)}
     if click:
         body["click"] = click
+    if actions:
+        body["actions"] = list(actions)[:3]
     if image:
         body["attach"] = image
     try:
@@ -2057,6 +2060,23 @@ def tier_risk(state, tier):
     return [t.get("gone", 0), n] if n else None
 
 
+def warnings_payload(state, rec):
+    """What the check screen's Warnings table needs (2026-10-24, Brett: "when there is a warning, may you have it show a
+    warning button, and when i click it, i can see what warnings it received and how many points"): for each signal that
+    fired, how closed listings with it turned out [sold, ended, gone, outlived 2 days] - the Scam screen's own numbers -
+    and the watch / suspect thresholds. Travels inside the alert's link like everything else."""
+    sig = es.scam_calib(state).get("signals") or {}
+    out = {}
+    for code in rec.get("scr") or []:
+        c = sig.get(code)
+        if c:
+            out[code] = [int(c.get(k, 0)) for k in ("sold", "ended", "gone", "stale")]
+    return {"scs": out, "sct": [es.SCAM_WATCH, es.SCAM_SUSPECT]}
+
+
+WARN_LABEL = "Warnings"               # the ntfy button on a watch / suspect alert: opens the check screen on the Warnings table (link + ".w")
+
+
 def alert_hits(state, cat, cards, live, cfg):
     """Push every new hit (and lead, when switched on) once, if it clears the Alerts-tab filters: the listings first
     seen in the last 24 hours (the live rows), and older listings whose price a re-read just found lower. A listing
@@ -2114,6 +2134,7 @@ def alert_hits(state, cat, cards, live, cfg):
         flagged = rec.get("tier") in ("watch", "suspect")
         if flagged:
             d["risk"] = tier_risk(state, rec["tier"])
+            d.update(warnings_payload(state, rec))
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%" + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
                + (f"\nForecast: {fcp * 100:.0f}% chance of a profit at this price, {cfg.get('fc_h', 1)}-month hold" if fcp is not None else "")
@@ -2123,7 +2144,8 @@ def alert_hits(state, cat, cards, live, cfg):
         title = ("SUSPECT: " if suspect else "") + ("Price drop: " if drop else "") + f"+${d['nm'][2]:.0f} \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}"
         if not push(title, msg, click=link, image=rec.get("img"),
                     priority=2 if quiet else 4 if suspect else 5 if kind == "hit" else 3,
-                    tags=("warning",) if suspect else ("moneybag",) if kind == "hit" else ("mag",)):
+                    tags=("warning",) if suspect else ("moneybag",) if kind == "hit" else ("mag",),
+                    actions=[{"action": "view", "label": WARN_LABEL, "url": link + ".w"}] if flagged else None):
             return 0
         sent[iid] = es.ts(es.NOW)
         box["n"] += 1
@@ -2328,6 +2350,7 @@ def auction_alerts(state, cat, cards, cfg):
         alert_extras(state, d, rec)
         if rec["tier"] == "watch":
             d["risk"] = tier_risk(state, "watch")
+            d.update(warnings_payload(state, rec))
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Now ${rec['item']:.2f} + ${rec['ship']:.2f} shipping, {d['au']['n']} bids. Bid up to ${d['nm'][4]:.2f} for a near-mint copy"
                + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
@@ -2335,7 +2358,8 @@ def auction_alerts(state, cat, cards, cfg):
                + (f"\nA cheaper reprint has this number ({d['rp'][0][0]}): look for the stamp" if d.get("rp") else "")
                + (f"\nScam watch: {scam_words(rec)}" if rec["tier"] == "watch" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
         title = f"Auction ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
-        if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3, tags=("hammer",)):
+        if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3, tags=("hammer",),
+                    actions=[{"action": "view", "label": WARN_LABEL, "url": link + ".w"}] if rec["tier"] == "watch" else None):
             continue
         sent[iid] = es.ts(es.NOW)
         box["n"] += 1
