@@ -173,6 +173,7 @@
   <thead><tr>
     <th class="rn" title="Row number in the current sort and filters">Row</th>
     <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts it on the Favorites tab; click here to sort your favorites to the top">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th class="plh" data-k="plan" data-label="Plan" title="Planning: + puts this listing on the plan of the Forecast tab, − takes it off; click here to sort the planned listings to the top">+<span class="s">⇅</span><button class="help" data-h="plan">?</button></th>
     <th class="mmk">Reviewer<button class="help" data-h="er_mm">?</button></th>
     <th data-k="1">Card<span class="s">⇅</span><button class="help" data-h="card">?</button></th>
     <th data-k="2">PC Set Name<span class="s">⇅</span><button class="help" data-h="er_pcset">?</button></th>
@@ -256,6 +257,18 @@
     <div id="bbody"></div>
   </div>
 </div>
+<!-- the Forecast tab's card popup (2026-10-24): the card's open copies through the Raw Data columns, with their own column choices (store fc) -->
+<div class="ov" id="lov">
+  <div class="modal listings">
+    <button class="close" id="lclose" title="Close">✕</button>
+    <h2 id="ltitle"></h2>
+    <div class="sub" id="lsub"></div>
+    <div class="controls"><input type="search" id="q-fcl" placeholder="Search title…"><select id="set-fcl" hidden><option value="">All sets</option></select><span class="count" id="count-fcl"></span></div>
+    <div class="ranges" id="ranges-fcl"><button class="reset" id="reset-fcl">Reset</button></div>
+    <div class="wrap lwrap"><table class="wide"><tbody id="rows-fcl"></tbody></table></div>
+    <button class="more" id="more-fcl" hidden>Show more</button>
+  </div>
+</div>
 
 <div class="ov" id="ov">
   <div class="modal">
@@ -312,6 +325,10 @@
 <!-- ============ Tab: Forecast (Brett, 2026-10-17: capital in, cards + quantities + net profit range + confidence out) ============ -->
 <section class="panel" id="p-fc" hidden>
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
+<div class="actbar fc-bar">
+  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
+  <span class="fc-tools"><label class="fc-ua">Listings at least <input type="number" id="fc-ua" min="0" max="80" step="5" value="0"> % under the anchor<button class="help" data-h="fc_ua">?</button></label><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
+</div>
 <div class="al fc">
   <div class="al-card">
     <h3>Your plan</h3>
@@ -337,6 +354,13 @@
     <div id="fc-picks"></div>
     <h3>Past forecasts<button class="help" data-h="fc_record">?</button></h3>
     <div id="fc-records" class="al-now"></div>
+  </div>
+  <div class="al-card" id="fc-plan" hidden>
+    <h3>Your plan &mdash; the listings you added<button class="help" data-h="fc_plan">?</button></h3>
+    <div id="pl-summary" class="al-now"></div>
+    <div id="pl-picks"></div>
+    <div class="al-actions"><button class="al-save" id="pl-record">Record this plan</button></div>
+    <div class="al-status" id="pl-status"></div>
   </div>
 </div>
 </section>
