@@ -20,9 +20,18 @@ month (live.fc_auto, with eBay's floors and medians) are the other half of the t
 RUN (the Forecast history workflow, monthly; ~2 minutes):
   python forecast_hist.py --shards live_pc/pc --snapshots snapshots --calib forecast_calib.json --out forecast_hist.bin
 The output is gzip(JSON) encrypted with the live key, like forecast.bin:
-  {t, made, model, from, to, last_month, consts, caps, holds, discs, cards {cid: [name, set]},
+  {t, made, model, format, from, to, last_month, consts, caps, holds, discs, free, cards {cid: [name, set]},
    months [{m, month, reg, reg3, reg1, n, calib, cells {"h|disc|cap": {n_elig, best, gated, picks [[cid, qty, buy, mean, y]],
-   copies, spent, exp, lo, hi, p, actual, roi, inside, done, forced_roi, forced_n}}]}
+   copies, spent, exp, lo, hi, p, actual, roi, inside, done, forced_roi, forced_n}},
+   cards {id [...], buy [...], pct [...], sup [...], y1 [...], y3 [...], y6 [...]}, tables {"h|bucket": {q, mean, p_up, n}, "h|all": ...}}]}
+
+FORMAT 2 (2026-10-24, Brett: "would it be possible to have this as a variable ... the investment, as well as the bought
+under"): besides the 30 standard cells, every month carries its INGREDIENTS - the candidate cards of the plan (in the
+band, six sales in twelve months, a set two years old: id, the buy price to the cent, the rank to four decimals, the
+supply cap, the realized return per hold to four decimals) and the month's chance tables for its regime - so the page
+can run the plan itself for any capital and any discount (the Forecast History tab's two inputs) with the same
+arithmetic (page/app.js fhCompute = forecast_math.plan + monte_carlo + actual_net). The standard cells are computed from
+the same rounded figures, so the page's recomputation of a standard cell equals the file's (ut/test_fh2.py checks).
 """
 import argparse, json, math, os, sys, time
 from datetime import datetime, timezone
@@ -38,6 +47,9 @@ MIN_CALIB_MONTHS = 12        # months of out-of-sample outcomes before the expan
 MC_N = 2000                  # Monte Carlo draws per plan (the page uses 3,000; the replay has ~1,700 plans)
 BAND = (50.0, 500.0)
 QS = F.QS
+MIN_AGE = 24                 # the standard plan's "sets two years old" (STD_INPUTS young=False)
+FREE = {"cap": [100, 1000000], "disc": [0.0, 0.6]}   # what the page lets the capital and the discount be (format 2)
+FORMAT = 2
 
 
 def month_name(m):
@@ -85,24 +97,44 @@ def replay(df, mk, cat, static_calib, log=print):
             else:
                 tables.update(tb)
         cards, stubs, ys = {}, {}, {h: {} for h in F.HORIZONS}
+        ing = {"id": [], "buy": [], "pct": [], "sup": []}       # the page's ingredients (format 2), ascending id = S's order
+        for h in F.HORIZONS:
+            ing[f"y{h}"] = []
         for r in S.itertuples(index=False):
             buy = r.price if pd.isna(r.buy_real) else r.buy_real
+            buy = round(float(buy), 2)                          # to the cent, the rank to four decimals, the return to four: the figures the page gets
             if not (BAND[0] <= buy <= BAND[1]):
                 continue
             cid = int(r.id)
-            pct = float(r.pct); b = str(F.bucket_of(np.array([pct]))[0])
+            pct = round(float(r.pct), 4); b = str(F.bucket_of(np.array([pct]))[0])
+            age = None if pd.isna(r.age) else int(r.age)
+            vol = 0 if pd.isna(r.vol) else int(r.vol)
+            vol12 = None if pd.isna(r.vol12) else int(r.vol12)
             preds = []
             for h in F.HORIZONS:
                 tb = tables.get(f"{h}|{regw}|{b}")
                 preds += [None if tb is None else tb["mean"], pct]
-            cards[str(cid)] = [float(r.price), float(buy)] + preds + \
-                [None, None, None, None if pd.isna(r.age) else int(r.age), None if pd.isna(r.vol) else int(r.vol), None if pd.isna(r.vol12) else int(r.vol12), None, None,
+            cards[str(cid)] = [float(r.price), buy] + preds + \
+                [None, None, None, age, vol, vol12, None, None,
                  None if pd.isna(r.dev12) else float(r.dev12), None if pd.isna(r.m12) else float(r.m12)]
-            stubs[str(cid)] = {"supply": max(1, int((0 if pd.isna(r.vol) else r.vol) * SUPPLY_FRAC))}
+            sup = max(1, int(vol * SUPPLY_FRAC))
+            stubs[str(cid)] = {"supply": sup}
+            yy = {}
             for h in F.HORIZONS:
                 y = getattr(r, f"y{h}")
-                ys[h][cid] = None if pd.isna(y) else float(y)
+                yy[h] = ys[h][cid] = None if pd.isna(y) else round(float(y), 4)
+            if (vol12 or 0) >= fm.MIN_VOL12 and age is not None and age >= MIN_AGE:   # the plan's own fixed filters: only these cards can be picked
+                ing["id"].append(cid); ing["buy"].append(buy); ing["pct"].append(pct); ing["sup"].append(sup)
+                for h in F.HORIZONS:
+                    ing[f"y{h}"].append(yy[h])
         doc = {"cols": F.COLS, "cards": cards, "calib": {"quantiles": QS, "tables": tables}, "regime": R, "month": month_name(t), "model": F.VERSION}
+        month_tables = {}                                     # the tables the plan reads this month: the regime's per bucket, and the all-cards fallback
+        for h in F.HORIZONS:
+            for b in F.BUCKETS:
+                if f"{h}|{regw}|{b}" in tables:
+                    month_tables[f"{h}|{b}"] = tables[f"{h}|{regw}|{b}"]
+            if f"{h}|all|all" in tables:
+                month_tables[f"{h}|all"] = tables[f"{h}|all|all"]
         cells = {}
         for h in F.HORIZONS:
             done = t + h <= m_last
@@ -128,7 +160,8 @@ def replay(df, mk, cat, static_calib, log=print):
                     for r in picks:
                         cards_used[r["cid"]] = names.get(r["cid"], ("", ""))
                     cells[f"{h}|{disc:g}|{cap}"] = cell
-        months.append({"m": t, "month": month_name(t), "reg": regw, "reg3": R["reg3"], "reg1": R["reg1"], "n": len(cards), "calib": calib_mode, "cells": cells})
+        months.append({"m": t, "month": month_name(t), "reg": regw, "reg3": R["reg3"], "reg1": R["reg1"], "n": len(cards), "calib": calib_mode, "cells": cells,
+                       "cards": ing, "tables": month_tables})
         if (t - START_M) % 6 == 0:
             log(f"  plans through {month_name(t)} ({time.time() - t0:.0f}s)")
     log(f"replayed {len(months)} months ({time.time() - t0:.0f}s)")
@@ -161,17 +194,19 @@ def main():
     if static_calib.get("buckets") != list(F.BUCKETS):     # a version-1 file: rebuild the fallback from the data
         static_calib = F.calib(df, int(df["m"].max()) - 1)
     months, cards_used, m_last = replay(df, mk, cat, static_calib)
-    doc = {"t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "made": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "model": F.VERSION,
-           "from": month_name(START_M), "to": month_name(m_last), "last_month": month_name(m_last),
-           "consts": {"fees": fm.STD_FEES, "inputs": fm.STD_INPUTS, "band": BAND, "supply_frac": SUPPLY_FRAC, "min_calib_months": MIN_CALIB_MONTHS, "mc_n": MC_N, "start": month_name(START_M), "rank": static_calib.get("rank"), "regime": static_calib.get("regime")},
-           "caps": list(fm.STD_CAPS), "holds": list(F.HORIZONS), "discs": list(fm.STD_DISCS),
+    doc = {"t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "made": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "model": F.VERSION, "format": FORMAT,
+           "from": month_name(START_M), "to": month_name(m_last), "last_month": month_name(m_last), "m_last": int(m_last),
+           "consts": {"fees": fm.STD_FEES, "inputs": fm.STD_INPUTS, "band": BAND, "supply_frac": SUPPLY_FRAC, "min_calib_months": MIN_CALIB_MONTHS, "mc_n": MC_N, "start": month_name(START_M), "rank": static_calib.get("rank"), "regime": static_calib.get("regime"),
+                      "quantiles": QS, "min_vol12": fm.MIN_VOL12, "min_age": MIN_AGE, "p_cap": fm.P_CAP, "rho": fm.RHO},
+           "caps": list(fm.STD_CAPS), "holds": list(F.HORIZONS), "discs": list(fm.STD_DISCS), "free": FREE,
            "cards": {str(k): list(v) for k, v in cards_used.items()}, "months": months}
     doc = F.clean(doc)
     raw = __import__("gzip").compress(json.dumps(doc, separators=(",", ":"), allow_nan=False).encode("utf-8"))
     open(a.out, "wb").write(F.encrypt_live(raw, a.password))
     with_buys = sum(1 for mo in months for c in mo["cells"].values() if c["picks"])
     gated = sum(1 for mo in months if mo["reg"] == "down")
-    print(f"published {len(months)} months ({gated} gated), {with_buys} plans with buys, to {a.out} ({os.path.getsize(a.out):,} bytes, {time.time() - t0:.0f}s)")
+    n_ing = sum(len(mo["cards"]["id"]) for mo in months)
+    print(f"published {len(months)} months ({gated} gated), {with_buys} plans with buys, {n_ing:,} candidate card-months for the page's own plans, to {a.out} ({os.path.getsize(a.out):,} bytes, {time.time() - t0:.0f}s)")
 
 
 if __name__ == "__main__":
