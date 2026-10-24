@@ -122,7 +122,7 @@ Max buy = net ÷ (1 + Margin)</div>
 
 <h3>4. What to do with the numbers</h3>
 <ul>
-<li><b>Buy</b> when the verdict says PASS — then read the title, the photos and the seller, and open the card's <b>Book</b> to see the copies you would compete with (greyed rows are the ones the floor ignored, and why).</li>
+<li><b>Buy</b> when the verdict says PASS — then read the title, the photos and the seller, and open the card's <b>Book</b> (the last column, next to <b>Trend</b>; both the same popups as the eBay Catalog's) to see the copies you would compete with — greyed rows are the ones the floor ignored, and why; the row you came from is marked green. The <b>Under anchor %</b> chip keeps only listings priced at least that far under what the card sells for (20 = 20% or more under the anchor): the "% buy under" filter.</li>
 <li><b>List</b> at Sell, free shipping, Best Offer on with auto-accept about 3% under it. Unsold at 36–48 hours, cut to 0.90 × A or accept offers there. After another window it was mispriced or the card slowed — take the small loss and note why.</li>
 <li>Treat "review" rows as a short daily to-do, not as hits. The same goes for the <b>Too cheap only</b> list (section 5): mostly wrong matches, occasionally a real steal.</li>
 </ul>
@@ -193,7 +193,7 @@ al: `
 <p><b>Preview</b> runs the last 24 hours of listings through the numbers on the left, saved or not, so you can see what a change would have sent. <b>History</b> lists the last 40 alerts with what you answered on the phone and what became of each listing. <b>Wrong matches</b> keeps, for a year, every clean listing you answered "No, not the same card" to - the cases to tighten the title matcher against.</p>
 
 <h3>8. The alert on your phone</h3>
-<p>Tapping an alert opens a check screen with two questions. <b>First: is it the same card?</b> PriceCharting's picture on the left, the eBay photos on the right (tap the eBay photo to open the listing), and under them the set and card number, the price, and the sales on each side. The total price is the card plus shipping plus buy tax, at the tax saved here when the alert went out. <b>Second: what condition is it?</b> Near Mint and Lightly Played each show the Max buy, the profit and the ROI; choosing one opens the listing on eBay. "Next question" only looks ahead and records nothing. An alert already on your phone keeps the numbers it was sent with.</p>
+<p>Tapping an alert opens a check screen with two questions. <b>First: is it the same card?</b> PriceCharting's picture on the left, the eBay photos on the right (tap the eBay photo to open the listing), and under them the set and card number, the price, and the sales on each side. The total price is the card plus shipping plus buy tax, at the tax saved here when the alert went out. <b>Second: what condition is it?</b> Near Mint and Lightly Played each show the Max buy, the profit and the ROI; choosing one opens the listing on eBay. "Next question" only looks ahead and records nothing. An alert already on your phone keeps the numbers it was sent with. A watch or suspect alert carries a <b>Warnings</b> button under the notification: it opens the same check screen on a table of the warnings — each signal with its points, how closed listings with that signal turned out (sold, ended, pulled by eBay, outlived two days), the total against the watch and suspect thresholds — the Risk points popup of the Raw Data tab, on the phone.</p>
 `,
 fh: `
 <h3>1. What this tab is</h3>
@@ -253,7 +253,7 @@ rv: `
 <p>Refunds and returns are not taken off. Real shipping label costs are not read. Purchases made more than 90 days before the account was linked are not on record.</p>
 `
 };
-const README_TITLE = {pc: 'PriceCharting Catalog', ec: 'eBay Catalog', er: 'eBay Raw Data', fc: 'Forecast', fh: 'Forecast history', al: 'Notification Settings', rv: 'Transaction Report', fv: 'Favorites'};
+const README_TITLE = {pc: 'PriceCharting Catalog', ec: 'eBay Catalog', er: 'eBay Raw Data', fc: 'Forecast', fh: 'Forecast History', al: 'Notification Settings', rv: 'Transaction Report', fv: 'Favorites'};
 
 /* ---------------- Column help ---------------- */
 const pct = v => (v * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
