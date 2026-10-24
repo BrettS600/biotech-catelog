@@ -969,7 +969,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Range and drift from ~11-27 - say so instead of lowering a minimum.
 - THE RESEARCH FOLDER (2026-10-24, Brett: "Spend 3-hours, analyzing all of that data you saved in data/ ... store what you
   learned in the data folder: storing mathematical models that you tried and failed, things that worked ... store it as
-  data ... Do not update the website. Do not apply your findings to the forecast tab"). Twenty-two experiments (E01-E22)
+  data ... Do not update the website. Do not apply your findings to the forecast tab"). Twenty-three experiments (E01-E23)
   on the committed data/ folder, recorded in `data/research/` as a registry (experiments.csv), one note per experiment,
   result tables, reproducible scripts (common.py loader, xs.py cross-sectional engine, e##_*.py), a backlog and a sources
   file; `FINDINGS.md` is the synthesis. THE FINDINGS, in short: (1) fees are the first-order problem - a +22% move is
@@ -1001,7 +1001,11 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   distance, volatility, price, liquidity, set age, market beta) and the reversal portfolio's excess is ALPHA NOT BETA
   (+7%/quarter over the band, t 12, beta -0.2; wider in down months) - cards have no 12-1 momentum premium; in a down
   market a card that dropped last month keeps dropping another month (mom1 +3.8 pts, t 5.5); S&P/gold/BTC do not lead
-  the card market (E22). THE
+  the card market (E22); THE EXIT RULE (E23): list each copy at its own 12-month mean on arrival, sell when it prints,
+  market-sell at month 6 - beats every fixed hold (chance 66 -> 78%, 5.1 -> 5.7% per month of capital, up markets 7.4 ->
+  8.7%/mo with the money back in 2.3 months instead of 3; 87% of picks reach the anchor within 6 months); stop-losses
+  HURT a reversal trade; assumes a copy listed at the anchor sells within the month the monthly average reaches it
+  (time-to-sell at a fixed ask is unmeasured, backlog B03/B12). THE
   REGIME BUG: computing the regime from cards priced $10+ in the current month biases it up (2022 looked flat-positive);
   use last month's price (xs.py). NOT YET APPLIED TO THE SITE - Brett will ask for that in a later prompt; FINDINGS.md
   lists the build order (gate display, reversal rank, discount-centred plan, 3-month default, calibrated chance at the
