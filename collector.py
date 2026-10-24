@@ -1061,6 +1061,89 @@ def fav_live(state, cards, live_ids):
     return out
 
 
+# ---------------- Planning (Brett, 2026-10-24: "when i click the plus sign, it goes to the planning button ... i want
+# the collector so it follows from laptop to phone") ----------------
+PLAN_MAX = 200                   # listings kept on the plan (the oldest goes when a new one would be one too many)
+
+
+def plan_set(state, msg, t):
+    """A + / - clicked on a listing on the site: {type: 'plan', t, i: item id, c: card id, v: 1 add / 0 remove, m: a few
+    words (title, link, price) for when the listing has left the data}. Kept in v["plan"] as {item id -> {i, c, t, m}};
+    the live file carries the list and the rows (plan_live), confirmed by plan_t. A planned listing's record survives
+    the prune like a starred one (ebay_sweep.fav_listing_ids)."""
+    v = state["vps"]
+    plan = v.setdefault("plan", {})
+    i = str(msg.get("i") if msg.get("i") is not None else "")[:60]
+    if not i:
+        return
+    if msg.get("v"):
+        m = msg.get("m") if isinstance(msg.get("m"), dict) else {}
+        m = {str(mk)[:12]: (mv[:120] if isinstance(mv, str) else mv) for mk, mv in list(m.items())[:16] if isinstance(mv, (str, int, float)) or mv is None}
+        c = msg.get("c")
+        try:
+            c = int(c) if c is not None else None
+        except (TypeError, ValueError):
+            c = None
+        plan[i] = {"i": i, "c": c, "t": t, "m": m}
+        for old in sorted(plan, key=lambda kk: plan[kk]["t"])[:max(0, len(plan) - PLAN_MAX)]:
+            del plan[old]
+    else:
+        plan.pop(i, None)
+    v["plan_t"] = t
+    log(f"Plan: listing {'added' if msg.get('v') else 'removed'} on the site: {i} ({len(plan)} on the plan)")
+
+
+def plan_live(state, cards, live_ids):
+    """The Planning block of the live file: t = the last click taken, list = [[i, c, t, m], ...] oldest first, rows =
+    the Raw Data row (ebay_sweep.live_row) of every planned listing that is not in the 24-hour table, so the Planning
+    view can price it like the rest (a closed listing's row says so in its status)."""
+    v = state["vps"]
+    plan = v.get("plan") or {}
+    out = {"t": v.get("plan_t", 0), "list": [[p["i"], p.get("c"), p["t"], p.get("m") or None] for p in sorted(plan.values(), key=lambda p: p["t"])], "rows": {}}
+    for p in plan.values():
+        if p["i"] not in live_ids:
+            rec = find_rec(state, p["i"])
+            if rec is not None:
+                try:
+                    out["rows"][p["i"]] = es.live_row(rec, cards.get(str(rec["card"])))
+                except Exception:
+                    pass
+    return out
+
+
+FC_ROWS_EVERY_S = 600            # the Forecast tab's listings file (live/fc_rows.bin) is rebuilt this often
+FC_ROWS_LIMIT = 1.15             # a book copy counts as available when its total is within 15% of the card's standard price (the tab's supply rule)
+
+
+def fc_rows_file(state, cards, live_ids):
+    """live/fc_rows.bin (Brett, 2026-10-24: "when i click on a card in the forecast tab, i would like to see a popup with
+    the available listings ... all of the ebay raw data tab columns"): the Raw Data row of every available copy the
+    24-hour table does not carry - the book copies within FC_ROWS_LIMIT of the card's standard price (the credible floor,
+    else the sold median, else the price) - keyed by card id. The page reads it when a card's popup opens (hourly
+    bucket) and merges it with the 24-hour rows and the plan's rows."""
+    out, n = {}, 0
+    for cid, cs in cards.items():
+        book = cs.get("book") or []
+        ref = cs.get("L") or cs.get("A") or cs.get("price")
+        if not book or not ref:
+            continue
+        rows = []
+        for b in book:
+            if b[1] is None or b[1] > ref * FC_ROWS_LIMIT or b[0] in live_ids:
+                continue
+            rec = state["open"].get(b[0])
+            if rec is None:
+                continue
+            try:
+                rows.append(es.live_row(rec, cs))
+            except Exception:
+                continue
+        if rows:
+            out[str(cid)] = rows
+            n += len(rows)
+    return {"t": es.ts(es.NOW), "n": n, "rows": out}
+
+
 def read_requests(state):
     """What the Alerts tab sent since the last look: new settings, or a request for a test alert. A message counts
     only when its signature is right and it is newer than the last one acted on."""
@@ -1135,6 +1218,8 @@ def read_requests(state):
                 q.append(str(msg["i"])[:60])
         elif msg.get("type") == "fav" and msg.get("k") is not None:   # a star clicked on the site (Favorites)
             fav_set(state, msg, t)
+        elif msg.get("type") == "plan" and msg.get("i") is not None:   # a + / - clicked on a listing (Planning)
+            plan_set(state, msg, t)
 
 
 # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
@@ -1210,7 +1295,8 @@ def forecast_record(v, msg, t):
                "fees": {k: round(float(fees.get(k, d)), 6) for k, d in (("fee", 0.1411), ("fixed", 0.4), ("shipOut", 4.5), ("supplies", 0.3), ("tax", 0.0))},
                "picks": [[int(p[0]), int(p[1]), round(float(p[2]), 2), round(float(p[3]), 2)] for p in (msg.get("picks") or [])[:60] if int(p[1]) > 0],
                "exp": round(float(msg.get("exp") or 0), 2), "lo": round(float(msg.get("lo") or 0), 2), "hi": round(float(msg.get("hi") or 0), 2),
-               "p": round(float(msg.get("p") or 0), 3), "reg": str(msg.get("reg") or "")[:12], "month": str(msg.get("month") or "")[:7], "done": None}
+               "p": round(float(msg.get("p") or 0), 3), "reg": str(msg.get("reg") or "")[:12], "month": str(msg.get("month") or "")[:7], "done": None,
+               "plan": 1 if msg.get("plan") else 0}      # 1: the Planning view's basket - the listings he actually chose (2026-10-24)
     except (TypeError, ValueError, KeyError, IndexError):
         return
     if not rec["picks"]:
@@ -2961,6 +3047,7 @@ def cycle(state, cat, sched, counters):
         log(f"Forecast: the monthly archive failed ({str(e)[:120]})")
     live["fc_auto"] = {"t": v.get("fc_auto_t", 0), "recs": v.get("fc_auto") or []}   # the standard plans, month by month (the Forecast history tab)
     live["favs"] = fav_live(state, cards, {x[0] for x in live["live"]})   # the stars (Favorites tab), with rows for starred listings past 24 h
+    live["plan"] = plan_live(state, cards, {x[0] for x in live["live"]})   # the Planning view's listings, with rows for those past 24 h (2026-10-24)
     live["source"] = "vps"
     raw = es.json_gz(live)
     state["runs"] = state.get("runs", 0) + 1
@@ -2969,7 +3056,7 @@ def cycle(state, cat, sched, counters):
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0),
-           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0))   # a change on the Alerts tab, a listing read for the Review screen or a star is published at once
+           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
@@ -2987,6 +3074,15 @@ def cycle(state, cat, sched, counters):
                 files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
             except Exception as e:
                 log(f"PriceCharting history: publish failed ({str(e)[:120]})")
+        if due("fcrows", FC_ROWS_EVERY_S):                   # the Forecast tab's available listings, with the Raw Data columns (the card popup)
+            try:
+                fr = fc_rows_file(state, cards, {x[0] for x in live["live"]})
+                raw_fr = gzip.compress(json.dumps(fr, separators=(",", ":")).encode("utf-8"))
+                files["fc_rows.bin"] = es.encrypt_live(raw_fr, es.PASSWORD) if es.PASSWORD else raw_fr
+                if due("fcrows_log", 6 * 3600):
+                    log(f"Forecast listings: {fr['n']:,} available copies past the 24-hour table on {len(fr['rows']):,} cards ({len(raw_fr) // 1024} KB published)")
+            except Exception as e:
+                log(f"Forecast listings: fc_rows.bin failed ({str(e)[:120]})")
         if due("pcm", PCM_PUBLISH_S):                        # every card's last complete month of PriceCharting sales ("PC sales")
             try:
                 pcm = pchist.last_month_all()
