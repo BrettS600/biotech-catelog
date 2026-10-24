@@ -1,0 +1,41 @@
+monthly sample: 2024-05 .. 2026-10 30 months
+contemporaneous Spearman (k=0):
+       target asset  lag_k  spearman      p   n     meaning
+3       pv250   spx      0     0.078  0.683  30  same month
+10      pv250  gold      0    -0.212  0.260  30  same month
+17      pv250   btc      0     0.179  0.345  30  same month
+24  pc_median   spx      0    -0.172  0.365  30  same month
+31  pc_median  gold      0     0.065  0.733  30  same month
+38  pc_median   btc      0    -0.032  0.867  30  same month
+strongest lead (k<0) per asset/target:
+       target asset  lag_k  spearman      p   n              meaning
+23  pc_median   spx     -1    -0.345  0.067  29  asset leads by 1 mo
+37  pc_median   btc     -1    -0.300  0.113  29  asset leads by 1 mo
+8       pv250  gold     -2    -0.282  0.146  28  asset leads by 2 mo
+14      pv250   btc     -3     0.250  0.209  27  asset leads by 3 mo
+30  pc_median  gold     -1    -0.197  0.306  29  asset leads by 1 mo
+0       pv250   spx     -3    -0.104  0.604  27  asset leads by 3 mo
+incremental over AR:
+      target asset   n   coef  hac_t  ar_coef  in_sample_r2  loyo_oos_r2
+0      pv250  none  29    NaN    NaN    0.544         0.311        0.290
+1      pv250   spx  29 -0.060 -0.416    0.552         0.315        0.204
+2      pv250  gold  29 -0.072 -1.083    0.528         0.327        0.022
+3      pv250   btc  29  0.015  0.536    0.536         0.315        0.266
+4  pc_median  none  29    NaN    NaN    0.572         0.335        0.096
+5  pc_median   spx  29 -0.104 -0.916    0.565         0.364       -0.040
+6  pc_median  gold  29 -0.056 -1.019    0.558         0.360        0.016
+7  pc_median   btc  29 -0.035 -1.672    0.572         0.383        0.168
+daily 30d -> forward:
+    asset  fwd_days  spearman  p_naive  n_days  independent_windows
+0     spx        30     0.081    0.017     871                   29
+1     spx        60     0.090    0.009     841                   14
+2     spx        90     0.075    0.033     811                    9
+3    gold        30    -0.226    0.000     871                   29
+4    gold        60    -0.252    0.000     841                   14
+5    gold        90    -0.238    0.000     811                    9
+6     btc        30     0.177    0.000     871                   29
+7     btc        60     0.333    0.000     841                   14
+8     btc        90     0.405    0.000     811                    9
+9   pv250        30     0.600    0.000     871                   29
+10  pv250        60     0.324    0.000     841                   14
+11  pv250        90     0.063    0.072     811                    9
