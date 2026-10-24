@@ -1174,6 +1174,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   summary and chance, Record this plan, the live confirmation, the -, the Raw Data + and its sort, the Favorites view),
   test_ui10 / test_ui13 ported (the Forecast % header is index 33 now, the card cell children[4]). NOT done: the phone
   check screen (hit.html) has no + yet.
+- THE INPUTS CARD FOLDS AWAY (2026-10-24 late, Brett: "have the your plans variable pane, on the left ... collapsible,
+  so that the other side ... will enlarge, so that way, i dont have to right scroll to the right to see all of the
+  column. do this for both the planning and forcast buttons"). "Hide" (button.fc-fold, #fc-fold) in the header of the
+  inputs card (#fc-side, the left column of #fc-al) sets FC.fold (localStorage fc-fold): .al.fc.folded makes the grid
+  one column and hides #fc-side, so #fc-main (Forecasting) or #fc-plan (Planning) takes the whole width - at 1440 px
+  the Planning table fits with no sideways scroll (t/pcpop/test_ui15.py measures scrollWidth == clientWidth); the bar
+  shows "Inputs" (#fc-unfold, hidden otherwise) with the settings in a few words ("$1,000 · 3 mo · 20% under",
+  refreshed by fcCompute) to bring the card back. Help: fc_modes and the Forecast README. Deployed 2026-10-25 ~00:05
+  UTC (body.html f2cc7e73, style.css 840b306a, app.js 7a8151bc, help.js fb167c9d), site build #125.
 - THE FORECAST HISTORY TAB'S TWO FREE VARIABLES (2026-10-24 late, Brett: "would it be possible to have this as a variable
   ['Bought 20% under'] ... also if it possible to have the investment, as well as the bought under, as a variable").
   forecast_hist.py FORMAT 2: besides the 30 standard cells, every month carries its INGREDIENTS - cards {id, buy, pct,
