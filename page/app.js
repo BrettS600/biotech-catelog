@@ -318,10 +318,11 @@ const TABLES = {
       '<td class="num">' + fmtMoney(r[11]) + '</td><td class="num">' + fmtMoney(r[12]) + '</td>' +
       '<td class="num">' + (r[13] == null ? dash : '<b class="' + (r[13] > 0 ? 'up' : r[13] < 0 ? 'down' : '') + '">' + (r[13] < 0 ? '−' : '') + fmtMoney(Math.abs(r[13])) + '</b>') + '</td>' +
       '<td class="num">' + fmtPct(r[14]) + '</td><td>' + esc(r[15] || '') + '</td><td class="num">' + fmtMoney(r[16]) + '</td>'},
-  er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25], maxes: [5], chips: [24, 5, 25],   // chip order: Profit $, Listed within, ROI % (2026-10-13, Brett)
-       labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %'}, units: {5: 'h'},
+  er: {rows: () => AU_ON() ? (LIVE.au || []) : erRows(), noun: 'listings', ranges: [24, 25, 'ua'], maxes: [5], chips: [24, 5, 25, 'ua'],   // chip order: Profit $, Listed within, ROI %, Under anchor % (2026-10-13 / 2026-10-24, Brett)
+       labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %', ua: 'Under anchor %'}, units: {5: 'h'},
+       get: {ua: r => r[12] == null ? null : -r[12]},   // "% buy under" (2026-10-24, Brett): the vs anchor % column with the sign flipped, so 20 means at least 20% under what the card sells for
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}, {v: 14, at: 32, n: 1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star; v14 Forecast %
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}, {v: 14, at: 32, n: 1}, {v: 15, at: 43, n: 2}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star; v14 Forecast %; v15 Trend + Book at the end
        key: r => String(r[22]),                       // the sticky row highlight remembers a row by this (the item id)
        fav: {s: r => r.unm ? 'um' : 'er', k: r => r[22], c: r => r[0], m: r => favMetaEr(r)},   // key = item id; an unmatched title (Favorites view only) is its own kind
        extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (!$('fchits').checked || fcErOk(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
@@ -349,8 +350,12 @@ const TABLES = {
       '<td>' + (r[16] ? 'BO' : dash) + '</td>' +
       '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
       '<td>' + (r[19] === 'open' ? 'open' : r[19] === 'sold' ? '<span class="up">sold</span>' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td>' +
-      '<td class="num">' + (r[27] == null ? dash : (r[19] === 'open' ? '<span class="dim">' + fmtNum(r[27], 1) + '</span>' : fmtNum(r[27], 1))) + '</td>'},
+      '<td class="num">' + (r[27] == null ? dash : (r[19] === 'open' ? '<span class="dim">' + fmtNum(r[27], 1) + '</span>' : fmtNum(r[27], 1))) + '</td>' + erTrendBook(r)},
 };
+// the eBay Catalog's Trend and Book buttons on every listing row (2026-10-24, Brett): the same popups for the row's card;
+// the Book popup marks this very listing in the card's book (data-iid)
+const erTrendBook = r => r[0] == null ? '<td>' + dash + '</td><td>' + dash + '</td>'
+  : '<td><button class="tbtn ebtn" data-id="' + r[0] + '">Trend</button></td><td><button class="tbtn bbtn" data-id="' + r[0] + '" data-iid="' + esc(r[22] == null ? '' : r[22]) + '">Book</button></td>';
 /* ---------------- The Favorites tab ----------------
    Five views, chosen by the chips under the tabs and remembered (fav-sel): All, and one per source tab. Each per-tab
    view is a table fvBuild() makes from a copy of the source tab's header row, run by makeTable with the source's own
@@ -420,7 +425,7 @@ function unmRow(r) {
     blank(7) + blank(7) +                                                  // PC $ ... Hit %; Anchor ... ROI, Forecast %
     '<td class="num auc"></td><td class="num auc"></td>' +
     '<td>' + (r.unm ? badge('unmatched') + (r.unm.why ? ' <span class="dim">' + esc(r.unm.why) + '</span>' : '') : badge(r[14] || 'no longer on record')) + '</td>' +
-    '<td>' + dash + '</td><td>' + dash + '</td><td>' + dash + '</td>' + blank(2) + '<td><span class="dim">' + esc(r[19] || 'unknown') + '</span></td>' + blank(1);
+    '<td>' + dash + '</td><td>' + dash + '</td><td>' + dash + '</td>' + blank(2) + '<td><span class="dim">' + esc(r[19] || 'unknown') + '</span></td>' + blank(1) + erTrendBook(r);   // Trend, Book: dashes without a card
 }
 const FV_TABLES = {                                // the Favorites views: the source tab's cfg, its saved columns, the stars as rows, no implicit filters
   fall: Object.assign({}, TABLES.ec, {rows: favRowsAll, extra: null, defaults: {}, store: 'ec', root: '#fv-fall', name: 'Favorites · All', noun: 'cards',
@@ -565,7 +570,7 @@ function auRow(r) {
     '<td>' + riskCell(r) + '</td>' +
     '<td>' + condCell(r) + '</td><td>' + dash + '</td>' +
     '<td class="num">' + fmtInt(r[17]) + '</td><td class="num">' + (r[18] == null ? dash : r[18].toFixed(1) + '%') + '</td>' +
-    '<td>' + (r[19] === 'sold' ? '<span class="up">sold</span>' : r[19] === 'open' ? 'open' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td><td class="num">' + dash + '</td>';
+    '<td>' + (r[19] === 'sold' ? '<span class="up">sold</span>' : r[19] === 'open' ? 'open' : '<span class="dim">' + esc(r[19]) + '</span>') + '</td><td class="num">' + dash + '</td>' + erTrendBook(r);
 }
 // the switch: swap the table over, rename the two "listed" labels, and take the top boxes out of play on this tab
 function auMode() {
@@ -772,7 +777,7 @@ function makeTable(id, cfg) {
     t.view = rows.filter(r => {
       if (set && r[2] !== set) return false;
       for (const [k, lo, hi] of ranges) {
-        const v = r[k];
+        const v = cfg.get && cfg.get[k] ? cfg.get[k](r) : r[k];   // a chip may read a derived value (cfg.get), e.g. Under anchor % = -(vs anchor %)
         if (v == null) return false;                     // no value -> can't be in the range
         if (lo != null && v < lo) return false;
         if (hi != null && v > hi) return false;
@@ -1724,11 +1729,11 @@ try { const sv = JSON.parse(localStorage.getItem('ebay-settings') || '{}'); if (
 }));
 
 /* Book popup: the competing listings and recent sales behind a card's numbers */
-function openBook(cid) {
+function openBook(cid, iid) {                      // iid: the listing the popup was opened from (a Raw Data row) - marked in the book
   const c = LIVE.dec && LIVE.dec[String(cid)], base = idRow.get(cid);
   if (!c || !base) return;
   $('btitle').textContent = base[1];
-  $('bsub').textContent = base[2] + ' · #' + base[3];
+  $('bsub').textContent = base[2] + ' · #' + base[3] + (iid ? ' · the listing you came from is marked' : '');
   const hrsTxt = h => h == null ? '—' : h < 48 ? h.toFixed(0) + ' h' : (h / 24).toFixed(1) + ' d';
   let h = '<div class="sum">';
   const S = settings();
@@ -1744,10 +1749,13 @@ function openBook(cid) {
   else {
     h += '<table><thead><tr><th>Rank</th><th class="num">Total $</th><th class="num">Item $</th><th class="num">Ship $</th><th>Cond</th><th>Offer</th><th class="num">Seller</th><th class="num">Listed</th><th>Title</th></tr></thead><tbody>';
     const credIds = new Set((c.cred || []).map(e => e[0]));
+    let found = false;
     c.book.forEach((b, i) => {
-      h += '<tr' + (credIds.has(b[0]) ? '' : ' class="sus" title="not a credible price-setter: thin seller, watch tier, far under the anchor, or sat too long"') + '><td>' + (i + 1) + (credIds.has(b[0]) ? '' : ' <span class="dim">·</span>') + '</td><td class="num">' + fmtMoney(b[1]) + (b[5] ? ' <span class="dim">(' + fmtMoney(Math.round(b[1] * GATE_LIVE().boHaircut * 100) / 100) + ' ranked)</span>' : '') + '</td><td class="num">' + fmtMoney(b[2]) + '</td><td class="num">' + (b[3] === 0 ? 'free' : fmtMoney(b[3])) + '</td><td>' + (b[4] === 'UNK' ? '<span class="dim">n/s</span>' : b[4]) + '</td><td>' + (b[5] ? 'BO' : '—') + '</td><td class="num">' + fmtInt(b[6]) + (b[7] != null ? ' · ' + b[7].toFixed(1) + '%' : '') + '</td><td class="num">' + hrsTxt(b[8]) + '</td><td class="ttl"><a href="' + esc(b[9]) + '" target="_blank" rel="noopener">' + esc(b[10]) + '</a></td></tr>';
+      const mine = iid != null && String(b[0]) === String(iid); if (mine) found = true;
+      h += '<tr class="' + (credIds.has(b[0]) ? '' : 'sus ') + (mine ? 'mine' : '') + '"' + (credIds.has(b[0]) ? '' : ' title="not a credible price-setter: thin seller, watch tier, far under the anchor, or sat too long"') + '><td>' + (i + 1) + (credIds.has(b[0]) ? '' : ' <span class="dim">·</span>') + (mine ? ' <b class="up">this one</b>' : '') + '</td><td class="num">' + fmtMoney(b[1]) + (b[5] ? ' <span class="dim">(' + fmtMoney(Math.round(b[1] * GATE_LIVE().boHaircut * 100) / 100) + ' ranked)</span>' : '') + '</td><td class="num">' + fmtMoney(b[2]) + '</td><td class="num">' + (b[3] === 0 ? 'free' : fmtMoney(b[3])) + '</td><td>' + (b[4] === 'UNK' ? '<span class="dim">n/s</span>' : b[4]) + '</td><td>' + (b[5] ? 'BO' : '—') + '</td><td class="num">' + fmtInt(b[6]) + (b[7] != null ? ' · ' + b[7].toFixed(1) + '%' : '') + '</td><td class="num">' + hrsTxt(b[8]) + '</td><td class="ttl"><a href="' + esc(b[9]) + '" target="_blank" rel="noopener">' + esc(b[10]) + '</a></td></tr>';
     });
     h += '</tbody></table>';
+    if (iid != null && !found) h += '<p class="dim">The listing you came from is not among the copies the book ranks: it has closed, is not a comparable condition, or sits above the ones listed.</p>';
   }
   h += '<h3>Recent raw sales (newest first)</h3>';
   if (!c.sold.length) h += '<p class="dim">No sales observed yet.</p>';
@@ -1850,8 +1858,8 @@ function openOffers() {
   $('bov').classList.add('open');
 }
 $('offers-btn').addEventListener('click', openOffers);
-$('rows-ec').addEventListener('click', e => {
-  const b = e.target.closest('.bbtn'); if (b) return openBook(+b.dataset.id);
+document.addEventListener('click', e => {           // the Trend / Book buttons wherever they sit: the eBay Catalog, the Raw Data tab (2026-10-24), the Favorites views
+  const b = e.target.closest('.bbtn'); if (b) return openBook(+b.dataset.id, b.dataset.iid || null);
   const t = e.target.closest('.ebtn'); if (t) openTrendEbay(+t.dataset.id);
 });
 $('bclose').addEventListener('click', () => $('bov').classList.remove('open'));
@@ -2802,7 +2810,7 @@ function fhRender() {
   const host = $('fh-body'); if (!host) return;
   const holds = (FH.doc && FH.doc.holds) || [1, 3, 6];
   let h = fhChips();
-  if (!FH.doc) h += '<p class="dim">' + (FH.err ? 'The replay file could not be loaded (' + esc(FH.err) + '). It is built by the monthly Forecast history workflow; the live plans below do not need it.' : 'Loading the replay…') + '</p>';
+  if (!FH.doc) h += '<p class="dim">' + (FH.err ? 'The replay file could not be loaded (' + esc(FH.err) + '). It is built by the monthly Forecast History workflow; the live plans below do not need it.' : 'Loading the replay…') + '</p>';
   else {
     const months = FH.doc.months.slice().sort((a, b) => b.m - a.m);
     h += '<h3>The replay: ' + esc(FH.doc.from) + ' to ' + esc(FH.doc.to) + ' from PriceCharting’s history<button class="help" data-h="fh_replay">?</button></h3>' +
