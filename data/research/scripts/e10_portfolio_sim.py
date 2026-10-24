@@ -3,12 +3,12 @@ the whole bankroll every h months through the top-ranked cards, with eBay fees, 
 a liquidity cap (supply = max(1, floor(0.25 x monthly sales)) copies), an optional regime gate, and an optional
 discount under the standard price. Non-overlapping cycles: buy at t, sell at t+h at PriceCharting's level, reinvest.
 Each configuration is run from every possible starting offset (0..h-1) and the paths are averaged.
-Rules: dev12 (deepest below 12-month mean first), mom12 (biggest 12-month loser first), combo (dev12 rank + set_mom1
+Rules: dev12 (deepest below 12-month mean first), dev12f (dev12 with E16's filters: 5+ sales, no Promo set), mom12 (biggest 12-month loser first), combo (dev12 rank + set_mom1
 rank, sets >= 24 months old), setmom (set momentum, sets >= 24 months), random (benchmark), top_mom3 (anti-test: chase
 3-month winners).
 Outputs: results/E10_sim_summary.csv, results/E10_sim_cycles.csv
 """
-import os, numpy as np, pandas as pd, warnings, itertools
+import os, zlib, numpy as np, pandas as pd, warnings, itertools
 from common import load_panel, KEEP, FIXED
 from xs import features
 warnings.filterwarnings('ignore')
@@ -19,14 +19,17 @@ n_m = len(months)
 LAST = months.index('2026-09')   # last complete month; a cycle must end by here
 START = months.index('2022-01')
 rng = np.random.RandomState(7)
+SETS_ARR = P['cards']['set'].fillna('').values
 
 
 def candidates(j, rule, age_min):
     ok = (pr[:, j] >= 50) & (pr[:, j] <= 500) & (sl[:, j] >= 2) & ~np.isnan(F['dev12'][:, j]) & ~np.isnan(F['set_mom1'][:, j])
     if age_min:
         ok &= (F['age'][:, j] >= age_min) | np.isnan(F['age'][:, j])
+    if rule == 'dev12f':   # E16's filters: 5+ sales this month, not the Promo grab-bag set
+        ok &= (sl[:, j] >= 5) & (SETS_ARR != 'Pokemon Promo')
     idx = np.where(ok)[0]
-    if rule == 'dev12':
+    if rule in ('dev12', 'dev12f'):
         score = F['dev12'][idx, j]
     elif rule == 'mom12':
         score = F['mom12'][idx, j]
@@ -73,21 +76,25 @@ def cycle(j, h, rule, capital, disc, age_min, share=0.20, sell_prem=0.0, avail=1
 
 
 def run(h, rule, c0, disc, gate, age_min, sell_prem=0.0, avail=1.0, max_copies=None):
+    # seed the random draws (random rule, availability) per configuration so every row is reproducible on its own
+    rng.seed(zlib.crc32(repr((h, rule, c0, disc, gate, age_min, sell_prem, avail, max_copies)).encode()) & 0xFFFFFFFF)
     paths = []
     rows = []
-    for off in range(h):
-        cap = c0; j = START + off; path = [(months[j], cap)]
-        while j + h <= LAST:
-            reg = F['reg3'][0, j]
-            gated = (gate == 'reg3>0' and not reg > 0) or (gate == 'reg3>2%' and not reg > 0.02)
-            if gated:
-                rows.append((h, rule, c0, disc, gate, age_min, sell_prem, avail, max_copies or 0, off, months[j], 'skip', cap, 0, 0, 0, 0.0))
-                j += h; path.append((months[j], cap)); continue
-            new_cap, spent, nc, ncop = cycle(j, h, rule, cap, disc, age_min, sell_prem=sell_prem, avail=avail, max_copies=max_copies)
-            r = new_cap / cap - 1
-            rows.append((h, rule, c0, disc, gate, age_min, sell_prem, avail, max_copies or 0, off, months[j], 'trade', cap, spent, nc, ncop, r))
-            cap = new_cap; j += h; path.append((months[j], cap))
-        paths.append(path)
+    n_rep = 5 if avail < 1.0 or rule == 'random' else 1   # average the random draws over 5 repetitions
+    for rep in range(n_rep):
+        for off in range(h):
+            cap = c0; j = START + off; path = [(months[j], cap)]
+            while j + h <= LAST:
+                reg = F['reg3'][0, j]
+                gated = (gate == 'reg3>0' and not reg > 0) or (gate == 'reg3>2%' and not reg > 0.02)
+                if gated:
+                    rows.append((h, rule, c0, disc, gate, age_min, sell_prem, avail, max_copies or 0, off, months[j], 'skip', cap, 0, 0, 0, 0.0))
+                    j += h; path.append((months[j], cap)); continue
+                new_cap, spent, nc, ncop = cycle(j, h, rule, cap, disc, age_min, sell_prem=sell_prem, avail=avail, max_copies=max_copies)
+                r = new_cap / cap - 1
+                rows.append((h, rule, c0, disc, gate, age_min, sell_prem, avail, max_copies or 0, off, months[j], 'trade', cap, spent, nc, ncop, r))
+                cap = new_cap; j += h; path.append((months[j], cap))
+            paths.append(path)
     cyc = pd.DataFrame(rows, columns=['h', 'rule', 'c0', 'disc', 'gate', 'age_min', 'sell_prem', 'avail', 'max_copies', 'offset', 'month', 'action', 'capital_before', 'spent', 'n_cards', 'n_copies', 'cycle_return'])
     tr = cyc[cyc.action == 'trade']
     finals = [p[-1][1] for p in paths]
@@ -97,7 +104,7 @@ def run(h, rule, c0, disc, gate, age_min, sell_prem=0.0, avail=1.0, max_copies=N
     for p in paths:
         caps = np.array([c for _, c in p]); peak = np.maximum.accumulate(caps); mdd.append(((caps - peak) / peak).min())
     summ = dict(h=h, rule=rule, c0=c0, disc=disc, gate=gate, age_min=age_min, sell_prem=sell_prem, avail=avail, max_copies=max_copies or 0, final_mean=np.mean(finals), final_min=np.min(finals), final_max=np.max(finals),
-                cagr=(np.mean(finals) / c0) ** (1 / years) - 1, cycles=len(tr) / h, cycle_ret_mean=tr['cycle_return'].mean(), cycle_ret_median=tr['cycle_return'].median(),
+                cagr=(np.mean(finals) / c0) ** (1 / years) - 1, cycles=len(tr) / (h * n_rep), n_rep=n_rep, cycle_ret_mean=tr['cycle_return'].mean(), cycle_ret_median=tr['cycle_return'].median(),
                 p_cycle_loss=(tr['cycle_return'] < 0).mean(), worst_cycle=tr['cycle_return'].min(), best_cycle=tr['cycle_return'].max(), max_drawdown=np.mean(mdd),
                 skipped_share=(cyc.action == 'skip').mean(), cards_per_cycle=tr['n_cards'].mean(), copies_per_cycle=tr['n_copies'].mean(), spent_share=(tr['spent'] / tr['capital_before']).mean())
     return summ, cyc
@@ -117,7 +124,7 @@ for h in (1, 3):
 # realistic availability of discounted buys (E07: ~12% of cards have a credible floor >= 20% under the median,
 # ~25% have one >= 15% under, ~40% >= 10% under; a floor listing is one copy)
 for h in (1, 3):
-    for rule in ('dev12', 'combo', 'random'):
+    for rule in ('dev12', 'dev12f', 'combo', 'random'):
         for disc, avail, mc in ((0.20, 0.12, 1), (0.15, 0.25, 1), (0.10, 0.40, 2), (0.20, 0.12, 2)):
             for gate in ('none', 'reg3>0'):
                 for c0 in (2000, 5000, 10000):
