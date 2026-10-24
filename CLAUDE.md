@@ -63,6 +63,10 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
 - `data_archive.py` + `.github/workflows/data_archive.yml` — the data folder (`data/`, see THE DATA FOLDER below): PokeViews'
   feeds, the PriceCharting panel, the eBay Catalog of the day, committed to main by the workflow daily. `data/README.md` is
   the dictionary; read it before analyzing anything in there.
+- `data/research/` — the forecast research log (2026-10-24, see THE RESEARCH FOLDER below): `experiments.csv` (the
+  registry), `FINDINGS.md` (what to build), `notes/`, `results/`, `scripts/` (rerun with `run_all.sh` or the
+  `Research results` workflow), `ideas_backlog.csv`, `sources.md`. Read experiments.csv and FINDINGS.md before touching the
+  Forecast model.
 - `requirements.txt` — pandas, numpy, requests, cryptography, scikit-learn.
 
 ## Storage (git must stay small)
@@ -963,6 +967,33 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   column fills on 2026-11-01. The page's blank trend cells now carry the reason on hover (`trendDash(trDays(cid), need,
   why)`, the card's own day count and live.since; Trend popup notes match). Expect Δ30d and Slope to fill from ~10-28,
   Range and drift from ~11-27 - say so instead of lowering a minimum.
+- THE RESEARCH FOLDER (2026-10-24, Brett: "Spend 3-hours, analyzing all of that data you saved in data/ ... store what you
+  learned in the data folder: storing mathematical models that you tried and failed, things that worked ... store it as
+  data ... Do not update the website. Do not apply your findings to the forecast tab"). Sixteen experiments (E01-E16)
+  on the committed data/ folder, recorded in `data/research/` as a registry (experiments.csv), one note per experiment,
+  result tables, reproducible scripts (common.py loader, xs.py cross-sectional engine, e##_*.py), a backlog and a sources
+  file; `FINDINGS.md` is the synthesis. THE FINDINGS, in short: (1) fees are the first-order problem - a +22% move is
+  needed at $100 to break even and no selection clears that at the standard price within 1-3 months (base-rate P(net>0)
+  6-18%); (2) the one large robust card signal is REVERSAL toward the card's own 6-12-month level (dev12 bottom decile
+  +10.5% in 3 months vs +3.7% for the band, +24% in strong markets; past winners lose at every horizon; volume /
+  volatility are not buy signals; the GBM ranks (IC 0.26) but does not beat the single reversal decile); (3) set-level
+  momentum is an ARTIFACT of PriceCharting's monthly averaging (E11: PokeViews' daily set index has zero forward power) -
+  never rank on it; the market regime's persistence is real (daily PV index confirms); (4) the regime gate (trailing
+  3-month market median move > 0, reg3; reg1 as the fast confirm) calls the next quarter's sign right 91% of the time
+  and removes essentially every losing cycle in the simulation; Google Trends web-search change improves the level
+  forecast but not the gate; PokeViews gauges add nothing yet; (5) the DISCOUNT is the business: each point of buy
+  discount ~1.3 points of net; with realistic availability (12% of band cards have a credible floor >=20% under the sold
+  median, 25% >=15%, 40% >=10% - E07) the 3-month hold x dev12 x sets>=24 months x 20% under compounds $5k at +31%/yr
+  ungated / +28% gated with 0 losing cycles (E10, 2022-2026; the profit is all 2024-26, 2022 lost 12%/yr even at 20%
+  under, which is what the gate avoids); 15% under: +22%/+20%; 10% under: only gated 3-mo positive; 1-month holds need
+  the full 20%; (6) hold 2-3 months with >=20 cards: picks are nearly uncorrelated (market explains 3-6% of pick variance)
+  so 20 positions cut the basket loss probability from 40% to 15% at 3 months (E12); 6 months only for near-standard
+  buys; (7) execution edges: patient selling at the 80th percentile of sold prices +9-11%, buyer-pays-shipping ~5 points,
+  Store rate ~1 point (E07/E08); deep floors are mildly adversely selected (-4% median drift in 14 days, E13). THE
+  REGIME BUG: computing the regime from cards priced $10+ in the current month biases it up (2022 looked flat-positive);
+  use last month's price (xs.py). NOT YET APPLIED TO THE SITE - Brett will ask for that in a later prompt; FINDINGS.md
+  lists the build order (gate display, reversal rank, discount-centred plan, 3-month default, calibrated chance at the
+  entered discount, fee options).
 - THE DATA FOLDER (2026-10-23 night, Brett: "save the data, because if I want you to analyze the data in the future, then
   you will have it saved and at your quick and easy disposal ... store the data from the ungraded price and the sales
   volume per month since December 2020 ... all of the data from the ebay catalog data tab ... google trend data ...
