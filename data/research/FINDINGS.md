@@ -1,6 +1,6 @@
 # FINDINGS — what three hours of research say to build into the Forecast tab
 
-Written 2026-10-24 from experiments E01–E17 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
+Written 2026-10-24 from experiments E01–E18 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
 of capital, holds of 1–3 months preferred, profit reinvested, maximise return without taking on much risk. Nothing here
 has been applied to the site yet.
 
@@ -17,7 +17,8 @@ has been applied to the site yet.
    real price move. Past winners lose at every horizon; volume, volatility and acceleration are not buy signals.
    Set-level "momentum" turned out to be an artifact of PriceCharting's monthly averaging (E11) — do not use it. A
    30-feature gradient-boosted model ranks well (IC 0.26–0.27) but does **not** beat the single reversal decile at
-   3 months. (E02, E03, E06, E11)
+   3 months. The decile's excess over the band is +6 to +10 points per quarter in *every* year 2022–2026, beating the
+   band in 53 of 55 months (E18). (E02, E03, E06, E11, E18)
 
 3. **The market regime is known and persistent.** When the trailing 3-month market median move is positive, the next
    quarter is up 95 % of the time (+6.9 %); when it is negative, 12 % (−2.5 %). Sign accuracy 91 % over 55 months. Google
@@ -81,10 +82,11 @@ has been applied to the site yet.
 * A classifier for "net > 0 at the standard price" — too few positives, badly over-confident. (E06b)
 * "Strong market only" (> 2 %/mo) gate — throws away half the good months. (E15)
 * Google-Trends-augmented gate — no better than the market's own sign. (E15)
-* Sales ≥ 5 / no-Promo filters on the reversal picks — fine as warnings, no portfolio gain. (E16)
+* Sales ≥ 5 / no-Promo filters on the reversal picks — fine as warnings, no portfolio gain. (E16, E18)
 * Calendar seasonality as a driver — real but ±1 %/month. (E05)
 * Any 1-month strategy at less than 20 % under the standard price. (E10, E12)
 * Fractional deployment by regime strength, and gates tighter than 0. (E17)
+* dev6 (6-month reversal) as the ranking signal — weaker than dev12 in every year. (E18)
 
 ## The honest caveats
 
