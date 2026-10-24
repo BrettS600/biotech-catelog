@@ -2660,6 +2660,7 @@ function fcCompute() {
   FC.mc = fcMonteCarlo(FC.picks, S, I.disc);
   fcRenderRegime(); fcRenderPicks(); fcRenderRecords();
   if (FC.mode === 'pl') plRender();                      // the Planning view prices its listings with the same inputs
+  if (FC.fold) fcFoldApply();                            // the folded inputs' summary on the bar follows them
 }
 const FC_RHO = 0.5;                                      // share of each pick's variance that is the market's: cards fall together when it turns
 function fcMonteCarlo(picks, S, disc, n = 3000) {        // the portfolio's net: a market draw shared by every pick plus each pick's own draw (Gaussian copula)
@@ -2828,6 +2829,20 @@ function fcModeApply() {                                 // Forecasting shows th
 }
 $('fc-modes').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; FC.mode = b.dataset.m === 'pl' ? 'pl' : 'fc'; try { localStorage.setItem('fc-mode', FC.mode); } catch (x) {} fcModeApply(); });
 fcModeApply();
+/* The inputs card folds away (2026-10-24, Brett: "have the your plans variable pane, on the left ... collapsible, so that
+   the other side ... will enlarge, so that way, i dont have to right scroll to the right to see all of the column. do
+   this for both the planning and forecast buttons"): #fc-side hides, the grid becomes one column, and the bar shows
+   "Inputs" with the settings in a few words ($1,000 · 3 mo · 20% under) to bring the card back. Remembered. */
+try { FC.fold = localStorage.getItem('fc-fold') === '1'; } catch (e) { FC.fold = false; }
+function fcFoldApply() {
+  const al = $('fc-al'), un = $('fc-unfold'); if (!al || !un) return;
+  al.classList.toggle('folded', !!FC.fold); un.hidden = !FC.fold;
+  if (FC.fold) { const I = FC.inputs || fcInputs(); un.innerHTML = '\u25B8 Inputs<span class="dim">' + fcMoney(I.cap) + ' \u00b7 ' + I.h + ' mo \u00b7 ' + (I.disc ? Math.round(I.disc * 100) + '% under' : 'standard price') + '</span>'; }
+}
+function fcFold(on) { FC.fold = !!on; try { localStorage.setItem('fc-fold', on ? '1' : '0'); } catch (e) {} fcFoldApply(); }
+$('fc-fold').addEventListener('click', () => fcFold(true));
+$('fc-unfold').addEventListener('click', () => fcFold(false));
+fcFoldApply();
 /* The Planning view: one row per planned listing, priced like a Forecast pick but at the listing's own price (the
    discount is whatever the listing already is), the sale projected from the card's sell level with this listing left
    out of the competition (fcLevels), the chance from the card's rank bucket at the chosen hold; the basket's expected
