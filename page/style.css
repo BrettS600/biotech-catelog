@@ -182,6 +182,8 @@
   .badge.watch { color:#b45309; border-color:#f59e0b; background:rgba(245,158,11,.12); }
   .badge.sus { color:var(--down); border-color:var(--down); background:rgba(185,28,28,.10); font-weight:700; }
   tr.sus td { opacity:.75; }
+  #bbody tr.mine > td { box-shadow: inset 0 0 0 999px rgba(63, 185, 80, .18); }   /* the Book popup opened from a Raw Data row: that listing */
+  #bbody tr.mine > td:first-child { box-shadow: inset 3px 0 0 var(--up), inset 0 0 0 999px rgba(63, 185, 80, .18); }
   td.ttl { max-width:420px; overflow:hidden; text-overflow:ellipsis; }
   .live-note { color:var(--muted); font-size:12px; padding:0 18px 8px; }
   .linkbtn { font:inherit; font-size:12px; border:none; background:none; color:var(--link); cursor:pointer; padding:0; text-decoration:underline; }
