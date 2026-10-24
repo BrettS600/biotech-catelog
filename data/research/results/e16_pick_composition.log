@@ -1,0 +1,79 @@
+        dimension                                                 value  picks  share  gross_3m  net20_3m  p_net20_pos  months
+0            tier                                                50-100   2268  0.573     0.148     0.144        0.627     NaN
+1            tier                                               100-250   1313  0.331     0.149     0.192        0.705     NaN
+2            tier                                               250-500    380  0.096     0.166     0.233        0.766     NaN
+3      age_bucket                                                  2-4y    114  0.029     0.037     0.031        0.509     NaN
+4      age_bucket                                                  4-8y    340  0.086     0.067     0.079        0.656     NaN
+5      age_bucket                                                 8-15y    509  0.129     0.124     0.136        0.623     NaN
+6      age_bucket                                                  15y+   2591  0.654     0.171     0.194        0.694     NaN
+7    sales_bucket                                                   2-4    982  0.248     0.157     0.176        0.600     NaN
+8    sales_bucket                                                   5-9    988  0.249     0.143     0.160        0.642     NaN
+9    sales_bucket                                                 10-24   1220  0.308     0.163     0.186        0.720     NaN
+10   sales_bucket                                                   25+    771  0.195     0.128     0.144        0.696     NaN
+11         rarity                                                Common    123  0.031     0.270     0.295        0.683     NaN
+12         rarity                                             Holo Rare   1349  0.341     0.146     0.167        0.693     NaN
+13         rarity                                                 Promo    279  0.070     0.080     0.093        0.577     NaN
+14         rarity                                                  Rare    255  0.064     0.190     0.196        0.667     NaN
+15         rarity                                             Rare Holo     77  0.019     0.273     0.303        0.584     NaN
+16         rarity                                           Secret Rare    471  0.119     0.137     0.166        0.732     NaN
+17         rarity                                       Shiny Holo Rare     83  0.021     0.139     0.145        0.687     NaN
+18         rarity                                            Ultra Rare    898  0.227     0.141     0.157        0.669     NaN
+19         rarity                                              Uncommon     80  0.020     0.107     0.107        0.575     NaN
+20   set (top 25)                                      Pokemon Skyridge    402  0.101     0.107     0.131        0.634    54.0
+21   set (top 25)                                      Pokemon Base Set    302  0.076     0.165     0.198        0.679    55.0
+22   set (top 25)                                         Pokemon Promo    246  0.062     0.071     0.082        0.549    50.0
+23   set (top 25)                                   Pokemon Neo Destiny    223  0.056     0.175     0.210        0.753    53.0
+24   set (top 25)                          Pokemon Legendary Collection    166  0.042     0.200     0.221        0.765    47.0
+25   set (top 25)                                     Pokemon Aquapolis    158  0.040     0.149     0.165        0.658    48.0
+26   set (top 25)                             Pokemon 2000 Topps Chrome    158  0.040     0.168     0.188        0.538    34.0
+27   set (top 25)                           Pokemon Team Rocket Returns    121  0.031     0.135     0.166        0.653    49.0
+28   set (top 25)                                    Pokemon Expedition    115  0.029     0.186     0.199        0.678    44.0
+29   set (top 25)                                Pokemon Neo Revelation    109  0.028     0.130     0.150        0.716    44.0
+30   set (top 25)                                   Pokemon Neo Genesis    100  0.025     0.127     0.138        0.620    42.0
+31   set (top 25)                                 Pokemon Gym Challenge     92  0.023     0.177     0.195        0.750    43.0
+32   set (top 25)                               Pokemon Call of Legends     82  0.021     0.155     0.159        0.683    40.0
+33   set (top 25)                                 Pokemon Unseen Forces     77  0.019     0.276     0.308        0.753    43.0
+34   set (top 25)                         Pokemon Fire Red & Leaf Green     73  0.018     0.221     0.244        0.712    40.0
+35   set (top 25)                                 Pokemon Neo Discovery     70  0.018     0.200     0.220        0.757    31.0
+36   set (top 25)                                Pokemon Cosmic Eclipse     69  0.017     0.079     0.089        0.638    24.0
+37   set (top 25)                                       Pokemon Team Up     63  0.016     0.126     0.130        0.683    29.0
+38   set (top 25)                                    Pokemon Gym Heroes     55  0.014     0.134     0.139        0.727    26.0
+39   set (top 25)                                   Pokemon Team Rocket     50  0.013     0.140     0.161        0.720    29.0
+40   set (top 25)                                 Pokemon Plasma Freeze     42  0.011     0.086     0.092        0.571    27.0
+41   set (top 25)                                    Pokemon Evolutions     41  0.010     0.290     0.323        0.683    28.0
+42   set (top 25)                                Pokemon Dark Explorers     36  0.009     0.080     0.097        0.611    21.0
+43   set (top 25)                                  Pokemon Plasma Storm     35  0.009     0.133     0.145        0.571    23.0
+44   set (top 25)                                Pokemon Unbroken Bonds     35  0.009     0.070     0.072        0.686    21.0
+45  concentration  mean share of a month's picks in its most common set   4577  0.167       NaN       NaN          NaN     NaN
+2026-10 picks: 197
+      card_id                           name                           set                     rarity       price  sales  dev12  mom12  age_months
+4530  3561413           Primeape [Tekno] #57     Pokemon 2000 Topps Chrome                        NaN   62.500000    4.0 -0.511 -0.583       316.0
+4386   715599       Mewtwo [1st Edition] #10              Pokemon Base Set                  Holo Rare  345.000000   12.0 -0.508 -0.333       376.0
+4510  2405097       Dark Persian [No HP] #17                 Pokemon Promo                        NaN   86.650002    4.0 -0.342 -0.483         NaN
+4506  2324938   Typhlosion [1st Edition] #17           Pokemon Neo Genesis                  Holo Rare  274.760010   24.0 -0.316 -0.296       310.0
+4498  2252636      Kabuto [Reverse Holo] #37              Pokemon Skyridge                   Uncommon   51.500000    4.0 -0.280  0.202       281.0
+4440   956664                     Skyla #149    Pokemon Boundaries Crossed                 Ultra Rare  107.410004    8.0 -0.278 -0.294       167.0
+4531  3561455          Machamp [Sparkle] #68     Pokemon 2000 Topps Chrome                        NaN  132.500000    4.0 -0.265 -0.558       316.0
+4493  1563426           Tropical Beach #BW28                 Pokemon Promo                      Promo   86.250000    4.0 -0.245 -0.322       186.0
+4446   957816             M Charizard EX #69             Pokemon Flashfire                 Ultra Rare   87.440002  124.0 -0.232 -0.429       151.0
+4552  5874858   Squirtle [Pokemon Center] #7  Pokemon Scarlet & Violet 151                      Promo   95.000000   24.0 -0.230 -0.315         NaN
+4420   887994                  Kabutops #H13              Pokemon Skyridge                  Holo Rare  167.679993    8.0 -0.209  0.144       281.0
+4461   961798                Lucario-GX #135       Pokemon Forbidden Light                Secret Rare   65.269997   16.0 -0.201  0.016       101.0
+4433   955756                         N #101       Pokemon Noble Victories                 Ultra Rare  127.250000   12.0 -0.190 -0.312       179.0
+4462   962077                     Lisia #164       Pokemon Celestial Storm                 Ultra Rare  139.500000   16.0 -0.175 -0.171        98.0
+4476   963365       Green's Exploration #209        Pokemon Unbroken Bonds                 Ultra Rare   79.910004   32.0 -0.175 -0.168        91.0
+4520  2978573    Rocket's Scizor [Winner] #4          Pokemon Best of Game                      Promo   50.610001    4.0 -0.165  0.211       283.0
+4537  4955027       Dark Blastoise [Holo] #4  Pokemon Legendary Collection                  Rare Holo   54.160000   12.0 -0.163  0.083         NaN
+4438   956661           White Kyurem EX #146    Pokemon Boundaries Crossed                 Ultra Rare  151.479996   16.0 -0.162  0.432       167.0
+4561  6775731               Greninja ex #214   Pokemon Twilight Masquerade  Special Illustration Rare  253.199997  160.0 -0.155 -0.192        29.0
+4551  5834279  Miraidon [Pokemon Center] #13                 Pokemon Promo                        NaN   53.080002   16.0 -0.153 -0.420         NaN
+4448   958228                M Gengar EX #35        Pokemon Phantom Forces                 Ultra Rare   76.500000   60.0 -0.148 -0.185       143.0
+4502  2254005             Blaziken VMAX #201        Pokemon Chilling Reign                Secret Rare  280.000000   88.0 -0.148 -0.186        64.0
+4526  3188396           Charizard VSTAR #174       Pokemon Brilliant Stars                Secret Rare   52.790001  100.0 -0.141 -0.121        56.0
+4396   836945                Charizard V #79       Pokemon Champion's Path                Secret Rare  182.500000  128.0 -0.141 -0.131        73.0
+4411   886439       Rocket's Suicune EX #105   Pokemon Team Rocket Returns                 Ultra Rare  245.000000   28.0 -0.140 -0.158       263.0
+4434   956151                 Kyogre EX #104        Pokemon Dark Explorers                 Ultra Rare  192.500000   16.0 -0.133 -0.185       173.0
+4458   961514                    Lillie #151           Pokemon Ultra Prism                 Ultra Rare  305.000000   12.0 -0.131 -0.326       104.0
+4489  1287432    Entei & Raikou [Legend] #90             Pokemon Unleashed                 Ultra Rare   70.500000   12.0 -0.131  0.170       197.0
+4391   715707        Zapdos [Shadowless] #16              Pokemon Base Set                  Holo Rare   62.080002   48.0 -0.128  0.410       376.0
+4560  6495671        Morty's Conviction #211       Pokemon Temporal Forces  Special Illustration Rare   50.770000   52.0 -0.127  0.049        31.0
