@@ -327,11 +327,12 @@
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
 <div class="actbar fc-bar">
   <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
+  <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
   <span class="fc-tools"><label class="fc-ua">Listings at least <input type="number" id="fc-ua" min="0" max="80" step="5" value="0"> % under the anchor<button class="help" data-h="fc_ua">?</button></label><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>
-<div class="al fc">
-  <div class="al-card">
-    <h3>Your plan</h3>
+<div class="al fc" id="fc-al">
+  <div class="al-card" id="fc-side">
+    <h3>Your plan<button type="button" class="fc-fold" id="fc-fold" title="Hide the inputs so the table on the right has the whole width (the bar above shows a button to bring them back)">&#9666; Hide</button></h3>
     <div class="al-row"><span class="lab">Capital to spend<button class="help" data-h="fc_cap">?</button></span><span><span class="unit">$</span><input type="number" id="fc-cap" min="0" step="50" value="1000"></span></div>
     <div class="al-row"><span class="lab">Hold for<button class="help" data-h="fc_hold">?</button></span><span><select id="fc-h"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></span></div>
     <div class="al-row"><span class="lab">I buy at<button class="help" data-h="fc_disc">?</button></span><span><input type="number" id="fc-disc" min="0" max="60" step="5" value="0"><span class="unit">%</span><span class="dim"> under the standard price</span></span></div>
