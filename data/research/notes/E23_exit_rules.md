@@ -1,5 +1,7 @@
 # E23 — Exit rules: fixed hold vs "sell when the card is back at its 12-month mean" vs stop-loss
 
+> **CORRECTION (E25, same day):** the target-exit rows below sell at the exit month's *average* price, which was also the number that triggered the exit — a selection artifact (E25). Paid at the listing price, the anchor exit is break-even. The fixed-hold and stop-loss rows stand. Read E25 before using anything from this note.
+
 **Question.** Every back-test so far sells at a fixed month. Traders use take-profit targets and stop-losses. For a
 mean-reversion trade the natural target is the anchor itself — the card's own 12-month mean price at the time of the
 buy. Does "list at the anchor and sell when it prints" beat a fixed 3-month hold on net, chance and, above all, on

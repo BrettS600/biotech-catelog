@@ -1,6 +1,6 @@
 # FINDINGS — what three hours of research say to build into the Forecast tab
 
-Written 2026-10-24 from experiments E01–E24 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
+Written 2026-10-24 from experiments E01–E25 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
 of capital, holds of 1–3 months preferred, profit reinvested, maximise return without taking on much risk. Nothing here
 has been applied to the site yet.
 
@@ -44,16 +44,12 @@ has been applied to the site yet.
    positions cut the basket's loss probability from 40 % to 15 % at 3 months. Per month of capital, gated: 20 % under →
    6.6 % (1 mo), 7.2 % (2 mo), 6.9 % (3 mo), 6.1 % (6 mo) with zero losing months at 2–3 months; 15 % under → 0.3 / 4.0 /
    4.7 / 5.0 %. A 1-month hold needs the full 20 % and still has a 42 % chance of a losing month whatever the
-   diversification. Six months is the hold when the buy is near the standard price. (E12) **The exit that beats every
-   fixed hold is a take-profit at the card's own 12-month mean** — list each copy at that price on arrival, sell when it
-   prints, market-sell whatever is left at month 6: chance 66 → 78 %, worst-decile net −18 → −11 %, 5.1 → 5.7 % per
-   month of capital, and in up markets 7.4 → 8.7 %/month with the money back in 2.3 months instead of 3 (87 % of picks
-   reach the anchor within 6 months). Stop-losses hurt a reversal trade. (E23) In the reinvesting portfolio the anchor
-   exit is the single biggest improvement in this study: $5,000 at 20 % under compounds at **47 %/yr instead of 29 %**
-   (ungated), the drawdown halves (−22 % → −7 %), every calendar year is positive (2022 +18 % where the fixed hold lost
-   15 %), positions turn over in 1.7 months on average; $2,000 → 65 %/yr vs 36 %; $10,000 → 30 % vs 27 % (availability-
-   bound). With this exit the regime gate costs more than it saves ($29.9k → $18.0k) for a drawdown of −2.6 % instead
-   of −7 % — keep it as the display and as the rule for fixed-month holds, optional for the anchor-exit plan. (E24)
+   diversification. Six months is the hold when the buy is near the standard price. (E12) Stop-losses hurt a reversal
+   trade (E23). A take-profit listing at the card's 12-month mean looked like a large improvement (E23/E24: 47 %/yr vs
+   29 %) and was **withdrawn the same day**: the back-test sold at the exit month's average price, the very number that
+   had triggered the exit; paid at the listing price the rule is break-even and compounds at 6 %/yr (E25). The exit
+   stays "sell at market after 2–4 months, 3 by default". Lesson for every future rule: never condition on and transact
+   at the same PriceCharting monthly average. (E23, E24, E25)
 
 6. **Execution is worth more than any model refinement.** Right now ~12 % of band cards have a credible floor ≥ 20 %
    under the sold median (25 % at ≥ 15 %, 40 % at ≥ 10 %); 5.6 % of all sales print ≥ 20 % below the week's median and
@@ -70,9 +66,7 @@ has been applied to the site yet.
 ## What to build (priority order)
 
 1. **Gate.** Show the regime plainly (trailing 1- and 3-month market median move, both > 0 = green; the two-signal
-   rule had no losing cycle in-sample, E17) and default the tab to *no buys* when it is red for fixed-month plans; for
-   the anchor-exit plan (item 4) show it as a warning with the E24 trade-off (gating costs ~15 CAGR points and buys a
-   −2.6 % instead of −7 % drawdown) and let the user choose. Add Google web-search 1-month change and PokéViews' HCI / % above 30-day as
+   rule had no losing cycle in-sample, E17) and default the tab to *no buys* when it is red. Add Google web-search 1-month change and PokéViews' HCI / % above 30-day as
    confirming displays, not as the decision. (E04, E15)
 2. **Rank by reversal, not by the GBM's mean prediction.** Primary score = rank of `dev12` (price vs its own 12-month
    mean; `mom12` as a tie-break); drop set momentum from the features; keep the GBM only as a secondary filter or
@@ -82,9 +76,8 @@ has been applied to the site yet.
    card (L vs A) rather than 0; show the breakeven discount per card ((buy + 5.20)/0.8589 ÷ expected sell); only
    recommend a copy when the floor clears the chance bar at the chosen hold. Treat the current month's print as a valid
    buy level when it rests on ≥ 10 sales (E09). (E07, E08, E09)
-4. **Plan construction.** Default exit = the card's 12-month mean as the listing price with a 6-month maximum hold
-   (show the expected hold: ~1.7 months on average in the portfolio, ~2.3 for the deepest picks in an up market, ~4 in a
-   down one), fixed 3 months as the alternative; no stop-loss (E23, E24). One copy per card and the whole $50–$500 band (the
+4. **Plan construction.** Default hold 3 months, sold at market (offer 2 and 4); no stop-loss and no fixed-price
+   take-profit listing (E23–E25); show the card's 12-month mean only as the level the reversal is expected to return to. One copy per card and the whole $50–$500 band (the
    simulation says narrowing to $50–250 or $100–250 costs 6–10 CAGR points through under-deployment, and the per-card
    cap barely matters once it is one copy per card — keep 20 %, never below 10 %); sets ≥ 24 months; 6-month hold
    offered as the fallback when few discounted floors exist. (E05, E12, E16, E19)
@@ -117,16 +110,17 @@ has been applied to the site yet.
 * Narrow price bands ($50–250, $100–250) and per-card caps under 10 % — under-deployment costs more than they save. (E19)
 * Stop-losses (sell the month-1 losers) — they lock in the dip the trade is betting against; lower net, chance and rate.
   (E23)
+* A take-profit listing at the card's 12-month mean — the apparent +18 CAGR points were an averaging artifact (the
+  back-test sold at the month-average that triggered the exit); paid at the listing price it is break-even. (E23–E25)
 
 ## The honest caveats
 
 The profitable back-tests get their profit from 2024–2026, a historic boom; in 2022 even 20 %-under reversal buys lost
 11 %/yr at 3 months. The gate is what sits out such years, and it has been tested on one down-cycle. Discount
 availability is measured from one snapshot and assumed independent of the regime (floors may dry up in booms). Sell
-prices are PriceCharting monthly levels with no time-to-sell, condition, returns, or unsold inventory. The take-profit exit (E23) assumes a copy listed at
-its 12-month mean sells within the month the monthly average reaches it — time-to-sell at a fixed ask is unmeasured
-(backlog B03/B12). Overlapping
+prices are PriceCharting monthly levels with no time-to-sell, condition, returns, or unsold inventory; any rule that
+conditions on a monthly average and transacts at it overstates what a trader gets (E11, E25). Overlapping
 3-month windows inflate every t-statistic. The simulations' realistic-availability runs are averaged over five random
 draws and still vary ±20–30 % in final wealth. Treat the CAGR figures as the shape of the opportunity, not a promise: the
-robust claims are the ordering (discount > anchor exit > gate > reversal rank > everything else) and the risk structure
-(sell at the anchor or at month 6, 20 cards, gate or exit discipline).
+robust claims are the ordering (discount > gate > reversal rank > everything else) and the risk structure (3 months,
+20 cards, gate).

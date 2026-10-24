@@ -1,5 +1,7 @@
 # E24 — The exit rule inside the reinvesting portfolio
 
+> **CORRECTION (E25, same day):** the 47 %/yr headline is an artifact of selling at the month's average price in the month that average crossed the target. With the sale paid at the listing price the same engine gives $6.7k (6 %/yr), below the fixed 3-month hold. The whole note is **withdrawn** except as a record of the mistake; see E25.
+
 **Question.** E23 measured the take-profit-at-the-anchor rule per pick. What does it do to a bankroll that reinvests
 every sale — the number Brett cares about — once positions exit on their own schedule, cash sits idle between exits,
 and the buyer reaches down the ranking as in E10/E17?
