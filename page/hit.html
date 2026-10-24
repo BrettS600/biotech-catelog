@@ -39,6 +39,14 @@ a.next { display: block; text-align: center; margin-top: 14px; padding: 8px; col
 .scam { margin-top: 10px; background: #2d1f00; border: 1px solid #9e6a03; border-radius: 10px; padding: 8px 10px; font-size: 14px; }
 .scam ul { margin: 4px 0 0; padding-left: 18px; }
 .scam.sus { background: #3d0f0f; border-color: #da3633; }
+.scam .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+button.wbtn { flex: none; padding: 6px 10px; font: 600 13px/1.2 inherit; border-radius: 8px; background: #9e6a03; color: #fff; white-space: nowrap; }
+.scam.sus button.wbtn { background: #da3633; }
+.wt { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.wt th, .wt td { text-align: left; padding: 5px 5px; border-bottom: 1px solid #30363d; vertical-align: top; }
+.wt th { color: #8b949e; font-weight: 600; } .wt .num { text-align: right; white-space: nowrap; } .wt .code { color: #8b949e; }
+.wt tr.tot td { font-weight: 600; border-bottom: 0; }
+.wfoot { margin-top: 6px; font-size: 12px; color: #8b949e; }
 .btns { display: flex; gap: 10px; margin-top: 14px; }
 button { flex: 1; border: 0; border-radius: 12px; padding: 16px 8px; font: 600 18px/1.25 inherit; color: #fff; }
 .yes { background: #238636; } .no { background: #da3633; } .lp { background: #9e6a03; }
@@ -85,7 +93,12 @@ const SIG = {p50: [4, 'priced under half of what the card goes for'], p65: [2, '
   img: [1, 'only one photo'], qty: [2, '3 or more copies of a pricey card from a small seller'], dup: [3, 'same photo used by another seller'], ret: [1, 'no returns on a cheap listing'],
   slow: [1, 'delivery estimate over 10 days'], top: [-2, 'Top Rated seller'], est: [-1, 'established seller (500+ ratings, 99%+)'], burst: [0, 'new seller listing many cheap cards at once']};
 let d = null;
-try { const b = location.hash.slice(1).replace(/-/g, '+').replace(/_/g, '/'); d = JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); } catch (e) {}
+let flag = '';
+try { const h = location.hash.slice(1), i = h.indexOf('.'); flag = i < 0 ? '' : h.slice(i + 1); const b = (i < 0 ? h : h.slice(0, i)).replace(/-/g, '+').replace(/_/g, '/'); d = JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); } catch (e) {}
+// the site's wording of each signal (ebay_sweep.SCAM_LABELS), for the Warnings table; SIG above is the plain-language line
+const LAB = {p50: 'priced under 50% of the card\'s price', p65: 'priced 50-65% of the card\'s price', p75: 'priced 65-75% of the card\'s price', fb0: 'seller feedback under 10', fb1: 'seller feedback 10-49',
+  fbq: 'seller feedback unknown', pct: 'feedback % below the bar for its count', img: 'one photo only', qty: '3+ copies available of a $75+ card', dup: 'photo also used by another seller',
+  ret: 'no returns and priced under 65%', slow: 'delivery window over 10 days', top: 'Top Rated Plus', est: '500+ feedback at 99%+', burst: 'same-day burst from an unseen seller'};
 const tell = a => { try { if (d && d.rq && d.tk) fetch('https://ntfy.sh/' + d.rq, {method: 'POST', keepalive: true, body: JSON.stringify({dec: {i: d.i, tk: d.tk, d: a}})}); } catch (e) {} };
 function show(id) { for (const k of ['s1', 's2', 'msg']) $(k).classList.toggle('hide', k !== id); window.scrollTo(0, 0); }
 function done(text) { $('msg').innerHTML = text; show('msg'); }
@@ -155,8 +168,21 @@ else {
   if (d.tier === 'watch' || d.tier === 'suspect') {
     const sus = d.tier === 'suspect', k9 = d.risk && d.risk[1] ? d.risk[0] / d.risk[1] : null;
     $('scam').classList.remove('hide'); $('scam').classList.toggle('sus', sus);
-    $('scam').innerHTML = '<b>' + (sus ? 'SUSPECT: ' : 'Scam watch: ') + d.sc + ' points</b>' +
-      (k9 == null ? '' : '<br>So far eBay has pulled ' + d.risk[0] + ' of ' + d.risk[1] + ' listings like this before they ended' + (k9 > 0 ? ' (about 1 in ' + Math.max(1, Math.round(1 / k9)) + ')' : '') + '.') + '<ul>' + (d.scr || []).map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul>';
+    const codes = d.scr || [], sct = d.sct || [3, 5], scs = d.scs || {};
+    const pts = k => (SIG[k] || [0])[0], outs = k => { const o = scs[k]; if (!o) return '<span class="code">no closed listings with this signal yet</span>';
+      const n = o.reduce((a, v) => a + (v || 0), 0), pc = v => n ? ' (' + Math.round(100 * (v || 0) / n) + '%)' : '';
+      return n ? n.toLocaleString('en-US') + ' closed: <b>' + (o[0] || 0).toLocaleString('en-US') + '</b> sold' + pc(o[0]) + ', ' + (o[1] || 0).toLocaleString('en-US') + ' ended, ' + (o[2] || 0).toLocaleString('en-US') + ' gone' + pc(o[2]) + ', ' + (o[3] || 0).toLocaleString('en-US') + ' outlived 2 days' : '<span class="code">no closed listings with this signal yet</span>'; };
+    const totTxt = sus ? 'suspect: at or over ' + sct[1] + (codes.includes('dup') ? ', or the shared photo alone' : codes.includes('burst') ? ', or the seller burst' : '') : 'watch: ' + sct[0] + ' to ' + (sct[1] - 1);
+    const table = '<table class="wt"><thead><tr><th>Signal</th><th class="num">Points</th><th>Listings with this signal</th></tr></thead><tbody>' +
+      codes.map(k => '<tr><td>' + esc(LAB[k] || (SIG[k] || [0, k])[1]) + ' <span class="code">(' + esc(k) + ')</span></td><td class="num">' + (pts(k) > 0 ? '+' : '') + pts(k) + '</td><td>' + outs(k) + '</td></tr>').join('') +
+      '<tr class="tot"><td>Total</td><td class="num">' + d.sc + '</td><td>' + esc(totTxt) + '</td></tr></tbody></table>' +
+      '<div class="wfoot">Watch listings are shown and can alert (Notification Settings decides); suspects are hidden unless \u201cShow suspects\u201d is ticked and never alert. The seller\u2019s own bar (ratings, feedback %) is a separate check in the gate.</div>';
+    $('scam').innerHTML = '<div class="head"><b>' + (sus ? 'SUSPECT: ' : 'Scam watch: ') + d.sc + ' points</b><button type="button" class="wbtn" id="wbtn">Warnings \u25be</button></div>' +
+      (k9 == null ? '' : '<div>So far eBay has pulled ' + d.risk[0] + ' of ' + d.risk[1] + ' listings like this before they ended' + (k9 > 0 ? ' (about 1 in ' + Math.max(1, Math.round(1 / k9)) + ')' : '') + '.</div>') +
+      '<ul id="wlist">' + codes.map(k => { const s = SIG[k] || [0, k]; return '<li>' + (s[0] > 0 ? '+' : '') + s[0] + ' \u2014 ' + esc(s[1]) + '</li>'; }).join('') + '</ul><div id="wtab" class="hide">' + table + '</div>';
+    const setW = on => { $('wtab').classList.toggle('hide', !on); $('wlist').classList.toggle('hide', on); $('wbtn').textContent = on ? 'Warnings \u25b4' : 'Warnings \u25be'; };
+    $('wbtn').addEventListener('click', () => setW($('wtab').classList.contains('hide')));
+    if (flag.includes('w')) { setW(true); setTimeout(() => $('scam').scrollIntoView({block: 'start'}), 50); }   // opened from the notification's Warnings button
   }
   const label = (name, a, ok) => au ? name + '<small>Max bid ' + money(a[4]) + '</small><small>Profit at least ' + money(a[2]) + '</small><small>ROI at least ' + a[3] + '%</small>' +
       '<small>' + (ok ? 'Bid still under your max' : 'Bid already over your max') + '</small>'
