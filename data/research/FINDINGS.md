@@ -1,10 +1,10 @@
 # FINDINGS — what three hours of research say to build into the Forecast tab
 
-Written 2026-10-24 from experiments E01–E16 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
+Written 2026-10-24 from experiments E01–E17 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
 of capital, holds of 1–3 months preferred, profit reinvested, maximise return without taking on much risk. Nothing here
 has been applied to the site yet.
 
-## The six facts
+## The seven facts
 
 1. **Fees, not forecasting, are the first-order problem.** eBay's round trip (13.25 % × 1.065 + $5.20) needs a +22 % move
    on a $100 card to break even (+28 % at $50). No selection found in 2.3 million card-months clears that at the
@@ -31,7 +31,8 @@ has been applied to the site yet.
    positive (+16 %). Gating removed essentially every losing cycle in-sample (the whole 2022 loss) while keeping ~90 % of
    final wealth. (E08, E10, E15)
 
-5. **Hold 2–3 months with ≥ 20 cards.** Picks are almost uncorrelated (market explains 3–6 % of pick variance), so 20
+5. **Hold 2–4 months with ≥ 20 cards; 3 by default.** The reversal's excess over the band is built in months 1–6 and
+   the per-month rate peaks at 2–4 months (E17). Picks are almost uncorrelated (market explains 3–6 % of pick variance), so 20
    positions cut the basket's loss probability from 40 % to 15 % at 3 months. Per month of capital, gated: 20 % under →
    6.6 % (1 mo), 7.2 % (2 mo), 6.9 % (3 mo), 6.1 % (6 mo) with zero losing months at 2–3 months; 15 % under → 0.3 / 4.0 /
    4.7 / 5.0 %. A 1-month hold needs the full 20 % and still has a 42 % chance of a losing month whatever the
@@ -44,10 +45,15 @@ has been applied to the site yet.
    price for $50+ cards, so the back-tests' sell level is fair. Passing shipping to the buyer is worth ~5 points of net;
    a Store subscription ~1 point. (E07, E08, E13)
 
+7. **Capital dilutes selection.** With $5,000 and today's discount availability the pure bottom decile deploys only
+   ~15 % of the money; the simulated 31 %/yr comes from going down the whole dev12 ranking (~60 positions reaching the
+   bottom half). More capital reaches further down. Rank the whole band, take what the discounts allow, and show how
+   deep the plan goes. (E17)
+
 ## What to build (priority order)
 
-1. **Gate.** Show the regime plainly (trailing 1- and 3-month market median move, both > 0 = green) and default the
-   tab to *no buys* when it is red. Add Google web-search 1-month change and PokéViews' HCI / % above 30-day as
+1. **Gate.** Show the regime plainly (trailing 1- and 3-month market median move, both > 0 = green; the two-signal
+   rule had no losing cycle in-sample, E17) and default the tab to *no buys* when it is red. Add Google web-search 1-month change and PokéViews' HCI / % above 30-day as
    confirming displays, not as the decision. (E04, E15)
 2. **Rank by reversal, not by the GBM's mean prediction.** Primary score = rank of `dev12` (price vs its own 12-month
    mean; `mom12` as a tie-break); drop set momentum from the features; keep the GBM only as a secondary filter or
@@ -57,7 +63,7 @@ has been applied to the site yet.
    card (L vs A) rather than 0; show the breakeven discount per card ((buy + 5.20)/0.8589 ÷ expected sell); only
    recommend a copy when the floor clears the chance bar at the chosen hold. Treat the current month's print as a valid
    buy level when it rests on ≥ 10 sales (E09). (E07, E08, E09)
-4. **Plan construction.** Default hold 3 months (offer 2); ≥ 20 positions when capital allows (per-card cap ≤ 5 % of
+4. **Plan construction.** Default hold 3 months (offer 2 and 4); ≥ 20 positions when capital allows (per-card cap ≤ 5 % of
    capital for $5k+); sets ≥ 24 months; band $50–$500 with the $100–$250 tier as the core; 6-month hold offered as the
    fallback when few discounted floors exist. (E05, E12, E16)
 5. **Chance and range.** Replace standard-price probabilities with the per-discount calibrated chance (E06b) and keep
@@ -78,6 +84,7 @@ has been applied to the site yet.
 * Sales ≥ 5 / no-Promo filters on the reversal picks — fine as warnings, no portfolio gain. (E16)
 * Calendar seasonality as a driver — real but ±1 %/month. (E05)
 * Any 1-month strategy at less than 20 % under the standard price. (E10, E12)
+* Fractional deployment by regime strength, and gates tighter than 0. (E17)
 
 ## The honest caveats
 
@@ -85,6 +92,7 @@ The profitable back-tests get their profit from 2024–2026, a historic boom; in
 11 %/yr at 3 months. The gate is what sits out such years, and it has been tested on one down-cycle. Discount
 availability is measured from one snapshot and assumed independent of the regime (floors may dry up in booms). Sell
 prices are PriceCharting monthly levels with no time-to-sell, condition, returns, or unsold inventory. Overlapping
-3-month windows inflate every t-statistic. The simulations' realistic-availability runs carry ±2–3 CAGR points of
-Monte-Carlo noise. Treat the CAGR figures as the shape of the opportunity, not a promise: the robust claims are the
-ordering (discount > gate > reversal rank > everything else) and the risk structure (3 months, 20 cards, gate).
+3-month windows inflate every t-statistic. The simulations' realistic-availability runs are averaged over five random
+draws and still vary ±20–30 % in final wealth. Treat the CAGR figures as the shape of the opportunity, not a promise: the
+robust claims are the ordering (discount > gate > reversal rank > everything else) and the risk structure (3 months,
+20 cards, gate).

@@ -85,6 +85,10 @@ cycles, 5 draws):
 5. Loss risk per cycle stays 23–36 % ungated even in the best configurations; the worst realistic ungated cycle is −11 to
    −19 %. With ≥ 20 cards per cycle the drawdowns are bounded; $2,000 (fewer cards) is more variable (range $8.5–19.7k).
 
+**Dilution (E17).** The buyer goes down the whole dev12 ranking until the money is spent; with 12 % availability and
+$5,000 that is ~60 positions reaching roughly the bottom half of the ranking, not the bottom decile (which alone
+would deploy ~15 % of the money). The CAGRs above are the return of "the best discounted half".
+
 **Caveats.** Sell price = PriceCharting's monthly level (fair for $50+, E07) with no time-to-sell, no unsold inventory,
 no condition risk, no buyer returns; floor availability (12 / 25 / 40 %) is from one snapshot and assumed independent of
 the card's rank and of the regime (in a falling market more deep floors exist, in a boom fewer — not modelled); the
