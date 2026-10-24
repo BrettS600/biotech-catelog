@@ -9,10 +9,14 @@ and Gaussian copula, so the basket figures match the page draw for draw). ut/tes
 against the page on one fixture.
 
 The model file (forecast.bin, the site workflow builds it daily) is gzip(JSON) encrypted with the live key:
-{t, m, month, regime {strong, reg3, ...}, cols, cards {cid: [price, buy, pred1, pct1, pred3, pct3, pred6, pct6, ...]},
-calib {quantiles, tables {"h|regime|bucket": {q, mean, p_up, n}}}}. The card stats are the collector's own (A = eBay's
-sold median, A_n the sales behind it, cred the credible copies cheapest first [[item id, effective total], ...], book
-the copies listed [[item id, total, ...], ...]).
+{t, m, month, model, regime {up, confirm, reg1, reg3, ...}, cols, cards {cid: [price, buy, pred1, pct1, pred3, pct3, pred6,
+pct6, ..., dev12, m12]}, calib {quantiles, tables {"h|regime|bucket": {q, mean, p_up, n}}}}. Version 2 (2026-10-24,
+data/research/FINDINGS.md): pct is the card's rank by how far its price sits below its own 12-month mean (the same for
+every hold), the bucket is top10 / b90 / b75 / b50 of that rank, the regime is "up" when the trailing 3-month median
+market move is positive and "down" otherwise, and the tables are the realized gross returns by hold x regime x bucket.
+The card stats are the collector's own (A = eBay's sold median, A_n the sales behind it, k the comparable sales in the
+30-day window, cred the credible copies cheapest first [[item id, effective total], ...], book the copies listed
+[[item id, total, ...], ...]).
 """
 import gzip, json, math
 
@@ -20,11 +24,11 @@ P_CAP = 0.95                     # no stated chance above this: the measured ran
 MIN_VOL12 = 6                    # a card needs six PriceCharting sales in its last twelve months
 ASK_LIMIT = 1.15                 # a listing counts as supply when its total is within 15% of the buy price
 RHO = 0.5                        # share of each pick's variance that is the market's (the Monte Carlo's copula)
-BUCKETS = ("b50", "b80", "b90", "b95", "top5")
+BUCKETS = ("b50", "b75", "b90", "top10")
 # the constants of the archived plans and the history replay (Brett, 2026-10-23: "fees included held constant 14.1% +
 # $5.20 where i assume 0% buy tax ... price range held constant ($50 to $500) ... buy only at 50% or better")
 STD_FEES = {"fee": 0.1325 * 1.065, "fixed": 0.40, "shipOut": 4.50, "supplies": 0.30, "tax": 0.0}
-STD_INPUTS = {"pmin": 50.0, "pmax": 500.0, "share": 0.2, "minp": 0.5, "young": False, "untracked": False}
+STD_INPUTS = {"pmin": 50.0, "pmax": 500.0, "share": 0.2, "minp": 0.5, "young": False, "untracked": False, "copies": 1, "recent": True, "gate": True}
 STD_CAPS = (500, 1000, 5000, 10000, 25000)
 STD_HOLDS = (1, 3, 6)
 STD_DISCS = (0.0, 0.2)
@@ -41,7 +45,15 @@ def col_index(doc):
 
 
 def bucket(pct):
-    return "top5" if pct >= .95 else "b95" if pct >= .9 else "b90" if pct >= .8 else "b80" if pct >= .5 else "b50"
+    return "top10" if pct >= .9 else "b90" if pct >= .75 else "b75" if pct >= .5 else "b50"
+
+
+def regime_word(doc):
+    """"up" / "down" (version 2: the sign of the trailing 3-month market move); a version-1 file's "strong" / "other"."""
+    R = doc["regime"]
+    if "up" in R:
+        return "up" if R["up"] else "down"
+    return "strong" if R.get("strong") else "other"
 
 
 def table(doc, h, b):
@@ -49,8 +61,7 @@ def table(doc, h, b):
     cal = doc.get("calib")
     if not cal:
         return None
-    reg = "strong" if doc["regime"]["strong"] else "other"
-    return cal["tables"].get(f"{h}|{reg}|{b}") or cal["tables"].get(f"{h}|all|all")
+    return cal["tables"].get(f"{h}|{regime_word(doc)}|{b}") or cal["tables"].get(f"{h}|all|all")
 
 
 def net(buy, r, S, disc, sell):
@@ -137,13 +148,17 @@ def listing_chance(doc, ix, cards, cid, total, iid, h, S, min_sales):
 
 
 def plan(doc, cards, S, inputs, band, min_sales, names=None):
-    """fcCompute: every scored card in the price band with enough history and known supply gets its chance; cards at or
-    above the bar get money best chance first (the share cap, the eBay supply, the money left). inputs: cap, h, disc,
-    pmin, pmax, share, minp, young, untracked. names: {cid: (name, set)} for the rows (optional). Returns
-    {rows, picks, spent} with rows sorted by the model's rank."""
+    """fcCompute: every ranked card in the price band with enough history and known supply gets its chance; cards at or
+    above the bar get money best chance first (the share cap, the copies-per-card cap, the eBay supply, the money
+    left) - unless the gate is on and the market is down, when nothing is bought. inputs: cap, h, disc, pmin, pmax,
+    share, minp, young, untracked, copies (per card, default 1), recent (a card needs an eBay sale in the collector's
+    30-day window, default True; a replay stub with "supply" is exempt), gate (default True). names: {cid: (name, set)}
+    for the rows (optional). Returns {rows, picks, spent, gated} with rows in buy order (chance, then rank)."""
     ix = col_index(doc)
     qs = doc["calib"]["quantiles"]
     I = inputs
+    copies = int(I.get("copies", 1) or 1)
+    gated = bool(I.get("gate", True)) and regime_word(doc) in ("down", "other") and "up" in doc["regime"]
     rows = []
     for cid, a in doc["cards"].items():
         pc_buy, pct, age, vol12 = a[ix["buy"]], a[ix["pct%d" % I["h"]]], a[ix["age"]], a[ix["vol12"]] or 0
@@ -165,6 +180,8 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
             ask = book[0][1] if book else None
         if supply == 0 or (supply is None and not I["untracked"]):
             continue
+        if I.get("recent", True) and c and c.get("supply") is None and not ((c.get("k") or 0) >= 1):
+            continue                                        # no comparable eBay sale in the window: nobody is buying it
         b = bucket(pct)
         tab = table(doc, I["h"], b)
         if not tab:
@@ -173,19 +190,20 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
         nm = (names or {}).get(int(cid)) or ("", "")
         rows.append(dict(d, cid=int(cid), name=nm[0], set=nm[1], price=a[ix["price"]], pc_buy=pc_buy, buy=buy, sell=sell, src=lv["src"], why=lv["why"],
                          A=lv["A"], An=lv["An"], ask=ask, supply=supply, pct=pct, bucket=b, tab=tab, age=age, vol12=vol12, qty=0))
-    rows.sort(key=lambda r: -r["pct"])
-    elig = sorted([r for r in rows if r["p"] >= I["minp"]], key=lambda r: (-round(r["p"] * 100), -r["pct"]))
+    rows.sort(key=lambda r: (-round(r["p"] * 100), -r["pct"]))
+    elig = [r for r in rows if r["p"] >= I["minp"]]
     left = I["cap"]
-    for r in elig:
-        cost = r["buy"] * (1 - I["disc"]) * (1 + S["tax"])
-        q = math.floor(I["cap"] * I["share"] / cost)
-        if r["supply"] is not None:
-            q = min(q, r["supply"])
-        q = min(q, math.floor(left / cost))
-        if q > 0:
-            r["qty"] = q
-            left -= q * cost
-    return {"rows": rows, "picks": [r for r in elig if r["qty"] > 0], "spent": I["cap"] - left}
+    if not gated:
+        for r in elig:
+            cost = r["buy"] * (1 - I["disc"]) * (1 + S["tax"])
+            q = min(math.floor(I["cap"] * I["share"] / cost), copies)
+            if r["supply"] is not None:
+                q = min(q, r["supply"])
+            q = min(q, math.floor(left / cost))
+            if q > 0:
+                r["qty"] = q
+                left -= q * cost
+    return {"rows": rows, "picks": [r for r in elig if r["qty"] > 0], "spent": I["cap"] - left, "gated": gated}
 
 
 def _phi(z):
@@ -251,8 +269,8 @@ def standard_plans(doc, cards, band, min_sales, names=None, caps=STD_CAPS, holds
                 rec = {"h": h, "cap": cap, "disc": disc, "spent": round(P["spent"], 2), "fees": dict(STD_FEES),
                        "picks": [[r["cid"], r["qty"], round(r["buy"], 2), round(r["mean"], 2)] for r in P["picks"]],
                        "exp": round(mc["mean"], 2) if mc else 0.0, "lo": round(mc["lo"], 2) if mc else 0.0, "hi": round(mc["hi"], 2) if mc else 0.0,
-                       "p": round(mc["p"], 3) if mc else 0.0, "reg": "strong" if doc["regime"]["strong"] else "other", "month": doc.get("month", ""),
-                       "n_elig": sum(1 for r in P["rows"] if r["p"] >= I["minp"]), "n_rows": len(P["rows"]),
+                       "p": round(mc["p"], 3) if mc else 0.0, "reg": regime_word(doc), "month": doc.get("month", ""), "model": doc.get("model", "v1"),
+                       "gated": P["gated"], "n_elig": sum(1 for r in P["rows"] if r["p"] >= I["minp"]), "n_rows": len(P["rows"]),
                        "best": round(max((r["p"] for r in P["rows"]), default=0.0), 3)}
                 out.append(rec)
     return out
