@@ -154,6 +154,10 @@
   .fc tr.fc-buy td { font-weight:600; background:color-mix(in srgb, var(--link) 8%, transparent); }
   .fc tr.fc-buy td .dim, .fc tr.fc-buy td .fc-why { font-weight:400; }
   .fc .fc-why { font-size:11px; }
+  .fc .fc-light { padding:1px 7px; border-radius:10px; border:1px solid var(--line); }   /* the gate: green / amber / red */
+  .fc .fc-light-green { color:#fff; background:var(--up); border-color:var(--up); }
+  .fc .fc-light-amber { color:#111; background:#e3b341; border-color:#e3b341; }
+  .fc .fc-light-red { color:#fff; background:var(--down); border-color:var(--down); }
   .fc .fc-stats { margin:6px 0 10px; }
   .fc .fc-stats .fc-roi { font-size:13px; margin-left:4px; }
   .fc .fc-box .fc-guard small { font-size:10px; color:var(--muted); border:1px solid var(--line); border-radius:3px; padding:0 3px; margin-left:2px; }
