@@ -1126,6 +1126,87 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   t/hit/test_warn.py (the check screen's table, folded / open / the flag / a suspect), t/pcpop/test_ui13.py (the chip,
   the two columns on every row, the Book marker, the Trend popup, the Catalog's buttons), test_ui6 / test_ui12 ported
   (the chip order gains 'rua'; the README title).
+- THE CARD POPUP, THE + AND THE PLANNING VIEW (2026-10-24 late, Brett: "when i click on a card in the forcast tab, i
+  would like to see a popup with the available listing ... all of the ebay raw data tab column, but ... a column toggle
+  button ... on the forcast button page itself ... the available listings with the buy under X% of anchor ... a
+  forcasting button and planning button ... a column with a plus sign button, when i click the plus sign, it goes to
+  the planning button ... planning button to have the same columns as the forcast button [and] the 'Expected net profit
+  ...' ... these numbers will be adjusated with each additional lisring that i add ... i would like collector so it
+  follows from labtop to phone ... a star column in popup for adding it to favorites"). (1) THE POPUP (#lov, class
+  modal.listings): a clone of #p-er's header row made before makeTable decorates it (fclBuild, like the Favorites
+  views) run by makeTable('fcl', FCL_TABLE) = TABLES.er with rows () => FCL.rows, extra fclOk (status open, and vs
+  anchor % <= -FCL.ua), no ranges / chips, store 'fc' (hide-fc, order-fc, width-fc, hl-fc: ITS OWN column choices, so
+  "Listing columns..." (#fc-cols -> tables.fcl.openColumns()) on the Forecast bar sets every card's popup at once and
+  leaves the Raw Data tab alone), root '#lov'. Rows (fclRowsFor): the 24-hour table's rows for the card + LIVE.favEr +
+  live.plan.rows + live/fc_rows.bin, deduped by item id, cheapest first (sortKey 9 unless a header was clicked), r[56]
+  stamped with fcListing. live/fc_rows.bin (collector fc_rows_file, every 10 minutes, FC_ROWS_LIMIT 1.15): the Raw Data
+  row (es.live_row) of every book copy within 15% of the card's standard price (L, else A, else price) that the 24-hour
+  table does not carry, keyed by card id; the page fetches it in 10-minute buckets when a popup opens (fclLoad). The
+  card's name and its Supply figure open it (a.fcl-open; the PriceCharting link moved to a small arrow); the sub says
+  anchor, credible floor, open copies, the under-anchor filter in force. "Listings at least __% under the anchor"
+  (#fc-ua, localStorage fc-ua) is the popup's "% buy under". (2) THE + (Planning): a column after the star on the Raw
+  Data header (th.plh data-k="plan"; `inserted {v: 16, at: 2, n: 1}` keeps saved orders / eyes / widths valid), so it is
+  on every Raw Data row, the Favorites Raw Data view and the popup (cfg.plan = {k: item id, c: card id, m: favMetaEr}
+  -> planCell; the header sorts planned rows first like the star). The plan is a list of LISTINGS kept on the
+  collector exactly like the favorites: a click sends {type: 'plan', t, i: item id, c: card id, v: 1/0, m: {ti, u, p}}
+  over the signed channel (planSend / alSend), shows at once from PLANS (the echo), and live.plan {t, list [[i, c, t,
+  m], ...] oldest first, rows {item id: live_row for a planned listing past the 24-hour table}} confirms it (rebuildLive
+  clears an echo once live.plan.t >= its t; planIndex -> PLAN_MAP; planPaint repaints every button.plb and the count on
+  the Planning chip). Collector: plan_set (v["plan"] = {i: {i, c, t, m}}, PLAN_MAX 200 oldest-out, v["plan_t"] in the
+  publish-at-once signature), plan_live; ebay_sweep.fav_listing_ids returns the planned ids too, so a planned listing
+  survives the prune. (3) FORECASTING / PLANNING (#fc-modes, FC.mode, localStorage fc-mode): Forecasting is the tab as
+  it was (#fc-main); Planning (#fc-plan) is plRender: one row per planned listing (plRows: the row from LIVE.erMap /
+  favEr / live.plan.rows / fc_rows.bin, else a stub from the click's m), priced like a Forecast pick AT THE LISTING'S
+  OWN PRICE with disc 0 (fcTable(h, bucket) -> fcLevels(cs, pcBuy, iid) -> fcDist(total, tab, S, 0, lv.sell)), Buy = 1
+  while open, Cost = total x (1 + tax); the same four tiles from fcMonteCarlo(picks, S, 0) and the "Spend $X of $cap on
+  N cards (M listings), hold h months" line, recomputed on every + / - and on every input change (fcCompute ends with
+  plRender when the mode is pl); a sold / ended listing stays listed, greyed, out of the totals; "Record this plan"
+  (plRecord) sends a forecast record with disc 0, picks [cid, 1, total, mean], plan: 1 and iids, which the collector
+  scores like any record and the Past forecasts table labels "plan". Help: plan, fc_modes, fc_ua, fc_plan; the Forecast
+  README's "From a card to a listing" paragraph; the Raw Data README's + sentence. Deployed 2026-10-24 ~23:00 UTC
+  through the editor (ebay_sweep.py 83332502, collector.py 66d0d3c1, style.css 85b302e0, body.html 77e62177, help.js
+  2d8d5e22, app.js e77d8994), site build #123; the droplet picked the collector up on its 5-minute pull (live.plan and
+  fc_rows.bin were live by 22:51 UTC: 7,460 copies on 3,960 cards). Checked live: the popup (Armored Mewtwo, 8 open
+  copies), a + confirmed by the collector within two minutes, the Planning view's figures, the - again. Tests:
+  ut/test_plan.py (plan_set / cap / removal, the prune, plan_live's rows for a 40-day-old record, the plan flag,
+  fc_rows_file's rule), t/pcpop/test_ui14.py (46 Raw Data headers with + at index 2, the popup's rows from the table and
+  from a fake fc_rows.bin, the under-anchor filter, the column picker's store 'fc', the + message, the Planning
+  summary and chance, Record this plan, the live confirmation, the -, the Raw Data + and its sort, the Favorites view),
+  test_ui10 / test_ui13 ported (the Forecast % header is index 33 now, the card cell children[4]). NOT done: the phone
+  check screen (hit.html) has no + yet.
+- THE FORECAST HISTORY TAB'S TWO FREE VARIABLES (2026-10-24 late, Brett: "would it be possible to have this as a variable
+  ['Bought 20% under'] ... also if it possible to have the investment, as well as the bought under, as a variable").
+  forecast_hist.py FORMAT 2: besides the 30 standard cells, every month carries its INGREDIENTS - cards {id, buy, pct,
+  sup, y1, y3, y6} (the candidate cards of the plan: in the band, vol12 >= 6, age >= 24 - MIN_AGE - in ascending id;
+  the buy to the cent, the rank to four decimals, the realized return per hold to four decimals or null) and tables
+  {"h|bucket", "h|all"} (the month's chance tables for its regime) - plus format, m_last, free {cap [100, 1000000], disc
+  [0, 0.6]} and consts.quantiles / min_vol12 / min_age / p_cap / rho; the standard cells are computed from the SAME
+  rounded figures (20 of 1,740 cells changed picks against the unrounded run, the biggest by $234 of expected net), so
+  the page's recomputation of a standard cell equals the file's. The file grew from 149 KB to 879 KB (47,027 candidate
+  card-months); the tab fetches it once an hour. Page (app.js, the Forecast History block): FH.cap and FH.disc are any
+  number (fhSet clamps to FH_FREE, localStorage fh-cap / fh-disc); two boxes (#fh-cap, #fh-disc, label.fh-in, on
+  'change' - every keystroke would rerun 170 plans) beside the chips, which are presets now; with a format-2 file
+  (fhFree) every cell is the page's own: fhPlan = forecast_math.plan on the month's ingredients (fcDist at the buy less
+  the discount, sell = buy; the buy order by fhRound = Python's half-to-even round of p x 100, then the rank; the
+  greedy allocation under share 0.2, one copy, the supply cap, the money left; a 'down' month buys nothing with the
+  gate), fhCompute = the cell (fcMonteCarlo with the file's mc_n 2000 - fcCdf / fcDraw / fcDist now take fcQs(): the
+  model file's quantiles, else FC_QS, the standard 5..95 grid, so the tab runs without forecast.bin -, fhActual when
+  the hold is up (m + h <= m_last), the forced plan of a month with no buys), cached per "cap|disc" (12 settings, then
+  cleared), run a few cells at a time between frames by fhRun with a "Running the plans for $X, bought Y% under... n of
+  174" line (a $25,000 20%-under run is ~3.5 s of arithmetic; a box being typed in survives the redraw; FH.committing
+  skips that on a commit so a clamped value shows). An older (format-1) file still works: the chips only, the boxes
+  hidden, the settings snapped to the nearest standard. The live half (the collector's archive) exists only at the
+  standard settings, so it shows the nearest archived capital (ties to the lower) and discount (>= 10% -> 20%) and says
+  so. Help: the fh README (the boxes, how the page runs the replay, the nearest note), fh_replay, fh_live. Deployed
+  2026-10-24 ~23:40 UTC (forecast_hist.py 2f589f79, style.css b8ca283c, help.js 162d946f, app.js 479e57a3); Forecast
+  history run #3 (3m 36s, the format-2 file on the snapshots release), site build #124. Tests: t/pcpop/test_fh2.py
+  (every standard preset's 174 cells equal the file's Python cells - picks, spent, expected / range / chance, actual /
+  ROI / inside, the forced figures; a custom $3,000 / 15% cell against forecast_math on the same ingredients; the
+  boxes, the clamp, the progress line, typing during a run, the nearest-archive note, README and help), test_ui12
+  ported (the format-2 fixture t/fh2_local.json from a local run of forecast_hist.py on fc/data/hist.json; waits for
+  the run). The local replay: `cd cur && SITE_PASSWORD=<any> python3 forecast_hist.py --hist-json
+  /tmp/claude-0/fc/data/hist.json --catalog /tmp/claude-0/fc/data/catalog.csv --calib forecast_calib.json --out
+  /tmp/claude-0/t/fh2_local.bin` (~3 minutes), decrypted with forecast.decrypt_live(blob, <the same password>).
 - THE DATA FOLDER (2026-10-23 night, Brett: "save the data, because if I want you to analyze the data in the future, then
   you will have it saved and at your quick and easy disposal ... store the data from the ungraded price and the sales
   volume per month since December 2020 ... all of the data from the ebay catalog data tab ... google trend data ...
