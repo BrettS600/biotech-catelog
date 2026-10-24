@@ -134,6 +134,7 @@ for i in np.where(~np.isnan(p_now))[0]:
                      breakeven3=round(out[3]['be'], 3), p1=round(out[1]['p'], 3), p3=round(out[3]['p'], 3), p6=round(out[6]['p'], 3), net3_lo=round(out[3]['lo'], 2), net3_med=round(out[3]['med'], 2), net3_hi=round(out[3]['hi'], 2), net3_mean=round(out[3]['mean'], 2)))
 d = pd.DataFrame(rows).sort_values('rank_pct', ascending=False)
 print('cards in the band with supply and a rank:', len(d), '; at 50%+ chance (3 mo):', (d.p3 >= .5).sum(), '; floors >= 20% under A:', (d.floor_vs_A >= .2).sum())
+print('at 50%+ chance by hold: 1 mo', int((d.p1 >= .5).sum()), '; 3 mo', int((d.p3 >= .5).sum()), '(with an eBay sale in 30 d:', int(((d.p3 >= .5) & (d.k30 >= 1)).sum()), ') ; 6 mo', int((d.p6 >= .5).sum()), '(with an eBay sale in 30 d:', int(((d.p6 >= .5) & (d.k30 >= 1)).sum()), ')')
 d.head(60).to_csv(os.path.join(OUT, 'DRYRUN_2026-10-24_candidates.csv'), index=False)
 # ---- plans
 plans = []
