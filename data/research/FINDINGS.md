@@ -1,6 +1,6 @@
 # FINDINGS — what three hours of research say to build into the Forecast tab
 
-Written 2026-10-24 from experiments E01–E18 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
+Written 2026-10-24 from experiments E01–E20 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
 of capital, holds of 1–3 months preferred, profit reinvested, maximise return without taking on much risk. Nothing here
 has been applied to the site yet.
 
@@ -64,11 +64,14 @@ has been applied to the site yet.
    card (L vs A) rather than 0; show the breakeven discount per card ((buy + 5.20)/0.8589 ÷ expected sell); only
    recommend a copy when the floor clears the chance bar at the chosen hold. Treat the current month's print as a valid
    buy level when it rests on ≥ 10 sales (E09). (E07, E08, E09)
-4. **Plan construction.** Default hold 3 months (offer 2 and 4); ≥ 20 positions when capital allows (per-card cap ≤ 5 % of
-   capital for $5k+); sets ≥ 24 months; band $50–$500 with the $100–$250 tier as the core; 6-month hold offered as the
-   fallback when few discounted floors exist. (E05, E12, E16)
-5. **Chance and range.** Replace standard-price probabilities with the per-discount calibrated chance (E06b) and keep
-   the realised-return quantile grids by regime; show per-cycle loss risk for the basket size chosen (E12 curve).
+4. **Plan construction.** Default hold 3 months (offer 2 and 4); one copy per card and the whole $50–$500 band (the
+   simulation says narrowing to $50–250 or $100–250 costs 6–10 CAGR points through under-deployment, and the per-card
+   cap barely matters once it is one copy per card — keep 20 %, never below 10 %); sets ≥ 24 months; 6-month hold
+   offered as the fallback when few discounted floors exist. (E05, E12, E16, E19)
+5. **Chance and range.** Replace standard-price probabilities with the empirical chance table keyed by regime × hold ×
+   discount × dev12 rank bucket (`results/E20_chance_table.csv`; out-of-sample error ~5 points) — or the calibrated
+   per-discount classifier (E06b) — and show the table's 10th–90th percentile net as the range; show per-cycle loss
+   risk for the basket size chosen (E12 curve).
 6. **Fees.** Add the Store rate and buyer-pays-shipping as plan options so the user sees their value (E08).
 7. **Keep learning.** The rollup and daily catalog snapshots are the data that will settle the open questions
    (`ideas_backlog.csv` B01–B04, B13): rerun `e13` and `e07` monthly; re-test the PV250 gate after a down-cycle.
@@ -87,6 +90,7 @@ has been applied to the site yet.
 * Any 1-month strategy at less than 20 % under the standard price. (E10, E12)
 * Fractional deployment by regime strength, and gates tighter than 0. (E17)
 * dev6 (6-month reversal) as the ranking signal — weaker than dev12 in every year. (E18)
+* Narrow price bands ($50–250, $100–250) and per-card caps under 10 % — under-deployment costs more than they save. (E19)
 
 ## The honest caveats
 
