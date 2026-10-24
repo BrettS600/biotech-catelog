@@ -2426,11 +2426,17 @@ window.addEventListener('resize', () => { if ($('ov').classList.contains('open')
 document.querySelectorAll('#pczoom .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('pc-zoom', b.dataset.z); } catch (e) {} if (pcCur) drawPcChart(); }));
 document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('eb-pts', b.dataset.p); } catch (e) {} if (cur) { drawChart(); renderEbTable(); } }));
 /* ---------------- Forecast tab (Brett, 2026-10-17: "I input my capital, you tell me what cards to buy, how many of
-   each, my estimated range of net profit after I hold for a month, and a confidence %") ----------------
-   The model runs in the site workflow (forecast.py): every card priced $10+ gets a predicted move over 1 / 3 / 6
-   months from PriceCharting's monthly history, and forecast.bin (same key as the live file) carries the scores,
-   the market regime and the calibration tables - the realized outcomes, out of sample over 2022-2026, by horizon
-   x regime x score bucket. This tab turns a score into money with the same fee arithmetic as the eBay tabs:
+   each, my estimated range of net profit after I hold for a month, and a confidence %"; version 2 on 2026-10-24 from
+   the research in data/research - "improve the predictive power of my forecast model ... can you just do it for me?
+   and the build?") ----------------
+   The model runs in the site workflow (forecast.py): every card priced $25+ with six sales in its last twelve
+   PriceCharting months is RANKED by how far its price sits below its own 12-month mean (the reversal signal: the
+   deepest decile beat the band by 6-10 points a quarter in every year 2022-2026, and nothing else survived the
+   controls), the market regime is the sign of the trailing 3-month median move (rising markets keep rising 95% of
+   the time), and forecast.bin (same key as the live file) carries the ranks, the regime and the chance tables - the
+   realized gross returns by hold x regime x rank bucket, 2022 to the last complete month. The set's momentum, the
+   gradient-boosted model and the stock-market extras of version 1 are gone (artifacts or no gain, E06/E11/E21/E22).
+   This tab turns a rank into money with the same fee arithmetic as the eBay tabs:
    net per copy = buy x (1 + return) x (1 - fee) - fixed - label - supplies - buy x (1 - discount) x (1 + buy tax),
    where buy = max(PriceCharting's price, its 3-month average) (you cannot buy at a print that just dipped) and the
    return is drawn from the bucket's realized distribution. Quantities are capped by what eBay has for sale at a
@@ -2441,12 +2447,12 @@ document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click',
 const FC = {doc: null, err: null, rows: [], picks: [], mc: null, loaded: 0};
 const FC_MIN_VOL12 = 6;                                  // a card needs six sales in its last twelve PriceCharting months
 const FC_ASK_LIMIT = 1.15;                               // a listing counts as supply when its total is within 15% of the buy price
-const fcBucket = pct => pct >= .95 ? 'top5' : pct >= .9 ? 'b95' : pct >= .8 ? 'b90' : pct >= .5 ? 'b80' : 'b50';
-const FC_BUCKET_WORDS = {top5: 'top 5%', b95: 'top 10%', b90: 'top 20%', b80: 'upper half', b50: 'lower half'};
+const fcBucket = pct => pct >= .9 ? 'top10' : pct >= .75 ? 'b90' : pct >= .5 ? 'b75' : 'b50';   // how far below its own 12-month mean the card sits, as a rank
+const FC_BUCKET_WORDS = {top10: 'deepest 10%', b90: 'top 25%', b75: 'upper half', b50: 'lower half'};
+const fcRegimeWord = () => FC.doc && FC.doc.regime && ('up' in FC.doc.regime ? (FC.doc.regime.up ? 'up' : 'down') : (FC.doc.regime.strong ? 'strong' : 'other'));   // a version-1 file still reads
 function fcTable(h, bucket) {                            // the realized-return quantile grid for (horizon, regime, bucket)
   const cal = FC.doc && FC.doc.calib; if (!cal) return null;
-  const reg = FC.doc.regime.strong ? 'strong' : 'other';
-  return cal.tables[h + '|' + reg + '|' + bucket] || cal.tables[h + '|all|all'] || null;
+  return cal.tables[h + '|' + fcRegimeWord() + '|' + bucket] || cal.tables[h + '|all|all'] || null;
 }
 /* buy = what the copy costs on eBay (the credible floor, else the sold median, else PriceCharting's level); sell = what
    buyers actually pay for the card on eBay (the collector's sold median A; PriceCharting's level when the card has no
@@ -2499,13 +2505,13 @@ function fcListing(cid, total, iid, h, S) {
   return Math.round(fcDist(total, tab, S, 0, lv.sell).p * 1000) / 1000;
 }
 function fcStampRows() {                                 // r[56] on every listing-shaped row: the chance at the listing's price for the hold chosen on the Forecast tab
-  const h = +$('fc-h').value || 1, S = settings();
+  const h = +$('fc-h').value || 3, S = settings();
   const stamp = r => { r[56] = r[0] == null ? null : fcListing(r[0], r[9], r[22], h, S); };
   (LIVE.er || []).forEach(stamp); (LIVE.au || []).forEach(stamp); (LIVE.hh || []).forEach(stamp); if (LIVE.favEr) LIVE.favEr.forEach(stamp);
 }
 const fcErOk = r => r[56] != null && r[56] >= (FC.inputs || fcInputs()).minp;
 function fcErCell(r) {
-  const bar = (FC.inputs || fcInputs()).minp, h = +$('fc-h').value || 1;
+  const bar = (FC.inputs || fcInputs()).minp, h = +$('fc-h').value || 3;
   if (r[56] == null) return '<td class="num"><span class="dim" title="' + (FC.doc ? 'no forecast for this card (the model scores cards priced $10 and up with a year of history)' : 'the model file is not loaded') + '">' + dash + '</span></td>';
   return '<td class="num" title="The Forecast tab\u2019s chance of a profit buying this copy at its price and holding ' + h + ' month' + (h > 1 ? 's' : '') + ' (its rank bucket, the sale projected from the card\u2019s sell level with the two guards); the bar is ' + Math.round(bar * 100) + '%">' + '<span class="' + (r[56] >= bar ? 'up' : '') + '">' + Math.round(r[56] * 100) + '%</span></td>';
 }
@@ -2530,8 +2536,9 @@ function fcDist(buy, tab, S, disc, sell = buy) {         // the copy's net at th
 }
 function fcInputs() {
   const n = (id, d) => { const v = parseFloat($(id).value); return isNaN(v) ? d : v; };
-  return {cap: Math.max(0, n('fc-cap', 0)), h: +$('fc-h').value || 1, disc: Math.min(0.6, Math.max(0, n('fc-disc', 0) / 100)), pmin: Math.max(10, n('fc-pmin', 50)), pmax: Math.max(10, n('fc-pmax', 500)),
-          share: Math.min(1, Math.max(0.05, n('fc-share', 20) / 100)), minp: Math.min(0.95, Math.max(0, n('fc-minp', 50) / 100)), young: $('fc-young').checked, untracked: $('fc-untracked').checked};
+  return {cap: Math.max(0, n('fc-cap', 0)), h: +$('fc-h').value || 3, disc: Math.min(0.6, Math.max(0, n('fc-disc', 0) / 100)), pmin: Math.max(10, n('fc-pmin', 50)), pmax: Math.max(10, n('fc-pmax', 500)),
+          share: Math.min(1, Math.max(0.05, n('fc-share', 20) / 100)), minp: Math.min(0.95, Math.max(0, n('fc-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fc-copies', 1)))),
+          young: $('fc-young').checked, untracked: $('fc-untracked').checked, recent: $('fc-recent').checked, gate: $('fc-gate').checked};
 }
 function fcCompute() {
   const doc = FC.doc; if (!doc) return;
@@ -2552,22 +2559,25 @@ function fcCompute() {
     let supply = null, ask = null;                       // the collector only follows listings inside its price band: outside it the supply is unknown
     if (c && c.book && buy >= band[0] && buy <= band[1]) { supply = c.book.filter(b => b[1] <= buy * FC_ASK_LIMIT).length; ask = c.book.length ? c.book[0][1] : null; }
     if (supply === 0 || (supply == null && !I.untracked)) continue;
+    if (I.recent && c && !((c.k || 0) >= 1)) continue;   // no comparable eBay sale in the collector's 30-day window: nobody is buying it, whatever the supply
     const bucket = fcBucket(pct), tab = fcTable(I.h, bucket); if (!tab) continue;
     const d = fcDist(buy, tab, S, I.disc, sell);
-    rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, why: lv.why, A: lv.A, An: lv.An, ask, supply, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
-                             mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], qty: 0}, d));
+    rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, why: lv.why, A: lv.A, An: lv.An, k: c ? (c.k || 0) : null, ask, supply, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
+                             mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], dev12: ix.dev12 != null ? a[ix.dev12] : null, m12: ix.m12 != null ? a[ix.m12] : null,
+                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0}, d));
   }
-  rows.sort((x, y) => y.pct - x.pct);                    // the model's order; the gate below decides what gets money
-  const elig = rows.filter(r => r.p >= I.minp).sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // chance to the whole percent, then the model's rank (otherwise price alone breaks the tie)
+  rows.sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // buy order: chance to the whole percent, then the rank (otherwise price alone breaks the tie)
+  const elig = rows.filter(r => r.p >= I.minp);
+  const gated = I.gate && 'up' in doc.regime && !doc.regime.up;   // the gate: a falling market buys nothing (the research's one rule that removed every losing cycle)
   let left = I.cap;
-  elig.forEach(r => {                                    // greedy: best chance first, up to the share cap and the eBay supply
+  if (!gated) elig.forEach(r => {                        // greedy: best chance first, up to the share cap, the copies-per-card cap and the eBay supply
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
-    let q = Math.floor(I.cap * I.share / costEach);
+    let q = Math.min(Math.floor(I.cap * I.share / costEach), I.copies);
     if (r.supply != null) q = Math.min(q, r.supply);
     q = Math.min(q, Math.floor(left / costEach));
     if (q > 0) { r.qty = q; left -= q * costEach; }
   });
-  FC.rows = rows; FC.picks = elig.filter(r => r.qty > 0); FC.inputs = I; FC.S = S; FC.spent = I.cap - left;
+  FC.rows = rows; FC.picks = elig.filter(r => r.qty > 0); FC.inputs = I; FC.S = S; FC.spent = I.cap - left; FC.gated = gated;
   FC.mc = fcMonteCarlo(FC.picks, S, I.disc);
   fcRenderRegime(); fcRenderPicks(); fcRenderRecords();
 }
@@ -2589,34 +2599,43 @@ const fcMoney2 = v => v == null || isNaN(v) ? '—' : (v < 0 ? '−$' : '$') + M
 const fcOrd = n => { const m = n % 100; return n + (m >= 11 && m <= 13 ? 'th' : m % 10 === 1 ? 'st' : m % 10 === 2 ? 'nd' : m % 10 === 3 ? 'rd' : 'th'); };   // 92nd, 100th, 61st
 function fcRenderRegime() {
   const doc = FC.doc, R = doc.regime, I = FC.inputs || fcInputs(), S = FC.S || settings();
-  const word = R.strong ? 'strong' : R.reg3 > 0.005 ? 'mild' : R.reg3 >= -0.005 ? 'flat' : 'weak';
+  const v2 = 'up' in R, up = v2 ? R.up : R.reg3 > 0, confirm = v2 ? R.confirm : R.reg1 > 0;
+  const light = !up ? 'red' : confirm ? 'green' : 'amber';
+  const head = !up ? 'Falling market — the gate is red.' : confirm ? 'Rising market — the gate is green.' : 'Rising market, but last month turned down — amber.';
   const line = (h, b) => { const t = fcTable(h, b); if (!t) return ''; const qs = doc.calib.quantiles, med = t.q[qs.indexOf(0.5)];
     const ref = 100, p0 = 1 - fcCdf(t, fcBreakEven(ref, S, 0)), p20 = 1 - fcCdf(t, fcBreakEven(ref, S, 0.2));
-    return '<tr><td>' + h + ' mo</td><td class="num">' + fcPct(med) + '</td><td class="num">' + (t.p_up * 100).toFixed(0) + '%</td><td class="num">' + (p0 * 100).toFixed(0) + '%</td><td class="num">' + (p20 * 100).toFixed(0) + '%</td></tr>'; };
-  $('fc-regime').innerHTML = '<p><b>' + word[0].toUpperCase() + word.slice(1) + ' market.</b> The typical $10+ card moved <b>' + fcPct(R.reg3, 1) + ' a month</b> over the last three months (' + fcPct(R.reg1, 1) + ' last month; ' + (R.breadth3 != null ? (R.breadth3 * 100).toFixed(0) + '% of cards up' : '') + '). ' +
-    'Monthly moves of the whole market are strongly persistent, so this is the single biggest input to every forecast below.</p>' +
-    '<p class="dim">What the model’s 80th–90th percentile picks did in ' + (R.strong ? 'strong' : 'non-strong') + ' markets, 2022–2026 (cards $25+): the median move, how often the price was up, and how often a $100 copy netted a profit at the standard price and when bought 20% under.</p>' +
+    return '<tr><td>' + h + '\u00a0mo</td><td class="num">' + fcPct(med) + '</td><td class="num">' + (t.p_up * 100).toFixed(0) + '%</td><td class="num">' + (p0 * 100).toFixed(0) + '%</td><td class="num">' + (p20 * 100).toFixed(0) + '%</td></tr>'; };
+  $('fc-regime').innerHTML = '<p><b class="fc-light fc-light-' + light + '">' + head + '</b> The typical card moved <b>' + fcPct(R.reg3, 1) + ' a month</b> over the last three months (' + fcPct(R.reg1, 1) + ' last month' + (R.breadth3 != null ? '; ' + (R.breadth3 * 100).toFixed(0) + '% of cards up' : '') + '). ' +
+    'When this three-month figure is positive the next quarter has been up 95% of the time; when negative, 12% — so ' + (up ? 'the plan may buy' : 'the plan buys nothing while \u201cBuy only when the market is rising\u201d is ticked') + '.</p>' +
+    '<p class="dim">What the deepest-dip cards (the top 10% of the rank: furthest below their own 12-month mean) did in ' + (up ? 'rising' : 'falling') + ' markets, 2022 on, cards $25+: the median move, how often the price was up, and how often a $100 copy netted a profit at the standard price and when bought 20% under.</p>' +
     '<div class="pctbox fc-box"><table><thead><tr><th>Hold</th><th class="num">Move</th><th class="num">Up</th><th class="num" title="a $100 copy bought at the standard price">Net&gt;0</th><th class="num" title="the same copy bought 20% under">20% under</th></tr></thead><tbody>' +
-    line(1, 'b90') + line(3, 'b90') + line(6, 'b90') + '</tbody></table></div>' +
-    '<p class="dim">Model data month ' + esc(doc.month) + ', built ' + esc((doc.t || '').replace('T', ' ').replace('Z', ' UTC')) + ' from ' + Number(doc.n).toLocaleString('en-US') + ' cards’ PriceCharting history. eBay’s raw sold prices run about even with PriceCharting’s ungraded price on the cards the collector tracks (median 1.04×), so selling at that price is a fair assumption.</p>';
+    line(1, 'top10') + line(3, 'top10') + line(6, 'top10') + '</tbody></table></div>' +
+    '<p class="dim">Model ' + esc(doc.model || 'v1') + ', data month ' + esc(doc.month) + ', built ' + esc((doc.t || '').replace('T', ' ').replace('Z', ' UTC')) + ' from ' + Number(doc.n).toLocaleString('en-US') + ' cards\u2019 PriceCharting history' + (doc.n_ranked ? ' (' + Number(doc.n_ranked).toLocaleString('en-US') + ' ranked)' : '') + '. eBay\u2019s sold median runs even with PriceCharting\u2019s price on $50+ cards (E07), so projecting the sale from it is fair.</p>';
 }
 function fcWhy(r) {
   const yrs = r.age == null ? '' : r.age >= 24 ? (r.age / 12).toFixed(0) + ' yr old set' : r.age + ' mo old set';
-  const bits = [yrs, r.mom1 != null ? 'last month ' + fcPct(r.mom1) : '', r.mom12 != null ? '12 mo ' + fcPct(r.mom12) : '', r.dd12 != null && r.dd12 < -0.02 ? (Math.abs(r.dd12) * 100).toFixed(0) + '% under its 12-mo high' : r.dd12 != null ? 'at its 12-mo high' : '',
-                r.setm != null ? 'set ' + fcPct(r.setm) + ' last month' : '', r.vol12 + ' PC sales / 12 mo'].filter(Boolean);
-  return bits.join(' · ');
+  const bits = [r.dev12 != null && r.m12 != null ? (r.dev12 < 0 ? (Math.abs(r.dev12) * 100).toFixed(0) + '% under' : (r.dev12 * 100).toFixed(0) + '% over') + ' its 12-mo mean of ' + fmtMoneyPlain(r.m12) : '',
+                r.be != null ? 'needs ' + fcPct(r.be) + ' to break even' : '', yrs, r.mom1 != null ? 'last month ' + fcPct(r.mom1) : '',
+                r.vol12 + ' PC sales / 12 mo', r.k != null ? r.k + ' eBay sale' + (r.k === 1 ? '' : 's') + ' / 30 d' : ''].filter(Boolean);
+  return bits.join(' \u00b7 ');
 }
 function fcRenderPicks() {
   const I = FC.inputs, S = FC.S, picks = FC.picks, mc = FC.mc, unit = I.h + ' month' + (I.h > 1 ? 's' : '');
   let sum = '';
-  if (!FC.rows.length) sum = '<p>No card passes your filters (price range, set age, eBay supply). Widen them.</p>';
-  else if (!picks.length) {
+  if (!FC.rows.length) sum = '<p>No card passes your filters (price range, set age, eBay supply, a recent eBay sale). Widen them.</p>';
+  else if (FC.gated) {
+    const n = FC.rows.filter(r => r.p >= I.minp).length;
+    sum = '<p><b>Nothing to buy: the market is falling</b> (the typical card ' + fcPct(FC.doc.regime.reg3, 1) + ' a month over the last three months) and \u201cBuy only when the market is rising\u201d is ticked. In the research the gate was the one rule that removed every losing cycle; a falling market keeps falling 88% of the time. ' +
+      (n ? n + ' card' + (n > 1 ? 's' : '') + ' would clear your bar anyway \u2014 the list below is in buy order; untick the box to override.' : 'The list below is in buy order.') + '</p>';
+  } else if (!picks.length) {
     const best = FC.rows.slice().sort((x, y) => y.p - x.p)[0];
     let need = null; for (let d = 0; d <= 0.6; d += 0.01) { if (fcDist(best.buy, best.tab, S, d, best.sell).p >= I.minp) { need = d; break; } }
     sum = '<p><b>Nothing to buy at these settings.</b> Over ' + unit + ' the best card on the list has a ' + (best.p * 100).toFixed(0) + '% chance of a profit after eBay’s fees when bought at the standard price' + (I.disc ? ' less ' + (I.disc * 100).toFixed(0) + '%' : '') +
-      '; your bar is ' + (I.minp * 100).toFixed(0) + '%. ' + (need != null ? 'It clears the bar when bought <b>' + (need * 100).toFixed(0) + '% under</b> the standard price — that is what the hit alerts are for.' : 'No discount up to 60% clears the bar at this hold.') + ' The list below is the model’s ranking anyway: what to buy if you can get it cheap.</p>';
+      '; your bar is ' + (I.minp * 100).toFixed(0) + '%. ' + (need != null ? 'It clears the bar when bought <b>' + (need * 100).toFixed(0) + '% under</b> the standard price — that is what the hit alerts are for.' : 'No discount up to 60% clears the bar at this hold.') + ' The list below is in buy order anyway: what to buy if you can get it cheap.</p>';
   } else {
-    sum = '<p>Spend <b>' + fcMoney(FC.spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + picks.length + ' card' + (picks.length > 1 ? 's' : '') + '</b> (' + (n => n + (n === 1 ? ' copy' : ' copies'))(picks.reduce((s, r) => s + r.qty, 0)) + '), hold ' + unit + ', sell at eBay’s going price then.</p>' +
+    const idle = I.cap - FC.spent, elig = FC.rows.filter(r => r.p >= I.minp).length;
+    sum = '<p>Spend <b>' + fcMoney(FC.spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + picks.length + ' card' + (picks.length > 1 ? 's' : '') + '</b> (' + (n => n + (n === 1 ? ' copy' : ' copies'))(picks.reduce((s, r) => s + r.qty, 0)) + '), hold ' + unit + ', sell at eBay\u2019s going price then.' +
+      (idle > Math.max(50, I.cap * 0.1) ? ' <span class="dim">' + fcMoney(idle) + ' stays idle: only ' + elig + ' card' + (elig === 1 ? '' : 's') + ' clear' + (elig === 1 ? 's' : '') + ' your bar today at ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' each \u2014 the supply of discounted copies, not the capital, is the limit (keep the rest for next month\u2019s floors or the hit alerts).</span>' : '') + '</p>' +
       '<div class="stats fc-stats">' +
       '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + fcMoney(mc.mean) + (FC.spent > 0 ? ' <span class="fc-roi ' + (mc.mean < 0 ? 'down' : 'up') + '" title="expected ROI: the expected net on the money spent, over the hold">' + fcPct(mc.mean / FC.spent, 1) + '</span>' : '') + '</div><div class="d">average over the model’s history' + (FC.spent > 0 ? '; ROI on the ' + fcMoney(FC.spent) + ' spent, ' + unit : '') + '</div></div>' +
       '<div class="stat"><div class="k">Likely range</div><div class="v">' + fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) + '</div><div class="d">10th to 90th percentile' + (FC.spent > 0 ? ' (' + fcPct(mc.lo / FC.spent, 0) + ' to ' + fcPct(mc.hi / FC.spent, 0) + ')' : '') + '; median ' + fcMoney(mc.med) + '</div></div>' +
@@ -2637,7 +2656,7 @@ function fcRenderPicks() {
       '<td class="num">' + fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
       '<td class="num">' + (r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
   });
-  html += '</tbody></table></div><p class="dim">Bold rows are the buys; the rest is the model’s ranking (up to 40). Net per copy = sold at eBay’s going price at the end of the hold (the card’s sold median moved by the model’s return; PriceCharting’s price when the collector has no sales for it), less eBay’s fee, the label and supplies, less what you paid. The range is what cards in the same rank bucket actually did in this kind of market, 2022–2026, out of sample.</p>';
+  html += '</tbody></table></div><p class="dim">Bold rows are the buys; the rest is the list in buy order (up to 40). Rank = how far the card sits below its own 12-month mean, against every card $25+ with six PriceCharting sales in its last twelve months (the deepest 10% beat the band by 6\u201310 points a quarter in every year since 2022). Net per copy = sold at eBay\u2019s going price at the end of the hold (the card\u2019s sold median moved by the realized return of its rank bucket in this kind of market; PriceCharting\u2019s price when the collector has no sales for it), less eBay\u2019s fee, the label and supplies, less what you paid. The range is what cards in the same bucket actually did, 2022 to the last complete month.</p>';
   $('fc-picks').innerHTML = html; selApply($('fc-picks').querySelector('table'));
 }
 function fcRenderRecords() {
@@ -2669,7 +2688,7 @@ async function fcRecord() {
   try {
     await alSend({type: 'forecast', t, h: I.h, cap: I.cap, spent: Math.round(FC.spent * 100) / 100, disc: I.disc, fees: {fee: S.fee, fixed: S.fixed, shipOut: S.shipOut, supplies: S.supplies, tax: S.tax},
                   picks: FC.picks.map(r => [r.cid, r.qty, Math.round(r.buy * 100) / 100, Math.round(r.mean * 100) / 100]), exp: Math.round(mc.mean * 100) / 100, lo: Math.round(mc.lo * 100) / 100, hi: Math.round(mc.hi * 100) / 100, p: Math.round(mc.p * 1000) / 1000,
-                  reg: FC.doc.regime.strong ? 'strong' : 'other', month: FC.doc.month});
+                  reg: fcRegimeWord(), month: FC.doc.month, model: FC.doc.model || 'v1'});
     st.textContent = 'Recorded. The collector confirms in a minute or two and scores it ' + I.h * 30 + ' days from now.'; st.className = 'al-status ok';
   } catch (e) { st.textContent = 'Could not reach the collector’s channel (' + e.message + '). Nothing was recorded.'; st.className = 'al-status warn'; }
 }
@@ -2682,7 +2701,7 @@ async function loadForecast() {
     const doc = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
     if (!doc || !doc.cols || !doc.cards || !doc.calib || !doc.regime) throw new Error('not a forecast file');
     FC.doc = doc; FC.err = null; FC.loaded = b; FC.ix = Object.fromEntries(doc.cols.map((k, i) => [k, i]));
-    $('meta-fc').textContent = 'Forecast · which cards to buy at a standard price and hold, from PriceCharting’s monthly history of every card · model of ' + esc(FC.doc.month) + ' built ' + (FC.doc.t || '').replace('T', ' ').replace('Z', ' UTC') + ' · ' + Number(FC.doc.n).toLocaleString('en-US') + ' cards scored';
+    $('meta-fc').textContent = 'Forecast \u00b7 which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market \u00b7 model ' + (FC.doc.model || 'v1') + ' of ' + esc(FC.doc.month) + ' built ' + (FC.doc.t || '').replace('T', ' ').replace('Z', ' UTC') + ' \u00b7 ' + Number(FC.doc.n).toLocaleString('en-US') + ' cards' + (FC.doc.n_ranked ? ', ' + Number(FC.doc.n_ranked).toLocaleString('en-US') + ' ranked' : '');
     fcCompute();
     if (LIVE.data) { fcStampRows(); tables.er.apply(true); alRender(); }   // the Raw Data Forecast % column fills in; the alerts preview can apply its forecast filter
   } catch (e) {
@@ -2690,7 +2709,7 @@ async function loadForecast() {
     $('meta-fc').textContent = 'Forecast · the model file could not be loaded (' + e.message + ') — it is built by the daily site update; try again after the next build.';
   }
 }
-['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-young', 'fc-untracked'].forEach(id => $(id).addEventListener('input', () => {
+['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-copies', 'fc-young', 'fc-untracked', 'fc-recent', 'fc-gate'].forEach(id => $(id).addEventListener('input', () => {
   if (!FC.doc) return;
   fcCompute();
   if (id === 'fc-h' && LIVE.data) { fcStampRows(); tables.er.apply(true); }          // the Raw Data column follows the hold
@@ -2753,7 +2772,7 @@ function fhDetail(mo, holds, live) {                      // the opened month: e
 }
 function fhCells(c, done) {                               // the six cells of one hold in a month row
   if (!c) return '<td colspan="6" class="dim">—</td>';
-  if (!c.picks || !c.picks.length) return '<td colspan="6" class="dim fh-none">no buys · best chance ' + Math.round((c.best || 0) * 100) + '%' + (c.forced_roi != null ? ' · the top-ranked cards bought anyway: <span class="' + (c.forced_roi > 0 ? 'up' : 'down') + '">' + fcPct(c.forced_roi, 1) + '</span>' : '') + '</td>';
+  if (!c.picks || !c.picks.length) return '<td colspan="6" class="dim fh-none">' + (c.gated ? 'gate: falling market · ' : 'no buys · ') + 'best chance ' + Math.round((c.best || 0) * 100) + '%' + (c.forced_roi != null ? ' · ' + (c.gated ? 'the plan without the gate' : 'the top-ranked cards bought anyway') + ': <span class="' + (c.forced_roi > 0 ? 'up' : 'down') + '">' + fcPct(c.forced_roi, 1) + '</span>' : '') + '</td>';
   const spent = c.spent || 0, roi = spent ? c.exp / spent : null;
   return '<td class="num">' + c.picks.length + ' · ' + c.copies + '<br><span class="dim">' + fcMoney(spent) + '</span></td>' +
     '<td class="num">' + fcMoney(c.exp) + '<br><span class="dim">' + fcPct(roi, 1) + '</span></td>' +
@@ -2787,7 +2806,7 @@ function fhRender() {
   else {
     const months = FH.doc.months.slice().sort((a, b) => b.m - a.m);
     h += '<h3>The replay: ' + esc(FH.doc.from) + ' to ' + esc(FH.doc.to) + ' from PriceCharting’s history<button class="help" data-h="fh_replay">?</button></h3>' +
-      '<p class="dim">Every month the model is refit on the months before it (every six months), every card scored and ranked out of sample, and the tab’s plan run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card, buy only at 50% or better. There is no eBay history, so the standard price is PriceCharting’s price (the month’s print or its 3-month average, whichever is higher), the sale PriceCharting’s price when the hold is up, and the supply a quarter of the month’s PriceCharting sales. ' + (FH.disc ? '<b>Bought 20% under</b> assumes you got every pick 20% under that price - the hit-alert price.' : '<b>At the standard price</b>: every pick at PriceCharting’s price, no discount.') + ' Built ' + esc(FH.doc.made || '') + '.</p>' +
+      '<p class="dim">' + (FH.doc.model ? 'Every month every card $25+ with six sales in its last twelve months is ranked by how far it sits below its own 12-month mean, the market is read (rising or falling), the chance tables are built from the outcomes known by then, and the tab’s plan is run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card and one copy per card, the 50% bar, nothing bought in a falling month (the gate; such a month shows what the plan would have made without it) - then scored with PriceCharting’s price when the hold is up. Model ' + esc(FH.doc.model) + '.' : 'Every month the model is refit on the months before it (every six months), every card scored and ranked out of sample, and the tab’s plan run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card, the 50% bar - then scored with PriceCharting’s price when the hold is up.') + ' The standard price here is PriceCharting’s (the print or its 3-month average, whichever is higher) and the supply a quarter of the month’s PriceCharting sales: there is no eBay history before October 2026. ' + (FH.disc ? '<b>Bought 20% under</b> assumes you got every pick 20% under that price - the hit-alert price.' : '<b>At the standard price</b>: every pick at PriceCharting’s price, no discount.') + ' Built ' + esc(FH.doc.made || '') + '.</p>' +
       fhSummary(months, holds) + fhTable(months, holds, 'fh', false) +
       '<p class="dim">Click a month for its picks. * = the first year, before twelve months of out-of-sample outcomes existed: the chance tables of the whole period stand in there. A month whose hold is not up yet shows its expectation only.</p>';
   }
