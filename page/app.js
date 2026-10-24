@@ -210,6 +210,50 @@ function favPaint() {                              // every star on the page fol
   if ($('p-fv') && !$('p-fv').hidden) fvRender();
 }
 document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.favb') : null; if (b && b.dataset.f) favToggle(b.dataset.f); });
+/* ---------------- Planning (2026-10-24, Brett: "a column with a plus sign button, when i click the plus sign, it goes to the
+   planning button ... i want the collector so it follows from laptop to phone") ----------------
+   The plan is a list of LISTINGS (item ids), kept on the collector like the favorites: a + on a listing row (the Raw Data
+   tab, the Forecast tab's card popup, the Favorites view) sends {type: 'plan', t, i, c, v, m} over the signed channel,
+   shows at once from PLANS, and is confirmed by live.plan (list + t). The Forecast tab's Planning view prices every
+   planned listing at its own price with the model (plRows) and gives the basket the same summary as the forecast. */
+const PLAN_MAX = 200;
+const PLANS = {};                                  // iid -> {v: 1 | 0, t, f} until the collector confirms (live.plan.t >= t)
+const PLAN_META = new Map();                       // iid -> {c, m} of every + drawn on the page: what a click sends
+let PLAN_MAP = new Map(), PLAN_LAST_T = 0;         // iid -> {i, c, t, m}: the plan as the page knows it now
+function planIndex() {
+  const out = new Map();
+  (((LIVE.data || {}).plan || {}).list || []).forEach(a => out.set(String(a[0]), {i: String(a[0]), c: a[1] == null ? null : a[1], t: a[2], m: a[3] || null}));
+  for (const k in PLANS) { if (PLANS[k].v) out.set(k, PLANS[k].f); else out.delete(k); }
+  PLAN_MAP = out;
+  return out;
+}
+const isPlanned = iid => PLAN_MAP.has(String(iid));
+const planTitle = on => on ? 'On your plan — click to take it off' : 'Add this listing to your plan (the Forecast tab’s Planning view)';
+function planBtn(iid, cid, m, cls) {               // the + itself (a − when the listing is on the plan)
+  if (iid == null || iid === '') return '';
+  const on = isPlanned(iid);
+  PLAN_META.set(String(iid), {c: cid == null ? null : cid, m: m || null});
+  return '<button type="button" class="plb' + (on ? ' on' : '') + (cls ? ' ' + cls : '') + '" data-i="' + esc(String(iid)) + '" title="' + planTitle(on) + '" aria-pressed="' + on + '">' + (on ? '\u2212' : '+') + '</button>';
+}
+const planCell = (p, r) => { const k = p.k(r); return '<td class="plc">' + (k == null || k === '' ? '' : planBtn(k, p.c ? p.c(r) : null, p.m ? p.m(r) : null)) + '</td>'; };
+function planSend(iid, cid, m, on) {
+  const key = String(iid), t = PLAN_LAST_T = Math.max(Date.now(), PLAN_LAST_T + 1);
+  PLANS[key] = {v: on ? 1 : 0, t, f: {i: key, c: cid == null ? null : cid, t, m: m || null}};
+  planIndex(); planPaint();
+  alSend({type: 'plan', t, i: key, c: cid == null ? null : cid, v: on ? 1 : 0, m: m || null})
+    .catch(e => { delete PLANS[key]; planIndex(); planPaint(); favSay('The plan could not be sent to the collector (' + e.message + '), so it is not saved.'); });
+}
+function planToggle(iid) {
+  const meta = PLAN_META.get(String(iid)) || {}, on = !isPlanned(iid);
+  if (on && PLAN_MAP.size >= PLAN_MAX) { favSay('Your plan holds ' + PLAN_MAX + ' listings, the most the collector keeps: take one off first.'); return; }
+  planSend(iid, meta.c, meta.m, on);
+}
+function planPaint() {                             // every + on the page follows the map; the count on the Planning button; the view, if it is showing
+  document.querySelectorAll('button.plb').forEach(b => { const on = isPlanned(b.dataset.i); b.classList.toggle('on', on); b.textContent = on ? '\u2212' : '+'; b.title = planTitle(on); b.setAttribute('aria-pressed', on); });
+  const n = $('npl'); if (n) n.textContent = String(PLAN_MAP.size);
+  if (typeof FC !== 'undefined' && FC.mode === 'pl' && $('p-fc') && !$('p-fc').hidden) plRender();
+}
+document.addEventListener('click', e => { const b = e.target && e.target.closest ? e.target.closest('button.plb') : null; if (b && b.dataset.i != null) planToggle(b.dataset.i); });
 /* Sticky row highlight (2026-10-23, Brett: "when I click on a row, I want that row to stay highlighted until I click on a
    different row"). Every table with a data-sel name remembers the key of the row clicked last (data-key on the row: a
    card id, an item id, a record's time); a repaint, a sort or a live refresh paints it again (selApply, and makeTable's
@@ -322,9 +366,10 @@ const TABLES = {
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %', ua: 'Under anchor %'}, units: {5: 'h'},
        get: {ua: r => r[12] == null ? null : -r[12]},   // "% buy under" (2026-10-24, Brett): the vs anchor % column with the sign flipped, so 20 means at least 20% under what the card sells for
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}, {v: 14, at: 32, n: 1}, {v: 15, at: 43, n: 2}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star; v14 Forecast %; v15 Trend + Book at the end
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}, {v: 14, at: 32, n: 1}, {v: 15, at: 43, n: 2}, {v: 16, at: 2, n: 1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star; v14 Forecast %; v15 Trend + Book at the end; v16 the + (Planning) after the star
        key: r => String(r[22]),                       // the sticky row highlight remembers a row by this (the item id)
        fav: {s: r => r.unm ? 'um' : 'er', k: r => r[22], c: r => r[0], m: r => favMetaEr(r)},   // key = item id; an unmatched title (Favorites view only) is its own kind
+       plan: {k: r => r.unm || r[0] == null ? null : r[22], c: r => r[0], m: r => favMetaEr(r)},   // the + column (Planning, 2026-10-24): a listing with a card
        extra: r => statOk(r[19]) && (!$('dis-er').checked || rfBad(r)) && (!$('fchits').checked || fcErOk(r)) && (r.um ? true : r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
@@ -436,6 +481,22 @@ const FV_TABLES = {                                // the Favorites views: the s
   fer: Object.assign({}, TABLES.er, {rows: favRowsEr, extra: null, defaults: {}, store: 'er', root: '#fv-fer', name: 'Favorites · eBay Raw Data', noun: 'favorites',
         row: r => r.unm || (r.stub && r[0] == null) ? unmRow(r) : TABLES.er.row(r)}),
 };
+/* The Forecast tab's card popup (2026-10-24, Brett: "when i click on a card in the forcast tab, i would like to see a popup
+   with the available listing ... all of the ebay raw data tab column, but ... a column toggle button ... on the forcast
+   button page itself"): the Raw Data table once more, as the Favorites views do it - a copy of the Raw Data header row
+   run by makeTable with the Raw Data row builder, its OWN column choices (store 'fc': hide-fc, order-fc, width-fc...),
+   and as rows the card's open copies: the 24-hour rows, the plan's rows, and live/fc_rows.bin (the collector's rows for
+   the book copies past 24 hours). The "Listing columns..." button on the Forecast tab opens this table's column picker,
+   so one choice applies to every card's popup. FCL.ua = the "at least __% under the anchor" box. */
+const FCL = {cid: null, rows: [], ua: 0, file: null, loaded: 0};
+try { const u = +localStorage.getItem('fc-ua'); if (u >= 0 && u <= 80) FCL.ua = u; } catch (e) {}
+const fclOk = r => r[19] === 'open' && (!(FCL.ua > 0) || (r[12] != null && -r[12] >= FCL.ua));
+const FCL_TABLE = Object.assign({}, TABLES.er, {rows: () => FCL.rows, extra: fclOk, ranges: [], maxes: [], chips: [], defaults: {}, store: 'fc', root: '#lov', name: 'Listings', noun: 'listings'});
+function fclBuild() {                              // the popup's header row: a copy of the Raw Data tab's, before makeTable decorates the original
+  const lov = $('lov'); if (!lov) return;
+  const thead = document.querySelector('#p-er thead').cloneNode(true);
+  lov.querySelector('table').insertBefore(thead, lov.querySelector('tbody'));
+}
 function fvBuild() {                               // the Favorites tab's tables: a copy of each source tab's header row, before makeTable decorates the originals
   const host = $('fv-host'); if (!host) return;
   for (const [fid, src] of [['fall', 'ec'], ['fpc', 'pc'], ['fec', 'ec'], ['fer', 'er']]) {
@@ -789,7 +850,8 @@ function makeTable(id, cfg) {
     if (t.sortKey != null) {
       const k = t.sortKey, d = t.sortDir;
       // the star header: favorites first (ascending), then favorites last; a row's star may belong to another source (f.s a function)
-      const fv = k === 'fav' && cfg.fav ? r => (isFav(typeof cfg.fav.s === 'function' ? cfg.fav.s(r) : cfg.fav.s, cfg.fav.k(r)) ? 0 : 1) : null;
+      const fv = k === 'fav' && cfg.fav ? r => (isFav(typeof cfg.fav.s === 'function' ? cfg.fav.s(r) : cfg.fav.s, cfg.fav.k(r)) ? 0 : 1)
+               : k === 'plan' && cfg.plan ? r => (isPlanned(cfg.plan.k(r)) ? 0 : 1) : null;   // the + header: planned listings first, then last
       t.view.sort((a, b) => {
         let x = fv ? fv(a) : a[k], y = fv ? fv(b) : b[k];
         if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
@@ -807,7 +869,7 @@ function makeTable(id, cfg) {
   t.renderMore = n => {                                 // n rows more (a number; the Show more button's click event means PAGE)
     const frag = document.createDocumentFragment();
     const end = Math.min(t.shown + (typeof n === 'number' ? n : PAGE), t.view.length);
-    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + (cfg.fav ? favCell(cfg.fav, t.view[i]) : '') + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } tr.dataset.key = String(keyOf(t.view[i])); if (SEL.get(id) === tr.dataset.key) tr.classList.add('sel'); paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + (cfg.fav ? favCell(cfg.fav, t.view[i]) : '') + (cfg.plan ? planCell(cfg.plan, t.view[i]) : '') + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } tr.dataset.key = String(keyOf(t.view[i])); if (SEL.get(id) === tr.dataset.key) tr.classList.add('sel'); paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
     el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
@@ -1064,7 +1126,7 @@ function makeTable(id, cfg) {
   place(headRow);
   const ths = document.querySelectorAll(root + ' th[data-k]');
   ths.forEach(th => th.addEventListener('click', () => {
-    const k = th.dataset.k === 'fav' ? 'fav' : +th.dataset.k;   // 'fav': the star column sorts favorites first
+    const k = th.dataset.k === 'fav' || th.dataset.k === 'plan' ? th.dataset.k : +th.dataset.k;   // 'fav' / 'plan': the star and the + columns sort their rows first
     if (t.sortKey === k) { if (t.sortDir === 1) t.sortDir = -1; else { t.sortKey = null; t.sortDir = 1; } } else { t.sortKey = k; t.sortDir = 1; }
     ths.forEach(x => { x.classList.remove('on'); x.querySelector('.s').textContent = '⇅'; });
     if (t.sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = t.sortDir === 1 ? ' ▲' : ' ▼'; }
@@ -1134,8 +1196,10 @@ function makeTable(id, cfg) {
 }
 const tables = {};
 fvBuild();                                                // the Favorites tab's copies of the header rows, before the eyes and handles go on the originals
+fclBuild();                                               // ... and the Forecast tab's card popup's
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 for (const id in FV_TABLES) tables[id] = makeTable(id, FV_TABLES[id]);
+if ($('lov')) tables.fcl = makeTable('fcl', FCL_TABLE);
 periodBar('rv', () => tables.rv.apply());
 periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); }, 'd');   // the period chooses the table's rows too; starts on today
 tables.rv.apply();
@@ -1551,6 +1615,9 @@ function rebuildLive() {
   const favT = (live.favs && live.favs.t) || 0;         // the collector has taken every star up to this time: its list stands, the local echoes go
   for (const k of Object.keys(FAVS)) if (favT >= FAVS[k].t) delete FAVS[k];
   favIndex();
+  const planT = (live.plan && live.plan.t) || 0;         // the same for the plan's + clicks
+  for (const k of Object.keys(PLANS)) if (planT >= PLANS[k].t) delete PLANS[k];
+  planIndex();
   LIVE.sets = live.sets || {};
   LIVE.ec = []; LIVE.er = []; LIVE.dec = {};
   fillPcm();                                              // PC sales for every card (pcm.bin), the eBay figures cleared, refilled below
@@ -1625,6 +1692,7 @@ function rebuildLive() {
   paintPcPill();
   tables.pc.apply(true); tables.ec.apply(true); tables.er.apply(true);   // true: a refresh keeps the rows already shown (Show more) on view
   fvCounts(); if (!$('p-fv').hidden) fvRender();        // the Favorites tab follows the live data too
+  planPaint();                                          // ... and the + buttons and the Planning view
   if (!$('p-fh').hidden) fhRender();                     // ... and the Forecast history tab's live plans
   try { if (FC.doc) fcCompute(); else loadForecast(); } catch (e) { console.error('forecast', e); }   // the Forecast tab: eBay supply changed, or the model file is not in yet; never in the way of the live tabs
 }
@@ -2452,7 +2520,8 @@ document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click',
    P(net > 0) come from a Monte Carlo over the picks. "Record this forecast" sends the picks to the collector,
    which scores them with PriceCharting's prices when the hold is up (live.forecasts), so the record below says
    how the forecasts have done. The research behind it is in the README (Forecast tab) and CLAUDE.md. */
-const FC = {doc: null, err: null, rows: [], picks: [], mc: null, loaded: 0};
+const FC = {doc: null, err: null, rows: [], picks: [], mc: null, loaded: 0, mode: 'fc'};   // mode: 'fc' Forecasting / 'pl' Planning (2026-10-24)
+try { if (localStorage.getItem('fc-mode') === 'pl') FC.mode = 'pl'; } catch (e) {}
 const FC_MIN_VOL12 = 6;                                  // a card needs six sales in its last twelve PriceCharting months
 const FC_ASK_LIMIT = 1.15;                               // a listing counts as supply when its total is within 15% of the buy price
 const fcBucket = pct => pct >= .9 ? 'top10' : pct >= .75 ? 'b90' : pct >= .5 ? 'b75' : 'b50';   // how far below its own 12-month mean the card sits, as a rank
@@ -2588,6 +2657,7 @@ function fcCompute() {
   FC.rows = rows; FC.picks = elig.filter(r => r.qty > 0); FC.inputs = I; FC.S = S; FC.spent = I.cap - left; FC.gated = gated;
   FC.mc = fcMonteCarlo(FC.picks, S, I.disc);
   fcRenderRegime(); fcRenderPicks(); fcRenderRecords();
+  if (FC.mode === 'pl') plRender();                      // the Planning view prices its listings with the same inputs
 }
 const FC_RHO = 0.5;                                      // share of each pick's variance that is the market's: cards fall together when it turns
 function fcMonteCarlo(picks, S, disc, n = 3000) {        // the portfolio's net: a market draw shared by every pick plus each pick's own draw (Gaussian copula)
@@ -2657,9 +2727,9 @@ function fcRenderPicks() {
   rows.forEach(r => {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
     const note = fcSellNote(r);
-    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener">' + esc(r.name) + '</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
+    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
       '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (note || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
-        [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num">' + supplyCell(r) + '</td>' +
+        [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay">' + supplyCell(r) + '</a></td>' +
       '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span></td>' +
       '<td class="num">' + fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
       '<td class="num">' + (r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
@@ -2682,7 +2752,7 @@ function fcRenderRecords() {
   let html = head + '<div class="pctbox fc-box"><table data-sel="fcrecs"><thead><tr><th>Recorded</th><th>Hold</th><th class="num">Capital</th><th class="num" title="what the basket cost: copies x buy price (less the discount, plus the buy tax)">Spent</th><th class="num">Cards</th><th class="num">Expected net</th><th class="num" title="expected net on the money spent, over the hold">ROI</th><th class="num">Range</th><th class="num">Chance</th><th>Status</th><th class="num">Actual net</th><th class="num" title="realized net on the money spent">Actual ROI</th><th class="num">Miss</th></tr></thead><tbody>';
   recs.forEach(r => {
     const due = r.t + r.h * 30 * 86400000, spent = spentOf(r);
-    html += '<tr data-key="' + r.t + '"><td>' + when(r.t) + (r.reg ? '<br><span class="dim">' + esc(r.reg) + ' market' + (r.disc ? ', bought ' + (r.disc * 100).toFixed(0) + '% under' : '') + '</span>' : '') + '</td><td>' + r.h + ' mo</td><td class="num">' + fcMoney(r.cap) + '</td><td class="num">' + fcMoney(spent) + '</td><td class="num">' + r.picks.length + '<br><span class="dim">' + r.picks.reduce((s, p) => s + p[1], 0) + ' copies</span></td>' +
+    html += '<tr data-key="' + r.t + '"><td>' + when(r.t) + (r.plan ? ' <b title="the Planning view\u2019s basket: the listings you chose, at their own prices">plan</b>' : '') + (r.reg ? '<br><span class="dim">' + esc(r.reg) + ' market' + (r.disc ? ', bought ' + (r.disc * 100).toFixed(0) + '% under' : '') + '</span>' : '') + '</td><td>' + r.h + ' mo</td><td class="num">' + fcMoney(r.cap) + '</td><td class="num">' + fcMoney(spent) + '</td><td class="num">' + r.picks.length + '<br><span class="dim">' + r.picks.reduce((s, p) => s + p[1], 0) + ' copies</span></td>' +
       '<td class="num">' + fcMoney(r.exp) + '</td>' + roiCell(r.exp, spent) + '<td class="num">' + fcMoney(r.lo) + ' to ' + fcMoney(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
       '<td>' + (r.done ? 'scored ' + esc(String(r.done).slice(0, 10)) : 'due ' + when(due)) + '</td><td class="num">' + (r.done ? '<b>' + fcMoney(r.actual) + '</b>' : '<span class="dim">—</span>') + '</td>' + (r.done ? roiCell(r.actual, spent) : '<td class="num"><span class="dim">—</span></td>') + '<td class="num">' + (r.done ? fcMoney(r.actual - r.exp) : '<span class="dim">—</span>') + '</td></tr>';
   });
@@ -2700,6 +2770,141 @@ async function fcRecord() {
     st.textContent = 'Recorded. The collector confirms in a minute or two and scores it ' + I.h * 30 + ' days from now.'; st.className = 'al-status ok';
   } catch (e) { st.textContent = 'Could not reach the collector’s channel (' + e.message + '). Nothing was recorded.'; st.className = 'al-status warn'; }
 }
+/* ---------------- The card popup, Forecasting / Planning (2026-10-24, Brett) ---------------- */
+async function fclLoad() {                               // live/fc_rows.bin: the collector's Raw Data rows for the book copies past the 24-hour table (10-minute buckets)
+  const b = Math.floor(Date.now() / 600000);
+  if (FCL.loaded === b || !LIVE_URL || !HKEY) return;
+  FCL.loaded = b;
+  try {
+    const res = await fetch(LIVE_URL.replace(/[^/]+$/, 'fc_rows.bin') + '?t=' + b, {cache: 'no-store'});
+    if (res.ok) FCL.file = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+  } catch (e) { /* the 24-hour rows and the plan's rows still show */ }
+}
+function fclRowsFor(cid) {                               // every open copy of the card the page can judge: the 24-hour rows, the favorites' and the plan's rows, the collector's file
+  const S = settings(), base = idRow.get(cid), cs = LIVE.dec && LIVE.dec[String(cid)], out = new Map();
+  if (!base) return [];
+  const add = r => { if (r && r[22] != null && !out.has(r[22])) out.set(r[22], r); };
+  (LIVE.er || []).forEach(r => { if (r[0] === cid) add(r); });
+  if (LIVE.favEr) for (const r of LIVE.favEr.values()) if (r[0] === cid) add(r);
+  for (const x of Object.values((LIVE.data && LIVE.data.plan && LIVE.data.plan.rows) || {})) if (x[1] === cid) add(erowOf(x, S, base, cs));
+  ((FCL.file && FCL.file.rows && FCL.file.rows[String(cid)]) || []).forEach(x => add(erowOf(x, S, base, cs)));
+  const rows = [...out.values()]; if (FC.doc) rows.forEach(r => { r[56] = fcListing(cid, r[9], r[22], (FC.inputs || fcInputs()).h, S); });
+  return rows;
+}
+async function fcOpenListings(cid) {
+  const base = idRow.get(cid), t = tables.fcl; if (!base || !t) return;
+  FCL.cid = cid;
+  $('ltitle').textContent = base[1];
+  $('lsub').textContent = base[2] + ' · #' + base[3] + ' · loading…';
+  $('lov').classList.add('open');
+  await fclLoad();
+  if (FCL.cid !== cid) return;                           // another card was opened meanwhile
+  FCL.rows = fclRowsFor(cid);
+  const c = LIVE.dec && LIVE.dec[String(cid)], open = FCL.rows.filter(r => r[19] === 'open').length;
+  $('lsub').textContent = base[2] + ' · #' + base[3] + (c && c.A != null ? ' · anchor ' + fmtMoneyPlain(c.A) + ' (' + (c.A_n || 0) + ' sales)' : '') + (c && c.L != null ? ' · credible floor ' + fmtMoneyPlain(c.L) : '') +
+    ' · ' + open + ' open cop' + (open === 1 ? 'y' : 'ies') + ' the collector follows' + (FCL.ua > 0 ? ', showing those at least ' + FCL.ua + '% under the anchor' : '') + ' · + puts a copy on your plan, ★ on your favorites';
+  t.resync(); if (t.sortKey == null) { t.sortKey = 9; t.sortDir = 1; }   // cheapest first unless a header was clicked
+  t.apply();
+}
+document.addEventListener('click', e => {
+  const a = e.target && e.target.closest ? e.target.closest('a.fcl-open') : null;
+  if (a) { e.preventDefault(); fcOpenListings(+a.dataset.id); }
+});
+$('lclose').addEventListener('click', () => $('lov').classList.remove('open'));
+$('lov').addEventListener('click', e => { if (e.target === $('lov')) $('lov').classList.remove('open'); });
+$('fc-cols').addEventListener('click', () => { if (tables.fcl) tables.fcl.openColumns(); });
+$('fc-ua').value = FCL.ua;
+$('fc-ua').addEventListener('input', () => {
+  const v = parseFloat($('fc-ua').value); FCL.ua = isNaN(v) ? 0 : Math.min(80, Math.max(0, v));
+  try { localStorage.setItem('fc-ua', String(FCL.ua)); } catch (e) {}
+  if ($('lov').classList.contains('open') && FCL.cid != null) fcOpenListings(FCL.cid);
+});
+function fcModeApply() {                                 // Forecasting shows the model's picks; Planning the listings he added
+  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === FC.mode));
+  $('fc-main').hidden = FC.mode !== 'fc'; $('fc-plan').hidden = FC.mode !== 'pl';
+  if (FC.mode === 'pl') plRender();
+}
+$('fc-modes').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; FC.mode = b.dataset.m === 'pl' ? 'pl' : 'fc'; try { localStorage.setItem('fc-mode', FC.mode); } catch (x) {} fcModeApply(); });
+fcModeApply();
+/* The Planning view: one row per planned listing, priced like a Forecast pick but at the listing's own price (the
+   discount is whatever the listing already is), the sale projected from the card's sell level with this listing left
+   out of the competition (fcLevels), the chance from the card's rank bucket at the chosen hold; the basket's expected
+   net, range and chance from the same Monte Carlo. A listing that has sold or ended since stays on the list, greyed,
+   out of the totals, until it is taken off. */
+function plRows() {
+  const S = settings(), I = FC.inputs || fcInputs(), doc = FC.doc, ix = FC.ix, out = [];
+  for (const p of PLAN_MAP.values()) {
+    const iid = p.i; let r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.favEr && LIVE.favEr.get(iid)) || null;
+    const cid = r ? r[0] : p.c, base = cid != null ? idRow.get(+cid) : null, cs = cid != null && LIVE.dec ? LIVE.dec[String(cid)] : null;
+    if (!r && base) { const x = ((LIVE.data && LIVE.data.plan && LIVE.data.plan.rows) || {})[iid] || ((FCL.file && FCL.file.rows && FCL.file.rows[String(cid)]) || []).find(y => y[0] === iid); if (x) r = erowOf(x, S, base, cs); }
+    const m = p.m || {};
+    const row = {iid, cid: cid == null ? null : +cid, name: base ? base[1] : (m.ti || iid), set: base ? base[2] : '', title: r ? r[6] : (m.ti || ''), url: r ? r[20] : (m.u || null), status: r ? r[19] : 'unknown',
+                 total: r ? r[9] : (m.p == null ? null : +m.p), fb: r ? r[17] : null, pctFb: r ? r[18] : null, cond: r ? r[15] : null, hours: r ? r[5] : null, t: p.t, qty: 0, tab: null, p: null, m};
+    const a = doc && ix && base ? doc.cards[String(cid)] : null;
+    if (a && row.total != null && row.total > 0) {
+      const pct = a[ix['pct' + I.h]], pcBuy = a[ix.buy], tab = pct == null ? null : fcTable(I.h, fcBucket(pct));
+      if (tab) {
+        const lv = fcLevels(cs, pcBuy, iid), d = fcDist(row.total, tab, S, 0, lv.sell);
+        Object.assign(row, d, {pct, bucket: fcBucket(pct), tab, buy: row.total, sell: lv.sell, why: lv.why, A: lv.A, An: lv.An, pcBuy, price: a[ix.price], src: 'this listing’s price',
+                               age: a[ix.age], vol12: a[ix.vol12] || 0, mom1: a[ix.mom1], dev12: ix.dev12 != null ? a[ix.dev12] : null, m12: ix.m12 != null ? a[ix.m12] : null, k: cs ? (cs.k || 0) : null,
+                               be: fcBreakEven(row.total, S, 0, lv.sell), qty: row.status === 'open' ? 1 : 0});
+      }
+    }
+    out.push(row);
+  }
+  out.sort((x, y) => (y.qty - x.qty) || ((y.p || 0) - (x.p || 0)) || (x.t - y.t));
+  return out;
+}
+function plRender() {
+  const el = $('pl-summary'); if (!el) return;
+  const I = FC.inputs || fcInputs(), S = FC.S || settings(), unit = I.h + ' month' + (I.h > 1 ? 's' : '');
+  const rows = plRows(), picks = rows.filter(r => r.qty && r.tab), stale = rows.filter(r => r.status !== 'open').length, unscored = rows.filter(r => r.status === 'open' && !r.tab).length;
+  const spent = picks.reduce((s, r) => s + r.total * (1 + S.tax), 0), mc = fcMonteCarlo(picks, S, 0), cards = new Set(picks.map(r => r.cid)).size;
+  let sum = '';
+  if (!rows.length) sum = '<p>Nothing on your plan yet. On the Forecasting view, click a card to see its open copies and press <b>+</b> on the ones you mean to buy; the + is on every Raw Data row too. The plan is kept by the collector, so it is the same on your laptop and your phone.</p>';
+  else {
+    if (!FC.doc) sum = '<p>The model file is not loaded yet: the listings are listed, their odds come when it is.</p>';
+    sum += '<p>Spend <b>' + fcMoney(spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + cards + ' card' + (cards === 1 ? '' : 's') + '</b> (' + picks.length + ' listing' + (picks.length === 1 ? '' : 's') + '), hold ' + unit + ', sell at eBay’s going price then.' +
+      (spent > I.cap ? ' <span class="down">' + fcMoney(spent - I.cap) + ' over your capital.</span>' : '') +
+      (stale ? ' <span class="dim">' + stale + ' listing' + (stale === 1 ? ' is' : 's are') + ' no longer open and ' + (stale === 1 ? 'is' : 'are') + ' left out of the figures — take ' + (stale === 1 ? 'it' : 'them') + ' off.</span>' : '') +
+      (unscored ? ' <span class="dim">' + unscored + ' listing' + (unscored === 1 ? ' has' : 's have') + ' no model score (a card the model does not rank) and ' + (unscored === 1 ? 'is' : 'are') + ' left out of the odds.</span>' : '') + '</p>';
+    if (mc) sum += '<div class="stats fc-stats">' +
+      '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + fcMoney(mc.mean) + (spent > 0 ? ' <span class="fc-roi ' + (mc.mean < 0 ? 'down' : 'up') + '" title="expected ROI: the expected net on the money spent, over the hold">' + fcPct(mc.mean / spent, 1) + '</span>' : '') + '</div><div class="d">average over the model’s history' + (spent > 0 ? '; ROI on the ' + fcMoney(spent) + ' spent, ' + unit : '') + '</div></div>' +
+      '<div class="stat"><div class="k">Likely range</div><div class="v">' + fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) + '</div><div class="d">10th to 90th percentile' + (spent > 0 ? ' (' + fcPct(mc.lo / spent, 0) + ' to ' + fcPct(mc.hi / spent, 0) + ')' : '') + '; median ' + fcMoney(mc.med) + '</div></div>' +
+      '<div class="stat"><div class="k">Chance of a profit</div><div class="v">' + (mc.p * 100).toFixed(0) + '%</div><div class="d">P(basket net &gt; 0), at the listings’ own prices; half of each card’s swing is the market’s</div></div>' +
+      '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (S.fee * 100).toFixed(1) + '% + $' + (S.fixed + S.shipOut + S.supplies).toFixed(2) + '</div><div class="d">eBay fee, label, supplies' + (S.tax ? ', ' + (S.tax * 100).toFixed(2) + '% buy tax' : '') + ' (Raw Data boxes)</div></div></div>';
+  }
+  el.innerHTML = sum;
+  let html = '<div class="pctbox fc-box"><table data-sel="plpicks"><thead><tr><th title="★ keeps the listing on the Favorites tab; − takes it off the plan">★ / −</th><th>Card</th><th class="num">Price</th><th title="the listing itself">Listing</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const costEach = r.total == null ? null : r.total * (1 + S.tax), note = r.tab ? fcSellNote(r) : '';
+    const listing = (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" title="' + esc(r.title) + '">' + esc(String(r.title || r.iid).slice(0, 60)) + '</a>' : esc(String(r.title || r.iid).slice(0, 60))) +
+      '<br><span class="dim">' + (r.status === 'open' ? 'open' : r.status === 'unknown' ? 'not on record' : '<span class="down">' + esc(r.status) + '</span>') + (r.cond ? ' · ' + (r.cond === 'UNK' ? 'n/s' : esc(r.cond)) : '') + (r.fb != null ? ' · seller ' + fmtInt(r.fb) + (r.pctFb != null ? ' · ' + r.pctFb.toFixed(1) + '%' : '') : '') + (r.hours != null ? ' · listed ' + (r.hours < 48 ? r.hours.toFixed(0) + ' h' : (r.hours / 24).toFixed(0) + ' d') + ' ago' : '') + '</span>';
+    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + esc(r.iid) + '"><td class="favc">' + favBtn('er', r.iid, r.cid, {ti: String(r.title || '').slice(0, 90), u: r.url, p: r.total}, 'sm') + ' ' + planBtn(r.iid, r.cid, r.m, 'sm') + '</td>' +
+      '<td>' + (r.cid != null ? '<a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card">' + esc(r.name) + '</a>' : esc(r.name)) + '<br><span class="dim">' + esc(r.set) + '</span>' + (r.tab ? '<br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span>' : '') + '</td>' +
+      '<td class="num">' + (r.total == null ? dash : fmtMoneyPlain(r.total)) + (note || (r.price != null && r.total != null && Math.abs(r.total - r.price) > 0.005) ? '<br><span class="dim' + (r.sell && (r.total < 0.7 * r.sell || r.total > 1.3 * r.sell) ? ' down' : '') + '">' + [note, r.price != null && Math.abs(r.total - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td>' +
+      '<td class="ttl">' + listing + '</td>' +
+      '<td class="num">' + (r.tab ? FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span>' : '<span class="dim">no score</span>') + '</td>' +
+      '<td class="num">' + (r.tab ? fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) : dash) + '</td><td class="num">' + (r.tab ? (r.p * 100).toFixed(0) + '%' : dash) + '</td>' +
+      '<td class="num">' + (r.qty ? '<b>1</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty && costEach != null ? fmtMoneyPlain(costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty && r.tab ? fcMoney2(r.mean) : '<span class="dim">—</span>') + '</td></tr>';
+  });
+  html += '</tbody></table></div>' + (rows.length ? '<p class="dim">Each row is one listing at its own price: the odds are the card’s rank bucket in this kind of market, the sale projected from the card’s sell level with this copy left out of the competition. Cost includes the buy tax of the Raw Data boxes. Take a listing off with −; the star keeps it on the Favorites tab as well.</p>' : '');
+  $('pl-picks').innerHTML = html; selApply($('pl-picks').querySelector('table'));
+  FC.plan = {rows, picks, spent, mc};
+}
+async function plRecord() {
+  const st = $('pl-status'), I = FC.inputs || fcInputs(), S = FC.S || settings(), P = FC.plan || {};
+  if (!P.picks || !P.picks.length || !P.mc) { st.textContent = 'There is nothing to record: no open, scored listing on the plan.'; st.className = 'al-status warn'; return; }
+  if (!HKEY) { st.textContent = 'This page has no key for the collector.'; st.className = 'al-status warn'; return; }
+  const t = Date.now(), mc = P.mc;
+  try {
+    await alSend({type: 'forecast', t, h: I.h, cap: I.cap, spent: Math.round(P.spent * 100) / 100, disc: 0, fees: {fee: S.fee, fixed: S.fixed, shipOut: S.shipOut, supplies: S.supplies, tax: S.tax},
+                  picks: P.picks.map(r => [r.cid, 1, Math.round(r.total * 100) / 100, Math.round(r.mean * 100) / 100]), exp: Math.round(mc.mean * 100) / 100, lo: Math.round(mc.lo * 100) / 100, hi: Math.round(mc.hi * 100) / 100, p: Math.round(mc.p * 1000) / 1000,
+                  reg: fcRegimeWord(), month: FC.doc.month, model: FC.doc.model || 'v1', plan: 1, iids: P.picks.map(r => r.iid)});
+    st.textContent = 'Recorded. The collector confirms in a minute or two and scores it ' + I.h * 30 + ' days from now (Past forecasts, on the Forecasting view).'; st.className = 'al-status ok';
+  } catch (e) { st.textContent = 'Could not reach the collector’s channel (' + e.message + '). Nothing was recorded.'; st.className = 'al-status warn'; }
+}
+$('pl-record').addEventListener('click', plRecord);
 async function loadForecast() {
   const b = Math.floor(Date.now() / 3600000);
   if (FC.loaded === b) return;
