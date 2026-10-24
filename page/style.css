@@ -387,6 +387,9 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
 .fh h4 { margin:10px 0 4px; font-size:13px; }
 .fh .fvchips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0 8px; }
 .fh .fh-sep { width:14px; }
+.fh label.fh-in { display:inline-flex; align-items:center; gap:5px; font-size:13px; color:var(--muted); margin-right:4px; }   /* the two free variables (2026-10-24): capital and % under */
+.fh label.fh-in input { font:inherit; width:92px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+.fh label.fh-in input#fh-disc { width:62px; }
 .fh .fc-stats { grid-template-columns:repeat(3, minmax(240px, 360px)); }
 .fh .fc-stats .stat .v { font-size:15px; }
 .fh .fh-box table { font-size:12px; }
