@@ -54,6 +54,12 @@ and mark what the data in `data/` could check.
   2012) → the regime gate (E04/E10) is exactly a 3-month time-series-momentum filter on the market index and is the
   most valuable single rule; walk-forward gradient boosting with calibration → E06; Kelly-style sizing is **not**
   applied (per-cycle edge is too uncertain; E10 uses a flat 20 % cap and ≥ 20 names instead).
+* Stock-market methods borrowed, second round (E21/E22): Fama–MacBeth (1973) monthly cross-sectional regressions with
+  Newey–West standard errors → E21 (dev12 is the single priced characteristic; the controls — Jegadeesh–Titman 12-1
+  momentum, Ang et al. (2006) idiosyncratic volatility, Frazzini–Pedersen (2014) betting-against-beta, George–Hwang
+  52-week high, Amihud-style liquidity, "size" via log price — are all subsumed); the CAPM alpha/beta regression of a
+  long–short decile portfolio on the market factor → E21 (alpha +15 %/quarter, beta ≈ −0.3: the premium is not market
+  risk); Granger-style lead/lag with an autoregressive control → E22 (no lead from the S&P 500, gold or BTC).
 
 ## Market commentary, October 2026
 

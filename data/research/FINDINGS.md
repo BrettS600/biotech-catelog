@@ -1,6 +1,6 @@
 # FINDINGS — what three hours of research say to build into the Forecast tab
 
-Written 2026-10-24 from experiments E01–E20 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
+Written 2026-10-24 from experiments E01–E22 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
 of capital, holds of 1–3 months preferred, profit reinvested, maximise return without taking on much risk. Nothing here
 has been applied to the site yet.
 
@@ -18,10 +18,17 @@ has been applied to the site yet.
    Set-level "momentum" turned out to be an artifact of PriceCharting's monthly averaging (E11) — do not use it. A
    30-feature gradient-boosted model ranks well (IC 0.26–0.27) but does **not** beat the single reversal decile at
    3 months. The decile's excess over the band is +6 to +10 points per quarter in *every* year 2022–2026, beating the
-   band in 53 of 55 months (E18). (E02, E03, E06, E11, E18)
+   band in 53 of 55 months (E18). Fama-MacBeth regressions (the stock-market standard) show the effect survives every
+   control — 12-1 momentum, 12-month-high distance, volatility, price, liquidity, set age, market beta — and that the
+   reversal portfolio's excess is **alpha, not beta** (+7 % per quarter over the band, t 12, with a *negative* beta of
+   −0.2 to the market and a wider spread in down months). Cards show the equity "anomalies" (low-beta, low-volatility,
+   short-term reversal, 52-week-high) only as faces of this one factor, and have no 12-1 momentum premium (E21).
+   (E02, E03, E06, E11, E18, E21)
 
 3. **The market regime is known and persistent.** When the trailing 3-month market median move is positive, the next
-   quarter is up 95 % of the time (+6.9 %); when it is negative, 12 % (−2.5 %). Sign accuracy 91 % over 55 months. Google
+   quarter is up 95 % of the time (+6.9 %); when it is negative, 12 % (−2.5 %). Sign accuracy 91 % over 55 months. In a
+   falling market a card that dropped last month tends to keep falling for another month even after its reversal rank is
+   accounted for (E21) — one more reason the gate, not the ranking, decides whether to buy at all. Google
    web-search interest (1-month change) improves the level forecast (OOS R² 0.60 → 0.66) but not the sign; PokéViews'
    breadth gauges describe the same state and add nothing yet. (E04, E15)
 
@@ -90,6 +97,10 @@ has been applied to the site yet.
 * Any 1-month strategy at less than 20 % under the standard price. (E10, E12)
 * Fractional deployment by regime strength, and gates tighter than 0. (E17)
 * dev6 (6-month reversal) as the ranking signal — weaker than dev12 in every year. (E18)
+* Adding momentum, 12-month-high distance, volatility, beta or liquidity to the ranking — all subsumed by dev12 in the
+  multivariate Fama-MacBeth regression. (E21)
+* S&P 500, gold or Bitcoin as leading indicators of the card market — no lead on 30 months; adding them lowers the
+  out-of-sample fit. (E22)
 * Narrow price bands ($50–250, $100–250) and per-card caps under 10 % — under-deployment costs more than they save. (E19)
 
 ## The honest caveats
