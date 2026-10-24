@@ -969,7 +969,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Range and drift from ~11-27 - say so instead of lowering a minimum.
 - THE RESEARCH FOLDER (2026-10-24, Brett: "Spend 3-hours, analyzing all of that data you saved in data/ ... store what you
   learned in the data folder: storing mathematical models that you tried and failed, things that worked ... store it as
-  data ... Do not update the website. Do not apply your findings to the forecast tab"). Twenty-four experiments (E01-E24)
+  data ... Do not update the website. Do not apply your findings to the forecast tab"). Twenty-five experiments (E01-E25)
   on the committed data/ folder, recorded in `data/research/` as a registry (experiments.csv), one note per experiment,
   result tables, reproducible scripts (common.py loader, xs.py cross-sectional engine, e##_*.py), a backlog and a sources
   file; `FINDINGS.md` is the synthesis. THE FINDINGS, in short: (1) fees are the first-order problem - a +22% move is
@@ -1001,16 +1001,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   distance, volatility, price, liquidity, set age, market beta) and the reversal portfolio's excess is ALPHA NOT BETA
   (+7%/quarter over the band, t 12, beta -0.2; wider in down months) - cards have no 12-1 momentum premium; in a down
   market a card that dropped last month keeps dropping another month (mom1 +3.8 pts, t 5.5); S&P/gold/BTC do not lead
-  the card market (E22); THE EXIT RULE (E23): list each copy at its own 12-month mean on arrival, sell when it prints,
-  market-sell at month 6 - beats every fixed hold (chance 66 -> 78%, 5.1 -> 5.7% per month of capital, up markets 7.4 ->
-  8.7%/mo with the money back in 2.3 months instead of 3; 87% of picks reach the anchor within 6 months); stop-losses
-  HURT a reversal trade; assumes a copy listed at the anchor sells within the month the monthly average reaches it
-  (time-to-sell at a fixed ask is unmeasured, backlog B03/B12); IN THE REINVESTING PORTFOLIO (E24, month-by-month
-  engine, asynchronous exits) the anchor exit is the single biggest improvement of the study: $5k at 20% under compounds
-  at 47%/yr instead of 29% (fixed 3-month hold), drawdown -22% -> -7%, POSITIVE IN EVERY YEAR (2022 +18% where the fixed
-  hold lost 15%), ~3,000 positions turning over in 1.7 months; $2k 65%/yr vs 36%; $10k 30% vs 27% (availability-bound);
-  with this exit the regime gate costs more than it saves ($29.9k -> $18.0k for a -2.6% instead of -7% drawdown) - keep
-  the gate as a display / the rule for fixed-month holds, optional for the anchor-exit plan. THE
+  the card market (E22); EXIT RULES (E23-E25): stop-losses HURT a reversal trade (E23); a take-profit listing at the
+  card's 12-month mean looked like the biggest improvement of the study (E23/E24: 47%/yr vs 29%, positive every year)
+  and was WITHDRAWN the same day by the stress test (E25) - the back-test sold at the exit month's average price, the
+  very number that had triggered the exit; paid at the listing price the rule is break-even per position and compounds
+  at 6%/yr, BELOW the fixed 3-month hold. The exit stays "sell at market after 2-4 months, 3 by default" with the gate.
+  THE LESSON, binding for every future rule: never let a rule both condition on and transact at the same PriceCharting
+  monthly average (the same trap as the set-momentum artifact, E11). THE
   REGIME BUG: computing the regime from cards priced $10+ in the current month biases it up (2022 looked flat-positive);
   use last month's price (xs.py). NOT YET APPLIED TO THE SITE - Brett will ask for that in a later prompt; FINDINGS.md
   lists the build order (gate display, reversal rank, discount-centred plan, 3-month default, calibrated chance at the
