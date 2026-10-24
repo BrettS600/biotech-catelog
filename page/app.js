@@ -2525,6 +2525,8 @@ try { if (localStorage.getItem('fc-mode') === 'pl') FC.mode = 'pl'; } catch (e) 
 const FC_MIN_VOL12 = 6;                                  // a card needs six sales in its last twelve PriceCharting months
 const FC_ASK_LIMIT = 1.15;                               // a listing counts as supply when its total is within 15% of the buy price
 const fcBucket = pct => pct >= .9 ? 'top10' : pct >= .75 ? 'b90' : pct >= .5 ? 'b75' : 'b50';   // how far below its own 12-month mean the card sits, as a rank
+const FC_QS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95];   // the chance tables' quantile grid (forecast.QS)
+const fcQs = () => (FC.doc && FC.doc.calib && FC.doc.calib.quantiles) || FC_QS;   // the model file's, else the standard one (the Forecast History tab runs its plans without the model file)
 const FC_BUCKET_WORDS = {top10: 'deepest 10%', b90: 'top 25%', b75: 'upper half', b50: 'lower half'};
 const fcRegimeWord = () => FC.doc && FC.doc.regime && ('up' in FC.doc.regime ? (FC.doc.regime.up ? 'up' : 'down') : (FC.doc.regime.strong ? 'strong' : 'other'));   // a version-1 file still reads
 function fcTable(h, bucket) {                            // the realized-return quantile grid for (horizon, regime, bucket)
@@ -2593,14 +2595,14 @@ function fcErCell(r) {
   return '<td class="num" title="The Forecast tab\u2019s chance of a profit buying this copy at its price and holding ' + h + ' month' + (h > 1 ? 's' : '') + ' (its rank bucket, the sale projected from the card\u2019s sell level with the two guards); the bar is ' + Math.round(bar * 100) + '%">' + '<span class="' + (r[56] >= bar ? 'up' : '') + '">' + Math.round(r[56] * 100) + '%</span></td>';
 }
 function fcCdf(tab, r) {                                 // P(return <= r) from the quantile grid, tails extended linearly
-  const qs = FC.doc.calib.quantiles, q = tab.q, n = q.length;
+  const qs = fcQs(), q = tab.q, n = q.length;
   if (r <= q[0]) return Math.max(0, qs[0] - qs[0] * (q[0] - r) / Math.max(1e-6, q[1] - q[0]));
   if (r >= q[n - 1]) return Math.min(1, qs[n - 1] + (1 - qs[n - 1]) * (r - q[n - 1]) / Math.max(1e-6, q[n - 1] - q[n - 2]));
   let i = 0; while (i < n - 1 && q[i + 1] < r) i++;
   return qs[i] + (qs[i + 1] - qs[i]) * (r - q[i]) / Math.max(1e-9, q[i + 1] - q[i]);
 }
 function fcDraw(tab, u) {                                // a return at probability u (inverse of the grid)
-  const qs = FC.doc.calib.quantiles, q = tab.q, n = q.length;
+  const qs = fcQs(), q = tab.q, n = q.length;
   if (u <= qs[0]) return q[0] - (q[1] - q[0]) * (qs[0] - u) / qs[0];
   if (u >= qs[n - 1]) return q[n - 1] + (q[n - 1] - q[n - 2]) * (u - qs[n - 1]) / (1 - qs[n - 1]);
   let i = 0; while (i < n - 1 && qs[i + 1] < u) i++;
@@ -2608,7 +2610,7 @@ function fcDraw(tab, u) {                                // a return at probabil
 }
 const FC_P_CAP = 0.95;                                   // no stated chance above this: the measured ranges end at the 5th percentile
 function fcDist(buy, tab, S, disc, sell = buy) {         // the copy's net at the 10th / 50th / 90th percentile, its mean, and P(net > 0)
-  const qs = FC.doc.calib.quantiles, at = p => tab.q[qs.indexOf(p)];
+  const qs = fcQs(), at = p => tab.q[qs.indexOf(p)];
   return {lo: fcNet(buy, at(0.1), S, disc, sell), med: fcNet(buy, at(0.5), S, disc, sell), hi: fcNet(buy, at(0.9), S, disc, sell), mean: fcNet(buy, tab.mean, S, disc, sell), p: Math.min(FC_P_CAP, 1 - fcCdf(tab, fcBreakEven(buy, S, disc, sell)))};
 }
 function fcInputs() {
@@ -2936,19 +2938,34 @@ loadLive();
 /* ---------------- Forecast history tab (Brett, 2026-10-23: "a forecast history tab ... the estimate net profit range, and the
    actual profit ... for a 1-month hold, 3-month hold, 6-month hold for $500 ... $25,000 ... if i wanted to see how much I
    would have made in march 2025 with a $5000 dollar investment in the card purchase recommendation for that month") ----------------
-   Two halves. (1) The replay: forecast_hist.py (the monthly Forecast history workflow) refits the model every six months
-   through 2022-2026, scores every month out of sample, builds the chance tables from the outcomes known by then, and runs
-   the tab's plan at the standard constants (fees 14.1% + $5.20, no buy tax, $50-500, 20% per card, the 50% bar) for every
-   capital x hold x discount, scoring each with PriceCharting's price when the hold is up - there is no eBay history, so
-   the standard price is PriceCharting's and the supply cap a quarter of the month's PriceCharting sales. (2) The live
-   plans: the collector archives the same 30 plans on the first cycle of every month with eBay's floors and medians of
-   that moment (live.fc_auto) and scores them like Brett's own records. One table of months per half; the chips pick
-   the capital and the scenario; a click on a month opens its picks. */
-const FH = {doc: null, err: null, loaded: 0, cap: 5000, disc: 0, open: new Set()};
-try { const c = +localStorage.getItem('fh-cap'); if ([500, 1000, 5000, 10000, 25000].includes(c)) FH.cap = c; const d = localStorage.getItem('fh-disc'); if (d === '0.2') FH.disc = 0.2; } catch (e) {}
+   Two halves. (1) The replay: forecast_hist.py (the monthly Forecast history workflow) ranks every month's cards by the
+   reversal signal through 2022-2026, builds the chance tables from the outcomes known by then, and runs the tab's plan
+   at the standard constants (fees 14.1% + $5.20, no buy tax, $50-500, 20% per card, one copy, the 50% bar, the gate)
+   for every capital x hold x discount, scoring each with PriceCharting's price when the hold is up - there is no eBay
+   history, so the standard price is PriceCharting's and the supply cap a quarter of the month's PriceCharting sales.
+   Since 2026-10-24 (Brett: "would it be possible to have this as a variable ... the investment, as well as the bought
+   under") the file also carries each month's INGREDIENTS - the candidate cards (id, buy price, rank, supply, the
+   realized return per hold) and the month's chance tables - and the page runs the plan itself for whatever capital
+   and discount the two boxes say (fhPlan / fhCompute = forecast_math.plan + monte_carlo + actual_net, the same
+   arithmetic as the replay: ut/test_fh2.py checks a standard cell against the file's). The chips are presets.
+   (2) The live plans: the collector archives the 30 standard plans on the first cycle of every month with eBay's
+   floors and medians of that moment (live.fc_auto) and scores them like Brett's own records; they exist only at the
+   standard settings, so that half shows the nearest archived capital and discount. One table of months per half; a
+   click on a month opens its picks. */
+const FH = {doc: null, err: null, loaded: 0, cap: 5000, disc: 0, open: new Set(), cache: new Map(), busy: null};
+const FH_CAPS = [500, 1000, 5000, 10000, 25000], FH_FREE = {cap: [100, 1000000], disc: [0, 0.6]};
+try { const c = +localStorage.getItem('fh-cap'); if (c >= FH_FREE.cap[0] && c <= FH_FREE.cap[1]) FH.cap = c; const d = +localStorage.getItem('fh-disc'); if (d >= 0 && d <= FH_FREE.disc[1]) FH.disc = d; } catch (e) {}
 const FH_S = {fee: 0.1325 * 1.065, fixed: 0.4, shipOut: 4.5, supplies: 0.3, tax: 0};   // the replay's constants (forecast_math.STD_FEES)
-const fhKey = h => h + '|' + (FH.disc ? '0.2' : '0') + '|' + FH.cap;
+const FH_IN = {share: 0.2, minp: 0.5, copies: 1};                                       // ... and STD_INPUTS' plan knobs the page keeps fixed
+const fhDiscKey = d => d ? String(Math.round(d * 1000) / 1000) : '0';                  // '0', '0.2': the file's cell keys (Python's f"{disc:g}")
+const fhKey = (h, cap, disc) => h + '|' + fhDiscKey(disc) + '|' + cap;
+const fhFree = () => !!(FH.doc && FH.doc.format >= 2 && FH.doc.months.length && FH.doc.months[0].cards);   // the ingredients are there: any capital, any discount
+const fhCaps = () => (FH.doc && FH.doc.caps) || FH_CAPS;
+const fhLiveCap = () => fhCaps().reduce((b, c) => Math.abs(c - FH.cap) < Math.abs(b - FH.cap) ? c : b);   // the archive has the standard capitals only
+const fhLiveDisc = () => FH.disc >= 0.1 ? 0.2 : 0;
 const fhName = cid => { const r = idRow.get(+cid); if (r) return [r[1], r[2]]; const c = FH.doc && FH.doc.cards && FH.doc.cards[String(cid)]; return c ? [c[0], c[1]] : ['card ' + cid, '']; };
+const fhMLast = () => { const d = FH.doc; if (d.m_last != null) return d.m_last; const m = /^(\d{4})-(\d{2})$/.exec(d.to || ''); return m ? (+m[1] - 2000) * 12 + (+m[2] - 1) : 0; };
+const fhRound = v => { const f = Math.floor(v), r = v - f; return r < 0.5 ? f : r > 0.5 ? f + 1 : (f % 2 ? f + 1 : f); };   // Python's round(): half to even, so the buy order is the replay's
 async function loadForecastHist() {
   const b = Math.floor(Date.now() / 3600000);
   if (FH.loaded === b) return;
@@ -2958,17 +2975,69 @@ async function loadForecastHist() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const doc = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
     if (!doc || !doc.months || !doc.caps) throw new Error('not a history file');
-    FH.doc = doc; FH.err = null;
+    FH.doc = doc; FH.err = null; FH.cache.clear();
+    if (!fhFree()) { FH.cap = fhLiveCap(); FH.disc = fhLiveDisc(); }   // an older file: the standard cells only
   } catch (e) { FH.err = e.message; }
   if (!$('p-fh').hidden) fhRender();
 }
-function fhChips() {
-  return '<div class="fvchips" id="fh-chips">' + (FH.doc ? FH.doc.caps : [500, 1000, 5000, 10000, 25000]).map(c => '<button type="button" class="fvchip' + (FH.cap === c ? ' on' : '') + '" data-cap="' + c + '">' + fcMoney(c) + '</button>').join('') +
-    '<span class="fh-sep"></span><button type="button" class="fvchip' + (FH.disc ? '' : ' on') + '" data-disc="0" title="every pick bought at the standard price">At the standard price</button><button type="button" class="fvchip' + (FH.disc ? ' on' : '') + '" data-disc="0.2" title="every pick bought 20% under the standard price - the hit-alert price; assumes you got every pick that cheap">Bought 20% under</button></div>';
+/* The plan of one month at one hold from the month's ingredients: forecast_math.plan (every candidate card's chance at
+   the buy price less the discount, buy order = chance to the whole percent then rank, the greedy allocation under the
+   20% share, one copy, the month's supply, the money left; a falling month buys nothing while the gate is on). */
+function fhTab(mo, h, b) { const T = mo.tables || {}; return T[h + '|' + b] || T[h + '|all'] || null; }
+function fhPlan(mo, h, cap, disc, gate, minp) {
+  const C = mo.cards, S = FH_S, rows = [], ys = C['y' + h] || [];
+  for (let i = 0; i < C.id.length; i++) {
+    const buy = C.buy[i], pct = C.pct[i], tab = fhTab(mo, h, fcBucket(pct)); if (!tab) continue;
+    rows.push(Object.assign({cid: C.id[i], buy, sell: buy, pct, tab, supply: C.sup[i], y: ys[i] == null ? null : ys[i], qty: 0}, fcDist(buy, tab, S, disc, buy)));
+  }
+  rows.sort((x, y) => fhRound(y.p * 100) - fhRound(x.p * 100) || y.pct - x.pct);
+  const elig = rows.filter(r => r.p >= minp), gated = gate && mo.reg === 'down';
+  let left = cap;
+  if (!gated) elig.forEach(r => {
+    const cost = r.buy * (1 - disc) * (1 + S.tax);
+    let q = Math.min(Math.floor(cap * FH_IN.share / cost), FH_IN.copies);
+    if (r.supply != null) q = Math.min(q, r.supply);
+    q = Math.min(q, Math.floor(left / cost));
+    if (q > 0) { r.qty = q; left -= q * cost; }
+  });
+  return {rows, elig, picks: elig.filter(r => r.qty > 0), spent: cap - left, gated};
 }
-function fhSummary(months, holds) {                     // one line per hold: months with buys, profitable, expected vs actual, mean ROI, inside the range
+const fhActual = (picks, disc) => { let s = 0; for (const r of picks) { if (r.y == null) return null; s += r.qty * fcNet(r.buy, r.y, FH_S, disc, r.sell); } return s; };
+function fhCompute(mo, h, cap, disc) {                    // one cell, shaped like the replay's: forecast_hist.py's cell for (h, disc, cap)
+  const P = fhPlan(mo, h, cap, disc, true, FH_IN.minp), done = mo.m + h <= fhMLast(), picks = P.picks;
+  const mc = picks.length ? fcMonteCarlo(picks, FH_S, disc, (FH.doc.consts && FH.doc.consts.mc_n) || 2000) : null;
+  const actual = picks.length && done ? fhActual(picks, disc) : null;
+  const c = {n_elig: P.elig.length, best: Math.round(P.rows.reduce((b, r) => r.p > b ? r.p : b, 0) * 1000) / 1000, gated: P.gated, picks: picks.map(r => [r.cid, r.qty, r.buy, r.mean, r.y]),
+             copies: picks.reduce((s, r) => s + r.qty, 0), spent: P.spent, done, computed: true};
+  if (mc) Object.assign(c, {exp: mc.mean, lo: mc.lo, hi: mc.hi, p: mc.p});
+  if (actual != null) Object.assign(c, {actual, roi: P.spent ? actual / P.spent : null, inside: mc.lo <= actual && actual <= mc.hi});
+  if (!picks.length && done) {                           // what buying anyway would have made: the ungated plan (a gated month), else the top-ranked cards with no bar
+    const P0 = fhPlan(mo, h, cap, disc, false, P.gated ? FH_IN.minp : 0), a0 = P0.picks.length ? fhActual(P0.picks, disc) : null;
+    c.forced_roi = a0 != null && P0.spent ? a0 / P0.spent : null; c.forced_n = P0.picks.length;
+  }
+  return c;
+}
+function fhCell(mo, h, live) {                            // the cell shown: the archive's nearest standard plan (live), else the page's own plan, else the file's standard cell
+  if (live) return mo.cells[fhKey(h, fhLiveCap(), fhLiveDisc())];
+  if (!mo.cards) return mo.cells[fhKey(h, FH.cap, FH.disc)];
+  const key = FH.cap + '|' + FH.disc;
+  if (!FH.cache.has(key)) { if (FH.cache.size >= 12) FH.cache.clear(); FH.cache.set(key, new Map()); }
+  const m = FH.cache.get(key), k = mo.m + '|' + h;
+  if (!m.has(k)) m.set(k, fhCompute(mo, h, FH.cap, FH.disc));
+  return m.get(k);
+}
+function fhChips() {
+  const free = fhFree(), pct = Math.round(FH.disc * 100);
+  return '<div class="fvchips fh-chips" id="fh-chips">' +
+    (free ? '<label class="fh-in" title="Any amount: the plans are run here, in the page, from each month’s ranked cards">Capital $<input type="number" id="fh-cap" min="' + FH_FREE.cap[0] + '" max="' + FH_FREE.cap[1] + '" step="100" value="' + FH.cap + '"></label>' : '') +
+    fhCaps().map(c => '<button type="button" class="fvchip' + (FH.cap === c ? ' on' : '') + '" data-cap="' + c + '">' + fcMoney(c) + '</button>').join('') +
+    '<span class="fh-sep"></span>' +
+    (free ? '<label class="fh-in" title="Every pick bought this far under the standard price (0 = at the standard price)">Bought <input type="number" id="fh-disc" min="0" max="' + Math.round(FH_FREE.disc[1] * 100) + '" step="5" value="' + pct + '"> % under</label>' : '') +
+    '<button type="button" class="fvchip' + (FH.disc ? '' : ' on') + '" data-disc="0" title="every pick bought at the standard price">At the standard price</button><button type="button" class="fvchip' + (Math.abs(FH.disc - 0.2) < 1e-9 ? ' on' : '') + '" data-disc="0.2" title="every pick bought 20% under the standard price - the hit-alert price; assumes you got every pick that cheap">Bought 20% under</button></div>';
+}
+function fhSummary(months, holds, live) {               // one line per hold: months with buys, profitable, expected vs actual, mean ROI, inside the range
   return '<div class="stats fc-stats">' + holds.map(h => {
-    const cells = months.map(mo => mo.cells[fhKey(h)]).filter(Boolean), buys = cells.filter(c => c.picks && c.picks.length), scored = buys.filter(c => c.actual != null);
+    const cells = months.map(mo => fhCell(mo, h, live)).filter(Boolean), buys = cells.filter(c => c.picks && c.picks.length), scored = buys.filter(c => c.actual != null);
     const prof = scored.filter(c => c.actual > 0).length, inside = scored.filter(c => c.inside).length;
     const exp = scored.reduce((s, c) => s + (c.exp || 0), 0), act = scored.reduce((s, c) => s + c.actual, 0), roi = scored.length ? scored.reduce((s, c) => s + (c.roi || 0), 0) / scored.length : null;
     return '<div class="stat"><div class="k">' + h + '-month hold</div><div class="v">' + (buys.length ? buys.length + ' of ' + months.length + ' months with buys' : 'no buys in ' + months.length + ' months') + '</div><div class="d">' +
@@ -2980,8 +3049,9 @@ function fhPickRows(picks, disc, h) {                    // the detail rows: one
     return '<tr><td>' + esc(nm[0]) + '<br><span class="dim">' + esc(String(nm[1] || '').replace(/^Pokemon /, '')) + '</span></td><td class="num">' + qty + '</td><td class="num">' + fmtMoneyPlain(buy) + (disc ? '<br><span class="dim">paid ' + fmtMoneyPlain(buy * (1 - disc)) + '</span>' : '') + '</td><td class="num">' + fcMoney2(mean) + '</td><td class="num">' + (real == null ? '<span class="dim">—</span>' : '<b class="' + (real > 0 ? 'up' : real < 0 ? 'down' : '') + '">' + fcMoney2(real) + '</b> <span class="dim">(' + fcPct(y, 0) + ' in ' + h + ' mo)</span>') + '</td></tr>'; }).join('');
 }
 function fhDetail(mo, holds, live) {                      // the opened month: each hold's picks at the chosen capital and scenario
-  return holds.map(h => { const c = live ? mo.cells[fhKey(h)] : mo.cells[fhKey(h)]; if (!c || !c.picks || !c.picks.length) return '<h4>' + h + '-month hold</h4><p class="dim">No buys' + (c && c.best != null ? ' (best chance ' + Math.round(c.best * 100) + '%)' : '') + '.</p>';
-    return '<h4>' + h + '-month hold · ' + c.picks.length + ' card' + (c.picks.length > 1 ? 's' : '') + ', ' + c.copies + ' cop' + (c.copies === 1 ? 'y' : 'ies') + ', ' + fcMoney(c.spent) + ' spent</h4><table><thead><tr><th>Card</th><th class="num">Copies</th><th class="num">Price</th><th class="num">Expected net / copy</th><th class="num">Realized net / copy</th></tr></thead><tbody>' + fhPickRows(c.picks, FH.disc, h) + '</tbody></table>'; }).join('');
+  const disc = live ? fhLiveDisc() : FH.disc;
+  return holds.map(h => { const c = fhCell(mo, h, live); if (!c || !c.picks || !c.picks.length) return '<h4>' + h + '-month hold</h4><p class="dim">No buys' + (c && c.best != null ? ' (best chance ' + Math.round(c.best * 100) + '%)' : '') + '.</p>';
+    return '<h4>' + h + '-month hold · ' + c.picks.length + ' card' + (c.picks.length > 1 ? 's' : '') + ', ' + c.copies + ' cop' + (c.copies === 1 ? 'y' : 'ies') + ', ' + fcMoney(c.spent) + ' spent</h4><table><thead><tr><th>Card</th><th class="num">Copies</th><th class="num">Price</th><th class="num">Expected net / copy</th><th class="num">Realized net / copy</th></tr></thead><tbody>' + fhPickRows(c.picks, disc, h) + '</tbody></table>'; }).join('');
 }
 function fhCells(c, done) {                               // the six cells of one hold in a month row
   if (!c) return '<td colspan="6" class="dim">—</td>';
@@ -2990,7 +3060,7 @@ function fhCells(c, done) {                               // the six cells of on
   return '<td class="num">' + c.picks.length + ' · ' + c.copies + '<br><span class="dim">' + fcMoney(spent) + '</span></td>' +
     '<td class="num">' + fcMoney(c.exp) + '<br><span class="dim">' + fcPct(roi, 1) + '</span></td>' +
     '<td class="num">' + fcMoney(c.lo) + '<br><span class="dim">to ' + fcMoney(c.hi) + '</span></td><td class="num">' + Math.round((c.p || 0) * 100) + '%</td>' +
-    (c.actual != null ? '<td class="num"><b class="' + (c.actual > 0 ? 'up' : c.actual < 0 ? 'down' : '') + '">' + fcMoney(c.actual) + '</b> <span class="dim" title="' + (c.inside ? 'inside the 10-90% range' : 'outside the 10-90% range') + '">' + (c.inside ? '\u2713' : '\u2717') + '</span></td><td class="num ' + (c.roi > 0 ? 'up' : c.roi < 0 ? 'down' : '') + '">' + fcPct(c.roi, 1) + '</td>'
+    (c.actual != null ? '<td class="num"><b class="' + (c.actual > 0 ? 'up' : c.actual < 0 ? 'down' : '') + '">' + fcMoney(c.actual) + '</b> <span class="dim" title="' + (c.inside ? 'inside the 10-90% range' : 'outside the 10-90% range') + '">' + (c.inside ? '✓' : '✗') + '</span></td><td class="num ' + (c.roi > 0 ? 'up' : c.roi < 0 ? 'down' : '') + '">' + fcPct(c.roi, 1) + '</td>'
       : '<td class="num dim" colspan="2">' + (done === false ? 'hold not up yet' : c.done === false ? 'hold not up yet' : 'not scored') + '</td>');
 }
 function fhTable(months, holds, sel, live) {
@@ -2998,7 +3068,7 @@ function fhTable(months, holds, sel, live) {
     holds.map(() => '<th class="num" title="cards · copies, and what they cost">Buys</th><th class="num" title="the expected net and ROI on the money spent">Expected</th><th class="num" title="the likely range: the 10th to the 90th percentile of the basket\'s net">Range</th><th class="num">Chance</th><th class="num" title="the realized net when the hold is up; ✓ inside the range">Actual</th><th class="num">ROI</th>').join('') + '</tr></thead><tbody>';
   months.forEach(mo => {
     const open = FH.open.has(sel + ':' + mo.month);
-    h += '<tr class="fh-row' + (open ? ' open' : '') + '" data-key="' + esc(mo.month) + '" data-m="' + esc(mo.month) + '"><td><b>' + esc(mo.month) + '</b>' + (mo.calib === 'static' ? ' <span class="dim" title="too few out-of-sample months for the chance tables yet: the tables of the whole period stand in (the chances here look a little back)">*</span>' : '') + '</td><td>' + esc(mo.reg) + (mo.reg3 != null ? '<br><span class="dim">' + fcPct(mo.reg3, 1) + '/mo</span>' : '') + '</td>' + holds.map(x => fhCells(mo.cells[fhKey(x)], mo.done)).join('') + '</tr>';
+    h += '<tr class="fh-row' + (open ? ' open' : '') + '" data-key="' + esc(mo.month) + '" data-m="' + esc(mo.month) + '"><td><b>' + esc(mo.month) + '</b>' + (mo.calib === 'static' ? ' <span class="dim" title="too few out-of-sample months for the chance tables yet: the tables of the whole period stand in (the chances here look a little back)">*</span>' : '') + '</td><td>' + esc(mo.reg) + (mo.reg3 != null ? '<br><span class="dim">' + fcPct(mo.reg3, 1) + '/mo</span>' : '') + '</td>' + holds.map(x => fhCells(fhCell(mo, x, live), mo.done)).join('') + '</tr>';
     if (open) h += '<tr class="fh-detail"><td colspan="' + (2 + 6 * holds.length) + '">' + fhDetail(mo, holds, live) + '</td></tr>';
   });
   return h + '</tbody></table></div>';
@@ -3007,34 +3077,68 @@ function fhLiveMonths() {                                 // the collector's arc
   const recs = ((LIVE.data && LIVE.data.fc_auto) || {}).recs || [], by = new Map();
   for (const r of recs) { const k = r.cal || String(r.month); if (!by.has(k)) by.set(k, {month: k, reg: r.reg, reg3: null, cells: {}, live: true}); const mo = by.get(k);
     const spent = r.spent || r.picks.reduce((s, p) => s + p[1] * p[2] * (1 - (r.disc || 0)), 0), due = r.t + r.h * 30 * 86400000;
-    mo.cells[r.h + '|' + (r.disc ? '0.2' : '0') + '|' + r.cap] = {picks: r.picks.map(p => [p[0], p[1], p[2], p[3], null]), copies: r.picks.reduce((s, p) => s + p[1], 0), spent, exp: r.exp, lo: r.lo, hi: r.hi, p: r.p, best: r.best, done: !!r.done, due,
+    mo.cells[fhKey(r.h, r.cap, r.disc || 0)] = {picks: r.picks.map(p => [p[0], p[1], p[2], p[3], null]), copies: r.picks.reduce((s, p) => s + p[1], 0), spent, exp: r.exp, lo: r.lo, hi: r.hi, p: r.p, best: r.best, done: !!r.done, due,
       actual: r.done ? r.actual : null, roi: r.done ? r.roi : null, inside: r.done ? r.actual >= r.lo && r.actual <= r.hi : null, res: r.res || null}; }
   return [...by.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
+function fhPending() {                                    // the (month, hold) cells of the current settings not run yet
+  if (!fhFree()) return [];
+  const m = FH.cache.get(FH.cap + '|' + FH.disc), out = [];
+  FH.doc.months.forEach(mo => FH.doc.holds.forEach(h => { if (!m || !m.has(mo.m + '|' + h)) out.push([mo, h]); }));
+  return out;
+}
+function fhRun(todo) {                                    // runs them a few at a time between frames, so a $25,000 basket's 2,000 draws per cell do not freeze the tab, then redraws
+  const key = FH.cap + '|' + FH.disc; if (FH.busy && FH.busy.key === key) return;
+  const job = FH.busy = {key, i: 0};                      // one job at a time: a settings change starts a new one and the old chain stops at its next step
+  const step = () => {
+    if (FH.busy !== job || FH.cap + '|' + FH.disc !== key) { if (FH.busy === job) FH.busy = null; return; }
+    const t0 = performance.now();
+    while (job.i < todo.length && performance.now() - t0 < 50) { fhCell(todo[job.i][0], todo[job.i][1], false); job.i++; }
+    const note = $('fh-running'); if (note) note.textContent = 'Running the plans for ' + fcMoney(FH.cap) + (FH.disc ? ', bought ' + Math.round(FH.disc * 100) + '% under' : ', at the standard price') + '\u2026 ' + Math.min(job.i, todo.length) + ' of ' + todo.length;
+    if (job.i < todo.length) setTimeout(step, 0); else { FH.busy = null; fhRender(); }
+  };
+  setTimeout(step, 0);
+}
 function fhRender() {
   const host = $('fh-body'); if (!host) return;
-  const holds = (FH.doc && FH.doc.holds) || [1, 3, 6];
+  const holds = (FH.doc && FH.doc.holds) || [1, 3, 6], free = fhFree(), pct = Math.round(FH.disc * 100);
   let h = fhChips();
+  const todo = fhPending();
   if (!FH.doc) h += '<p class="dim">' + (FH.err ? 'The replay file could not be loaded (' + esc(FH.err) + '). It is built by the monthly Forecast History workflow; the live plans below do not need it.' : 'Loading the replay…') + '</p>';
+  else if (todo.length) { h += '<p class="dim" id="fh-running">Running the plans for ' + fcMoney(FH.cap) + (FH.disc ? ', bought ' + pct + '% under' : ', at the standard price') + '\u2026</p>'; fhRun(todo); }
   else {
     const months = FH.doc.months.slice().sort((a, b) => b.m - a.m);
     h += '<h3>The replay: ' + esc(FH.doc.from) + ' to ' + esc(FH.doc.to) + ' from PriceCharting’s history<button class="help" data-h="fh_replay">?</button></h3>' +
-      '<p class="dim">' + (FH.doc.model ? 'Every month every card $25+ with six sales in its last twelve months is ranked by how far it sits below its own 12-month mean, the market is read (rising or falling), the chance tables are built from the outcomes known by then, and the tab’s plan is run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card and one copy per card, the 50% bar, nothing bought in a falling month (the gate; such a month shows what the plan would have made without it) - then scored with PriceCharting’s price when the hold is up. Model ' + esc(FH.doc.model) + '.' : 'Every month the model is refit on the months before it (every six months), every card scored and ranked out of sample, and the tab’s plan run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card, the 50% bar - then scored with PriceCharting’s price when the hold is up.') + ' The standard price here is PriceCharting’s (the print or its 3-month average, whichever is higher) and the supply a quarter of the month’s PriceCharting sales: there is no eBay history before October 2026. ' + (FH.disc ? '<b>Bought 20% under</b> assumes you got every pick 20% under that price - the hit-alert price.' : '<b>At the standard price</b>: every pick at PriceCharting’s price, no discount.') + ' Built ' + esc(FH.doc.made || '') + '.</p>' +
-      fhSummary(months, holds) + fhTable(months, holds, 'fh', false) +
+      '<p class="dim">' + (FH.doc.model ? 'Every month every card $25+ with six sales in its last twelve months is ranked by how far it sits below its own 12-month mean, the market is read (rising or falling), the chance tables are built from the outcomes known by then, and the tab’s plan is run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card and one copy per card, the 50% bar, nothing bought in a falling month (the gate; such a month shows what the plan would have made without it) - then scored with PriceCharting’s price when the hold is up. Model ' + esc(FH.doc.model) + '.' : 'Every month the model is refit on the months before it (every six months), every card scored and ranked out of sample, and the tab’s plan run at the standard constants: fees 14.1% + $5.20, no buy tax, cards $50–$500, at most 20% per card, the 50% bar - then scored with PriceCharting’s price when the hold is up.') + ' The standard price here is PriceCharting’s (the print or its 3-month average, whichever is higher) and the supply a quarter of the month’s PriceCharting sales: there is no eBay history before October 2026. ' +
+      (FH.disc ? '<b>Bought ' + pct + '% under</b> assumes you got every pick ' + pct + '% under that price' + (pct === 20 ? ' - the hit-alert price' : '') + '.' : '<b>At the standard price</b>: every pick at PriceCharting’s price, no discount.') +
+      (free ? ' <b>' + fcMoney(FH.cap) + '</b> of capital: the capital and the discount are yours to set in the boxes above (the chips are presets); the plans are run here, in the page, from each month’s ranked cards and chance tables with the replay’s own arithmetic.' : '') + ' Built ' + esc(FH.doc.made || '') + '.</p>' +
+      fhSummary(months, holds, false) + fhTable(months, holds, 'fh', false) +
       '<p class="dim">Click a month for its picks. * = the first year, before twelve months of out-of-sample outcomes existed: the chance tables of the whole period stand in there. A month whose hold is not up yet shows its expectation only.</p>';
   }
-  const lm = fhLiveMonths();
+  const lm = fhLiveMonths(), lc = fhLiveCap(), ld = fhLiveDisc(), nearest = lc !== FH.cap || Math.abs(ld - FH.disc) > 1e-9;
   h += '<h3>The live plans: what the tab said on the first day of each month<button class="help" data-h="fh_live">?</button></h3>' +
-    '<p class="dim">The collector archives the same 30 plans on the first cycle of every month, with eBay’s floors and sold medians of that moment (the two guards applied) - exactly what the Forecast tab showed - and scores each when its hold is up, at eBay’s sold median then. These are the rows that will tell whether the floor-gap edge is real.</p>' +
-    (lm.length ? fhSummary(lm, holds) + fhTable(lm, holds, 'fhlive', true) : '<p class="dim">' + (LIVE.data ? 'None archived yet: the collector files the first set on its next cycle with the model file.' : 'Waiting for the live data.') + '</p>');
+    '<p class="dim">The collector archives the same 30 plans on the first cycle of every month, with eBay’s floors and sold medians of that moment (the two guards applied) - exactly what the Forecast tab showed - and scores each when its hold is up, at eBay’s sold median then. These are the rows that will tell whether the floor-gap edge is real.' +
+    (nearest ? ' <b>The archive holds the standard plans only</b> (' + fhCaps().map(fcMoney).join(', ') + '; at the standard price or 20% under), so this half shows the nearest: <b>' + fcMoney(lc) + '</b>, ' + (ld ? 'bought 20% under' : 'at the standard price') + '.' : '') + '</p>' +
+    (lm.length ? fhSummary(lm, holds, true) + fhTable(lm, holds, 'fhlive', true) : '<p class="dim">' + (LIVE.data ? 'None archived yet: the collector files the first set on its next cycle with the model file.' : 'Waiting for the live data.') + '</p>');
+  const ae = document.activeElement, keep = !FH.committing && ae && (ae.id === 'fh-cap' || ae.id === 'fh-disc') ? {id: ae.id, v: ae.value, s: ae.selectionStart, e: ae.selectionEnd} : null;   // a box being typed in survives a redraw the plans' run causes (not its own commit, which may have clamped it)
   host.innerHTML = h;
+  if (keep) { const el = $(keep.id); if (el) { el.value = keep.v; el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (x) {} } }
   host.querySelectorAll('table[data-sel]').forEach(selApply);
 }
+function fhSet(cap, disc) {                               // the two free variables, clamped, remembered, redrawn
+  FH.cap = Math.min(FH_FREE.cap[1], Math.max(FH_FREE.cap[0], Math.round(cap))); FH.disc = Math.min(FH_FREE.disc[1], Math.max(0, Math.round(disc * 1000) / 1000));
+  try { localStorage.setItem('fh-cap', FH.cap); localStorage.setItem('fh-disc', FH.disc); } catch (x) {}
+  FH.committing = true; try { fhRender(); } finally { FH.committing = false; }
+}
+$('fh-body').addEventListener('change', e => {           // the boxes: on Enter or leaving the box (every keystroke would rerun 170 plans)
+  if (e.target.id === 'fh-cap') { const v = parseFloat(e.target.value); if (!isNaN(v)) fhSet(v, FH.disc); else e.target.value = FH.cap; }
+  else if (e.target.id === 'fh-disc') { const v = parseFloat(e.target.value); if (!isNaN(v)) fhSet(FH.cap, v / 100); else e.target.value = Math.round(FH.disc * 100); }
+});
 $('fh-body').addEventListener('click', e => {
   const chip = e.target.closest('.fvchip');
-  if (chip) { if (chip.dataset.cap) FH.cap = +chip.dataset.cap; else if (chip.dataset.disc != null) FH.disc = +chip.dataset.disc; try { localStorage.setItem('fh-cap', FH.cap); localStorage.setItem('fh-disc', FH.disc); } catch (x) {} fhRender(); return; }
+  if (chip) { if (chip.dataset.cap) fhSet(+chip.dataset.cap, FH.disc); else if (chip.dataset.disc != null) fhSet(FH.cap, +chip.dataset.disc); return; }
   const hb = e.target.closest('button.help'); if (hb) { e.stopPropagation(); openHelp(hb.dataset.h); return; }   // the tab's help buttons are drawn here, after the page bound the static ones
-  if (e.target.closest('a')) return;
+  if (e.target.closest('a') || e.target.closest('label')) return;
   const tr = e.target.closest('tr.fh-row'); if (!tr) return;
   const key = tr.closest('table').dataset.sel + ':' + tr.dataset.m;
   if (FH.open.has(key)) FH.open.delete(key); else FH.open.add(key);
