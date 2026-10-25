@@ -1321,7 +1321,14 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Planning view with every listing filtered out says so instead of "Nothing on your plan yet" (his one planned
   listing is a watch copy, hidden by the default filter), and its listing line shows "?" and the watch / suspect
   tier. Tests extended: ut/test_flags (wrong_card fraud, stamp_pc under the three verdict states), t/pcpop/test_ui18
-  (the badge = held, "vs PC today", the empty Planning text, the tier on the line).
+  (the badge = held, "vs PC today", the empty Planning text, the tier on the line). r41c (~04:10 UTC, app.js only):
+  the popup's batch of read requests reached the collector but ONLY THE FIRST WAS SERVED - read_requests drops a
+  message whose t is not newer than the last one acted on (the replay guard), and fclAskReads stamped the six with
+  Date.now() in one loop (equal t) and posted them concurrently (out of order). Now nextT() hands out strictly
+  increasing stamps and alSend posts one message at a time in the order made (AL_CHAIN); readAsk and fclAskReads use
+  nextT. Seen live: of five reads asked for Mewtwo & Mew GX #SM191 one came back (LP, "Lightly played (Excellent)" -
+  the Gyarados case caught), the log showed one "Site read" per cycle. test_ui18 asks two and checks both arrive in
+  order.
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
