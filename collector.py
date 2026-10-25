@@ -1215,6 +1215,8 @@ def flag_mark(state, cat, cards, iid, st, note, t):
 
 PC_SPREAD_BAR = 0.5              # the automatic "PC inaccuracy" (2026-10-25): the middle half of PriceCharting's last ungraded
 PC_SPREAD_EVERY_S = 6 * 3600     # sales (90 days, 6+ of them) spans this share of their median or more; judged this often
+PC_SPREAD_MIN_MED = 1000         # cents: cards whose median sale is under this are never judged (the first pass: a $0.06 card's
+                                 # sales ran $0.01-$2.13 - eBay's price steps, not PriceCharting's error; nothing under $10 is ever a hit or a pick)
 
 
 def pc_spread_tick(state):
@@ -1238,7 +1240,7 @@ def pc_spread_tick(state):
             continue
         k = str(cid)
         gm = marks.get(k)
-        if iqr >= PC_SPREAD_BAR:
+        if iqr >= PC_SPREAD_BAR and (sp.get("med") or 0) >= PC_SPREAD_MIN_MED:
             over += 1
             if gm and not gm.get("auto"):
                 continue                                     # his own verdict stands
@@ -1248,18 +1250,19 @@ def pc_spread_tick(state):
                 changed += 1
             marks[k] = {"state": "pc inaccuracy", "note": note, "t": now, "mt": int(time.time() * 1000), "auto": 1, "sp": [sp["n"], iqr, sp["med"]]}
         elif gm and gm.get("auto"):
-            del marks[k]                                     # back under the bar: the automatic verdict goes
+            del marks[k]                                     # back under the bar (or a card under the price floor): the automatic verdict goes
             changed += 1
     for k in [k for k, gm in marks.items() if gm.get("auto") and int(k) not in sps]:
         del marks[k]                                         # no spread on file any more (the page lost its table)
         changed += 1
     if changed:
         v["flag_t"] = int(time.time() * 1000)
-    iq = sorted(sp["iqr"] for sp in sps.values() if sp.get("iqr") is not None)
+    iq = sorted(sp["iqr"] for sp in sps.values() if sp.get("iqr") is not None and (sp.get("med") or 0) >= PC_SPREAD_MIN_MED)
     if iq:
         q = lambda p: iq[min(len(iq) - 1, int(p * len(iq)))]
-        log(f"PC spread: {len(iq):,} cards measured (6+ posted sales in 90 days); iqr/median p50 {q(0.5):.2f}, p75 {q(0.75):.2f}, p90 {q(0.9):.2f}, "
-            f"p95 {q(0.95):.2f}; {over:,} at or over the {PC_SPREAD_BAR} bar = automatic PC inaccuracy ({changed} verdicts changed this pass)")
+        log(f"PC spread: {len(iq):,} cards measured (6+ posted sales in 90 days, median ${PC_SPREAD_MIN_MED / 100:.0f}+; {len(sps) - len(iq):,} cheaper cards not judged); "
+            f"iqr/median p50 {q(0.5):.2f}, p75 {q(0.75):.2f}, p90 {q(0.9):.2f}, p95 {q(0.95):.2f}; {over:,} at or over the {PC_SPREAD_BAR} bar = automatic PC inaccuracy "
+            f"({changed} verdicts changed this pass)")
     return over, len(iq)
 
 
