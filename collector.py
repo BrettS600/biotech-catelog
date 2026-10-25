@@ -913,19 +913,19 @@ def note_wrong(v, e, state=None, forced=False):
     """Brett said No, not the same card, to an alert on a listing the scam screen had not flagged - or ticked
     "Mismatch" on the Raw Data tab (forced: that says mismatch whatever the scam tier). A wrong match by the title
     matcher, or a listing whose title lies about its photo. Kept apart from the 300-alert log: these are what the
-    matcher learns from (es.learn_tables). A phone No on a watch / suspect listing is not kept: there it may mean
-    "scam". -> True when it counts as a mismatch."""
-    if not forced and e.get("tr", "clean") in ("watch", "suspect"):
-        return False
+    matcher learns from (es.learn_tables). A phone No on a watch / suspect listing may mean "scam", so it is kept with
+    the flag sc (the matcher skips those) - the listing still leaves every tab and sits in the Mismatches popup, with
+    a Restore button (Brett, 2026-10-25). -> True when it counts as a mismatch for the matcher."""
+    scam = not forced and e.get("tr", "clean") in ("watch", "suspect")
     wrong = v.setdefault("wrong", [])
     if not any(w["i"] == e["i"] for w in wrong):
         alerted = any(x["i"] == e["i"] for x in v.get("alert_log", []) + v.get("au_hist", []))
         wrong.append({"t": e.get("dt") or es.ts(es.NOW), "i": e["i"], "ti": e.get("ti"), "u": e.get("u"), "c": e.get("c"),
                       "cs": e.get("cs"), "card": e.get("card"), "kd": e.get("kd"), "tot": e.get("tot"), "sl": e.get("sl"),
-                      "al": 1 if alerted else 0})
+                      "al": 1 if alerted else 0, **({"sc": 1} if scam else {})})
     if state is not None:
         set_um(state, e["i"], True)
-    return True
+    return not scam
 
 
 def find_rec(state, iid):
@@ -977,6 +977,12 @@ def review_listing(state, iid, same, t):
     if same is None:
         rv.pop(iid, None)
         mark_listing(state, iid, False, t)
+        for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):   # a phone "No" given by mistake (Restore, 2026-10-25)
+            if e["i"] == iid and e.get("dec") == "no":
+                e.pop("dec", None)
+                e.pop("dt", None)
+        v["review_t"] = t                                        # the page's echo of the withdrawal clears on this
+        log(f"Review withdrawn / listing restored on the site ({iid})")
         return
     same = bool(same)
     rv[iid] = {"v": 1 if same else 0, "t": es.ts(es.NOW)}
@@ -996,6 +1002,44 @@ def review_listing(state, iid, same, t):
     log(f"Review on the site: {'same card' if same else 'not the same'} ({iid})")
 
 
+COND_VALUES = ("NM", "LP", "MP", "HP", "DMG")
+
+
+def cond_set(state, iid, val, t):
+    """Brett's own grade of the card from the photos (the second question of the Review screen and of the phone's check
+    screen, 2026-10-25: "my judgement of the condition may be different from the seller's"). It overrides the seller's
+    for everything the collector does with the condition (tcond: the book, the floor, the verdict, the alerts; the
+    sweep's rematch and apply_condition leave a graded listing alone); the seller's own basis stays readable
+    (es.seller_cond: eBay's condition field, else the title). None withdraws it. Kept in v["conds"] so the page can
+    show it after a reload."""
+    v = state["vps"]
+    val = str(val).upper()[:4] if val else None
+    if val is not None and val not in COND_VALUES:
+        return
+    conds = v.setdefault("conds", {})
+    rec = find_rec(state, iid)
+    if rec is not None:
+        if val:
+            rec["tcond"], rec["bc"] = val, val
+        else:
+            rec.pop("bc", None)
+            rec["tcond"] = es.seller_cond(rec)
+    for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
+        if e["i"] == iid:
+            if val:
+                e["bc"] = val
+            else:
+                e.pop("bc", None)
+    if val:
+        conds[iid] = {"v": val, "t": es.ts(es.NOW)}
+    else:
+        conds.pop(iid, None)
+    for k in list(conds)[:-20000]:
+        del conds[k]
+    v["cond_t"] = t
+    log(f"Condition from the photos: {val or 'withdrawn'} ({iid})")
+
+
 def wrong_rows(v):
     """The wrong-match list for the site, newest first: [when, item, title, link, matched card, its set, card id, kind, total]."""
     cut = es.ts(es.NOW - timedelta(days=WRONG_KEEP_D))
@@ -1005,7 +1049,7 @@ def wrong_rows(v):
                 note_wrong(v, e)
         v["wrong_backfilled"] = 1
     v["wrong"] = sorted((w for w in v.get("wrong", []) if w["t"] >= cut), key=lambda w: w["t"])[-1000:]
-    return [[w["t"], w["i"], w.get("ti"), w.get("u"), w.get("c"), w.get("cs"), w.get("card"), w.get("kd"), w.get("tot")]
+    return [[w["t"], w["i"], w.get("ti"), w.get("u"), w.get("c"), w.get("cs"), w.get("card"), w.get("kd"), w.get("tot"), 1 if w.get("sc") else 0]
             for w in reversed(v["wrong"])]
 
 
@@ -1172,13 +1216,15 @@ def read_requests(state):
             if "dec" in env:                      # Brett's Yes / No on the phone's check screen
                 dec = env["dec"]
                 for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
-                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "no", "yes"):
+                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "mp", "no", "yes"):
                         if dec["d"] == "yes" and e.get("dec"):
                             continue                 # "same card" never replaces an answer already given
                         e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
                         if dec["d"] == "no" and "tot" in e:
                             rec = find_rec(state, e["i"])       # the listing itself: its seller and its whole title
                             note_wrong(v, dict(e, sl=(rec or {}).get("seller"), ti=(rec or {}).get("title") or e.get("ti")), state)
+                        if dec["d"] in ("nm", "lp", "mp"):   # the condition from the photos (the second question, 2026-10-25)
+                            cond_set(state, e["i"], {"nm": "NM", "lp": "LP", "mp": "MP"}[dec["d"]], int(time.time() * 1000))
                 continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                 continue
@@ -1204,6 +1250,8 @@ def read_requests(state):
             mark_listing(state, str(msg["i"])[:60], bool(msg.get("v")), t)
         elif msg.get("type") == "review" and msg.get("i"):
             review_listing(state, str(msg["i"])[:60], msg.get("v"), t)
+        elif msg.get("type") == "cond" and msg.get("i"):          # the condition from the photos, answered on the site (2026-10-25)
+            cond_set(state, str(msg["i"])[:60], msg.get("v"), t)
         elif msg.get("type") == "pcimg" and msg.get("c") is not None:   # Review pressed on a card without its picture
             try:
                 if pc_worker() is not None:
@@ -2001,7 +2049,9 @@ def hit_payload(rec, cs, cat, kind="hit"):
             "rp": [list(t) for t in (cs.get("tw") or [0, []])[1]],
             # set name, rarity and finish from both sides (2026-10-12): the card's own words (cardfacts.py, the daily
             # build) and eBay's record of this listing - es.facts_row: None = not read, [] = nothing on the listing
-            "rf": [c.get("rarity") or "", c.get("finish") or ""], "ef": es.facts_row(rec)}
+            "rf": [c.get("rarity") or "", c.get("finish") or ""], "ef": es.facts_row(rec),
+            # the seller's condition (eBay's field, else the title's grade) and Brett's own if he has graded it (2026-10-25)
+            "tc": es.seller_cond(rec), "ec": rec.get("ec"), "bc": rec.get("bc", "")}      # ec: None = never read, "" = read, none stated
 
 
 def mm_seed(v):
@@ -3002,6 +3052,8 @@ def cycle(state, cat, sched, counters):
     live["alert"]["mark_t"] = v.get("mark_t", 0)             # the page shows a tick at once; this confirms it arrived
     live["alert"]["reviews"] = {k: r["v"] for k, r in v.get("reviews", {}).items()}   # Review answers given on the site
     live["alert"]["review_t"] = v.get("review_t", 0)
+    live["alert"]["conds"] = {k: r["v"] for k, r in v.get("conds", {}).items()}       # Brett's grades from the photos (2026-10-25)
+    live["alert"]["cond_t"] = v.get("cond_t", 0)
     pc = pc_worker()                                         # the background reader: file what it found, hand it the next plan
     got, urgent = file_pc_images(state, pc)
     counters["pc_img"] += got
@@ -3055,7 +3107,7 @@ def cycle(state, cat, sched, counters):
         save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("forecast_t", 0),
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("cond_t", 0), v.get("forecast_t", 0),
            v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
