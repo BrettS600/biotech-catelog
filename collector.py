@@ -1069,8 +1069,9 @@ def cond_set(state, iid, val, t):
 # (state + note) lives on the entry; a card verdict (gap_marks) releases a held card for GAP_RELEASE_D days. The
 # state keeps the newest FLAGS_KEEP; a month's entries go to the archive branch on the 1st (archive_tick).
 FLAG_KINDS = {"PC gap": "gap", "mismatch: too cheap": "pclow", "mismatch: too high": "pchigh", "review": "review"}
-FLAG_STATES = ("unmarked", "set mismatch", "name mismatch", "condition", "fraud", "pc stale", "unknown")
-CARD_STATES = ("unmarked", "pc stale", "fraud", "mismatch", "condition", "unknown")
+FLAG_STATES = ("unmarked", "set mismatch", "name mismatch", "condition", "fraud", "unknown")   # a listing's reasons (the Flag column / Review's Flag section)
+MISMATCH_STATES = ("set mismatch", "name mismatch")                # ... the two that are also the "not the same card" answer
+CARD_STATES = ("unmarked", "pc inaccuracy", "pc fine")             # a card's verdict (the Flags archive's held strip): PriceCharting is wrong for the card, or right
 FLAGS_KEEP = 5000
 FLAGS_NEW_MAX = 300              # entries added per pass at most
 FLAGS_EVERY_S = 600              # the archive file (live/flags.bin) is republished this often, or at once after a mark
@@ -1133,19 +1134,51 @@ def flags_update(state, cat, cards, live):
     return added
 
 
-def flag_mark(state, iid, st, note, t):
-    """Brett's mark on an archived listing: state + note (the Review popup's Flag section). A mismatch state is the
-    Not-the-same answer (hidden everywhere, filed as a wrong match, the matcher learns); fraud makes the listing - and
-    the seller's other listings - suspect (score_listings: "fsl"); condition / pc stale / unknown record the reason."""
+def hist_rec(e):
+    """A listing record built from an alert / auction history entry, for a flag on a listing the state no longer holds."""
+    return {"id": e.get("i"), "card": e.get("card"), "title": e.get("ti") or "", "url": e.get("u"), "total": e.get("tot"), "item": e.get("it"),
+            "ship": e.get("sh"), "seller": e.get("sl"), "fb": e.get("fb"), "pct": e.get("pct"), "tcond": e.get("tc", "UNK"), "img": e.get("img"),
+            "imgs": e.get("imgs") or [], "first": e.get("t") or e.get("first"), "tier": e.get("tr") or e.get("tier", "clean"),
+            **({"ec": e["ec"]} if e.get("ec") is not None else {})}
+
+
+def flag_mark(state, cat, cards, iid, st, note, t):
+    """Brett's flag on ANY listing (the Flag column on every tab, Review's Flag section, the phone's No; 2026-10-25):
+    state + note. The listing stays on the Raw Data tab but counts in nothing - rec["fl"] takes it out of the book,
+    the supply and the anchor (es.wrong_card) and the verdict becomes "flagged: <reason>" (never a hit). A listing not
+    yet in the archive gets an entry of kind "manual". Side effects by reason: set / name mismatch = the "not the same
+    card" answer (hidden everywhere, filed as a wrong match, the matcher learns); fraud makes the listing and the
+    seller's other listings suspect (score_listings: "fsl"); condition / unknown record the reason. "unmarked" takes
+    the flag off and undoes those (the No withdrawn, the seller cleared); a manual entry then leaves the archive."""
     v = state["vps"]
-    e = (v.get("flags") or {}).get(iid)
-    if e is None or st not in FLAG_STATES:
+    flags = v.setdefault("flags", {})
+    if st not in FLAG_STATES:
         return
+    e = flags.get(iid)
+    rec = find_rec(state, iid)
+    if e is None:
+        if st == "unmarked":
+            return
+        hist = [h for h in v.get("au_hist", []) + v.get("hit_hist", []) + v.get("alert_log", []) if h.get("i") == iid]
+        src = rec if rec is not None else (hist_rec(hist[0]) if hist else None)
+        if src is None or src.get("card") is None:
+            return
+        cs = (cards or {}).get(str(src.get("card")))
+        e = flags[iid] = flag_snapshot(state, cat, src, cs, "manual", "flagged by you", src.get("out") or ("open" if rec is not None and iid in state["open"] else "unknown"))
+    prev = e.get("state", "unmarked")
     e["state"], e["note"], e["mt"] = st, str(note or "")[:1000], es.ts(es.NOW)
-    if st in ("set mismatch", "name mismatch"):
+    if rec is not None:
+        if st == "unmarked":
+            rec.pop("fl", None)
+        else:
+            rec["fl"] = st
+    if st in MISMATCH_STATES:
         review_listing(state, iid, False, t)
-    elif st == "fraud":
-        rec = find_rec(state, iid)
+    elif prev in MISMATCH_STATES and st != "unmarked":
+        review_listing(state, iid, None, t)                  # the reason changed away from a mismatch: the No is withdrawn
+    elif prev in MISMATCH_STATES:
+        review_listing(state, iid, None, t)
+    if st == "fraud":
         if rec is not None:
             rec["fraud"] = 1
             if rec.get("seller"):
@@ -1153,15 +1186,39 @@ def flag_mark(state, iid, st, note, t):
                 if rec["seller"] not in fs:
                     fs.append(rec["seller"])
                     del fs[:-500]
+    elif prev == "fraud" and rec is not None:
+        rec.pop("fraud", None)
+        sl = rec.get("seller")
+        if sl and not any(r.get("fraud") and r.get("seller") == sl for r in list(state["open"].values()) + state["closed"]):
+            fs = v.get("fraud_sellers") or []
+            if sl in fs:
+                fs.remove(sl)
+    if st == "unmarked" and e.get("k") == "manual":
+        del flags[iid]
     v["flag_t"] = t
-    log(f"Flags: {iid} marked {st}" + (f" ({len(note)} chars of note)" if note else ""))
+    log(f"Flags: {iid} " + ("unflagged" if st == "unmarked" else f"marked {st}") + (f" ({len(note)} chars of note)" if note else ""))
+
+
+def flag_states_live(state):
+    """{item id: [kind, state, card id]} for every archived listing - the page's Flag and State columns on every tab
+    (his reasons, and the collector's own kinds in grey for the unmarked ones)."""
+    return {iid: [e.get("k"), e.get("state", "unmarked"), e.get("c")] for iid, e in (state["vps"].get("flags") or {}).items()}
 
 
 def gap_mark(state, cid, st, note, t):
-    """Brett's verdict on a held card (the Flags archive's card strip): any state but "unknown" releases the hold for
-    GAP_RELEASE_D days (es.card_gap); the reason and note are kept with it."""
+    """Brett's verdict on a held card (the Flags archive's card strip): "pc inaccuracy" (PriceCharting is wrong for the
+    card) releases the hold for GAP_RELEASE_D days and stands the per-listing PriceCharting rule down (es.card_gap,
+    es.pc_stale_cards); "pc fine" records that PriceCharting is right and the sales behind the anchor are the problem
+    (the card stays held until he marks them); "unmarked" clears the verdict. The note is kept with it."""
     v = state["vps"]
+    if st == "pc stale":
+        st = "pc inaccuracy"
     if st not in CARD_STATES:
+        return
+    if st == "unmarked":
+        (v.get("gap_marks") or {}).pop(str(cid), None)
+        v["flag_t"] = t
+        log(f"Flags: card {cid} verdict cleared")
         return
     v.setdefault("gap_marks", {})[str(cid)] = {"state": st, "note": str(note or "")[:1000], "t": es.ts(es.NOW), "mt": t}
     v["flag_t"] = t
@@ -1322,12 +1379,29 @@ def fc_rows_file(state, cards, live_ids):
         if rows:
             out[str(cid)] = rows
             n += len(rows)
-    return {"t": es.ts(es.NOW), "n": n, "rows": out}
+    # the sales behind every card's anchor (the popup's "Sales behind the anchor" chip, 2026-10-25): the Raw Data row of
+    # each, newest first, the ones Brett marked out of the anchor included (their flag shows why)
+    sales, ns = {}, 0
+    for cid, recs in es.anchor_sales_all(state).items():
+        cs = cards.get(str(cid))
+        if not cs:
+            continue
+        rows = []
+        for r in recs:
+            try:
+                rows.append(es.live_row(r, cs))
+            except Exception:
+                continue
+        if rows:
+            sales[str(cid)] = rows
+            ns += len(rows)
+    return {"t": es.ts(es.NOW), "n": n, "rows": out, "sales": sales, "ns": ns}
 
 
-def read_requests(state):
+def read_requests(state, cat=None, cards=None):
     """What the Alerts tab sent since the last look: new settings, or a request for a test alert. A message counts
-    only when its signature is right and it is newer than the last one acted on."""
+    only when its signature is right and it is newer than the last one acted on. cat / cards: for a flag on a listing
+    not yet in the archive (its snapshot wants the card's words and stats)."""
     if DRY_RUN or not es.PASSWORD:
         return
     v = state["vps"]
@@ -1390,7 +1464,7 @@ def read_requests(state):
         elif msg.get("type") == "cond" and msg.get("i"):          # the condition from the photos, answered on the site (2026-10-25)
             cond_set(state, str(msg["i"])[:60], msg.get("v"), t)
         elif msg.get("type") == "flag" and msg.get("i"):          # a mark in the Flags archive (2026-10-25)
-            flag_mark(state, str(msg["i"])[:60], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
+            flag_mark(state, cat, cards, str(msg["i"])[:60], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
         elif msg.get("type") == "gapmark" and msg.get("c") is not None:   # a card verdict in the Flags archive
             gap_mark(state, str(msg["c"])[:12], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
         elif msg.get("type") == "pcimg" and msg.get("c") is not None:   # Review pressed on a card without its picture
@@ -2530,9 +2604,10 @@ def auction_alerts(state, cat, cards, cfg):
     if box.get("hour") != es.ts(es.NOW)[:13]:
         box["hour"], box["n"] = es.ts(es.NOW)[:13], 0
     cands = []
+    flagged = {i for i, e in (v.get("flags") or {}).items() if e.get("state", "unmarked") != "unmarked"}   # his flags: no alert (2026-10-25)
     for x in j.get("itemSummaries") or []:
         iid, end = x.get("itemId"), x.get("itemEndDate")
-        if not iid or not end:
+        if not iid or not end or iid in flagged:
             continue
         end = end[:19] + "Z"
         left = (es.parse_ts(end) - es.NOW).total_seconds() / 60
@@ -2982,7 +3057,7 @@ def code_update():
 
 # ---------------- the loop ----------------
 def cycle(state, cat, sched, counters):
-    read_requests(state)
+    read_requests(state, cat, counters.get("_cards"))
     cfg = apply_settings(state)
     now = clock(state)
     v = state.setdefault("vps", {})
@@ -3206,6 +3281,7 @@ def cycle(state, cat, sched, counters):
     live["alert"]["flag_n"] = {"total": len(fl), "unmarked": sum(1 for e in fl.values() if e.get("state", "unmarked") == "unmarked"),
                                "held": sum(1 for cs in cards.values() if cs.get("gap_hold")), "t": v.get("flag_t", 0)}
     live["alert"]["gap_marks"] = {k: {"state": m.get("state"), "t": m.get("t")} for k, m in (v.get("gap_marks") or {}).items()}
+    live["alert"]["fl"] = flag_states_live(state)            # every tab's Flag / State columns (2026-10-25)
     pc = pc_worker()                                         # the background reader: file what it found, hand it the next plan
     got, urgent = file_pc_images(state, pc)
     counters["pc_img"] += got
