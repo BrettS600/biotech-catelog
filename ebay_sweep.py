@@ -120,6 +120,8 @@ DEPTH_CAP = 3                # calibration records keep the rank a listing enter
 ANCHOR_WINDOW_D = 30
 ANCHOR_WIDE_D = 60           # fallback window when the 30-day one holds fewer than ANCHOR_MIN sales
 ANCHOR_MIN = 5               # sales needed before the gate trusts A
+GAP_HOLD_PCT = 30.0          # eBay's anchor and PriceCharting's price this far apart (%) = the card is held from buys and hits until Brett reviews it (2026-10-25)
+GAP_RELEASE_D = 30           # a card verdict in the Flags archive (any state but "unknown") releases the hold for this long
 ANCHOR_HL_MIN = 8            # Hodges-Lehmann from this many trimmed sales; weighted median below
 ANCHOR_HALF_LIFE_D = 10.0    # a sale 10 days old counts half as much as one today
 FAST_MIN = 8                 # fast-sale cross-check needs this many sales that sold within FAST_HRS of listing
@@ -1977,7 +1979,7 @@ def verify_hits(state, cat, cards, max_calls=VERIFY_MAX_CALLS):
 # applies on its own), no returns (0 of 46). A photo also used by another seller (8 of 16 gone, none sold) now makes
 # a listing suspect by itself. Old records keep the codes they were stamped with, so the labels stay.
 SCAM_POINTS = {"p50": 4, "p65": 2, "p75": 1, "fb0": 3, "fbq": 1, "img": 1, "qty": 2, "dup": 3, "slow": 1,
-               "top": -2, "est": -1, "burst": 0, "fb1": 1, "pct": 2, "ret": 1}
+               "top": -2, "est": -1, "burst": 0, "fb1": 1, "pct": 2, "ret": 1, "fsl": 5}
 SCAM_LABELS = {
     "p50": "priced under 50% of the card's price", "p65": "priced 50-65% of the card's price",
     "p75": "priced 65-75% of the card's price", "fb0": "seller feedback under 10", "fb1": "seller feedback 10-49",
@@ -1985,6 +1987,7 @@ SCAM_LABELS = {
     "qty": "3+ copies available of a $75+ card", "dup": "photo also used by another seller",
     "ret": "no returns and priced under 65%", "slow": "delivery window over 10 days",
     "top": "Top Rated Plus", "est": "500+ feedback at 99%+", "burst": "same-day burst from an unseen seller",
+    "fsl": "a listing or seller you marked as fraud",   # the Flags archive's fraud mark (2026-10-25)
 }
 
 
@@ -2000,6 +2003,7 @@ def score_listings(state):
     recs_all = opens + state["closed"]
     cache = state.get("price_cache", {})
     day_ago = NOW - timedelta(hours=24)
+    fraud_sellers = set((state.get("vps") or {}).get("fraud_sellers") or [])
     # photo reuse: image id -> sellers that used it
     img_sellers = defaultdict(set)
     for r in recs_all:
@@ -2063,8 +2067,10 @@ def score_listings(state):
             pts -= 2; why.append("top")
         if fb is not None and fb >= 500 and pct is not None and pct >= 99:
             pts -= 1; why.append("est")
-        tier = "suspect" if (pts >= SCAM_SUSPECT or "dup" in why) else "watch" if pts >= SCAM_WATCH else "clean"
         sl = r.get("seller")
+        if r.get("fraud") or (sl and sl in fraud_sellers):     # Brett marked this listing, or this seller's, as fraud (the Flags archive, 2026-10-25)
+            pts += SCAM_POINTS["fsl"]; why.append("fsl")
+        tier = "suspect" if (pts >= SCAM_SUSPECT or "dup" in why or "fsl" in why) else "watch" if pts >= SCAM_WATCH else "clean"
         if tier == "watch" and sl and burst_n[sl] >= SCAM_BURST_N and sl not in prior:
             tier = "suspect"; why.append("burst")
         r["sc"], r["scr"], r["tier"] = pts, why, tier
@@ -2207,6 +2213,30 @@ def stale_days(lam):
     if not lam:
         return None
     return min(7.0, max(1.0, STALE_K / lam))
+
+
+def cond_known(r):
+    """Is the listing's condition settled - a grade in the title, or eBay's condition field read (ec set, even to "")?
+    An unread copy shows "?" on the site and counts in nothing on the Forecast tab until it is read (Brett, 2026-10-25)."""
+    return r.get("tcond", "UNK") != "UNK" or "ec" in r
+
+
+def card_gap(state, cid, a, a_n, pc):
+    """eBay's anchor against PriceCharting's price, in percent, for a card with a backed anchor (ANCHOR_MIN sales), and
+    whether that gap holds the card: at GAP_HOLD_PCT or more apart one of the two is wrong - the card is out of the buys
+    and the hits until Brett reviews it in the Flags archive; a card verdict there (any state but "unknown") releases
+    it for GAP_RELEASE_D days (Brett, 2026-10-25). -> (gap or None, 1 / 0)."""
+    if a is None or (a_n or 0) < ANCHOR_MIN or not pc or pc <= 0:
+        return None, 0
+    gap = round((a / pc - 1) * 100, 1)
+    if abs(gap) < GAP_HOLD_PCT:
+        return gap, 0
+    gm = ((state.get("vps") or {}).get("gap_marks") or {}).get(str(cid))
+    if gm and gm.get("state") not in (None, "", "unknown", "unmarked"):
+        t = parse_ts(gm.get("t") or "")
+        if t is not None and (NOW - t).total_seconds() < GAP_RELEASE_D * 86400:
+            return gap, 0
+    return gap, 1
 
 
 def credible(book, a, lam):
@@ -2536,6 +2566,7 @@ def compute_stats(state, cat, lp):
         cred = credible(book, A, lam)
         L = cred[0][1] if cred else None
         S = sell_price(L, A, A_fast)
+        gap, gap_hold = card_gap(state, cid, A, A_n, (by_id.get(cid) or {}).get("pc"))
         price = A if A is not None else (p[0] if p[0] is not None else smed)
         probT = round((1 - math.exp(-lam * SELL_WINDOW_H / 24)) * 100, 1) if lam else None
         edays = round(-math.log(1 - CONFIDENCE) / lam, 1) if lam else None       # days at rank 1 to reach the confidence
@@ -2603,10 +2634,12 @@ def compute_stats(state, cat, lp):
             "basis": basis, "probT": probT, "edays": edays, "csell": r2(csell), "net": net, "maxbuy": maxbuy,
             "hot": hot, "confirm": confirm,
             "pc": (by_id.get(cid) or {}).get("pc"), "pcv": (by_id.get(cid) or {}).get("vol"),
+            "gap": gap, "gap_hold": gap_hold,        # eBay's anchor against PriceCharting (%), and whether the gap holds the card (2026-10-25)
             "tw": twins.get(cid),                    # a cheaper anniversary reprint with this card's number: [cut, [[set, price, id]]]
             "checks": [key for key, v in checks.items() if not v], "lpd": round(lpd * 100, 1),
             "book": [[r["id"], r["total"], r["item"], r["ship"], r.get("tcond", "UNK"), int(r["bo"]), r["fb"], r["pct"],
-                      round(hours_between(parse_ts(r["origin"] or r["first"]) or NOW, NOW), 1), r["url"], r["title"]]
+                      round(hours_between(parse_ts(r["origin"] or r["first"]) or NOW, NOW), 1), r["url"], r["title"],
+                      1 if cond_known(r) else 0, r.get("tier", "clean")]      # 11: the condition is known (the title or eBay's field), 12: the scam tier (2026-10-25)
                      for r in book[:8]],
             "sold": [[r["closed"][:10], r["total"], r["hrs"], r.get("tcond", "UNK"), int(r["bo"]), r["url"], r["title"]]
                      for r in sold_sorted[-10:]][::-1],
@@ -2723,6 +2756,8 @@ def verdict(rec, cs):
         if not cs or cs.get("A") is None:
             return ("no sales yet" if cs else "no data yet"), allin
         return f"too few sales ({cs.get('A_n', 0)})", allin
+    if cs.get("gap_hold"):                           # eBay's anchor and PriceCharting 30%+ apart: held until Brett reviews the card (Flags)
+        return "PC gap", allin
     if not cs.get("liquid"):
         return "not liquid", allin
     if rec.get("tcond", "UNK") not in COMPARABLE_CONDS:
@@ -2818,7 +2853,7 @@ def live_row(r, cs):
             1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
             (r.get("imgs") or [])[1:4],                    # 33: the listing's other photos (the first is 20), for the Review screen
             facts_row(r),                                  # 34: eBay's facts (None = not looked up, [] = none on the listing)
-            r.get("ec") or "",                             # 35: the condition eBay states on the listing ("" = not read / none)
+            r["ec"] if "ec" in r else None,                # 35: the condition eBay states on the listing (None = never read, "" = read, none stated; 2026-10-25)
             r.get("bc") or "",                             # 36: Brett's own grade from the photos (2026-10-25); when set, 13 carries it ...
             seller_cond(r) if r.get("bc") else ""]         # 37: ... and this is the seller's own basis (eBay's field, else the title)
 
