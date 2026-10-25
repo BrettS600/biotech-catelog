@@ -156,7 +156,7 @@ const LIVE = {data: null, ec: [], er: [], prevT: null, sets: null};      // fill
    live.favs (list + t) - so the same stars show on every device. The Favorites tab re-renders the pointed-at rows from
    the live data through the source tab's own columns (fvBuild, below TABLES). The collector keeps a starred listing's
    record and photos past the usual prune and follows it to its outcome. */
-const FAV_MAX = 400, FAV_SRC_NAME = {pc: 'PriceCharting', ec: 'eBay Catalog', er: 'eBay Raw Data', fc: 'Forecast', um: 'Unmatched titles'};
+const FAV_MAX = 400, FAV_SRC_NAME = {pc: 'PriceCharting', ec: 'eBay Catalog', er: 'eBay Raw Data', fc: 'Forecast', fl: 'Forecast', um: 'Unmatched titles'};   // fl: a listing starred on the Forecast tab (a card's popup, the plan) - kept in the Forecast view, not in Raw Data (2026-10-25)
 const FAVS = {};                                   // 's:k' -> {v: 1 | 0, t, f} until the collector confirms (live.favs.t >= t)
 const FAV_META = new Map();                        // 's:k' -> {c, m} of every star drawn on the page: what a click sends
 let FAV_MAP = new Map(), FAV_LAST_T = 0;           // 's:k' -> {s, k, c, t, m}: the favorites as the page knows them now
@@ -168,7 +168,7 @@ function favIndex() {                              // the collector's list, with
   FAV_MAP = out;
   return out;
 }
-const favCard = f => f.c != null ? +f.c : f.s !== 'er' && f.s !== 'um' ? +f.k : null;   // the card a favorite points at, if any
+const favCard = f => f.c != null ? +f.c : f.s !== 'er' && f.s !== 'um' && f.s !== 'fl' ? +f.k : null;   // the card a favorite points at, if any
 const isFav = (s, k) => FAV_MAP.has(favKey(s, k));
 const favOn = key => key.slice(0, 4) === 'all:' ? FV_FROM.has(+key.slice(4)) : FAV_MAP.has(key);   // the All view's star stands for every star on the card
 const favTitle = on => on ? 'In your Favorites — click to remove' : 'Add to Favorites';
@@ -182,6 +182,14 @@ function favBtn(s, k, c, m, cls) {
 // the star cell of a table row: f = the table's fav config {s (a tab, or a function of the row), k, c, m}
 const favCell = (f, r) => { const s = typeof f.s === 'function' ? f.s(r) : f.s, k = f.k(r); return '<td class="favc">' + (k == null || k === '' ? '' : favBtn(s, k, f.c ? f.c(r) : null, f.m ? f.m(r) : null)) + '</td>'; };
 const favMetaEr = r => ({ti: String(r[6] || '').slice(0, 90), u: r[20] || null, p: r[9] == null ? null : r[9]});   // what a listing's star keeps
+function favMetaFl(r) {                            // a listing starred on the Forecast tab: the words, plus the model's figures for it at that moment (the hold, the chance, the net per copy, the sell level)
+  const m = favMetaEr(r); m.h = (FC.inputs || {}).h || (+$('fc-h').value || 3); m.c = r[56] == null ? null : r[56];
+  try {
+    const doc = FC.doc, a = doc && FC.ix && r[0] != null ? doc.cards[String(r[0])] : null, pct = a ? a[FC.ix['pct' + m.h]] : null, tab = pct == null ? null : fcTable(m.h, fcBucket(pct));
+    if (tab && r[9] != null && r[9] > 0) { const lv = fcLevels(LIVE.dec && LIVE.dec[String(r[0])], a[FC.ix.buy], r[22]), d = fcDist(r[9], tab, settings(), 0, lv.sell); m.lo = r2(d.lo); m.med = r2(d.med); m.hi = r2(d.hi); m.sell = r2(lv.sell); }
+  } catch (e) { /* the words alone, then */ }
+  return m;
+}
 function favSend(s, k, c, m, on) {                 // show it now, tell the collector, take it back if the channel fails
   const key = favKey(s, k), t = FAV_LAST_T = Math.max(Date.now(), FAV_LAST_T + 1);   // strictly increasing: the collector drops a message older than its last
   FAVS[key] = {v: on ? 1 : 0, t, f: {s, k: String(k), c: c == null ? null : c, t, m: m || null}};
@@ -429,7 +437,7 @@ function favRowsAll() {
   for (const f of [...FAV_MAP.values()].sort((a, b) => b.t - a.t)) {
     const cid = favCard(f); if (cid == null) continue;
     const e = FV_FROM.get(cid) || {srcs: new Set(), n: 0, titles: [], t: f.t}; FV_FROM.set(cid, e);
-    if (f.s === 'er') { e.n++; const ti = ((LIVE.erMap && LIVE.erMap.get(f.k)) || [])[6] || (f.m && f.m.ti) || ''; if (ti) e.titles.push(ti); } else e.srcs.add(f.s);
+    if (f.s === 'er' || f.s === 'fl') { e.n++; const ti = ((LIVE.erMap && LIVE.erMap.get(f.k)) || [])[6] || (f.m && f.m.ti) || ''; if (ti) e.titles.push(ti); if (f.s === 'fl') e.srcs.add('fc'); } else e.srcs.add(f.s);
   }
   const m = LIVE.ecMap || new Map(), out = [];
   for (const cid of FV_FROM.keys()) { const r = m.get(cid) || ecStub(cid); if (r) out.push(r); }
@@ -491,7 +499,8 @@ const FV_TABLES = {                                // the Favorites views: the s
 const FCL = {cid: null, rows: [], ua: 0, file: null, loaded: 0};
 try { const u = +localStorage.getItem('fc-ua'); if (u >= 0 && u <= 80) FCL.ua = u; } catch (e) {}
 const fclOk = r => r[19] === 'open' && (!(FCL.ua > 0) || (r[12] != null && -r[12] >= FCL.ua));
-const FCL_TABLE = Object.assign({}, TABLES.er, {rows: () => FCL.rows, extra: fclOk, ranges: [], maxes: [], chips: [], defaults: {}, store: 'fc', root: '#lov', name: 'Listings', noun: 'listings'});
+const FCL_TABLE = Object.assign({}, TABLES.er, {rows: () => FCL.rows, extra: fclOk, ranges: [], maxes: [], chips: [], defaults: {}, store: 'fc', root: '#lov', name: 'Listings', noun: 'listings',
+                                                 fav: {s: 'fl', k: r => r[22], c: r => r[0], m: r => favMetaFl(r)}});   // its star files the listing under the Favorites tab's Forecast view (2026-10-25, Brett)
 function fclBuild() {                              // the popup's header row: a copy of the Raw Data tab's, before makeTable decorates the original
   const lov = $('lov'); if (!lov) return;
   const thead = document.querySelector('#p-er thead').cloneNode(true);
@@ -513,7 +522,7 @@ function fvBuild() {                               // the Favorites tab's tables
 }
 function fvCounts() {                              // the chips' counts and the tab's; All counts cards once (plus the unmatched titles)
   const n = {all: 0, pc: 0, ec: 0, er: 0, fc: 0}, cards = new Set(); let um = 0;
-  for (const f of FAV_MAP.values()) { if (f.s === 'um') { n.er++; um++; continue; } n[f.s] = (n[f.s] || 0) + 1; const c = favCard(f); if (c != null) cards.add(c); }
+  for (const f of FAV_MAP.values()) { if (f.s === 'um') { n.er++; um++; continue; } const s = f.s === 'fl' ? 'fc' : f.s; n[s] = (n[s] || 0) + 1; const c = favCard(f); if (c != null) cards.add(c); }
   n.all = cards.size + um;
   const el = $('nfv'); if (el) el.textContent = FAV_MAP.size ? '(' + FAV_MAP.size + ')' : '';
   return n;
@@ -541,11 +550,14 @@ function fvRenderUm() {                            // the strip under the All vi
   box.innerHTML = '<h3>Unmatched titles you starred (' + L.length + ')</h3><p class="dim">Listings the title parser could not tie to a card: with no catalog row to sit on, they are listed here (and in the eBay Raw Data view).</p><table><tbody>' +
     L.map(f => { const m = f.m || {}; return '<tr><td class="favc">' + favBtn('um', f.k, null, m, 'sm') + '</td><td class="ttl"><a href="' + esc(m.u || '#') + '" target="_blank" rel="noopener">' + esc(m.ti || f.k) + '</a></td><td class="num">' + fmtMoney(m.p) + '</td><td class="dim">' + esc(m.why || '') + '</td><td class="dim">starred ' + rvWhen(new Date(f.t).toISOString()) + '</td></tr>'; }).join('') + '</tbody></table>';
 }
-function fvRenderFc() {                            // the Forecast view: each pick as it stood when starred, and where it is on the tab now
-  const box = $('fv-fcbody'), L = favsOf('fc');
-  if (!L.length) { box.innerHTML = '<p class="dim">Nothing starred on the Forecast tab yet. The star beside a card there keeps it here with the hold, the discount and the numbers it had.</p>'; return; }
+function fvRenderFc() {                            // the Forecast view: each pick as it stood when starred, and where it is on the tab now; then the listings starred there
+  const box = $('fv-fcbody'), L = favsOf('fc'), LL = favsOf('fl');
+  if (!L.length && !LL.length) { box.innerHTML = '<p class="dim">Nothing starred on the Forecast tab yet. The star beside a card there keeps it here with the hold, the discount and the numbers it had; the star on a listing in a card\u2019s popup or on your plan keeps the listing here.</p>'; return; }
   const now = new Map((FC.rows || []).map(r => [r.cid, r])), I = FC.inputs;
-  let h = '<p class="dim">Each row keeps the forecast as it stood when you starred it: the hold, the discount, the price, the net per copy (10th percentile – median – 90th) and the chance of a profit. "Now" is the same card on the Forecast tab at its current settings' + (I ? ' (' + I.h + '-month hold' + (I.disc ? ', bought ' + (I.disc * 100).toFixed(0) + '% under' : ', standard price') + ')' : '') + '.</p>';
+  let h = '';
+  if (LL.length) h += fvRenderFl(LL, I);
+  if (!L.length) { box.innerHTML = h; box.querySelectorAll('table[data-sel]').forEach(selApply); return; }
+  h += (LL.length ? '<h3>Cards starred on the Forecast tab</h3>' : '') + '<p class="dim">Each row keeps the forecast as it stood when you starred it: the hold, the discount, the price, the net per copy (10th percentile – median – 90th) and the chance of a profit. "Now" is the same card on the Forecast tab at its current settings' + (I ? ' (' + I.h + '-month hold' + (I.disc ? ', bought ' + (I.disc * 100).toFixed(0) + '% under' : ', standard price') + ')' : '') + '.</p>';
   h += '<table data-sel="fvfc"><thead><tr><th></th><th>Card</th><th>Hold</th><th>Bought at</th><th class="num">Price then</th><th class="num">Net per copy then</th><th class="num">Chance then</th><th class="num">Copies</th><th>Starred</th><th class="num">Now</th></tr></thead><tbody>';
   L.forEach(f => {
     const m = f.m || {}, base = idRow.get(+f.k) || [], r = now.get(+f.k);
@@ -554,7 +566,32 @@ function fvRenderFc() {                            // the Forecast view: each pi
       '<td class="num">' + (m.med == null ? dash : fcMoney2(m.lo) + ' – <b>' + fcMoney2(m.med) + '</b> – ' + fcMoney2(m.hi)) + '</td><td class="num">' + (m.p == null ? dash : (m.p * 100).toFixed(0) + '%') + '</td><td class="num">' + (m.q ? m.q : dash) + '</td>' +
       '<td>' + rvWhen(new Date(f.t).toISOString()) + '</td><td class="num">' + (r ? (r.p * 100).toFixed(0) + '% · ' + fcMoney2(r.med) + (r.qty ? ' · buy ' + r.qty : '') : '<span class="dim">' + (FC.doc ? 'not on the list now' : 'model not loaded') + '</span>') + '</td></tr>';
   });
-  box.innerHTML = h + '</tbody></table>'; selApply(box.querySelector('table'));
+  box.innerHTML = h + '</tbody></table>'; box.querySelectorAll('table[data-sel]').forEach(selApply);
+}
+function flRowOf(iid, cid) {                       // the listing's row as the page knows it now: the 24-hour table, the collector's rows for starred / planned listings, the Forecast tab's listings file
+  let r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.favEr && LIVE.favEr.get(iid)) || null;
+  if (!r && cid != null && idRow.get(+cid)) {
+    const S = settings(), base = idRow.get(+cid), cs = LIVE.dec && LIVE.dec[String(cid)];
+    const x = ((LIVE.data && LIVE.data.plan && LIVE.data.plan.rows) || {})[iid] || ((FCL.file && FCL.file.rows && FCL.file.rows[String(cid)]) || []).find(y => y[0] === iid);
+    if (x) r = erowOf(x, S, base, cs);
+  }
+  return r;
+}
+function fvRenderFl(LL, I) {                        // the listings starred on the Forecast tab (a card's popup, the plan): the figures they had, and where each stands now
+  const S = settings();
+  let h = '<h3>Listings starred on the Forecast tab</h3><p class="dim">The star in a card\u2019s popup or on your plan keeps the listing here with the model\u2019s figures for it at that moment: its price, the hold, the net per copy (10th percentile – median – 90th) at that price and the chance of a profit. "Now" is the listing\u2019s status today and its chance at the Forecast tab\u2019s current hold' + (I ? ' (' + I.h + ' months)' : '') + '. Click the card for its open copies.</p>';
+  h += '<table data-sel="fvfl"><thead><tr><th></th><th>Card</th><th>Listing</th><th class="num">Price then</th><th>Hold</th><th class="num">Net per copy then</th><th class="num">Chance then</th><th>Starred</th><th>Now</th></tr></thead><tbody>';
+  LL.forEach(f => {
+    const m = f.m || {}, cid = f.c == null ? null : +f.c, base = (cid != null && idRow.get(cid)) || [], r = flRowOf(f.k, cid);
+    const st = r ? r[19] : 'unknown', total = r ? r[9] : m.p, pNow = r && FC.doc && cid != null ? fcListing(cid, total, f.k, I ? I.h : (m.h || 3), S) : null;
+    h += '<tr data-key="' + esc(f.k) + '"><td class="favc">' + favBtn('fl', f.k, cid, m, 'sm') + '</td>' +
+      '<td>' + (cid != null ? '<a href="#" class="fcl-open" data-id="' + cid + '" title="The open copies of this card">' + esc(base[1] || ('card ' + cid)) + '</a>' : '<span class="dim">no card</span>') + (base[2] ? '<br><span class="dim">' + esc(String(base[2]).replace(/^Pokemon /, '')) + '</span>' : '') + '</td>' +
+      '<td class="ttl"><a href="' + esc((r && r[20]) || m.u || '#') + '" target="_blank" rel="noopener" title="' + esc((r && r[6]) || m.ti || '') + '">' + esc(String((r && r[6]) || m.ti || f.k).slice(0, 70)) + '</a></td>' +
+      '<td class="num">' + (m.p == null ? dash : fmtMoneyPlain(m.p)) + (m.sell != null ? '<br><span class="dim">sells ' + fmtMoneyPlain(m.sell) + '</span>' : '') + '</td><td>' + (m.h ? m.h + ' mo' : dash) + '</td>' +
+      '<td class="num">' + (m.med == null ? dash : fcMoney2(m.lo) + ' – <b>' + fcMoney2(m.med) + '</b> – ' + fcMoney2(m.hi)) + '</td><td class="num">' + (m.c == null ? dash : Math.round(m.c * 100) + '%') + '</td>' +
+      '<td>' + rvWhen(new Date(f.t).toISOString()) + '</td><td>' + (st === 'open' ? '<span class="up">open</span>' : st === 'unknown' ? '<span class="dim">not on record</span>' : '<span class="down">' + esc(st) + '</span>') + (r && total != null && total !== m.p ? ' · ' + fmtMoneyPlain(total) : '') + (pNow != null ? ' · ' + Math.round(pNow * 100) + '% chance' : '') + '</td></tr>';
+  });
+  return h + '</tbody></table>';
 }
 
 /* ---------------- Raw Data's auction view: "Auctions sent to my phone" ----------------
@@ -1199,7 +1236,7 @@ fvBuild();                                                // the Favorites tab's
 fclBuild();                                               // ... and the Forecast tab's card popup's
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 for (const id in FV_TABLES) tables[id] = makeTable(id, FV_TABLES[id]);
-if ($('lov')) tables.fcl = makeTable('fcl', FCL_TABLE);
+if ($('lov')) { tables.fcl = makeTable('fcl', FCL_TABLE); const fb = [...$('ranges-fcl').querySelectorAll('button.reset')].find(b => b.textContent === 'Filters\u2026'); if (fb) fb.remove(); }   // the popup has no filter chips, so no Filters... button
 periodBar('rv', () => tables.rv.apply());
 periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); }, 'd');   // the period chooses the table's rows too; starts on today
 tables.rv.apply();
@@ -1503,9 +1540,9 @@ function applyRead(iid, m) {
 function openReview(iid) {
   // the row may be a live listing, an auction sent to the phone or a hit from the history - those two outlive the
   // 24-hour table, so the button failed on them until 2026-10-17 (Brett: "the review button does not work for auctions")
-  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid) || (LIVE.favEr && LIVE.favEr.get(iid));
+  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid) || (LIVE.favEr && LIVE.favEr.get(iid)) || (typeof FCL !== 'undefined' && (FCL.rows || []).find(z => z[22] === iid));   // ... or a row of the Forecast tab's popup (2026-10-25)
   if (!r) return;
-  const x = (LIVE.data.live || []).find(z => z[0] === iid) || ((LIVE.data.favs || {}).rows || {})[iid] || [];
+  const x = (LIVE.data.live || []).find(z => z[0] === iid) || ((LIVE.data.favs || {}).rows || {})[iid] || ((LIVE.data.plan || {}).rows || {})[iid] || (typeof FCL !== 'undefined' && FCL.file && FCL.file.rows && (FCL.file.rows[String(r[0])] || []).find(z => z[0] === iid)) || [];
   const cs = (LIVE.dec || {})[String(r[0])] || {}, base = idRow.get(r[0]) || [];
   const big = u => String(u || '').replace(/s-l\d+\./, 's-l1600.');
   const pics = [r[21]].concat(x[33] && x[33].length ? x[33] : r.pics || []).filter(Boolean);
@@ -1693,6 +1730,7 @@ function rebuildLive() {
   tables.pc.apply(true); tables.ec.apply(true); tables.er.apply(true);   // true: a refresh keeps the rows already shown (Show more) on view
   fvCounts(); if (!$('p-fv').hidden) fvRender();        // the Favorites tab follows the live data too
   planPaint();                                          // ... and the + buttons and the Planning view
+  if ($('lov') && $('lov').classList.contains('open') && FCL.cid != null && tables.fcl) { FCL.rows = fclRowsFor(FCL.cid); tables.fcl.resync(); tables.fcl.apply(); }   // ... and the card popup, if one is open (a Review answered, a copy sold)
   if (!$('p-fh').hidden) fhRender();                     // ... and the Forecast history tab's live plans
   try { if (FC.doc) fcCompute(); else loadForecast(); } catch (e) { console.error('forecast', e); }   // the Forecast tab: eBay supply changed, or the model file is not in yet; never in the way of the live tabs
 }
@@ -2897,7 +2935,7 @@ function plRender() {
     const costEach = r.total == null ? null : r.total * (1 + S.tax), note = r.tab ? fcSellNote(r) : '';
     const listing = (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" title="' + esc(r.title) + '">' + esc(String(r.title || r.iid).slice(0, 60)) + '</a>' : esc(String(r.title || r.iid).slice(0, 60))) +
       '<br><span class="dim">' + (r.status === 'open' ? 'open' : r.status === 'unknown' ? 'not on record' : '<span class="down">' + esc(r.status) + '</span>') + (r.cond ? ' · ' + (r.cond === 'UNK' ? 'n/s' : esc(r.cond)) : '') + (r.fb != null ? ' · seller ' + fmtInt(r.fb) + (r.pctFb != null ? ' · ' + r.pctFb.toFixed(1) + '%' : '') : '') + (r.hours != null ? ' · listed ' + (r.hours < 48 ? r.hours.toFixed(0) + ' h' : (r.hours / 24).toFixed(0) + ' d') + ' ago' : '') + '</span>';
-    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + esc(r.iid) + '"><td class="favc">' + favBtn('er', r.iid, r.cid, {ti: String(r.title || '').slice(0, 90), u: r.url, p: r.total}, 'sm') + ' ' + planBtn(r.iid, r.cid, r.m, 'sm') + '</td>' +
+    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + esc(r.iid) + '"><td class="favc">' + favBtn('fl', r.iid, r.cid, Object.assign({ti: String(r.title || '').slice(0, 90), u: r.url, p: r.total, h: I.h}, r.tab ? {c: Math.round(r.p * 1000) / 1000, lo: r2(r.lo), med: r2(r.med), hi: r2(r.hi), sell: r2(r.sell)} : {}), 'sm') + ' ' + planBtn(r.iid, r.cid, r.m, 'sm') + '</td>' +
       '<td>' + (r.cid != null ? '<a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card">' + esc(r.name) + '</a>' : esc(r.name)) + '<br><span class="dim">' + esc(r.set) + '</span>' + (r.tab ? '<br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span>' : '') + '</td>' +
       '<td class="num">' + (r.total == null ? dash : fmtMoneyPlain(r.total)) + (note || (r.price != null && r.total != null && Math.abs(r.total - r.price) > 0.005) ? '<br><span class="dim' + (r.sell && (r.total < 0.7 * r.sell || r.total > 1.3 * r.sell) ? ' down' : '') + '">' + [note, r.price != null && Math.abs(r.total - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td>' +
       '<td class="ttl">' + listing + '</td>' +
