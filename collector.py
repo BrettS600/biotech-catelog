@@ -1213,6 +1213,56 @@ def flag_mark(state, cat, cards, iid, st, note, t):
     log(f"Flags: {iid} " + ("unflagged" if st == "unmarked" else f"marked {st}") + (f" ({len(note)} chars of note)" if note else ""))
 
 
+PC_SPREAD_BAR = 0.5              # the automatic "PC inaccuracy" (2026-10-25): the middle half of PriceCharting's last ungraded
+PC_SPREAD_EVERY_S = 6 * 3600     # sales (90 days, 6+ of them) spans this share of their median or more; judged this often
+
+
+def pc_spread_tick(state):
+    """The automatic PC-inaccuracy verdict (Brett, 2026-10-25: "when you open price chart for a card, you see that there
+    are many listings with radically different values ... measure the variance ... set a threshold ... automatically
+    gets flagged ... PC Inaccuracy"). pchist keeps, for every card whose page was read, the spread of PriceCharting's
+    posted ungraded sales of the last 90 days (pchist.spread: the interquartile range as a share of the median). A
+    card at or over PC_SPREAD_BAR gets the card verdict "pc inaccuracy" with auto = 1 (released from the PC gap hold,
+    its per-listing PriceCharting rule stood down - PriceCharting's price is not to be trusted for it); the verdict
+    is refreshed while the spread stays over the bar and withdrawn when it falls back under. A verdict Brett gave by
+    hand (no auto) is never touched. The distribution is logged so the bar can be judged. -> (cards over the bar,
+    cards measured)."""
+    v = state["vps"]
+    sps = pchist.spreads_all()
+    marks = v.setdefault("gap_marks", {})
+    now = es.ts(es.NOW)
+    over, changed = 0, 0
+    for cid, sp in sps.items():
+        iqr = sp.get("iqr")
+        if iqr is None:
+            continue
+        k = str(cid)
+        gm = marks.get(k)
+        if iqr >= PC_SPREAD_BAR:
+            over += 1
+            if gm and not gm.get("auto"):
+                continue                                     # his own verdict stands
+            note = (f"PriceCharting's last {sp['n']} ungraded sales (90 days) spread \u00b1{iqr * 50:.0f}% around ${sp['med'] / 100:.2f} "
+                    f"(${sp['lo'] / 100:.2f} to ${sp['hi'] / 100:.2f}): its price is not to be trusted for this card")
+            if not gm or gm.get("sp") != [sp["n"], iqr, sp["med"]]:
+                changed += 1
+            marks[k] = {"state": "pc inaccuracy", "note": note, "t": now, "mt": int(time.time() * 1000), "auto": 1, "sp": [sp["n"], iqr, sp["med"]]}
+        elif gm and gm.get("auto"):
+            del marks[k]                                     # back under the bar: the automatic verdict goes
+            changed += 1
+    for k in [k for k, gm in marks.items() if gm.get("auto") and int(k) not in sps]:
+        del marks[k]                                         # no spread on file any more (the page lost its table)
+        changed += 1
+    if changed:
+        v["flag_t"] = int(time.time() * 1000)
+    iq = sorted(sp["iqr"] for sp in sps.values() if sp.get("iqr") is not None)
+    if iq:
+        q = lambda p: iq[min(len(iq) - 1, int(p * len(iq)))]
+        log(f"PC spread: {len(iq):,} cards measured (6+ posted sales in 90 days); iqr/median p50 {q(0.5):.2f}, p75 {q(0.75):.2f}, p90 {q(0.9):.2f}, "
+            f"p95 {q(0.95):.2f}; {over:,} at or over the {PC_SPREAD_BAR} bar = automatic PC inaccuracy ({changed} verdicts changed this pass)")
+    return over, len(iq)
+
+
 def flag_states_live(state):
     """{item id: [kind, state, card id]} for every archived listing - the page's Flag and State columns on every tab
     (his reasons, and the collector's own kinds in grey for the unmarked ones)."""
@@ -3402,6 +3452,11 @@ def cycle(state, cat, sched, counters):
                 counters["au_alerts"] += auction_alerts(state, cat, counters["_cards"], cfg)
             elif trial_on and not alerts_on and due("auctions", AUCTION_EVERY_S):
                 counters["auctions_new"] += auction_read(state, cat, counters["_cards"])
+            if due("pc_spread", PC_SPREAD_EVERY_S):          # the automatic PC inaccuracy (2026-10-25)
+                try:
+                    pc_spread_tick(state)
+                except Exception as e:
+                    log(f"PC spread: failed ({str(e)[:120]})")
             if due("au_supply", AUCTION_SUPPLY_EVERY_S):      # the Forecast tab's auction line (2026-10-25)
                 n_au = auction_supply(state, cat, counters["_cards"])
                 if due("au_supply_log", 6 * 3600):
@@ -3573,7 +3628,7 @@ def cycle(state, cat, sched, counters):
     fl = v.get("flags") or {}
     live["alert"]["flag_n"] = {"total": len(fl), "unmarked": sum(1 for e in fl.values() if e.get("state", "unmarked") == "unmarked"),
                                "held": sum(1 for cs in cards.values() if cs.get("gap_hold")), "t": v.get("flag_t", 0)}
-    live["alert"]["gap_marks"] = {k: {"state": m.get("state"), "t": m.get("t")} for k, m in (v.get("gap_marks") or {}).items()}
+    live["alert"]["gap_marks"] = {k: {"state": m.get("state"), "t": m.get("t"), **({"auto": 1, "sp": m.get("sp")} if m.get("auto") else {})} for k, m in (v.get("gap_marks") or {}).items()}
     live["alert"]["fl"] = flag_states_live(state)            # every tab's Flag / State columns (2026-10-25)
     pc = pc_worker()                                         # the background reader: file what it found, hand it the next plan
     got, urgent = file_pc_images(state, pc)
