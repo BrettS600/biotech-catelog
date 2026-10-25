@@ -189,7 +189,7 @@ al: `
 <p>Between the two hours an alert still lands in the ntfy app, but without sound. Nothing is held back.</p>
 
 <h3>6. Saving</h3>
-<p><b>Save alert settings</b> sends the numbers to the collector over a private, signed channel; only this site, unlocked with your password, can do it. The box on the right, <b>On the collector now</b>, shows what the machine reports is in force. A save usually shows up there within a minute or two. <b>Send test alert</b> checks the path to your phone.</p>
+<p><b>Save alert settings</b> sends the numbers to the collector over a private, signed channel; only this site, unlocked with your password, can do it. The box on the right, <b>On the collector now</b>, shows what the machine reports is in force. A save usually shows up there within a minute or two. <b>Send test alert</b> checks the path to your phone, and sends a sample of the check screen on a real listing with it (the best-looking copy on file), so you can see the screen as it stands: the pictures, your grade (NM / LP / MP / HP / DMG), No with its reason and note (they become the listing\'s flag here), then the figures for the grade you chose, how they are computed, and the forecast holds.</p>
 
 <h3>7. Preview, History and Wrong matches</h3>
 <p><b>Preview</b> runs the last 24 hours of listings through the numbers on the left, saved or not, so you can see what a change would have sent. <b>History</b> lists the last 40 alerts with what you answered on the phone and what became of each listing. <b>Wrong matches</b> keeps, for a year, every clean listing you answered "No, not the same card" to - the cases to tighten the title matcher against.</p>
