@@ -55,6 +55,39 @@ button small { display: block; font-weight: 400; font-size: 14px; margin-top: 4p
 .two button { padding: 18px 6px; }
 .two button small { font-size: 15px; margin-top: 10px; }
 .hide { display: none; }
+/* the condition row (Brett, 2026-10-25: "lets have it so question 1 ask for the condition"): five small buttons, on both screens */
+.cond { margin-top: 12px; }
+.cond .lab { display: block; font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.cbtns { display: flex; gap: 5px; }
+button.cb { flex: 1; padding: 9px 2px; font: 600 15px/1.15 inherit; border-radius: 9px; background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+button.cb small { font-size: 10px; margin-top: 2px; font-weight: 400; color: #8b949e; }
+button.cb.on { background: #1f6feb; border-color: #1f6feb; } button.cb.on small { color: #e6edf3; }
+button.cb.on.bad { background: #da3633; border-color: #da3633; }
+/* the No's reason panel */
+.nopanel { margin-top: 12px; background: #3d0f0f; border: 1px solid #da3633; border-radius: 10px; padding: 10px; }
+.nopanel .lab { display: block; font-size: 11px; color: #ffa198; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.rbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+button.rb { flex: 1 1 30%; padding: 10px 6px; font: 600 14px/1.2 inherit; border-radius: 9px; background: #21262d; border: 1px solid #30363d; color: #e6edf3; }
+button.rb.on { background: #da3633; border-color: #da3633; }
+.nopanel textarea { width: 100%; margin-top: 8px; min-height: 64px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #e6edf3; font: 15px/1.3 inherit; padding: 8px; }
+.nopanel .send { margin-top: 8px; display: flex; gap: 10px; align-items: center; }
+.nopanel .send button { flex: 1; padding: 12px 8px; font-size: 16px; background: #da3633; }
+.nopanel .send button:disabled { background: #30363d; }
+.nopanel .send a { color: #8b949e; flex: none; }
+.nopanel .rwhat { font-size: 12px; color: #ffa198; margin-top: 6px; }
+/* the second question: one block for the grade chosen; red when over the max, still a link to the listing */
+button.over { background: #da3633; }
+.fig { margin-top: 10px; }
+.nobuy { margin-top: 10px; background: #3d0f0f; border: 1px solid #da3633; border-radius: 12px; padding: 14px 12px; font-size: 16px; }
+.nobuy a { color: #58a6ff; display: block; margin-top: 8px; }
+.how { margin-top: 14px; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.how h3 { font-size: 12px; margin: 0 0 6px; color: #8b949e; text-transform: uppercase; letter-spacing: .04em; }
+.how ul { margin: 0; padding-left: 16px; } .how li { margin: 2px 0; } .how b { color: #e6edf3; }
+.how table { width: 100%; border-collapse: collapse; margin-top: 4px; } .how td, .how th { text-align: left; padding: 3px 4px; border-bottom: 1px solid #30363d; font-size: 13px; }
+.how th { color: #8b949e; font-weight: 600; } .how td.num, .how th.num { text-align: right; } .how tr.pick td { color: #e6edf3; font-weight: 600; }
+.how .ok { color: #3fb950; } .how .bad { color: #f85149; }
+.kind { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #238636; margin-left: 6px; vertical-align: middle; }
+.kind.fc { background: #1f6feb; } .kind.lead { background: #9e6a03; } .kind.au { background: #6e40c9; } .kind.test { background: #30363d; }
 #msg { margin-top: 30px; text-align: center; font-size: 18px; }
 a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
 </style></head><body>
@@ -70,17 +103,24 @@ a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
   <div class="rp hide" id="rp"></div>
   <div class="rows" id="rows"></div>
   <div class="scam hide" id="scam"></div>
-  <div class="btns"><button class="no" id="no">No<small>not the same card</small></button><button class="yes" id="yes">Yes<small>same card</small></button></div>
+  <div class="cond" id="cond1"><span class="lab">Your grade from the photos</span><div class="cbtns"></div><div class="dim" id="condnote"></div></div>
+  <div class="btns" id="q1btns"><button class="no" id="no">No<small>not the same card</small></button><button class="yes" id="yes">Yes<small>same card</small></button></div>
+  <div class="nopanel hide" id="nopanel">
+    <span class="lab">Why not? Pick the reason</span>
+    <div class="rbtns" id="rbtns"></div>
+    <div class="rwhat" id="rwhat"></div>
+    <textarea id="rnote" placeholder="your reasoning (kept with the flag, for the analysis later)"></textarea>
+    <div class="send"><button type="button" id="rsend" disabled>Send</button><a href="#" id="rcancel">Cancel</a></div>
+  </div>
   <a class="next" href="#" id="next">Next question &rarr;</a>
 </div>
 <div id="s2" class="hide">
-  <h1>What condition is it?</h1>
+  <h1 id="s2h">The numbers</h1>
   <div class="dim" id="s2sub"></div>
-  <div class="btns two">
-    <button class="yes" id="nm"></button>
-    <button class="lp" id="lp"></button>
-  </div>
-  <div class="btns"><button class="no" id="mp">Worse than lightly played<small>moderately / heavily played or damaged: not a buy</small></button></div>
+  <div class="cond" id="cond2"><span class="lab">Your grade from the photos</span><div class="cbtns"></div></div>
+  <div class="fig" id="fig"></div>
+  <div class="how" id="how"></div>
+  <div class="how hide" id="fcb"></div>
   <div class="dim" id="s2cond"></div>
   <a class="back" href="#" id="back">&larr; back to the pictures</a>
 </div>
@@ -88,7 +128,7 @@ a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const money = v => v == null ? '?' : (v < 0 ? '-' : '') + '$' + Math.abs(Number(v)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const money = v => v == null || isNaN(Number(v)) ? '?' : (v < 0 ? '-' : '') + '$' + Math.abs(Number(v)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const one = v => v == null ? '?' : String(Math.round(v * 10) / 10);
 const SIG = {p50: [4, 'priced under half of what the card goes for'], p65: [2, 'priced well under what the card goes for'], p75: [1, 'priced under what the card goes for'],
   fbq: [1, 'seller rating count unknown'], fb0: [3, 'seller has fewer than 10 ratings'], fb1: [1, 'seller has fewer than 50 ratings'], pct: [2, 'seller feedback below the bar'],
@@ -101,7 +141,7 @@ try { const h = location.hash.slice(1), i = h.indexOf('.'); flag = i < 0 ? '' : 
 const LAB = {p50: 'priced under 50% of the card\'s price', p65: 'priced 50-65% of the card\'s price', p75: 'priced 65-75% of the card\'s price', fb0: 'seller feedback under 10', fb1: 'seller feedback 10-49',
   fbq: 'seller feedback unknown', pct: 'feedback % below the bar for its count', img: 'one photo only', qty: '3+ copies available of a $75+ card', dup: 'photo also used by another seller',
   ret: 'no returns and priced under 65%', slow: 'delivery window over 10 days', top: 'Top Rated Plus', est: '500+ feedback at 99%+', burst: 'same-day burst from an unseen seller'};
-const tell = a => { try { if (d && d.rq && d.tk) fetch('https://ntfy.sh/' + d.rq, {method: 'POST', keepalive: true, body: JSON.stringify({dec: {i: d.i, tk: d.tk, d: a}})}); } catch (e) {} };
+const tell = a => { try { if (d && d.rq && d.tk) fetch('https://ntfy.sh/' + d.rq, {method: 'POST', keepalive: true, body: JSON.stringify({dec: Object.assign({i: d.i, tk: d.tk}, typeof a === 'object' ? a : {d: a})})}); } catch (e) {} };   // {d} or {d, st, note}
 function show(id) { for (const k of ['s1', 's2', 'msg']) $(k).classList.toggle('hide', k !== id); window.scrollTo(0, 0); }
 function done(text) { $('msg').innerHTML = text; show('msg'); }
 if (!d) done('This link has no hit in it. Open the alert again.');
@@ -194,19 +234,84 @@ else {
     $('wbtn').addEventListener('click', () => setW($('wtab').classList.contains('hide')));
     if (flag.includes('w')) { setW(true); setTimeout(() => $('scam').scrollIntoView({block: 'start'}), 50); }   // opened from the notification's Warnings button
   }
+  // ---- the condition row on both screens (Brett, 2026-10-25): his grade from the photos, NM / LP / MP / HP / DMG like the
+  // site's Review screen; a tap records it at once (it replaces the seller's in every figure on the site) and decides
+  // which figures the second question shows
+  const GRADES = [['NM', 'Near Mint', 'nm'], ['LP', 'Lightly Played', 'lp'], ['MP', 'Moderately Played', 'mp'], ['HP', 'Heavily Played', 'hp'], ['DMG', 'Damaged', 'dmg']];
+  let grade = bc && GRADES.some(g => g[0] === bc) ? bc : null;
+  const paintGrade = () => document.querySelectorAll('button.cb').forEach(b => { b.classList.toggle('on', b.dataset.c === grade); b.classList.toggle('bad', b.dataset.c === grade && !['NM', 'LP'].includes(grade)); });
+  for (const id of ['cond1', 'cond2']) {
+    const box = $(id).querySelector('.cbtns');
+    box.innerHTML = GRADES.map(g => '<button type="button" class="cb" data-c="' + g[0] + '">' + g[0] + '<small>' + g[1] + '</small></button>').join('');
+    box.addEventListener('click', e => { const b = e.target.closest('button.cb'); if (!b) return; grade = b.dataset.c; paintGrade(); tell(GRADES.find(g => g[0] === grade)[2]); renderFig(); });
+  }
+  $('condnote').innerHTML = 'The seller says <b>' + (tc ? COND[tc] || tc : 'nothing') + '</b>' + (d.ec ? ' (eBay’s condition field: ' + esc(d.ec) + ')' : tc ? ' (in the title)' : '') + (bc ? ' · you graded it <b>' + (COND[bc] || bc) + '</b> before' : '') + '. Your grade replaces the seller’s in every figure on the site.';
+  paintGrade();
+  // ---- the second question: the kind of alert, the figures for the grade chosen, how they are computed, the forecast
+  const KIND = d.test ? ['test', 'Test · a sample of the check screen'] : au ? ['au', d.kd === 'lead' ? 'Auction · lead' : 'Auction'] : d.kd === 'lead' ? ['lead', 'Lead'] : d.fc && d.fc.on ? ['fc', 'Forecast hit'] : ['hit', 'Hit'];
+  $('s2h').innerHTML = 'The numbers <span class="kind ' + KIND[0] + '">' + esc(KIND[1]) + '</span>';
+  $('s2sub').textContent = au ? 'Sells for about ' + money(d.nm[0]) + ' (NM). Bid your max in the last seconds: eBay never takes you over it.' : money(d.tot) + ' total · sells for about ' + money(d.nm[0]) + ' (NM)';
   const label = (name, a, ok) => au ? name + '<small>Max bid ' + money(a[4]) + '</small><small>Profit at least ' + money(a[2]) + '</small><small>ROI at least ' + a[3] + '%</small>' +
       '<small>' + (ok ? 'Bid still under your max' : 'Bid already over your max') + '</small>'
     : name + '<small>Max buy ' + money(a[1]) + '</small><small>Profit ' + money(a[2]) + '</small><small>ROI ' + a[3] + '%</small>' +
-    '<small>' + (ok ? 'Above your ' + d.roi + '%: buy' : 'Under your ' + d.roi + '%: not a buy') + '</small>';
-  const arm = (id, name, a) => { const ok = a && (au || a[3] >= d.roi) && d.ai <= a[1]; $(id).innerHTML = label(name, a, ok); $(id).disabled = !ok;
-    $(id).addEventListener('click', () => { tell(id); done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
-  arm('nm', 'Near Mint', d.nm); arm('lp', 'Lightly Played', d.lp);
-  $('s2sub').textContent = au ? 'Sells for about ' + money(d.nm[0]) + ' (NM). Bid your max in the last seconds: eBay never takes you over it.' : money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
-  $('s2cond').innerHTML = 'The seller says <b>' + (tc ? COND[tc] || tc : 'nothing') + '</b>' + (d.ec ? ' (eBay\u2019s condition field: ' + esc(d.ec) + ')' : tc ? ' (in the title)' : '') + '. Grade it yourself from the photos: your answer replaces the seller\u2019s in every figure on the site.';
-  $('mp').addEventListener('click', () => { tell('mp'); done('Not a buy: worse than lightly played.<br><span class="dim">Saved as your grade - it replaces the seller\u2019s on the site. You can close this page.</span>'); });
+    '<small>' + (ok ? 'Above your ' + d.roi + '%: buy' : (d.ai > a[1] ? 'Over your max buy' : 'Under your ' + d.roi + '%') + ': not a buy') + '</small>';
+  const okFor = a => !!a && (au || a[3] >= d.roi) && d.ai <= a[1];
+  const go = code => { tell(code); done('Opening eBay…<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; };
+  const figBtn = (id, name, a, code) => { const ok = okFor(a); return '<button type="button" class="' + (ok ? 'yes' : 'over') + '" data-go="' + code + '">' + label(name, a, ok) + '</button>'; };   // red when over the max, still a link (Brett, 2026-10-25)
+  function renderFig() {
+    const box = $('fig');
+    if (grade === 'NM' || grade === 'LP') box.innerHTML = '<div class="btns two">' + figBtn('g', grade === 'NM' ? 'Near Mint' : 'Lightly Played', grade === 'NM' ? d.nm : d.lp, grade === 'NM' ? 'nm' : 'lp') + '</div>';
+    else if (grade) box.innerHTML = '<div class="nobuy"><b>Not a buy at this grade.</b> ' + COND[grade] + ' copies are outside the gate: the figures count near-mint and lightly played copies only, and your grade is saved on the site.<a href="' + esc(d.u) + '" target="_blank" rel="noopener">Open the listing anyway ↗</a></div>';
+    else box.innerHTML = '<div class="dim" style="margin-top:8px">Pick your grade above to see its figures — or take either:</div><div class="btns two">' + figBtn('nm', 'Near Mint', d.nm, 'nm') + figBtn('lp', 'Lightly Played', d.lp, 'lp') + '</div>';
+    box.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+  }
+  renderFig();
+  // how the max buy is computed: the gate's inputs (Brett: "hits, to have variables such as confidence and margin")
+  const pct1 = v => v == null ? '?' : (Math.round(v * 10) / 10) + '%';
+  const sellAt = grade === 'LP' ? d.lp : d.nm;
+  $('how').innerHTML = '<h3>How the ' + (au ? 'max bid' : 'max buy') + ' is computed</h3><ul>' +
+    '<li>Sells for about <b>' + money(sellAt[0]) + '</b>' + (grade === 'LP' ? ' as lightly played (the LP discount ' + (d.lpd == null ? '?' : d.lpd + '%') + ')' : '') + (d.kd === 'lead' ? ' — a lead: priced from PriceCharting’s ' + money(d.pc) + ', capped by the cheapest other copy' : '') + '</li>' +
+    (d.A != null ? '<li>eBay’s sold median (the anchor) <b>' + money(d.A) + '</b> on ' + (d.An || 0) + ' sales' + (d.af != null ? ' · fast-sale median ' + money(d.af) : '') + '</li>' : '<li>No eBay anchor yet for this card</li>') +
+    '<li>Cheapest other credible copy (the floor) <b>' + (d.L == null ? 'none' : money(d.L)) + '</b> — the sale undercuts it</li>' +
+    '<li>Liquidity: sells within <b>' + (d.win || 48) + ' h</b> with <b>' + (d.conf || 70) + '% confidence</b>' + (d.lam != null ? ' · ' + one(d.lam * 30) + ' sales / 30 d at this rate' : '') + (d.stt != null ? ' · 48-h sell-through ' + pct1(d.stt) : '') + '</li>' +
+    '<li>Margin <b>' + d.roi + '%</b> on the money in · fees ' + (d.fee ? d.fee[0] + '% + ' + money(d.fee[1]) : 'eBay’s') + ' · buy tax ' + (d.tax || 0) + '%</li>' +
+    '<li>All-in ' + money(d.ai) + ' against the max ' + (au ? 'bid ' + money(sellAt[4]) : 'buy ' + money(sellAt[1])) + ': <b class="' + (okFor(sellAt) ? 'ok' : 'bad') + '">' + (okFor(sellAt) ? 'a buy' : 'not a buy') + '</b> at this grade</li></ul>';
+  // the Forecast section (Brett: "if it is a forecast hit, then the 1 3 and 6 month holds should be specified, as well as the other input variables")
+  const fc = d.fc;
+  if (fc) {
+    const pc = v => v == null ? '—' : Math.round(v * 100) + '%', mv = v => v == null ? '—' : (v > 0 ? '+' : '') + Math.round(v * 100) + '%', rk = v => { if (v == null) return '—'; const n = Math.round(v * 100), s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'; return n + s; };
+    $('fcb').classList.remove('hide');
+    $('fcb').innerHTML = '<h3>Forecast · ' + (fc.on ? 'this alert passed your forecast filter: ' + fc.h + '-month hold, ' + fc.bar + '% or better' : 'your forecast filter is off (hold set to ' + fc.h + ' months)') + '</h3>' +
+      '<table><tr><th>Hold</th><th class="num">Chance of a profit at ' + money(au ? sellAt[4] + (d.sh || 0) : d.tot) + '</th><th class="num">Card’s rank</th><th class="num">Expected move</th></tr>' +
+      [1, 3, 6].map(h => '<tr' + (h === fc.h ? ' class="pick"' : '') + '><td>' + h + ' month' + (h > 1 ? 's' : '') + '</td><td class="num">' + pc(fc.q[h]) + '</td><td class="num">' + rk(fc.pct[h]) + ' pct</td><td class="num">' + mv(fc.pred[h]) + '</td></tr>').join('') + '</table>' +
+      '<ul style="margin-top:6px"><li>Sale projected from <b>' + money(fc.sell) + '</b> (' + ({A: 'eBay’s sold median', thin: 'PriceCharting, the anchor being thin', pc: 'PriceCharting', ask: 'the cheapest competing copy', gap: 'PriceCharting, the lower of the two while the gap is unreviewed'}[fc.why] || fc.why || '?') + ')' + (fc.comp != null ? ' · cheapest competing copy ' + money(fc.comp) : '') + '</li>' +
+      '<li>Standard buy price <b>' + money(fc.std) + '</b>' + (fc.m12 != null ? ' · 12-month mean ' + money(fc.m12) : '') + '</li>' +
+      '<li>Model month ' + esc(fc.month || '?') + ' · market ' + esc(fc.reg || '?') + (fc.fees ? ' · fees ' + fc.fees[0] + '% + ' + money(fc.fees[1]) + (fc.fees[2] ? ' · buy tax ' + fc.fees[2] + '%' : '') : '') + '</li></ul>';
+  }
+  $('s2cond').innerHTML = 'Rank = where the card’s expected move sits among all scored cards; chance = P(net &gt; 0) from the model’s history for cards in that rank bucket, this market.';
+  // ---- the first question's answers
   $('yes').addEventListener('click', () => { tell('yes'); show('s2'); });     // "same card" is an answer in itself now
   $('next').addEventListener('click', e => { e.preventDefault(); show('s2'); });  // just look at the next question: nothing is recorded
-  $('no').addEventListener('click', () => { tell('no'); done('Rejected. Nothing was bought.<br><span class="dim">The listing leaves every tab of the site and sits in the Mismatches list (Raw Data tab), with a Restore button if this was a mistake.' + (d.tier === 'watch' || d.tier === 'suspect' ? '' : ' The matcher learns from it.') + '</span><br><span class="dim">You can close this page.</span>'); });
+  // No -> why? the reason and a note become the listing's flag on the site (Brett, 2026-10-25: "a popup will appear and i
+  // select the reason why, and provide a text response, that is saved and archived"); a set / name mismatch is the old
+  // "not the same card" (the listing leaves every tab), the other reasons flag it (out of the supply and the hits, still
+  // on Raw Data) - all of them sit in the site's Flags with the note
+  const REASONS = [['set mismatch', 'another set: the listing leaves every tab, the matcher learns'], ['name mismatch', 'another card or number: the listing leaves every tab, the matcher learns'],
+                   ['condition', 'the photos show a worse card than claimed: flagged, counts in nothing, stays on Raw Data'], ['fraud', 'a fake listing or a fake sale: flagged, the seller and its other listings go suspect'], ['unknown', 'something is off: flagged, counts in nothing, stays on Raw Data']];
+  let reason = null;
+  $('rbtns').innerHTML = REASONS.map(r => '<button type="button" class="rb" data-s="' + r[0] + '">' + r[0] + '</button>').join('');
+  $('rbtns').addEventListener('click', e => { const b = e.target.closest('button.rb'); if (!b) return; reason = b.dataset.s; document.querySelectorAll('button.rb').forEach(x => x.classList.toggle('on', x === b)); $('rwhat').textContent = REASONS.find(r => r[0] === reason)[1]; $('rsend').disabled = false; });
+  $('no').addEventListener('click', () => { $('nopanel').classList.remove('hide'); $('q1btns').classList.add('hide'); $('next').classList.add('hide'); setTimeout(() => $('nopanel').scrollIntoView({block: 'start', behavior: 'smooth'}), 50); });
+  $('rcancel').addEventListener('click', e => { e.preventDefault(); $('nopanel').classList.add('hide'); $('q1btns').classList.remove('hide'); $('next').classList.remove('hide'); });
+  $('rsend').addEventListener('click', () => {
+    if (!reason) return;
+    tell({d: 'no', st: reason, note: $('rnote').value.trim().slice(0, 1000)});
+    const mm2 = /mismatch/.test(reason);
+    done((mm2 ? 'Rejected: not the same card.' : 'Flagged: <b>' + esc(reason) + '</b>.') + ' Nothing was bought.<br><span class="dim">' +
+      (mm2 ? 'The listing leaves every tab of the site and sits in the Mismatches list (Raw Data tab), with a Restore button if this was a mistake. The matcher learns from it.'
+           : 'The listing stays on the Raw Data tab but counts in nothing: no supply, no anchor, no hit.' + (reason === 'fraud' ? ' The seller and its other listings are suspect from the collector’s next pass.' : '')) +
+      ' Your reason and note are in the site’s Flags (click the red flag there to take it off).</span><br><span class="dim">You can close this page.</span>');
+  });
   $('back').addEventListener('click', e => { e.preventDefault(); show('s1'); });
 }
 </script></body></html>
