@@ -1354,9 +1354,9 @@ function fgHeld() {                                // the cards held now (and th
 }
 async function gapMark(cid, state, note) {
   const t = Date.now(); GAPM[String(cid)] = {state, note, t: new Date(t).toISOString()};
-  fgHeld();
+  fgHeld(); fgBadge();
   try { await alSend({type: 'gapmark', t, c: cid, state, note}); }
-  catch (e) { delete GAPM[String(cid)]; fgHeld(); $('fgsub').insertAdjacentHTML('beforeend', ' <span class="down">The verdict could not be sent (' + esc(e.message) + ').</span>'); }
+  catch (e) { delete GAPM[String(cid)]; fgHeld(); fgBadge(); $('fgsub').insertAdjacentHTML('beforeend', ' <span class="down">The verdict could not be sent (' + esc(e.message) + ').</span>'); }
 }
 async function flagMark(iid, state, note) {        // a listing's mark from the Review screen's Flag section
   const t = Date.now(); FLAGM[iid] = {state, note, t};
@@ -1366,9 +1366,11 @@ async function flagMark(iid, state, note) {        // a listing's mark from the 
   fgBadge();
   if ($('fov').classList.contains('open') && FG.file) { fgBuildRows(); fgChips(); fgSub(); tables.fg.resync(); tables.fg.apply(); }
 }
-function fgBadge() {                               // the Flags buttons' count: unmarked listings, less the marks echoed here until the collector confirms them
+function fgBadge() {                               // the Flags buttons' count: the cards HELD (each wants his verdict), less the verdicts echoed here until the collector confirms them; the listing counts on hover
   const fn = (LIVE.data && LIVE.data.alert && LIVE.data.alert.flag_n) || {};
-  document.querySelectorAll('.nfg').forEach(el => { el.textContent = Math.max(0, (fn.unmarked || 0) - Object.values(FLAGM).filter(m => m.state !== 'unmarked').length); });
+  const held = Math.max(0, (fn.held || 0) - Object.values(GAPM).filter(m => m.state && m.state !== 'unknown').length);
+  const unmarked = Math.max(0, (fn.unmarked || 0) - Object.values(FLAGM).filter(m => m.state !== 'unmarked').length);
+  document.querySelectorAll('.nfg').forEach(el => { el.textContent = held; const b = el.closest('button'); if (b) b.title = held + ' card' + (held === 1 ? '' : 's') + ' held for a PC gap (no buys, no hits until your verdict) \u00b7 ' + (fn.total || 0) + ' listing' + (fn.total === 1 ? '' : 's') + ' in the archive, ' + unmarked + ' unmarked'; });
 }
 function fgSub() {
   const c = FG.counts || {state: {}}, held = (FG.file && FG.file.held) || [];
@@ -2974,7 +2976,7 @@ function fcCompute() {
     const d = fcDist(buy, tab, S, I.disc, sell);
     rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, why: lv.why, A: lv.A, An: lv.An, k: c ? (c.k || 0) : null, ask, supply, dear, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
                              mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], dev12: ix.dev12 != null ? a[ix.dev12] : null, m12: ix.m12 != null ? a[ix.m12] : null,
-                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0, gap: lv.gap, hold: lv.hold ? 1 : 0}, d));
+                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0, gap: lv.gap, hold: lv.hold ? 1 : 0, pcNow: c && c.pc != null ? c.pc : null}, d));
   }
   rows.sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // buy order: chance to the whole percent, then the rank (otherwise price alone breaks the tie)
   const elig = rows.filter(r => r.p >= I.minp && !r.hold);   // a held card (the PC gap, unreviewed) gets no money
@@ -3070,7 +3072,9 @@ function fcRenderPicks() {
   rows.forEach(r => {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
     const note = fcSellNote(r);
-    const gapNote = r.gap != null ? '<span class="fc-gapv' + (Math.abs(r.gap) >= FC_GAP_PCT ? ' down' : '') + '" title="eBay\u2019s sold median (' + r.An + ' sales) against PriceCharting\u2019s price for the card' + (Math.abs(r.gap) >= FC_GAP_PCT ? ': ' + FC_GAP_PCT + '%+ apart, one of the two is wrong' : '') + '">' + (r.gap > 0 ? '+' : '') + r.gap.toFixed(0) + '% vs PC</span>' : '';
+    // the gap is measured against PriceCharting's price TODAY (the collector's figure, what the hold and Flags use); the "PC $" beside it is this month's average so far, the series the model learned on - named when the two differ
+    const pcDiff = r.pcNow != null && Math.abs(r.pcNow - r.price) > 0.005;
+    const gapNote = r.gap != null ? '<span class="fc-gapv' + (Math.abs(r.gap) >= FC_GAP_PCT ? ' down' : '') + '" title="eBay\u2019s sold median ' + (r.A != null ? fmtMoneyPlain(r.A) + ' ' : '') + '(' + r.An + ' sales) against PriceCharting\u2019s price today' + (r.pcNow != null ? ', ' + fmtMoneyPlain(r.pcNow) : '') + (pcDiff ? ' (the PC figure beside it is this month\u2019s average so far, the series the model learned on)' : '') + (Math.abs(r.gap) >= FC_GAP_PCT ? '. ' + FC_GAP_PCT + '%+ apart: one of the two is wrong' : '') + '">' + (r.gap > 0 ? '+' : '') + r.gap.toFixed(0) + '% vs PC' + (pcDiff ? ' today ' + fmtMoneyPlain(r.pcNow) : '') + '</span>' : '';
     html += '<tr class="' + (r.hold ? 'fc-held ' : '') + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
       '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (note || gapNote || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
         [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '', gapNote].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="' + (r.supply ? 'The ' + r.supply + ' open cop' + (r.supply === 1 ? 'y' : 'ies') + ' at your price (every open copy is a click away in the popup)' : 'The open copies of this card on eBay') + '">' + supplyCell(r) + '</a></td>' +
@@ -3273,7 +3277,8 @@ function plRender() {
   let sum = '';
   const hid = (rows.hidden ? ' <span class="dim">' + rows.hidden + ' planned listing' + (rows.hidden === 1 ? ' you said is' : 's you said are') + ' not the same card ' + (rows.hidden === 1 ? 'is' : 'are') + ' hidden \u2014 the Mismatches list on the Raw Data tab has ' + (rows.hidden === 1 ? 'it' : 'them') + ', with Restore.</span>' : '') +
               (rows.filtered ? ' <span class="dim">' + rows.filtered + ' planned listing' + (rows.filtered === 1 ? '' : 's') + ' left out by the filters above.</span>' : '');
-  if (!rows.length) sum = '<p>Nothing on your plan yet. On the Forecasting view, click a card to see its open copies and press <b>+</b> on the ones you mean to buy; the + is on every Raw Data row too. The plan is kept by the collector, so it is the same on your laptop and your phone.' + hid + '</p>';
+  if (!rows.length && (rows.filtered || rows.hidden)) sum = '<p>' + (rows.filtered ? 'Every listing on your plan (' + rows.filtered + ') is left out by the filters above \u2014 untick one to see ' + (rows.filtered === 1 ? 'it' : 'them') + '.' : '') + hid + '</p>';
+  else if (!rows.length) sum = '<p>Nothing on your plan yet. On the Forecasting view, click a card to see its open copies and press <b>+</b> on the ones you mean to buy; the + is on every Raw Data row too. The plan is kept by the collector, so it is the same on your laptop and your phone.</p>';
   else {
     if (!FC.doc) sum = '<p>The model file is not loaded yet: the listings are listed, their odds come when it is.</p>';
     sum += '<p>Spend <b>' + fcMoney(spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + cards + ' card' + (cards === 1 ? '' : 's') + '</b> (' + picks.length + ' listing' + (picks.length === 1 ? '' : 's') + '), hold ' + unit + ', sell at eBay’s going price then.' +
@@ -3291,7 +3296,7 @@ function plRender() {
   rows.forEach(r => {
     const costEach = r.total == null ? null : r.total * (1 + S.tax), note = r.tab ? fcSellNote(r) : '';
     const listing = (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" title="' + esc(r.title) + '">' + esc(String(r.title || r.iid).slice(0, 60)) + '</a>' : esc(String(r.title || r.iid).slice(0, 60))) +
-      '<br><span class="dim">' + (r.status === 'open' ? 'open' : r.status === 'unknown' ? 'not on record' : '<span class="down">' + esc(r.status) + '</span>') + (r.cond ? ' · ' + (r.cond === 'UNK' ? 'n/s' : esc(r.cond)) : '') + (r.fb != null ? ' · seller ' + fmtInt(r.fb) + (r.pctFb != null ? ' · ' + r.pctFb.toFixed(1) + '%' : '') : '') + (r.hours != null ? ' · listed ' + (r.hours < 48 ? r.hours.toFixed(0) + ' h' : (r.hours / 24).toFixed(0) + ' d') + ' ago' : '') + '</span>';
+      '<br><span class="dim">' + (r.status === 'open' ? 'open' : r.status === 'unknown' ? 'not on record' : '<span class="down">' + esc(r.status) + '</span>') + (r.unread ? ' · <span title="condition not read yet">?</span>' : r.cond ? ' · ' + (r.cond === 'UNK' ? 'n/s' : esc(r.cond)) : '') + (r.tier === 'watch' || r.tier === 'suspect' ? ' · <span class="amber" title="the scam screen\u2019s tier">' + r.tier + '</span>' : '') + (r.fb != null ? ' · seller ' + fmtInt(r.fb) + (r.pctFb != null ? ' · ' + r.pctFb.toFixed(1) + '%' : '') : '') + (r.hours != null ? ' · listed ' + (r.hours < 48 ? r.hours.toFixed(0) + ' h' : (r.hours / 24).toFixed(0) + ' d') + ' ago' : '') + '</span>';
     html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + esc(r.iid) + '"><td class="favc">' + favBtn('fl', r.iid, r.cid, Object.assign({ti: String(r.title || '').slice(0, 90), u: r.url, p: r.total, h: I.h}, r.tab ? {c: Math.round(r.p * 1000) / 1000, lo: r2(r.lo), med: r2(r.med), hi: r2(r.hi), sell: r2(r.sell)} : {}), 'sm') + ' ' + planBtn(r.iid, r.cid, r.m, 'sm') + '</td>' +
       '<td>' + (r.cid != null ? '<a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card">' + esc(r.name) + '</a>' : esc(r.name)) + '<br><span class="dim">' + esc(r.set) + '</span>' + (r.tab ? '<br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span>' : '') + '</td>' +
       '<td class="num">' + (r.total == null ? dash : fmtMoneyPlain(r.total)) + (note || (r.price != null && r.total != null && Math.abs(r.total - r.price) > 0.005) ? '<br><span class="dim' + (r.sell && (r.total < 0.7 * r.sell || r.total > 1.3 * r.sell) ? ' down' : '') + '">' + [note, r.price != null && Math.abs(r.total - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td>' +
