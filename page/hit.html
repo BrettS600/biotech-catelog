@@ -248,7 +248,7 @@ else {
   $('condnote').innerHTML = 'The seller says <b>' + (tc ? COND[tc] || tc : 'nothing') + '</b>' + (d.ec ? ' (eBay’s condition field: ' + esc(d.ec) + ')' : tc ? ' (in the title)' : '') + (bc ? ' · you graded it <b>' + (COND[bc] || bc) + '</b> before' : '') + '. Your grade replaces the seller’s in every figure on the site.';
   paintGrade();
   // ---- the second question: the kind of alert, the figures for the grade chosen, how they are computed, the forecast
-  const KIND = d.test ? ['test', 'Test · a sample of the check screen'] : au ? ['au', d.kd === 'lead' ? 'Auction · lead' : 'Auction'] : d.kd === 'lead' ? ['lead', 'Lead'] : d.fc && d.fc.on ? ['fc', 'Forecast hit'] : ['hit', 'Hit'];
+  const KIND = d.test ? ['test', 'Test · a sample of the check screen'] : au ? ['au', d.kd === 'lead' ? 'Auction · lead' : d.kd === 'fcau' ? 'Auction · forecast' : 'Auction'] : d.kd === 'lead' ? ['lead', 'Lead'] : d.fc && d.fc.on ? ['fc', 'Forecast hit'] : ['hit', 'Hit'];
   $('s2h').innerHTML = 'The numbers <span class="kind ' + KIND[0] + '">' + esc(KIND[1]) + '</span>';
   $('s2sub').textContent = au ? 'Sells for about ' + money(d.nm[0]) + ' (NM). Bid your max in the last seconds: eBay never takes you over it.' : money(d.tot) + ' total · sells for about ' + money(d.nm[0]) + ' (NM)';
   const label = (name, a, ok) => au ? name + '<small>Max bid ' + money(a[4]) + '</small><small>Profit at least ' + money(a[2]) + '</small><small>ROI at least ' + a[3] + '%</small>' +
@@ -270,7 +270,7 @@ else {
   const pct1 = v => v == null ? '?' : (Math.round(v * 10) / 10) + '%';
   const sellAt = grade === 'LP' ? d.lp : d.nm;
   $('how').innerHTML = '<h3>How the ' + (au ? 'max bid' : 'max buy') + ' is computed</h3><ul>' +
-    '<li>Sells for about <b>' + money(sellAt[0]) + '</b>' + (grade === 'LP' ? ' as lightly played (the LP discount ' + (d.lpd == null ? '?' : d.lpd + '%') + ')' : '') + (d.kd === 'lead' ? ' — a lead: priced from PriceCharting’s ' + money(d.pc) + ', capped by the cheapest other copy' : '') + '</li>' +
+    '<li>Sells for about <b>' + money(sellAt[0]) + '</b>' + (grade === 'LP' ? ' as lightly played (the LP discount ' + (d.lpd == null ? '?' : d.lpd + '%') + ')' : '') + (d.kd === 'lead' ? ' — a lead: priced from PriceCharting’s ' + money(d.pc) + ', capped by the cheapest other copy' : d.kd === 'fcau' ? ' — a forecast auction: the Forecast tab’s projected sale for the card; the max is the card’s standard price ' + money(sellAt[1]) + ' (the floor, else the anchor, else PriceCharting), not the gate’s max buy' : '') + '</li>' +
     (d.A != null ? '<li>eBay’s sold median (the anchor) <b>' + money(d.A) + '</b> on ' + (d.An || 0) + ' sales' + (d.af != null ? ' · fast-sale median ' + money(d.af) : '') + '</li>' : '<li>No eBay anchor yet for this card</li>') +
     '<li>Cheapest other credible copy (the floor) <b>' + (d.L == null ? 'none' : money(d.L)) + '</b> — the sale undercuts it</li>' +
     '<li>Liquidity: sells within <b>' + (d.win || 48) + ' h</b> with <b>' + (d.conf || 70) + '% confidence</b>' + (d.lam != null ? ' · ' + one(d.lam * 30) + ' sales / 30 d at this rate' : '') + (d.stt != null ? ' · 48-h sell-through ' + pct1(d.stt) : '') + '</li>' +
