@@ -21,6 +21,7 @@ the volume by name; the first pages read are logged with the names and the first
 up in the collector log at once.
 """
 import gzip
+import html as html_mod
 import json
 import os
 import re
@@ -34,6 +35,15 @@ VGPC = re.compile(r"VGPC\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*")
 REFRESH_ACTIVE_D = 7                                        # a card with eBay data is re-read this often ...
 REFRESH_OTHER_D = 30                                        # ... any other card this often
 MISS_RETRY_D = 7                                            # a page with no history is tried again after this long
+# PriceCharting's posted ungraded sales (the "Ungraded Sold Listings" table on the card's page; 2026-10-25, Brett: "when
+# you open price chart for a card, you see that there are many listings with radically different values. This would
+# implicate an inaccurate price chart estimate. Maybe you can measure the variance ... and set a threshold"): the last
+# sales kept with the record ("sl": [[date, cents, title], ...], newest first, on the data disk only) and their spread
+# ("sp": {n, med, iqr, out, lo, hi, d} over the sales of the last SPREAD_WINDOW_D days, published with the shard)
+SALES_KEEP = 20
+SPREAD_WINDOW_D = 90
+SPREAD_MIN_N = 6
+SALE_ROW = re.compile(r'<tr[^>]*>\s*<td class="date">\s*(\d{4}-\d{2}-\d{2})\s*</td>(.*?)<td class="title">(.*?)</td>\s*<td class="numeric">\s*(?:<span[^>]*>\s*)?\$([\d,]+(?:\.\d{2})?)', re.S)
 
 _store = None
 _index = {}                                                 # card id (int) -> day index of the last read
@@ -173,15 +183,64 @@ def monthly(price_pts, vol_pts, cents=None):
     return rec
 
 
+def sales_table(html):
+    """The ungraded sold listings on a card page -> [[date, cents, title], ...] newest first (the page's own order), or
+    None when the page has no such table. The div class="completed-auctions-used" holds one table: date, image,
+    title, price, listed price, report."""
+    i = html.find('<div class="completed-auctions-used"')
+    if i < 0:
+        return None
+    seg = html[i:]
+    j = seg.find("</table>")
+    if j > 0:
+        seg = seg[:j]
+    out = []
+    for m in SALE_ROW.finditer(seg):
+        title = html_mod.unescape(re.sub(r"<[^>]+>", " ", m.group(3)))
+        title = re.sub(r"^\[eBay\]\s*", "", re.sub(r"\s+", " ", title).strip())
+        try:
+            cents = int(round(float(m.group(4).replace(",", "")) * 100))
+        except ValueError:
+            continue
+        out.append([m.group(1), cents, title[:60]])
+    return out
+
+
+def spread(sales, today=None, window_d=SPREAD_WINDOW_D, min_n=SPREAD_MIN_N):
+    """How far apart PriceCharting's recent ungraded sales sit: over the sales of the last window_d days (at least
+    min_n of them) the median in cents, the interquartile range as a share of the median (0.5 = the middle half of the
+    sales spans half the median), the share of sales outside 60-140% of the median, the lowest and highest, the days
+    the sales span. None with too few sales."""
+    today = day_index() if today is None else today
+    recent = [c for d, c, *_ in (sales or []) if c > 0 and today - day_of(d) <= window_d]
+    if len(recent) < min_n:
+        return None
+    s = sorted(recent)
+    n = len(s)
+    med = s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2.0
+    q1, q3 = s[int(round(0.25 * (n - 1)))], s[int(round(0.75 * (n - 1)))]
+    days = [day_of(d) for d, c, *_ in (sales or []) if c > 0 and today - day_of(d) <= window_d]
+    return {"n": n, "med": int(round(med)), "iqr": round((q3 - q1) / med, 3) if med else None,
+            "out": round(sum(1 for c in s if c < 0.6 * med or c > 1.4 * med) / n, 3), "lo": s[0], "hi": s[-1], "d": max(days) - min(days)}
+
+
 def extract(html):
-    """A card page -> (monthly record or None, note for the log)."""
+    """A card page -> (monthly record or None, note for the log). The record carries the posted sales and their
+    spread when the page has the sold-listings table (2026-10-25)."""
     series = page_series(html)
+    sales = sales_table(html)
     if not series:
         return None, "no VGPC series in the page"
     price, vol, how = pick(series)
     if vol is None and re.search(r"VGPC\.volume_data\s*=", html):   # the variable is there but holds no points: a card
         vol, how = [], how + "; volume_data present but empty"      # with no sales, read signed in (not a lost sign-in)
     rec = monthly(price, vol)
+    if rec is not None and sales is not None:
+        rec["sl"] = sales[:SALES_KEEP]
+        sp = spread(sales)
+        if sp is not None:
+            rec["sp"] = sp
+        how += f"; {len(sales)} posted sales" + (f", spread iqr {sp['iqr']}" if sp else "")
     shape = {n: {k: len(v) for k, v in s.items()} for n, s in series.items()}
     first = {n: {k: v[:2] for k, v in s.items()} for n, s in series.items()}
     if len(SHAPES) < 3:
@@ -349,8 +408,23 @@ def publish_files(encrypt):
     for sh in todo:
         with _lock:
             d = _load(sh)
-        raw = gzip.compress(json.dumps(d, separators=(",", ":")).encode("utf-8"))
+        pub = {cid: ({k: v for k, v in rec.items() if k != "sl"} if "sl" in rec else rec) for cid, rec in d.items()}   # the posted sales stay on the data disk
+        raw = gzip.compress(json.dumps(pub, separators=(",", ":")).encode("utf-8"))
         out[f"pc/{sh}.bin"] = encrypt(raw)
+    return out
+
+
+def spreads_all():
+    """{card id: the spread record} over every card on file whose page carried enough posted sales, plus the day it
+    was read. Reads every shard once (like last_month_all)."""
+    out = {}
+    for sh in range(SHARDS):
+        with _lock:
+            d = _load(sh) if sh in _cache else _read(sh)
+        for cid, rec in d.items():
+            sp = rec.get("sp")
+            if sp:
+                out[int(cid)] = dict(sp, t=rec.get("t"))
     return out
 
 
