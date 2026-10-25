@@ -3014,10 +3014,10 @@ def auction_summary(state):
 
 
 # ---------------- publishing ----------------
-def git(*args, cwd=LIVE_DIR, check=True):
+def git(*args, cwd=LIVE_DIR, check=True, timeout=120):
     env = dict(os.environ)
     env["GIT_SSH_COMMAND"] = f"ssh -i {SSH_KEY} -o UserKnownHostsFile={KNOWN_HOSTS} -o IdentitiesOnly=yes -o BatchMode=yes"
-    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=env, timeout=120)
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=env, timeout=timeout)
     if check and r.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()[:300]}")
     return r.stdout
@@ -3026,11 +3026,45 @@ def git(*args, cwd=LIVE_DIR, check=True):
 _publishes = 0
 
 
+PUSH_TIMEOUT_S = 600             # a push to the live branch may take this long before it is given up
+_push = {"thread": None, "t0": 0.0, "skipped": 0, "logged": 0.0, "slow": 0}
+
+
+def push_live(nbytes):
+    """The force-push itself, in its own thread (2026-10-25: pushes to GitHub timed out at 120 s every other publish all
+    afternoon - 88 failures in six hours - and each one stalled the whole loop for those two minutes; now the loop goes
+    on with its sweeps and alerts while the push runs, and a slow push gets ten minutes). A slow or failed push is
+    logged; the next publish simply carries the newer files."""
+    t0 = time.time()
+    try:
+        git("push", "-q", "--force", "origin", "live", timeout=PUSH_TIMEOUT_S)
+        dt = time.time() - t0
+        if dt > 90:
+            _push["slow"] += 1
+            if time.time() - _push["logged"] > 1800:
+                _push["logged"] = time.time()
+                log(f"Publish: the push took {dt:.0f} s for {nbytes // 1024} KB ({_push['slow']} slow pushes, {_push['skipped']} publishes skipped while one ran)")
+    except Exception as e:
+        log(f"Publish failed: {str(e)[:200]}")
+
+
+def push_running():
+    th = _push["thread"]
+    return th is not None and th.is_alive()
+
+
 def publish(files):
-    """Write the files into the one-commit 'live' checkout, amend the commit and force-push it. Keeping the
-    checkout between publishes means each push only uploads what changed (the state backup is 1.5 MB)."""
+    """Write the files into the one-commit 'live' checkout, amend the commit and force-push it (push_live, in the
+    background). Keeping the checkout between publishes means each push only uploads what changed (the state backup
+    is 1.5 MB). While a push is still running the publish is skipped - the next one carries everything newer."""
     global _publishes
     if DRY_RUN:
+        return
+    if push_running():
+        _push["skipped"] += 1
+        if time.time() - _push["logged"] > 1800:
+            _push["logged"] = time.time()
+            log(f"Publish: the previous push is still running after {time.time() - _push['t0']:.0f} s; this publish is skipped ({_push['skipped']} skipped so far)")
         return
     os.makedirs(LIVE_DIR, exist_ok=True)
     if not os.path.isdir(os.path.join(LIVE_DIR, ".git")):
@@ -3046,10 +3080,13 @@ def publish(files):
     git("add", "-A")
     has_commit = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], cwd=LIVE_DIR, capture_output=True).returncode == 0
     git("commit", "-q", *(["--amend"] if has_commit else []), "-m", f"live {es.ts(es.NOW)}")
-    git("push", "-q", "--force", "origin", "live")
     _publishes += 1
-    if _publishes % 60 == 0:                                 # amended commits leave garbage behind; sweep it up
+    if _publishes % 60 == 0:                                 # amended commits leave garbage behind; sweep it up (never under a running push)
         sweep_live_repo()
+    _push["t0"] = time.time()
+    th = threading.Thread(target=push_live, args=(sum(len(d) for d in files.values()),), daemon=True, name="push-live")
+    th.start()
+    _push["thread"] = th
 
 
 def sweep_live_repo():
