@@ -1316,9 +1316,10 @@ def reprint_twins(cat):
 
 def wrong_card(rec):
     """An identity check says this listing is probably not the card it was matched to - or Brett did (rec["um"]) - or he
-    marked it fraud in the Flags archive (rec["fraud"], 2026-10-25): out of the statistics (a fraud-marked sale leaves
-    the anchor), never a hit."""
-    return bool(rec.get("pcm")) or rec.get("idv") == "conflict" or bool(rec.get("um")) or bool(rec.get("fraud"))
+    marked it fraud in the Flags archive (rec["fraud"], 2026-10-25), or flagged it with any reason (rec["fl"]: "a
+    flagged listing counts in nothing" - out of the book and the supply, a flagged sale leaves the anchor, never a
+    hit; it stays on the Raw Data tab)."""
+    return bool(rec.get("pcm")) or rec.get("idv") == "conflict" or bool(rec.get("um")) or bool(rec.get("fraud")) or bool(rec.get("fl"))
 
 
 # ---------------- learning from the listings Brett marks as mismatches (2026-10-06) ----------------
@@ -1472,13 +1473,16 @@ def rematch(state, cat):
     return n["moved"], n["dropped"], n["cond"]
 
 
+PC_WRONG_STATES = ("pc inaccuracy", "pc stale")   # the card verdict that says PriceCharting's price is wrong for the card ("pc stale" was its first name)
+
+
 def pc_stale_cards(state):
-    """Cards Brett judged "pc stale" in the Flags archive within GAP_RELEASE_D days (2026-10-25): PriceCharting's price
-    is wrong for them, so the per-listing PriceCharting rule (pc_flag: "mismatch: too cheap / too high") stands down
-    too - otherwise a card whose PriceCharting price is a placeholder could never have a hit."""
+    """Cards Brett judged "PC inaccuracy" in the Flags archive within GAP_RELEASE_D days (2026-10-25): PriceCharting's
+    price is wrong for them, so the per-listing PriceCharting rule (pc_flag: "mismatch: too cheap / too high") stands
+    down too - otherwise a card whose PriceCharting price is a placeholder could never have a hit."""
     out = set()
     for cid, gm in ((state.get("vps") or {}).get("gap_marks") or {}).items():
-        if gm.get("state") != "pc stale":
+        if gm.get("state") not in PC_WRONG_STATES:
             continue
         t = parse_ts(gm.get("t") or "")
         if t is not None and (NOW - t).total_seconds() < GAP_RELEASE_D * 86400:
@@ -1858,7 +1862,7 @@ def wants_id_check(rec, cs):
     if cs.get("A") is None or cs.get("A_n", 0) < ANCHOR_MIN:
         # a PriceCharting lead: looked up when it would qualify with no buying tax (the page may be set that way)
         if rec.get("pcm") or rec.get("tier") == "suspect" or (rec.get("n_img") is not None and rec["n_img"] < 2) \
-                or rec.get("tcond", "UNK") not in COMPARABLE_CONDS or seller_bar(rec) is not None:
+                or rec.get("tcond", "UNK") not in COMPARABLE_CONDS or seller_bar(rec) is not None or rec.get("fl") or rec.get("um"):
             return None
         maxbuy = lead_decision(rec, cs)[2]
         return 2 if maxbuy is not None and rec["total"] <= maxbuy else None
@@ -2087,7 +2091,7 @@ def score_listings(state):
         sl = r.get("seller")
         if r.get("fraud") or (sl and sl in fraud_sellers):     # Brett marked this listing, or this seller's, as fraud (the Flags archive, 2026-10-25)
             pts += SCAM_POINTS["fsl"]; why.append("fsl")
-        tier = "suspect" if (pts >= SCAM_SUSPECT or "dup" in why or "fsl" in why) else "watch" if pts >= SCAM_WATCH else "clean"
+        tier = "suspect" if (pts >= SCAM_SUSPECT or "dup" in why or "fsl" in why or "img" in why) else "watch" if pts >= SCAM_WATCH else "clean"   # one photo = suspect by itself (Brett, 2026-10-25): out of the book, the floor and the anchor, never shown as a copy to buy
         if tier == "watch" and sl and burst_n[sl] >= SCAM_BURST_N and sl not in prior:
             tier = "suspect"; why.append("burst")
         r["sc"], r["scr"], r["tier"] = pts, why, tier
@@ -2241,16 +2245,17 @@ def cond_known(r):
 def card_gap(state, cid, a, a_n, pc):
     """eBay's anchor against PriceCharting's price, in percent, for a card with a backed anchor (ANCHOR_MIN sales), and
     whether that gap holds the card: at GAP_HOLD_PCT or more apart one of the two is wrong - the card is out of the buys
-    and the hits until Brett reviews it in the Flags archive; a card verdict there (any state but "unknown") releases
-    it for GAP_RELEASE_D days (Brett, 2026-10-25). -> (gap or None, 1 / 0)."""
+    and the hits until Brett reviews it in the Flags archive; the card verdict "PC inaccuracy" there releases it for
+    GAP_RELEASE_D days, and marking the sales behind the anchor (mismatch / fraud / a grade) recomputes the anchor
+    without them, which closes most gaps by itself (Brett, 2026-10-25). -> (gap or None, 1 / 0)."""
     if a is None or (a_n or 0) < ANCHOR_MIN or not pc or pc <= 0:
         return None, 0
     gap = round((a / pc - 1) * 100, 1)
     if abs(gap) < GAP_HOLD_PCT:
         return gap, 0
     gm = ((state.get("vps") or {}).get("gap_marks") or {}).get(str(cid))
-    if gm and gm.get("state") not in (None, "", "unknown", "unmarked"):
-        t = parse_ts(gm.get("t") or "")
+    if gm and gm.get("state") in PC_WRONG_STATES:    # his verdict "PC inaccuracy" releases the card for GAP_RELEASE_D days; "pc fine" keeps it held
+        t = parse_ts(gm.get("t") or "")              # (the other way out: marking the odd sales behind the anchor - the anchor recomputes without them)
         if t is not None and (NOW - t).total_seconds() < GAP_RELEASE_D * 86400:
             return gap, 0
     return gap, 1
@@ -2507,6 +2512,29 @@ def data_since(state):
     return min(days) if days else NOW.date().isoformat()
 
 
+def anchor_sales_all(state, keep=20):
+    """{card id: the sold listings behind its anchor, newest first, up to `keep`} - the comparable sales of the window
+    (compute_stats' own filter), plus the ones Brett has marked out of it (um / fl / fraud) so the card popup's "Sales
+    behind the anchor" chip shows what he already did (2026-10-25). One pass over the closed records."""
+    win_start = NOW - timedelta(days=STAT_WINDOW_D)
+    out = defaultdict(list)
+    for r in state["closed"]:
+        if r.get("out") != "sold" or r.get("card") is None or r.get("total") is None:
+            continue
+        t = parse_ts(r.get("closed") or "")
+        if t is None or t < win_start:
+            continue
+        if r.get("tcond", "UNK") not in COMPARABLE_CONDS or r.get("tier") == "suspect":
+            continue
+        if wrong_card(r) and not (r.get("um") or r.get("fl") or r.get("fraud")):
+            continue
+        out[r["card"]].append(r)
+    for cid in out:
+        out[cid].sort(key=lambda r: r.get("closed") or "", reverse=True)
+        del out[cid][keep:]
+    return out
+
+
 def compute_stats(state, cat, lp):
     by_id = cat.by_id
     twins = reprint_twins(cat)
@@ -2754,6 +2782,8 @@ def verdict(rec, cs):
     allin = round(rec["total"] + (rec["item"] or 0) * TAX, 2)
     if rec.get("um"):                                # Brett marked it: not the card it was matched to
         return "mismatch: marked by you", allin
+    if rec.get("fl"):                                # flagged by Brett with a reason (the flag column, 2026-10-25): never a hit, still shown
+        return "flagged: " + str(rec["fl"]), allin
     if rec.get("n_img") is not None and rec["n_img"] < 2:
         return "fewer than 2 photos", allin
     if rec.get("tier") == "suspect":
