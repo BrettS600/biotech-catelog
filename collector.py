@@ -152,6 +152,8 @@ AUCTION_ALERT_EVERY_S = 300      # one search this often, for the auctions that 
 AUCTION_ALERT_WINDOW = (9, 15)   # minutes before the end; read every 5 minutes, each auction is seen once or twice
 AUCTION_ALERT_CHECKS = 4         # item lookups per read: identity and photos of the auctions about to alert
 AUCTION_ALERTS_PER_HOUR = 12     # a ceiling on auction alerts
+AUCTION_SUPPLY_EVERY_S = 1200    # the auctions ending soonest are read this often for the Forecast tab's auction line (2026-10-25)
+AUCTION_SUPPLY_PAGES = 4         # 200 auctions a page, one call each: the ~800 ending soonest
 AU_HIST_KEEP_D = 60              # the Raw Data tab's "Auctions sent to my phone" view reaches back this far
 
 DRY_RUN = "--dry-run" in sys.argv
@@ -1144,6 +1146,16 @@ def hist_rec(e):
             **({"ec": e["ec"]} if e.get("ec") is not None else {})}
 
 
+def au_rec(state, iid):
+    """A listing record for an auction the Forecast tab showed (state["au_open"], 2026-10-25) so a flag on it can be filed."""
+    a = ((state.get("au_open") or {}).get("rows") or {}).get(iid)
+    if not a:
+        return None
+    return {"id": iid, "card": a.get("card"), "title": a.get("title") or "", "url": a.get("url"), "total": round(a["bid"] + a["ship"], 2), "item": a["bid"],
+            "ship": a["ship"], "fb": a.get("fb"), "pct": a.get("pct"), "tcond": a.get("tcond", "UNK"), "img": a.get("img"), "imgs": [a["img"]] if a.get("img") else [],
+            "first": a.get("end"), "tier": "clean", "auction": 1}
+
+
 def flag_mark(state, cat, cards, iid, st, note, t):
     """Brett's flag on ANY listing (the Flag column on every tab, Review's Flag section, the phone's No; 2026-10-25):
     state + note. The listing stays on the Raw Data tab but counts in nothing - rec["fl"] takes it out of the book,
@@ -1162,7 +1174,7 @@ def flag_mark(state, cat, cards, iid, st, note, t):
         if st == "unmarked":
             return
         hist = [h for h in v.get("au_hist", []) + v.get("hit_hist", []) + v.get("alert_log", []) if h.get("i") == iid]
-        src = rec if rec is not None else (hist_rec(hist[0]) if hist else None)
+        src = rec if rec is not None else (hist_rec(hist[0]) if hist else au_rec(state, iid))
         if src is None or src.get("card") is None:
             return
         cs = (cards or {}).get(str(src.get("card")))
@@ -2294,8 +2306,10 @@ def hit_payload(rec, cs, cat, kind="hit"):
     allin = round(rec["total"] + (rec.get("item") or 0) * es.TAX, 2)
     decision = es.listing_decision if kind == "hit" else es.lead_decision
 
-    def side(cond):                                          # the gate's numbers if the copy is NM / LP
+    def side(cond):                                          # the gate's numbers if the copy is NM / LP; blanks when the card has none
         s, net, maxbuy = decision(dict(rec, tcond=cond), cs)
+        if s is None or net is None or maxbuy is None:
+            return [None, None, None, None]
         return [s, round(maxbuy, 2), round(net - allin, 2), round((net - allin) / allin * 100, 1)]
     return {"i": rec["id"], "u": rec.get("url"), "t": rec.get("title"), "im": (rec.get("imgs") or [rec.get("img")])[:4],
             "tot": rec["total"], "it": rec.get("item"), "sh": rec.get("ship"), "ai": allin,
@@ -2644,6 +2658,114 @@ def alert_status(state, cfg):
             "quiet_now": quiet_now(cfg), "hist": hist}
 
 
+def au_parse(x):
+    """One auction from a Browse search page -> the fields kept (None when it has no id, end or bid)."""
+    iid, end = x.get("itemId"), x.get("itemEndDate")
+    if not iid or not end:
+        return None
+    try:
+        bid = float((x.get("currentBidPrice") or x.get("price") or {}).get("value"))
+    except (TypeError, ValueError):
+        return None
+    try:
+        ship = float(((x.get("shippingOptions") or [{}])[0].get("shippingCost") or {}).get("value"))
+    except (TypeError, ValueError):
+        ship = 5.0                                           # calculated shipping: assume a tracked envelope
+    seller = x.get("seller") or {}
+    pct = seller.get("feedbackPercentage")
+    return {"id": iid, "end": end[:19] + "Z", "bid": bid, "bids": x.get("bidCount") or 0, "ship": ship, "title": x.get("title") or "",
+            "url": x.get("itemWebUrl"), "fb": seller.get("feedbackScore"), "pct": float(pct) if pct not in (None, "") else None,
+            "img": (x.get("image") or {}).get("imageUrl"), "n_img": (1 if x.get("image") else 0) + len(x.get("additionalImages") or []),
+            "epid": x.get("epid") or ""}
+
+
+def auction_supply(state, cat, cards):
+    """The open auctions on cards the catalog knows, for the Forecast tab's "N (up to $X) auction" line under Supply
+    and the card popup's Auctions chip (Brett, 2026-10-25: "i would like to see auctions under the price ... these
+    auctions should not effect the forecast values in columns at all ... its really just there for visibility and
+    alerts"). Up to AUCTION_SUPPLY_PAGES pages of raw-single auctions ending soonest (the trial's search), each matched
+    to a card by its title, MP / HP / damaged titles left out; replaces state["au_open"] whole (ended ones drop out).
+    One call a page. Nothing here touches the statistics."""
+    q = dict(es.QUERIES["aspect"], sort="endingSoonest")
+    q["filter"] = f"conditionIds:{{{es.COND_UNGRADED}}},price:[..{es.SWEEP_PRICE[1]}],priceCurrency:USD," \
+                  f"buyingOptions:{{AUCTION}},itemLocationCountry:US"
+    rows, last_end, n_read = {}, None, 0
+    flagged = {i for i, e in (state["vps"].get("flags") or {}).items() if e.get("state", "unmarked") != "unmarked"}
+    for page in range(AUCTION_SUPPLY_PAGES):
+        j = es.api_get(state, "/buy/browse/v1/item_summary/search", dict(q, offset=str(page * 200)))
+        items = j.get("itemSummaries") or []
+        for x in items:
+            a = au_parse(x)
+            if a is None:
+                continue
+            n_read += 1
+            last_end = a["end"]
+            if a["id"] in flagged:
+                continue
+            ci, _, _ = es.match_title(cat, a["title"], a["epid"], state["denoms"])
+            if ci is None:
+                continue
+            tc = es.title_condition(a["title"])
+            if tc not in es.COMPARABLE_CONDS:
+                continue
+            a["card"], a["tcond"] = cat.cards[ci]["id"], tc
+            rows[a["id"]] = a
+        if len(items) < 200:
+            break
+    state["au_open"] = {"t": es.ts(es.NOW), "until": last_end, "read": n_read, "rows": rows}
+    return len(rows)
+
+
+def au_open_live(state):
+    """live.au_open for the page: the auctions still running, compact rows
+    [item id, card id, bid, ship, bids, end, title, url, tcond, fb, pct, photos, img]."""
+    ao = state.get("au_open") or {}
+    now = es.ts(es.NOW)
+    rows = [[a["id"], a["card"], a["bid"], a["ship"], a["bids"], a["end"], a["title"], a["url"], a["tcond"], a["fb"], a["pct"], a["n_img"], a["img"]]
+            for a in (ao.get("rows") or {}).values() if a["end"] > now]
+    rows.sort(key=lambda r: r[5])
+    return {"t": ao.get("t"), "until": ao.get("until"), "read": ao.get("read", 0), "rows": rows}
+
+
+def forecast_auction(cards, cfg, cid, bid, ship, iid):
+    """A forecast auction hit (Brett, 2026-10-25: "forecast auction hits should alert my phone as well"): the auction's
+    bid + shipping is at or under the card's standard buy price on the Forecast tab (the floor, else the anchor, else
+    PriceCharting - forecast_math.levels), the card is in the plan's universe (the price band, six sales a year, two
+    years old) and the chance of a profit at the max bid for the Alerts tab's hold clears its bar. -> {T: the max
+    (bid + shipping), p, h, sell, nm, lp} with nm / lp = [sell, max, profit at the max, ROI, max bid] on the Forecast
+    tab's fee arithmetic, or None."""
+    doc = forecast_doc()
+    if not doc:
+        return None
+    ix = _fc["ix"]
+    a = doc["cards"].get(str(cid))
+    if not a or a[ix["buy"]] is None:
+        return None
+    vol12, age = a[ix["vol12"]] or 0, a[ix["age"]]
+    if vol12 < fm.MIN_VOL12 or age is None or age < 24:
+        return None
+    c = (cards or {}).get(str(cid))
+    lv = fm.levels(c, a[ix["buy"]], es.ANCHOR_MIN, iid)
+    T = lv["buy"]
+    if T is None or not (fm.STD_INPUTS["pmin"] <= T <= fm.STD_INPUTS["pmax"]) or bid + ship > T + 0.005:
+        return None
+    S = forecast_fees(cfg)
+    h = int(cfg.get("fc_h", 1))
+    try:
+        p = fm.listing_chance(doc, ix, cards, cid, T, iid, h, S, es.ANCHOR_MIN)
+    except Exception:
+        p = None
+    if p is None or p * 100 < cfg.get("fc_minp", 50):
+        return None
+    lpd = ((c or {}).get("lpd") or es.LP_DEFAULT_PCT) / 100.0
+
+    def side(sell):
+        net = sell * (1 - S["fee"]) - S["fixed"] - S["shipOut"] - S["supplies"]
+        maxbid = math.floor((T - ship) / (1 + es.TAX) * 100) / 100
+        return [round(sell, 2), round(T, 2), round(net - T, 2), round((net - T) / T * 100, 1) if T else None, max(0.0, maxbid)]
+    return {"T": round(T, 2), "p": p, "h": h, "sell": lv["sell"], "why": lv["why"], "nm": side(lv["sell"]), "lp": side(lv["sell"] * (1 - lpd))}
+
+
 def auction_read(state, cat, cards):
     """The collector only buys from fixed-price listings; this trial measures whether auctions would be a better
     source. One page of raw-single auctions ending soonest: those on a card that can be priced (an eBay anchor, or a
@@ -2726,7 +2848,8 @@ def auction_alerts(state, cat, cards, cfg):
             cid = cat.cards[ci]["id"]
             cs = cards.get(str(cid)) or {}
             basis = "ebay" if cs.get("A_n", 0) >= es.ANCHOR_MIN and cs.get("liquid") else \
-                    "pc" if (cs.get("pc") or 0) >= es.LEAD_MIN_PC and (cs.get("pcv") or 0) >= es.LEAD_MIN_PC_SALES else None
+                    "pc" if (cs.get("pc") or 0) >= es.LEAD_MIN_PC and (cs.get("pcv") or 0) >= es.LEAD_MIN_PC_SALES else \
+                    "fc" if forecast_doc() and str(cid) in (forecast_doc().get("cards") or {}) else None   # the Forecast tab prices it (2026-10-25)
             if not basis:
                 continue
             try:
@@ -2737,8 +2860,8 @@ def auction_alerts(state, cat, cards, cfg):
                               "basis": basis, "tcond": es.title_condition(title), "url": x.get("itemWebUrl")}
         else:
             a["bid"], a["bids"] = bid, x.get("bidCount")
-        kind = "hit" if a["basis"] == "ebay" else "lead"
-        if iid in sent or not lo - 1 <= left <= hi + 1 or not cfg["hits" if kind == "hit" else "leads"]:
+        kind = "hit" if a["basis"] == "ebay" else "lead" if a["basis"] == "pc" else "fcau"
+        if iid in sent or not lo - 1 <= left <= hi + 1 or (kind != "fcau" and not cfg["hits" if kind == "hit" else "leads"]):
             continue
         seller = x.get("seller") or {}
         pct = seller.get("feedbackPercentage")
@@ -2760,13 +2883,28 @@ def auction_alerts(state, cat, cards, cfg):
             if not cfg["watch"]:
                 continue
         cs = cards.get(str(a["card"])) or {}
-        decision = es.listing_decision if kind == "hit" else es.lead_decision
-        _, net, maxbuy = decision(rec, cs)
-        if maxbuy is None or es.seller_bar(rec) is not None or rec["n_img"] < 2:
+        if es.seller_bar(rec) is not None or rec["n_img"] < 2:
             continue
-        allin = rec["total"] + bid * es.TAX
-        if allin > maxbuy or net - maxbuy < cfg["min_profit"] or maxbuy < cfg["pmin"] or rec["total"] > cfg["pmax"]:
+        fa = None
+        if kind in ("hit", "lead"):
+            decision = es.listing_decision if kind == "hit" else es.lead_decision
+            _, net, maxbuy = decision(rec, cs)
+            if maxbuy is None:
+                continue
+            allin = rec["total"] + bid * es.TAX
+            if allin > maxbuy or net - maxbuy < cfg["min_profit"] or maxbuy < cfg["pmin"] or rec["total"] > cfg["pmax"]:
+                fa = forecast_auction(cards, cfg, a["card"], bid, a["ship"], iid)   # not a gate hit: maybe a forecast one
+                if fa is None:
+                    continue
+                kind, decision, maxbuy, allin = "fcau", None, fa["T"], rec["total"]
+        else:                                                # a card only the Forecast tab prices
+            fa = forecast_auction(cards, cfg, a["card"], bid, a["ship"], iid)
+            if fa is None:
+                continue
+            decision, maxbuy, allin = None, fa["T"], rec["total"]
+        if kind == "fcau" and (fa["nm"][2] is None or fa["nm"][2] < cfg["min_profit"]):
             continue
+        rec["fa"] = fa
         cands.append((maxbuy - allin, iid, rec, cs, kind, decision, end, left))
     cands.sort(key=lambda t: -t[0])                          # the most room under the max first
     quiet, back, n = quiet_now(cfg), alert_channel()[0] if es.PASSWORD else None, 0
@@ -2786,7 +2924,7 @@ def auction_alerts(state, cat, cards, cfg):
             es.learn_facts(state, cat, rec, it)              # eBay's set / rarity / finish for the check screen
         except Exception as e:
             log(f"Facts: could not read {iid} ({e})")
-        d = hit_payload(rec, cs, cat, kind)
+        d = hit_payload(rec, cs, cat, "lead" if kind == "fcau" else kind)
 
         nets = {}                                            # what selling it brings in after fees: frozen with the alert
 
@@ -2795,10 +2933,16 @@ def auction_alerts(state, cat, cards, cfg):
             nets[cond] = round(net2, 2)
             return [s2, round(mb2, 2), round(net2 - mb2, 2), round((net2 - mb2) / mb2 * 100, 1),
                     math.floor((mb2 - rec["ship"]) / (1 + es.TAX) * 100) / 100]
-        d["nm"], d["lp"] = side("NM"), side("LP")
-        fcp = forecast_chance(cards, cfg, rec["card"], d["nm"][4] + (rec.get("ship") or 0), iid)   # at the most he would pay: the max bid plus shipping
-        if not forecast_gate(cfg, fcp):
-            continue
+        fa = rec.pop("fa", None)
+        if kind == "fcau":                                   # a forecast auction (2026-10-25): the Forecast tab's figures at the card's standard price
+            d["nm"], d["lp"], d["kd"] = fa["nm"], fa["lp"], "fcau"
+            nets["NM"], nets["LP"] = round(fa["nm"][1] + fa["nm"][2], 2), round(fa["lp"][1] + fa["lp"][2], 2)
+            fcp = fa["p"]
+        else:
+            d["nm"], d["lp"] = side("NM"), side("LP")
+            fcp = forecast_chance(cards, cfg, rec["card"], d["nm"][4] + (rec.get("ship") or 0), iid)   # at the most he would pay: the max bid plus shipping
+            if not forecast_gate(cfg, fcp):
+                continue
         d["au"] = {"e": end, "b": rec["item"], "n": watch[iid].get("bids") or 0}
         d["tk"], d["rq"], d["pci"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back, pc_image(state, d["pid"])
         d["fc"] = forecast_block(cards, cfg, rec["card"], d["nm"][4] + (rec.get("ship") or 0), iid)
@@ -2808,11 +2952,11 @@ def auction_alerts(state, cat, cards, cfg):
             d.update(warnings_payload(state, rec))
         link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
         msg = (f"Now ${rec['item']:.2f} + ${rec['ship']:.2f} shipping, {d['au']['n']} bids. Bid up to ${d['nm'][4]:.2f} for a near-mint copy"
-               + (" - LEAD, priced from PriceCharting" if kind == "lead" else "")
+               + (" - LEAD, priced from PriceCharting" if kind == "lead" else " - FORECAST: the card's standard price on the Forecast tab, not the gate's max buy" if kind == "fcau" else "")
                + (f"\nForecast: {fcp * 100:.0f}% chance of a profit at your max bid, {cfg.get('fc_h', 1)}-month hold" if fcp is not None else "")
                + (f"\nA cheaper reprint has this number ({d['rp'][0][0]}): look for the stamp" if d.get("rp") else "")
                + (f"\nScam watch: {scam_words(rec)}" if rec["tier"] == "watch" else "") + f"\n{rec['title'][:80]}\nSeller {rec.get('fb') or '?'} ratings")
-        title = f"Auction ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
+        title = ("Forecast auction" if kind == "fcau" else "Auction") + f" ends in {left:.0f} min \u00b7 bid up to ${d['nm'][4]:.0f} \u00b7 {d['c']}"
         if not push(title, msg, click=link, image=rec.get("img"), priority=2 if quiet else 5 if kind == "hit" else 3, tags=("hammer",),
                     actions=[{"action": "view", "label": WARN_LABEL, "url": link + ".w"}] if rec["tier"] == "watch" else None):
             continue
@@ -2822,7 +2966,7 @@ def auction_alerts(state, cat, cards, cfg):
         v.setdefault("card_alerts", {})[str(rec["card"])] = v.get("card_alerts", {}).get(str(rec["card"]), 0) + 1
         watch[iid]["al"] = True
         hist.append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": rec["title"][:70], "u": rec["url"],
-                     "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-lead"), "mb": d["nm"][4],
+                     "tot": rec["total"], "p": d["nm"][2], "kd": "auction" + ("" if kind == "hit" else "-forecast" if kind == "fcau" else "-lead"), "mb": d["nm"][4],
                      "tr": rec["tier"], "card": rec["card"], "cs": d.get("s"), "fc": fcp})
         # the Raw Data tab's auction view: the bid when the phone was pinged, and everything needed to re-judge the
         # row later under whatever the Alerts tab then says. The sell side (net) is frozen here; margin and tax are not
@@ -2981,8 +3125,12 @@ def auction_finish(state, cards, n):
             mine["fin"], mine["fb2"], mine["fst"] = final, bids or 0, "sold" if bids else "nobids"
         cs = cards.get(str(a["card"])) or {}
         rec = {"id": iid, "total": final + a["ship"], "item": final, "ship": a["ship"], "tcond": a["tcond"]}
-        maxbuy = (es.listing_decision(rec, cs) if a["basis"] == "ebay" else es.lead_decision(rec, cs))[2]
-        ref = cs.get("A") if a["basis"] == "ebay" else cs.get("pc")
+        if a["basis"] == "fc":                               # a forecast auction (2026-10-25): the max was the card's standard price, kept on the alert as the max bid
+            al = next((e for e in state["vps"].get("alert_log", []) if e["i"] == iid and e.get("mb") is not None), None)
+            maxbuy = ref = round(al["mb"] * (1 + es.TAX) + a["ship"], 2) if al else None
+        else:
+            maxbuy = (es.listing_decision(rec, cs) if a["basis"] == "ebay" else es.lead_decision(rec, cs))[2]
+            ref = cs.get("A") if a["basis"] == "ebay" else cs.get("pc")
         allin = round(rec["total"] + final * es.TAX, 2)
         under = bool(bids) and maxbuy is not None and allin <= maxbuy
         done.append([a["end"], a["card"], final, a["ship"], bids or 0, maxbuy, a["basis"], int(under), ref])
@@ -3254,6 +3402,11 @@ def cycle(state, cat, sched, counters):
                 counters["au_alerts"] += auction_alerts(state, cat, counters["_cards"], cfg)
             elif trial_on and not alerts_on and due("auctions", AUCTION_EVERY_S):
                 counters["auctions_new"] += auction_read(state, cat, counters["_cards"])
+            if due("au_supply", AUCTION_SUPPLY_EVERY_S):      # the Forecast tab's auction line (2026-10-25)
+                n_au = auction_supply(state, cat, counters["_cards"])
+                if due("au_supply_log", 6 * 3600):
+                    ao = state.get("au_open") or {}
+                    log(f"Auctions: {n_au} open auctions on known cards among the {ao.get('read', 0)} ending soonest (until {ao.get('until')})")
             k = min(AUCTION_LOOKUPS_PER_CYCLE, AUCTION_LOOKUPS_PER_HOUR - tr["hn"]) if trial_on else 0
             if k > 0 or any(a.get("al") for a in state.get("auctions", {}).values()):
                 tr["hn"] += auction_finish(state, counters["_cards"], k)
@@ -3445,6 +3598,7 @@ def cycle(state, cat, sched, counters):
         au_backfill(state, cat)
         v["au_backfilled"] = 1
     live["alert"]["au"] = au_rows(state)                     # every auction sent to the phone, for the Raw Data tab
+    live["au_open"] = au_open_live(state)                     # the auctions running now on known cards (the Forecast tab's auction line, 2026-10-25)
     if not v.get("hh_backfilled"):
         hh_backfill(state, cat)
         v["hh_backfilled"] = 1
