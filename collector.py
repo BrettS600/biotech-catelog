@@ -633,25 +633,40 @@ def suspect_queue(state):
 
 COND_MAX_PER_CYCLE = 1           # the condition pass: a full look at a listing whose title names no condition ...
 COND_EVERY_S = 90                # ... at most one every 90 s (960 a day) ...
-COND_DAILY_MAX = 400             # ... and this many a day at most, 8% of the API budget
+COND_DAILY_MAX = 600             # ... and this many a day at most, 12% of the API budget (400 until 2026-10-25)
 
 
-def cond_queue(state, cfg):
-    """Listings the Raw Data tab shows as "n/s" that eBay's own condition field would settle (Brett, 2026-10-17):
-    matched, first seen in the last 24 h, in the alert price band, not suspect, two or more photos, never looked
-    up in full. Dearest first - those are the rows that matter - and each gets ONE full look (confirm with the
-    PRODUCT field group), which also teaches the record eBay's set / rarity / finish."""
-    day_ago = es.ts(es.NOW - timedelta(hours=24))
+def cond_queue(state, cfg, cards=None):
+    """Listings whose condition is not known - no grade in the title and eBay's condition field never read (es.cond_known;
+    the site shows them as "?") - matched, not suspect, two or more photos, each getting ONE full look (confirm with
+    the PRODUCT field group), which also teaches the record eBay's set / rarity / finish. Until 2026-10-25 a listing
+    whose set / rarity / finish had come from the ePID memory counted as read, so it was never queued - the memory
+    knows the product, never the copy's condition - and only the last 24 hours were queued, dearest first. Now the
+    order is what Brett looks at (his words: "the most recently posted cards rather than the old cards"):
+      0  listings on his plan
+      1  a card's cheapest copies - at or under its floor, the copies the Forecast tab counts at the standard price
+      2  listings that alerted (hits, auctions)
+      3  everything else in the alert price band
+    newest first inside each tier, no age cutoff (the newest get their read first; the older ones back fill)."""
+    v = state.get("vps") or {}
     lo, hi = float(cfg.get("pmin") or 0), float(cfg.get("pmax") or 1e9)
+    plan_ids = set((v.get("plan") or {}).keys())
+    alerted = {e.get("i") for e in v.get("hit_hist", []) + v.get("au_hist", []) if e.get("i")}
+    floors = {str(c): cs.get("L") for c, cs in (cards or {}).items() if cs.get("L")}
     out = []
     for iid, rec in state["open"].items():
-        if rec.get("tcond", "UNK") != "UNK" or "ef" in rec or rec.get("cond_tried") or rec.get("card") is None \
-                or rec["first"] < day_ago or rec.get("tier") == "suspect" or rec.get("total") is None \
-                or not lo <= rec["total"] <= hi or (rec.get("n_img") is not None and rec["n_img"] < 2):
+        if es.cond_known(rec) or rec.get("cond_tried") or rec.get("card") is None or rec.get("tier") == "suspect" \
+                or rec.get("total") is None or (rec.get("n_img") is not None and rec["n_img"] < 2):
             continue
-        out.append((-rec["total"], iid))
-    out.sort()
-    return [iid for _, iid in out]
+        L = floors.get(str(rec["card"]))
+        eff = rec["total"] * (es.BO_HAIRCUT if rec.get("bo") else 1.0)
+        pri = 0 if iid in plan_ids else 1 if (L is not None and eff <= L + 0.005 and not rec.get("pcm")) else 2 if iid in alerted else 3
+        if pri == 3 and not lo <= rec["total"] <= hi:
+            continue
+        out.append((pri, rec.get("first") or "", iid))
+    out.sort(key=lambda x: x[1], reverse=True)              # newest first ...
+    out.sort(key=lambda x: x[0])                            # ... inside each tier (a stable sort keeps the order above)
+    return [iid for _, _, iid in out]
 
 
 def close_stale(state, cards):
@@ -1040,6 +1055,128 @@ def cond_set(state, iid, val, t):
     log(f"Condition from the photos: {val or 'withdrawn'} ({iid})")
 
 
+# ---------------- The Flags archive (Brett, 2026-10-25) ----------------
+# "the removal of the listings that exceed the difference must be stored in a button ... where i can see the same
+# columns as the popup / ebay raw data tab, that way i can review them, to see why their %PC was so off ... mark it
+# ... a description box where i can type in my reasoning ... stored for permanent archive ... so that we may improve
+# the hit selection". One archive for every price anomaly the collector flags: a listing of a card whose eBay anchor
+# and PriceCharting price are GAP_HOLD_PCT apart (kind "gap": the open copies and the sales behind the anchor, the
+# card held from buys and hits meanwhile), a listing priced under 40% / over 300% of PriceCharting ("pclow" /
+# "pchigh", the per-listing rule), a listing under 45% of the anchor ("review"). Only listings whose condition is
+# known enter (Brett: "nor should they go to the archive, not until their condition is actually read"); newest first.
+# Each entry is a snapshot (the listing's words, prices, seller, condition, photos, facts; the card's anchor, sales,
+# PriceCharting price, floor, gap), so sold listings losing their details on eBay does not matter. Brett's mark
+# (state + note) lives on the entry; a card verdict (gap_marks) releases a held card for GAP_RELEASE_D days. The
+# state keeps the newest FLAGS_KEEP; a month's entries go to the archive branch on the 1st (archive_tick).
+FLAG_KINDS = {"PC gap": "gap", "mismatch: too cheap": "pclow", "mismatch: too high": "pchigh", "review": "review"}
+FLAG_STATES = ("unmarked", "set mismatch", "name mismatch", "condition", "fraud", "pc stale", "unknown")
+CARD_STATES = ("unmarked", "pc stale", "fraud", "mismatch", "condition", "unknown")
+FLAGS_KEEP = 5000
+FLAGS_NEW_MAX = 300              # entries added per pass at most
+FLAGS_EVERY_S = 600              # the archive file (live/flags.bin) is republished this often, or at once after a mark
+GAP_SOLD_MAX = 20                # the sales behind a held card's anchor that enter the archive (newest first)
+
+
+def flag_snapshot(state, cat, rec, cs, kind, verdict_text, status):
+    """One archive entry from a listing record and its card's stats."""
+    c = (cat.by_id.get(rec.get("card")) or {}) if cat is not None else {}
+    pc = (cs or {}).get("pc")
+    tot = rec.get("total")
+    return {"t": es.ts(es.NOW), "k": kind, "i": rec["id"], "c": rec.get("card"), "n": c.get("name") or "", "s": c.get("set") or "", "num": c.get("num") or "",
+            "rf": [c.get("rarity") or "", c.get("finish") or ""], "ti": rec.get("title") or "", "u": rec.get("url"), "tot": tot, "it": rec.get("item"), "sh": rec.get("ship"),
+            "sl": rec.get("seller"), "fb": rec.get("fb"), "pct": rec.get("pct"), "tc": rec.get("tcond", "UNK"), "ec": rec.get("ec") if "ec" in rec else None, "bc": rec.get("bc", ""),
+            "im": [u for u in [rec.get("img")] + list(rec.get("imgs") or [])[1:4] if u][:4], "ef": es.facts_row(rec), "first": rec.get("first"),
+            "A": (cs or {}).get("A"), "An": (cs or {}).get("A_n"), "pc": pc, "L": (cs or {}).get("L"), "gap": (cs or {}).get("gap"),
+            "vspc": round((tot / pc - 1) * 100, 1) if pc and tot else None, "st": status, "v": verdict_text, "tier": rec.get("tier", "clean"),
+            "state": "unmarked", "note": "", "mt": None}
+
+
+def flags_update(state, cat, cards, live):
+    """After each build: file the newly flagged listings (see above). -> how many were added."""
+    v = state["vps"]
+    flags = v.setdefault("flags", {})
+    added = 0
+    # the open listings, from the live rows (x[12] = the verdict, x[13] / x[35] = the condition)
+    for x in live.get("live") or []:
+        if added >= FLAGS_NEW_MAX:
+            break
+        kind = FLAG_KINDS.get(x[12])
+        if not kind or x[0] in flags or (x[13] == "UNK" and x[35] is None):
+            continue
+        rec = state["open"].get(x[0])
+        if rec is None:
+            continue
+        flags[x[0]] = flag_snapshot(state, cat, rec, (cards or {}).get(str(x[1])), kind, x[12], x[17])
+        added += 1
+    # the sales behind a held card's anchor, once per hold (gap_flagged remembers the hold that was filed)
+    seen = v.setdefault("gap_flagged", {})
+    cut = es.ts(es.NOW - timedelta(days=30))
+    for cid, cs in (cards or {}).items():
+        if not cs.get("gap_hold"):
+            seen.pop(str(cid), None)                        # released or back inside the line: the next hold files afresh
+            continue
+        if str(cid) in seen or added >= FLAGS_NEW_MAX:
+            continue
+        seen[str(cid)] = es.ts(es.NOW)
+        sold = [r for r in state["closed"] if str(r.get("card")) == str(cid) and r.get("out") == "sold" and (r.get("closed") or "") >= cut
+                and r.get("tcond", "UNK") in es.COMPARABLE_CONDS and es.cond_known(r) and r.get("id") not in flags]
+        sold.sort(key=lambda r: r.get("closed") or "", reverse=True)
+        for r in sold[:GAP_SOLD_MAX]:
+            flags[r["id"]] = flag_snapshot(state, cat, r, cs, "gap", "sold behind the anchor", "sold")
+            added += 1
+    if len(flags) > FLAGS_KEEP:
+        for k in sorted(flags, key=lambda kk: flags[kk]["t"])[:len(flags) - FLAGS_KEEP]:
+            del flags[k]
+    if added:
+        v["flag_t"] = max(v.get("flag_t", 0), int(time.time() * 1000))
+        log(f"Flags: {added} listing{'s' if added != 1 else ''} filed ({len(flags)} in the archive)")
+    return added
+
+
+def flag_mark(state, iid, st, note, t):
+    """Brett's mark on an archived listing: state + note (the Review popup's Flag section). A mismatch state is the
+    Not-the-same answer (hidden everywhere, filed as a wrong match, the matcher learns); fraud makes the listing - and
+    the seller's other listings - suspect (score_listings: "fsl"); condition / pc stale / unknown record the reason."""
+    v = state["vps"]
+    e = (v.get("flags") or {}).get(iid)
+    if e is None or st not in FLAG_STATES:
+        return
+    e["state"], e["note"], e["mt"] = st, str(note or "")[:1000], es.ts(es.NOW)
+    if st in ("set mismatch", "name mismatch"):
+        review_listing(state, iid, False, t)
+    elif st == "fraud":
+        rec = find_rec(state, iid)
+        if rec is not None:
+            rec["fraud"] = 1
+            if rec.get("seller"):
+                fs = v.setdefault("fraud_sellers", [])
+                if rec["seller"] not in fs:
+                    fs.append(rec["seller"])
+                    del fs[:-500]
+    v["flag_t"] = t
+    log(f"Flags: {iid} marked {st}" + (f" ({len(note)} chars of note)" if note else ""))
+
+
+def gap_mark(state, cid, st, note, t):
+    """Brett's verdict on a held card (the Flags archive's card strip): any state but "unknown" releases the hold for
+    GAP_RELEASE_D days (es.card_gap); the reason and note are kept with it."""
+    v = state["vps"]
+    if st not in CARD_STATES:
+        return
+    v.setdefault("gap_marks", {})[str(cid)] = {"state": st, "note": str(note or "")[:1000], "t": es.ts(es.NOW), "mt": t}
+    v["flag_t"] = t
+    log(f"Flags: card {cid} verdict {st}")
+
+
+def flags_file(state, cards):
+    """live/flags.bin: every archived entry newest first, the card verdicts, and the cards held now."""
+    v = state["vps"]
+    flags = sorted((v.get("flags") or {}).values(), key=lambda e: e["t"], reverse=True)
+    held = [[int(c), cs.get("gap"), cs.get("A"), cs.get("A_n"), cs.get("pc"), cs.get("L")] for c, cs in (cards or {}).items() if cs.get("gap_hold")]
+    held.sort(key=lambda h: -abs(h[1] or 0))
+    return {"t": es.ts(es.NOW), "flags": flags, "gap_marks": v.get("gap_marks") or {}, "held": held, "states": list(FLAG_STATES), "card_states": list(CARD_STATES)}
+
+
 def wrong_rows(v):
     """The wrong-match list for the site, newest first: [when, item, title, link, matched card, its set, card id, kind, total]."""
     cut = es.ts(es.NOW - timedelta(days=WRONG_KEEP_D))
@@ -1252,6 +1389,10 @@ def read_requests(state):
             review_listing(state, str(msg["i"])[:60], msg.get("v"), t)
         elif msg.get("type") == "cond" and msg.get("i"):          # the condition from the photos, answered on the site (2026-10-25)
             cond_set(state, str(msg["i"])[:60], msg.get("v"), t)
+        elif msg.get("type") == "flag" and msg.get("i"):          # a mark in the Flags archive (2026-10-25)
+            flag_mark(state, str(msg["i"])[:60], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
+        elif msg.get("type") == "gapmark" and msg.get("c") is not None:   # a card verdict in the Flags archive
+            gap_mark(state, str(msg["c"])[:12], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
         elif msg.get("type") == "pcimg" and msg.get("c") is not None:   # Review pressed on a card without its picture
             try:
                 if pc_worker() is not None:
@@ -2807,6 +2948,9 @@ def archive_tick(state, cards):
         rows = [r for r in state["closed"] if str(r.get("first", ""))[:7] == prev]
         if rows:
             files[f"closed/{prev}.jsonl.gz.enc"] = es.encrypt_file_blob(gzip.compress("\n".join(json.dumps(r, separators=(",", ":")) for r in rows).encode("utf-8")), es.PASSWORD)
+        fl = [e for e in (v.get("flags") or {}).values() if str(e.get("t", ""))[:7] == prev]   # the Flags archive's month, with Brett's marks and notes (2026-10-25)
+        if fl:
+            files[f"flags/{prev}.jsonl.gz.enc"] = es.encrypt_file_blob(gzip.compress("\n".join(json.dumps(e, separators=(",", ":")) for e in sorted(fl, key=lambda e: e["t"])).encode("utf-8")), es.PASSWORD)
     if not files:
         v["arch_day"], v["arch_month"] = today, month
         return
@@ -2937,7 +3081,7 @@ def cycle(state, cat, sched, counters):
     if cond_day.get("d") != es.TODAY:
         cond_day.clear(); cond_day.update({"d": es.TODAY, "n": 0, "named": 0})
     if cards and cond_day["n"] < COND_DAILY_MAX and v.get("tokens", 0) >= 2 and due("cond", COND_EVERY_S):
-        for iid in cond_queue(state, alert_cfg(state))[:COND_MAX_PER_CYCLE]:
+        for iid in cond_queue(state, alert_cfg(state), cards)[:COND_MAX_PER_CYCLE]:
             if not spend(state, COST_CONFIRM):
                 break
             rec = state["open"][iid]
@@ -3054,6 +3198,14 @@ def cycle(state, cat, sched, counters):
     live["alert"]["review_t"] = v.get("review_t", 0)
     live["alert"]["conds"] = {k: r["v"] for k, r in v.get("conds", {}).items()}       # Brett's grades from the photos (2026-10-25)
     live["alert"]["cond_t"] = v.get("cond_t", 0)
+    try:                                                     # the Flags archive (2026-10-25): file the new anomalies, publish the counts
+        flags_update(state, cat, cards, live)
+    except Exception as e:
+        log(f"Flags: filing failed ({str(e)[:120]})")
+    fl = v.get("flags") or {}
+    live["alert"]["flag_n"] = {"total": len(fl), "unmarked": sum(1 for e in fl.values() if e.get("state", "unmarked") == "unmarked"),
+                               "held": sum(1 for cs in cards.values() if cs.get("gap_hold")), "t": v.get("flag_t", 0)}
+    live["alert"]["gap_marks"] = {k: {"state": m.get("state"), "t": m.get("t")} for k, m in (v.get("gap_marks") or {}).items()}
     pc = pc_worker()                                         # the background reader: file what it found, hand it the next plan
     got, urgent = file_pc_images(state, pc)
     counters["pc_img"] += got
@@ -3107,7 +3259,7 @@ def cycle(state, cat, sched, counters):
         save_state(state)
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
-           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("cond_t", 0), v.get("forecast_t", 0),
+           v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("cond_t", 0), v.get("flag_t", 0), v.get("forecast_t", 0),
            v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
@@ -3126,6 +3278,14 @@ def cycle(state, cat, sched, counters):
                 files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
             except Exception as e:
                 log(f"PriceCharting history: publish failed ({str(e)[:120]})")
+        if due("flags", FLAGS_EVERY_S) or v.get("flag_t", 0) != v.get("flag_pub_t", -1):   # the Flags archive (2026-10-25)
+            try:
+                ff = flags_file(state, cards)
+                raw_ff = gzip.compress(json.dumps(ff, separators=(",", ":")).encode("utf-8"))
+                files["flags.bin"] = es.encrypt_live(raw_ff, es.PASSWORD) if es.PASSWORD else raw_ff
+                v["flag_pub_t"] = v.get("flag_t", 0)
+            except Exception as e:
+                log(f"Flags: flags.bin failed ({str(e)[:120]})")
         if due("fcrows", FC_ROWS_EVERY_S):                   # the Forecast tab's available listings, with the Raw Data columns (the card popup)
             try:
                 fr = fc_rows_file(state, cards, {x[0] for x in live["live"]})
