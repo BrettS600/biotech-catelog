@@ -312,6 +312,32 @@ sup.dim { font-size:9px; margin-left:1px; }
 .rvbtns button small { display:block; font-weight:400; font-size:12px; margin-top:4px; opacity:.9; }
 .rvbtns .rvyes { background:#238636; } .rvbtns .rvno { background:#da3633; }
 .rvundo { text-align:center; margin-top:8px; }
+/* the Review popup's scam block (2026-10-25): the phone's, with a Warnings button that unfolds the points table (riskTableHtml) */
+.rvscam { margin-top:10px; background:rgba(158,106,3,.14); border:1px solid #9e6a03; border-radius:10px; padding:8px 10px; font-size:13px; }
+.rvscam.sus { background:rgba(218,54,51,.12); border-color:#da3633; }
+.rvscam.clean { background:var(--head); border-color:var(--line); }
+.rvscam .head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.rvscam ul { margin:4px 0 0; padding-left:18px; }
+.rvscam .wt { margin-top:6px; }
+button.wbtn { flex:none; font:inherit; font-size:12px; font-weight:600; padding:5px 10px; border:0; border-radius:8px; background:#9e6a03; color:#fff; cursor:pointer; white-space:nowrap; }
+.rvscam.sus button.wbtn { background:#da3633; }
+/* the second question on the Review popup: Brett's grade from the photos */
+.rvcond { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+.rvcond .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+.rvcond .cbtns { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.rvcond .cbtn { font:inherit; font-size:13px; font-weight:600; padding:7px 14px; border:1px solid var(--line); border-radius:8px; background:var(--head); color:var(--fg); cursor:pointer; }
+.rvcond .cbtn:hover { border-color:var(--link); }
+.rvcond .cbtn.on { background:var(--link); border-color:var(--link); color:#fff; }
+.rvcond small { display:block; margin-top:6px; font-size:12px; color:var(--muted); }
+/* the Mismatches popup's listings table, with the Restore column */
+.mmt { width:100%; margin:4px 0 6px; font-size:12px; }
+.mmt th, .mmt td { padding:3px 6px; }
+.mmt td.ttl { max-width:420px; white-space:normal; }
+/* the Forecast popup: the chips above the rows; greyed rows the floor does not count as credible */
+#lov .fcl-mode { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0 2px; }
+#lov .fcl-mode:empty { display:none; }
+#lov tr.nocred td { opacity:.62; }
+#lov tr.nocred td.favc, #lov tr.nocred td.mmk { opacity:1; }
 
 /* Favorites (Brett, 2026-10-23): the star on every row, the tab's view chooser, and the notes in the All view */
 th.favh, td.favc { text-align:center; width:1%; white-space:nowrap; padding-left:6px; padding-right:4px; }
