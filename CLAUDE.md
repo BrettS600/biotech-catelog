@@ -1499,6 +1499,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   second commit made 20 s earlier), then the page (app.js a387247b, body.html e0b79981, style.css e5fbc3a0, help.js
   3b2b9211; site build #135). The first "PC spread:" line comes once pages have been re-read with the new parser (the
   tick at start found no spread on file; the next is 6 h later). The push after the fix: 91 s for 25.7 MB, no timeouts.
+  FIRST LOOK (21:25 UTC, the shards decrypted locally - the key from the password in an env var, never a file): 13 of
+  the ~52 pages read since the restart carried a spread (the parser works on the worker's pages; no "sl" leaked), but
+  the widest were penny cards (a $0.06 card: 36 sales from $0.01 to $2.13, iqr/median 4.4 - eBay's price steps, not
+  PriceCharting's error). So PC_SPREAD_MIN_MED = 1000 (cents): a card whose median sale is under $10 is never judged
+  (an earlier automatic verdict on it is withdrawn) and the distribution line counts the cards from $10 only, naming
+  the cheaper ones left out; the Flags note and help say "cards from $10". Deployed ~21:40 UTC: collector.py c2049b5e,
+  app.js 8035ae29, help.js b52888dc (site build #136). The bar itself (0.5) is still to be judged from the log line.
   Round 3 is complete bar the bar-tuning note above.
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
