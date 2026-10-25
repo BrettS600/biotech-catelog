@@ -334,6 +334,45 @@ button.wbtn { flex:none; font:inherit; font-size:12px; font-weight:600; padding:
 .mmt th, .mmt td { padding:3px 6px; }
 .mmt td.ttl { max-width:420px; white-space:normal; }
 /* the Forecast popup: the chips above the rows; greyed rows the floor does not count as credible */
+/* the supply switches (2026-10-25) */
+.fc-sup .fc-supc { display:flex; gap:10px; }
+.fc-sup .fc-supc label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+.fc-sup .fc-supc input { width:auto; }
+/* the Planning view's filters */
+.pl-filt { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:12px; margin:0 0 8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--head); }
+.pl-filt label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+.pl-filt .sep { width:1px; height:14px; background:var(--line); }
+/* the Forecast row: the anchor against PriceCharting, held cards */
+.fc-gapv.down { color:var(--down); font-weight:600; }
+tr.fc-held td { opacity:.6; }
+tr.fc-held td .fc-holdnote { opacity:1; color:var(--down); font-weight:600; }
+/* the Flags archive (2026-10-25) */
+#fov { z-index:44; }
+#fov .fgchips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0 4px; }
+#fov .fgchips .lbl { font-size:12px; color:var(--muted); margin-right:2px; }
+#fov .fg-days { font-size:12px; color:var(--muted); display:inline-flex; align-items:center; gap:4px; }
+#fov .fg-days input { width:48px; }
+.fgheld { margin:6px 0 4px; border:1px solid var(--line); border-radius:8px; background:var(--head); padding:6px 10px; font-size:12px; }
+.fgheld .fgrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:4px 0; border-top:1px solid var(--line); }
+.fgheld .fgrow:first-of-type { border-top:0; }
+.fgheld .fgrow b.gap { color:var(--down); }
+.fgheld .fgrow select, .fgheld .fgrow input[type=text] { font:inherit; font-size:12px; }
+.fgheld .fgrow input[type=text] { flex:1 1 220px; min-width:160px; }
+td.fgst button { font:inherit; font-size:11px; padding:2px 7px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); cursor:pointer; white-space:nowrap; }
+td.fgst button.unmarked { color:var(--muted); }
+td.fgst button.fraud { border-color:#d1242f; color:#d1242f; }
+td.fgst button.mm { border-color:#9e6a03; color:#9e6a03; }
+td.fgst button small { display:block; font-size:10px; color:var(--muted); }
+td.fgnote button { font:inherit; border:0; background:none; cursor:pointer; }
+td.fgnote .dim { opacity:.5; }
+/* the Review popup's Flag section */
+.rvflag { margin:0 0 10px; padding:8px 10px; border:1px solid #9e6a03; border-radius:10px; background:rgba(158,106,3,.12); font-size:13px; }
+.rvflag .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.rvflag .fbtns { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+.rvflag .fbtn { font:inherit; font-size:12px; font-weight:600; padding:5px 10px; border:1px solid var(--line); border-radius:8px; background:var(--head); color:var(--fg); cursor:pointer; }
+.rvflag .fbtn.on { background:#9e6a03; border-color:#9e6a03; color:#fff; }
+.rvflag textarea { width:100%; box-sizing:border-box; font:inherit; font-size:13px; min-height:54px; border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--bg); color:var(--fg); }
+.rvflag .fsave { margin-top:6px; display:flex; gap:8px; align-items:center; }
 #lov .fcl-mode { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0 2px; }
 #lov .fcl-mode:empty { display:none; }
 #lov tr.nocred td { opacity:.62; }
