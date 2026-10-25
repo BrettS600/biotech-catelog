@@ -28,7 +28,8 @@ BUCKETS = ("b50", "b75", "b90", "top10")
 # the constants of the archived plans and the history replay (Brett, 2026-10-23: "fees included held constant 14.1% +
 # $5.20 where i assume 0% buy tax ... price range held constant ($50 to $500) ... buy only at 50% or better")
 STD_FEES = {"fee": 0.1325 * 1.065, "fixed": 0.40, "shipOut": 4.50, "supplies": 0.30, "tax": 0.0}
-STD_INPUTS = {"pmin": 50.0, "pmax": 500.0, "share": 0.2, "minp": 0.5, "young": False, "untracked": False, "copies": 1, "recent": True, "gate": True}
+STD_INPUTS = {"pmin": 50.0, "pmax": 500.0, "share": 0.2, "minp": 0.5, "young": False, "untracked": False, "copies": 1, "recent": True, "gate": True,
+              "sup": {"conds": ["NM", "LP", "UNK"], "nowatch": True, "minfb": 0}}   # which copies Supply counts (2026-10-25): conditions, no watch / suspect copies, seller ratings
 STD_CAPS = (500, 1000, 5000, 10000, 25000)
 STD_HOLDS = (1, 3, 6)
 STD_DISCS = (0.0, 0.2)
@@ -126,7 +127,10 @@ def levels(c, pc_buy, min_sales, skip=None):
     comp = next((e for e in cred if e[0] != skip_id), None)
     if comp and comp[1] < sell:
         sell, why = comp[1], "ask"
-    return {"buy": buy, "sell": sell, "src": src, "why": why, "A": c.get("A"), "An": n, "comp": comp[1] if comp else None}
+    if c.get("gap_hold") and pc_buy is not None and pc_buy < sell:   # the anchor and PriceCharting far apart, unreviewed: the lower of the two (2026-10-25)
+        sell, why = pc_buy, "gap"
+    return {"buy": buy, "sell": sell, "src": src, "why": why, "A": c.get("A"), "An": n, "comp": comp[1] if comp else None,
+            "gap": c.get("gap"), "hold": 1 if c.get("gap_hold") else 0}
 
 
 def listing_chance(doc, ix, cards, cid, total, iid, h, S, min_sales):
@@ -157,15 +161,34 @@ def book_eff(b, c):
     return e / (1 - lpd) if len(b) > 4 and b[4] == "LP" and lpd < 1 else e
 
 
-def supply_at(c, price):
-    """The open copies at or under the plan's price (Brett, 2026-10-25: "if it says 3, then it shows 3 listings"): their
-    number, the dearest's asking total, the cheapest ask of all, their ids. None without a book."""
+def copy_ok(b, sup):
+    """Does Supply count this book copy (the "Supply counts copies that are..." switches, 2026-10-25)? A copy whose
+    condition is not known yet (b[11] = 0: no grade in the title, eBay's field not read) never counts; the chosen
+    conditions (n/s = UNK, read and none stated); no watch / suspect copies when nowatch; the seller's ratings."""
+    sup = sup or STD_INPUTS["sup"]
+    if len(b) > 11 and not b[11]:
+        return False
+    if (b[4] if len(b) > 4 else "UNK") not in (sup.get("conds") or ["NM", "LP", "UNK"]):
+        return False
+    if sup.get("nowatch", True) and len(b) > 12 and b[12] in ("watch", "suspect"):
+        return False
+    if (sup.get("minfb") or 0) > 0 and ((b[6] if len(b) > 6 else None) or 0) < sup["minfb"]:
+        return False
+    return True
+
+
+def supply_at(c, price, sup=None):
+    """The open copies at or under the plan's price (Brett, 2026-10-25: "if it says 3, then it shows 3 listings") that
+    the switches count (copy_ok): their number, the dearest's asking total, the cheapest ask of all, their ids, and how
+    many copies at the price were left out only because their condition is not read yet. None without a book."""
     book = (c or {}).get("book")
     if book is None:
         return None
-    at = [b for b in book if (lambda e: e is not None and e <= price + 0.005)(book_eff(b, c))]
-    asks = [b[1] for b in book if b[1] is not None]
-    return {"n": len(at), "dear": max((b[1] for b in at), default=None), "cheapest": min(asks, default=None), "ids": [b[0] for b in at]}
+    under = [b for b in book if (lambda e: e is not None and e <= price + 0.005)(book_eff(b, c))]
+    at = [b for b in under if copy_ok(b, sup)]
+    unread = sum(1 for b in under if len(b) > 11 and not b[11])
+    asks = [b[1] for b in book if b[1] is not None and copy_ok(b, sup)]   # "cheapest": among the copies that could count
+    return {"n": len(at), "dear": max((b[1] for b in at), default=None), "cheapest": min(asks, default=None), "ids": [b[0] for b in at], "unread": unread}
 
 
 def plan(doc, cards, S, inputs, band, min_sales, names=None):
@@ -199,7 +222,7 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
         if c and c.get("supply") is not None:              # the history replay: a supply from PriceCharting's monthly sales (no book then)
             supply = c["supply"]
         elif c and book is not None and band[0] <= buy <= band[1]:
-            sa = supply_at(c, buy * (1 - I["disc"]))
+            sa = supply_at(c, buy * (1 - I["disc"]), I.get("sup"))
             supply, ask, dear = sa["n"], sa["cheapest"], sa["dear"]
         if supply is None and not I["untracked"]:
             continue
@@ -212,9 +235,10 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
         d = dist(qs, tab, buy, S, I["disc"], sell)
         nm = (names or {}).get(int(cid)) or ("", "")
         rows.append(dict(d, cid=int(cid), name=nm[0], set=nm[1], price=a[ix["price"]], pc_buy=pc_buy, buy=buy, sell=sell, src=lv["src"], why=lv["why"],
-                         A=lv["A"], An=lv["An"], ask=ask, supply=supply, dear=dear, pct=pct, bucket=b, tab=tab, age=age, vol12=vol12, qty=0))
+                         A=lv["A"], An=lv["An"], ask=ask, supply=supply, dear=dear, pct=pct, bucket=b, tab=tab, age=age, vol12=vol12, qty=0,
+                         gap=lv.get("gap"), hold=lv.get("hold", 0)))
     rows.sort(key=lambda r: (-round(r["p"] * 100), -r["pct"]))
-    elig = [r for r in rows if r["p"] >= I["minp"]]
+    elig = [r for r in rows if r["p"] >= I["minp"] and not r.get("hold")]   # a held card (the PC gap, unreviewed) gets no money
     left = I["cap"]
     if not gated:
         for r in elig:
