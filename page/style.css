@@ -365,6 +365,25 @@ td.fgst button.mm { border-color:#9e6a03; color:#9e6a03; }
 td.fgst button small { display:block; font-size:10px; color:var(--muted); }
 td.fgnote button { font:inherit; border:0; background:none; cursor:pointer; }
 td.fgnote .dim { opacity:.5; }
+/* the Flag column (2026-10-25): grey = none, amber = the collector's own flag, red = his; the reason menu */
+td.flc, th.flh { text-align:center; }
+.flb { font:inherit; border:0; background:none; cursor:pointer; padding:1px 3px; color:var(--muted); opacity:.45; line-height:0; }
+.flb svg { width:15px; height:15px; }
+.flb:hover { opacity:1; }
+.flb.auto { color:#9e6a03; opacity:.9; }
+.flb.on { color:#d1242f; opacity:1; }
+td.fls { white-space:nowrap; font-size:12px; }
+td.fls.on { color:#d1242f; font-weight:600; }
+td.fls .n { display:inline-block; min-width:16px; padding:0 4px; border-radius:8px; background:rgba(209,36,47,.15); font-size:11px; text-align:center; }
+#flpop { position:fixed; z-index:70; display:none; background:var(--bg); color:var(--fg); border:1px solid #9e6a03; border-radius:10px; padding:8px 10px; box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:13px; }
+#flpop.open { display:block; }
+#flpop .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+#flpop .fbtns { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0; }
+#flpop .fbtn { font:inherit; font-size:12px; font-weight:600; padding:5px 10px; border:1px solid var(--line); border-radius:8px; background:var(--head); color:var(--fg); cursor:pointer; }
+#flpop .fbtn:hover { background:#9e6a03; border-color:#9e6a03; color:#fff; }
+#flpop input[type=text] { width:100%; box-sizing:border-box; font:inherit; font-size:13px; border:1px solid var(--line); border-radius:8px; padding:5px 8px; background:var(--bg); color:var(--fg); margin:4px 0; }
+#flpop .fsave { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.rvflag.off { border-color:var(--line); background:transparent; }
 /* the Review popup's Flag section */
 .rvflag { margin:0 0 10px; padding:8px 10px; border:1px solid #9e6a03; border-radius:10px; background:rgba(158,106,3,.12); font-size:13px; }
 .rvflag .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
@@ -432,10 +451,13 @@ button.fc-fold:hover { color:var(--fg); border-color:var(--link); }
 .fvempty { padding:18px; color:var(--muted); }
 /* the Review screen's star sits with the question */
 .rvstar { float:right; margin-left:10px; }
-/* the Forecast's picks: the star took the first cell, the card name moved one over */
+/* the Forecast's picks and the plan: the star took the first cell, the card name has its own class (cardc) now that
+   Flag / State sit between them on the plan (2026-10-25) */
 .fc .fc-box td:first-child.favc { min-width:0; white-space:nowrap; }
-.fc .fc-box td.favc + td { white-space:normal; min-width:170px; }
-.fc .fc-box td.favc + td a { font-weight:600; }
+.fc .fc-box td.cardc { white-space:normal; min-width:170px; }
+.fc .fc-box td.cardc a { font-weight:600; }
+.fc .fc-box td.flc, .fc .fc-box td.fls { width:1%; }
+.fc .fc-box td.fls { white-space:nowrap; }
 /* a quiet word at the bottom of the window (a star that could not be sent, the 400 cap) */
 #fvtoast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); max-width:min(560px, 90vw); background:var(--fg); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:13px; z-index:70; opacity:0; pointer-events:none; transition:opacity .2s; }
 #fvtoast.open { opacity:.95; }
