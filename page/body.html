@@ -148,7 +148,7 @@
   <label id="callab" title="Shift the sell price by the offset the tracker measured — only available once enough outcomes exist"><input type="checkbox" id="usecal" checked> Calibration</label>
 </div>
 <div class="meta" id="meta-er">eBay Raw Data · loading live data…</div>
-<div class="actbar"><button class="actbtn" id="use-al">Use my alert settings here</button><button class="actbtn" id="offers-btn">Offer list</button><button class="actbtn" id="unmatched-btn">Unmatched titles</button><button class="actbtn" id="scam-btn">Scam screen</button><button class="actbtn" id="mm-btn">Mismatches (<span id="nmm">0</span>)</button></div>
+<div class="actbar"><button class="actbtn" id="use-al">Use my alert settings here</button><button class="actbtn" id="offers-btn">Offer list</button><button class="actbtn" id="unmatched-btn">Unmatched titles</button><button class="actbtn" id="scam-btn">Scam screen</button><button class="actbtn" id="mm-btn">Mismatches (<span id="nmm">0</span>)</button><button class="actbtn" id="fg-btn" title="The Flags archive: cards held for a PC gap, listings far from PriceCharting or the anchor - review and mark them">Flags (<span class="nfg">0</span>)</button></div>
 <div class="controls">
   <input type="search" id="q-er" placeholder="Search card, set or title…">
   <select id="set-er"><option value="">All sets (release order)</option></select>
@@ -272,6 +272,21 @@
   </div>
 </div>
 
+<!-- the Flags archive (2026-10-25): price anomalies the collector filed, with Brett's marks and notes -->
+<div class="ov" id="fov">
+  <div class="modal listings flags">
+    <button class="close" id="fgclose" title="Close">✕</button>
+    <h2>Flags<button class="help" data-h="fg">?</button></h2>
+    <div class="sub" id="fgsub"></div>
+    <div id="fg-held"></div>
+    <div class="fvchips fgchips" id="fg-chips"></div>
+    <div class="controls"><input type="search" id="q-fg" placeholder="Search card, set or title…"><select id="set-fg" hidden><option value="">All sets</option></select><label class="fg-days">flagged within <input type="number" id="fg-days" min="0" step="1" value="0" title="0 = any time"> days</label><button class="actbtn" id="fg-csv" title="Every entry shown, with your marks and notes, as a CSV file (for analysis)">Download CSV</button><span class="count" id="count-fg"></span></div>
+    <div class="ranges" id="ranges-fg"><button class="reset" id="reset-fg">Reset</button></div>
+    <div class="wrap lwrap"><table class="wide"><tbody id="rows-fg"></tbody></table></div>
+    <button class="more" id="more-fg" hidden>Show more</button>
+  </div>
+</div>
+
 <div class="ov" id="ov">
   <div class="modal">
     <button class="close" id="close" title="Close">✕</button>
@@ -330,7 +345,7 @@
 <div class="actbar fc-bar">
   <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
-  <span class="fc-tools"><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
+  <span class="fc-tools"><button class="actbtn" id="fc-flags" title="The Flags archive: cards held for a PC gap, listings far from PriceCharting or the anchor - review and mark them">Flags (<span class="nfg">0</span>)</button><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>
 <div class="al fc" id="fc-al">
   <div class="al-card" id="fc-side">
@@ -342,6 +357,9 @@
     <div class="al-row"><span class="lab">At most per card<button class="help" data-h="fc_share">?</button></span><span><input type="number" id="fc-share" min="5" max="100" step="5" value="20"><span class="unit">%</span><span class="dim"> of the capital</span></span></div>
     <div class="al-row"><span class="lab">Buy only at<button class="help" data-h="fc_conf">?</button></span><span><input type="number" id="fc-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span><span class="dim"> or better chance of a profit</span></span></div>
     <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fc_copies">?</button></span><span><input type="number" id="fc-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
+    <div class="al-row fc-sup"><span class="lab">Supply counts copies that are<button class="help" data-h="fc_sup">?</button></span><span class="fc-supc"><label><input type="checkbox" id="fc-sup-nm" checked> NM</label><label><input type="checkbox" id="fc-sup-lp" checked> LP</label><label><input type="checkbox" id="fc-sup-ns" checked> n/s</label></span></div>
+    <label class="al-check"><input type="checkbox" id="fc-sup-nowatch" checked> No watch / suspect copies in the supply<button class="help" data-h="fc_nowatch">?</button></label>
+    <div class="al-row"><span class="lab">Seller at least<button class="help" data-h="fc_minfb">?</button></span><span><input type="number" id="fc-sup-minfb" min="0" step="10" value="0"><span class="dim"> ratings</span></span></div>
     <label class="al-check"><input type="checkbox" id="fc-gate" checked> Buy only when the market is rising<button class="help" data-h="fc_gate">?</button></label>
     <label class="al-check"><input type="checkbox" id="fc-recent" checked> Only cards with an eBay sale in the last 30 days<button class="help" data-h="fc_recent">?</button></label>
     <label class="al-check"><input type="checkbox" id="fc-young"> Allow cards from sets under 2 years old<button class="help" data-h="fc_young">?</button></label>
@@ -360,6 +378,11 @@
   </div>
   <div class="al-card" id="fc-plan" hidden>
     <h3>Your plan &mdash; the listings you added<button class="help" data-h="fc_plan">?</button></h3>
+    <!-- the Planning view's own filters (2026-10-25): what the list shows and the figures count -->
+    <div class="pl-filt" id="pl-filt"><span class="dim">Show:</span>
+      <label><input type="checkbox" id="pl-f-open" checked> open</label><label><input type="checkbox" id="pl-f-gone" checked> sold / ended</label>
+      <span class="sep"></span><label><input type="checkbox" id="pl-f-nm" checked> NM</label><label><input type="checkbox" id="pl-f-lp" checked> LP</label><label><input type="checkbox" id="pl-f-ns" checked> n/s</label><label><input type="checkbox" id="pl-f-oth" checked> MP / HP / ?</label>
+      <span class="sep"></span><label><input type="checkbox" id="pl-f-nowatch" checked> hide watch / suspect</label><button class="help" data-h="pl_filt">?</button></div>
     <div id="pl-summary" class="al-now"></div>
     <div id="pl-picks"></div>
     <div class="al-actions"><button class="al-save" id="pl-record">Record this plan</button></div>
