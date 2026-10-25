@@ -1334,6 +1334,67 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   ("module 'ebay_sweep' has no attribute 'cond_known'") until the next pull - when collector.py starts using a new
   ebay_sweep / forecast_math name, commit THOSE first and collector.py last (the loop catches the exception and
   carries on, so nothing was lost, but the live file stood still for the gap).
+- FLAGS ON EVERY LISTING, THE STATE COLUMN, "PC INACCURACY" AS THE CARD'S VERDICT, PHOTOS -> SUSPECT, THE "?" SWITCH
+  (2026-10-25 evening, round 3 stage 1; Brett's note: "there should be a column next to the (+) column, called 'flag'
+  ... each cell has a flag icon that i can toggle on or off ... the listing will appear in the flags button ... i
+  should not receive any hits for flagged listings ... a state column ... 'No Flag' ... a number, specifying what
+  number of the same pokemon card has received that same flag state"; "if i flag one of them [in a card's popup], then
+  i want it to disappear from forecast tab because it means that card isnt even an option to buy. but it doesnt have
+  to disappear in ebay raw data tab. also, it will reappear in flags tab"; "Listing with fewer than 2 photos should
+  never be shown, and always be labeled suspect"; "next to Supply counts copies that are... i would also like to have a
+  question mark toggle"; the Review flag box "for all review buttons"; the card verdict should be "PC Inaccuracy ...
+  not listing specific, but rather pokemon card generalized"). (1) FLAG + STATE COLUMNS after the + on Raw Data (TABLES.er
+  flag = {k: item id, c: card id}, inserted v17 at 3 n 2 so saved column choices shift; the sort keys 'flag' and
+  'state'), the card popup (FCL_TABLE = Raw Data's columns), the Flags popup (it clones the header) and the Planning
+  table (flagCells({k: iid, c: cid})); flagCells renders button.flb (grey = no flag, amber .auto = the collector's own
+  gap / pclow / pchigh / review entry with no reason of yours, red .on = your reason) and td.fls = the state + a badge
+  with how many listings of the card carry the same state (flCounts from live.alert.fl, the FLAGM echo first), "No
+  Flag" in grey. A grey / amber flag opens #flpop (z 70): the reasons FLAG_REASONS = set mismatch / name mismatch /
+  condition / fraud / unknown, a note box, "Open Review"; a red flag comes off at once ('unmarked'). flagMark(iid,
+  state, note, cid) echoes in FLAGM (with c), REVIEWS v:0 for a mismatch (v:null when a mismatch flag comes off),
+  rebuildLive, alSend {type:'flag', t: nextT(), i, state, note}. The Review popup's Flag section is on EVERY listing
+  (openReview builds a virtual entry {i, k:'manual', state:'unmarked', virtual:1} when the archive has none; class
+  'off' until flagged; "Flag it" / "Save the change" / "Take the flag off"). (2) WHAT A FLAG DOES: ebay_sweep.wrong_card
+  includes rec.fl, so a flagged listing is out of comparable(), every statistic, the anchor and the floor; verdict()
+  says "flagged: <reason>" (after the um check; the page's verdictOf agrees through flaggedBy); the lead path skips it;
+  auction_alerts and alert_hits skip it (no hits); fcCopyOk / forecast_math.copy_ok (b[11] = fl) drop it from Supply
+  and "At your price"; fclOk hides it from the popup's plan mode (greyed on 'all'); plRows marks it "flagged: <reason>"
+  with qty 0 (no money); it STAYS on Raw Data (grey row) and sits in Flags as kind "your flag" (manual). Collector:
+  FLAG_STATES = unmarked / set mismatch / name mismatch / condition / fraud / unknown; flag_mark(state, cat, cards,
+  iid, st, note, t) creates a kind-"manual" entry (flag_snapshot of the open / closed record or the alert history via
+  hist_rec, verdict "flagged by you") when the archive has none, sets / pops rec["fl"], a mismatch also answers "not
+  the same card" (review_listing False; None when it comes off), fraud sets rec.fraud + vps.fraud_sellers (cleared
+  when the flag comes off and the seller has no other fraud record), 'unmarked' on a manual entry deletes it;
+  flag_states_live -> live.alert.fl = {iid: [kind, state, cid]} (the page's counts and the "flagged:" verdicts);
+  read_requests(state, cat, cards) so the 'flag' handler has the catalog. (3) THE CARD'S VERDICT is one of
+  CARD_STATES = unmarked / "pc inaccuracy" / "pc fine" (gap_mark maps the old "pc stale" to "pc inaccuracy"; the held
+  strip's select shows FG_CARD_WORDS); PC_WRONG_STATES = ("pc inaccuracy", "pc stale") stands the per-listing
+  PriceCharting rule down (pc_stale_cards) and releases the hold (card_gap) for GAP_RELEASE_D; "pc fine" keeps the hold
+  (the badge counts both verdicts as a card that wants nothing more). The automatic detector (the spread of
+  PriceCharting's posted sales) is stage 2. (4) THE SALES BEHIND THE ANCHOR in the popup: fc_rows.bin carries sales =
+  {cid: [live_row(sale)...]} from ebay_sweep.anchor_sales_all (the 20 newest comparable sales of the window per card,
+  um / fl / fraud-marked ones included so a mark can be undone); the popup's chip "Sales behind the anchor N" lists
+  them (r.sale rows, FCL.mode 'sales', not persisted; the note "anchor $A on N sales . K marked out by you . flag an
+  odd sale..."), so a fraud / mismatch flag on an inflated sale brings the anchor back by itself (wrong_card). (5)
+  PHOTOS: score_listings tiers "img" (fewer than 2 photos) as suspect outright, like dup / fsl, so such a copy never
+  counts and never shows in the popup's plan mode. (6) THE "?" SWITCH (#fc-sup-q, FC_SUP_DEFAULT.q = false,
+  STD_INPUTS.sup.q False): unread copies count in Supply / At your price only when it is on (fcCopyOk / copy_ok: b[11]
+  flagged -> never; unread -> sup.q); the Supply cell says ". N ?" for the unread copies left out. CSS: .flb / .fls /
+  #flpop / .rvflag.off; the Forecast boxes' card cell has its own class (td.cardc) because the old "td.favc + td"
+  wrap rule hit the new Flag cell and the Planning table overflowed (test_ui15 caught it: 1904 vs 1364 px). Help:
+  er_flag, er_state, fc_sup ("?"), fg (two ways out of a hold, the columns, "your flag"), er_verdict ("flagged:").
+  Tests: ut/test_flags.py (flag_mark's manual entry / unflag / history flag / flag_states_live, photos -> suspect,
+  anchor_sales_all, fc_rows sales, the card states incl. "pc fine" keeping the hold), t/pcpop/test_ui18.py (the fl map,
+  the sales fixture, the "?" switch -> Supply 5, the Raw Data flag flow "unknown 2", the plan's spent 0, the popup's
+  chips, the sales chip + a flag / unflag on a sale, the Flags popup's 49 heads with Flag / State / Note, marks through
+  "Open Review" and directly, the card verdict options, "pc fine" keeping the badge), test_ui10 / 13 / 14 / 15 ported
+  to the two new columns (Forecast % index 35, Planning cells shifted by 2, td.cardc). Deployed 2026-10-25 ~18:45 UTC
+  through the editor in dependency order (ebay_sweep.py 0179b004 and forecast_math.py 4e5a4fbc BEFORE collector.py
+  46630d94; then style.css 668fbdf6, body.html 644f94fd, help.js 67a9e573, app.js d6b04933). Stage 2 (next): the
+  phone's Q1 condition row + "No" -> reason + note -> flag_mark, Q2 one condition's figures (red over the max, still
+  clickable), hit vs forecast hit details, a test alert; auctions under the Supply cell ("3 (up to $X) auction",
+  visibility and alerts only, no effect on the figures); the automatic PC-inaccuracy detector (a measurement pass over
+  PriceCharting's posted sales first); more Forecast filters.
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
