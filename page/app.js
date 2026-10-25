@@ -374,10 +374,11 @@ const TABLES = {
        labels: {5: 'Listed within', 24: 'Profit $', 25: 'ROI %', ua: 'Under anchor %'}, units: {5: 'h'},
        get: {ua: r => r[12] == null ? null : -r[12]},   // "% buy under" (2026-10-24, Brett): the vs anchor % column with the sign flipped, so 20 means at least 20% under what the card sells for
        defaults: {},
-       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}, {v: 14, at: 32, n: 1}, {v: 15, at: 43, n: 2}, {v: 16, at: 2, n: 1}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star; v14 Forecast %; v15 Trend + Book at the end; v16 the + (Planning) after the star
+       inserted: [{v: 2, at: 10, n: 2}, {v: 3, at: 0, n: 1}, {v: 4, at: 13, n: 2}, {v: 5, at: 7, n: 2}, {v: 6, at: 23, n: 2}, {v: 7, at: 1, n: 1}, {v: 8, at: 28, n: -1}, {v: 9, at: 6, n: 1}, {v: 10, at: 4, n: 1}, {v: 11, at: 6, n: 2}, {v: 12, at: 22, n: 3}, {v: 13, at: 1, n: 1}, {v: 14, at: 32, n: 1}, {v: 15, at: 43, n: 2}, {v: 16, at: 2, n: 1}, {v: 17, at: 3, n: 2}],   // columns added (or, n < 0, removed) over time, in order (see makeTable); v10 eBay Set Name, v11 PC / eBay Rarity/Finish, v12 eBay sales this month + Hits 30d + Hit %; v13 the star; v14 Forecast %; v15 Trend + Book at the end; v16 the + (Planning) after the star; v17 Flag + State after the +
        key: r => String(r[22]),                       // the sticky row highlight remembers a row by this (the item id)
        fav: {s: r => r.unm ? 'um' : 'er', k: r => r[22], c: r => r[0], m: r => favMetaEr(r)},   // key = item id; an unmatched title (Favorites view only) is its own kind
        plan: {k: r => r.unm || r[0] == null ? null : r[22], c: r => r[0], m: r => favMetaEr(r)},   // the + column (Planning, 2026-10-24): a listing with a card
+       flag: {k: r => r.unm ? null : r[22], c: r => r[0]},                                        // the Flag and State columns (2026-10-25)
        extra: r => statOk(r[19]) && !r.um && (!$('dis-er').checked || rfBad(r)) && (!$('fchits').checked || fcErOk(r)) && (r.hh ? condOk(r[15]) && (r[29] !== 'suspect' || $('showsus-er').checked) : r.au ? (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) : (!$('hits').checked || r[14] === 'PASS') && condOk(r[15]) && r[32] >= 2 && (r[29] !== 'suspect' || $('showsus-er').checked) && (!$('mm-er').checked || r[37] === 'low') && (!$('lead-er').checked || r[14] === 'LEAD')),
        rowClass: r => r.um ? 'umm' : r.au ? '' : (r[29] === 'suspect' ? 'sus ' : '') + (LIVE.prevT && r[34] > LIVE.prevT ? 'fresh' : ''),
        hay: r => r[1] + ' ' + r[2] + ' ' + r[6] + ' ' + (r[47] || '') + ' ' + (r[49] || '') + ' ' + (r[50] || ''),
@@ -504,9 +505,9 @@ const FV_TABLES = {                                // the Favorites views: the s
    and the popup's rows agree). A listing he said is not the same card is out of it, as of every tab. */
 const FCL = {cid: null, rows: [], file: null, loaded: 0, mode: 'plan', at: null};   // mode: 'plan' = the copies at the plan's price, 'all' = every open copy; at = fcSupplyAt for the open card (+ T, buy, disc)
 try { if (localStorage.getItem('fcl-mode') === 'all') FCL.mode = 'all'; } catch (e) {}
-const fclOk = r => r[19] === 'open' && !r.um && (FCL.mode !== 'plan' || !FCL.at || FCL.at.ids.has(r[22]));
+const fclOk = r => FCL.mode === 'sales' ? !!r.sale : (r[19] === 'open' && !r.sale && !r.um && (FCL.mode !== 'plan' || !FCL.at || (FCL.at.ids.has(r[22]) && !flaggedBy(r[22]))));
 const FCL_TABLE = Object.assign({}, TABLES.er, {rows: () => FCL.rows, extra: fclOk, ranges: [], maxes: [], chips: [], defaults: {}, store: 'fc', root: '#lov', name: 'Listings', noun: 'listings',
-                                                 rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (FCL.cid != null && fcCredWhy(r, LIVE.dec && LIVE.dec[String(FCL.cid)]) ? 'nocred' : ''),   // greyed: a copy the floor does not count as credible
+                                                 rowClass: r => (r[29] === 'suspect' ? 'sus ' : '') + (flaggedBy(r[22]) || r.um || (FCL.cid != null && fcCredWhy(r, LIVE.dec && LIVE.dec[String(FCL.cid)])) ? 'nocred' : ''),   // greyed: a copy the floor does not count as credible, or one he flagged / said is not the card
                                                  fav: {s: 'fl', k: r => r[22], c: r => r[0], m: r => favMetaFl(r)}});   // its star files the listing under the Favorites tab's Forecast view (2026-10-25, Brett)
 function fclBuild() {                              // the popup's header row: a copy of the Raw Data tab's, before makeTable decorates the original
   const lov = $('lov'); if (!lov) return;
@@ -911,7 +912,9 @@ function makeTable(id, cfg) {
       const k = t.sortKey, d = t.sortDir;
       // the star header: favorites first (ascending), then favorites last; a row's star may belong to another source (f.s a function)
       const fv = k === 'fav' && cfg.fav ? r => (isFav(typeof cfg.fav.s === 'function' ? cfg.fav.s(r) : cfg.fav.s, cfg.fav.k(r)) ? 0 : 1)
-               : k === 'plan' && cfg.plan ? r => (isPlanned(cfg.plan.k(r)) ? 0 : 1) : null;   // the + header: planned listings first, then last
+               : k === 'plan' && cfg.plan ? r => (isPlanned(cfg.plan.k(r)) ? 0 : 1)   // the + header: planned listings first, then last
+               : k === 'flag' && cfg.flag ? r => { const f = flagOf(cfg.flag.k(r)); return f && f.st !== 'unmarked' ? 0 : f ? 1 : 2; }   // the Flag header: yours first, the collector's next
+               : k === 'state' && cfg.flag ? r => { const f = flagOf(cfg.flag.k(r)); return f && f.st !== 'unmarked' ? f.st : f ? '~' + (FG_KIND_NAME[f.k] || f.k) : null; } : null;
       t.view.sort((a, b) => {
         let x = fv ? fv(a) : a[k], y = fv ? fv(b) : b[k];
         if (k === 2) { x = setIndex.get(x); y = setIndex.get(y); }
@@ -929,7 +932,7 @@ function makeTable(id, cfg) {
   t.renderMore = n => {                                 // n rows more (a number; the Show more button's click event means PAGE)
     const frag = document.createDocumentFragment();
     const end = Math.min(t.shown + (typeof n === 'number' ? n : PAGE), t.view.length);
-    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + (cfg.fav ? favCell(cfg.fav, t.view[i]) : '') + (cfg.plan ? planCell(cfg.plan, t.view[i]) : '') + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } tr.dataset.key = String(keyOf(t.view[i])); if (SEL.get(id) === tr.dataset.key) tr.classList.add('sel'); paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
+    for (let i = t.shown; i < end; i++) { const tr = document.createElement('tr'); tr.innerHTML = '<td class="rn">' + (i + 1) + '</td>' + (cfg.fav ? favCell(cfg.fav, t.view[i]) : '') + (cfg.plan ? planCell(cfg.plan, t.view[i]) : '') + (cfg.flag ? flagCells(cfg.flag, t.view[i]) : '') + cfg.row(t.view[i]); if (cfg.rowClass) { const c = cfg.rowClass(t.view[i]); if (c) tr.className = c; } tr.dataset.key = String(keyOf(t.view[i])); if (SEL.get(id) === tr.dataset.key) tr.classList.add('sel'); paintRow(tr); if (t.stampRow) t.stampRow(tr); frag.appendChild(tr); }
     el('rows').appendChild(frag); t.shown = end;
     el('more').hidden = t.shown >= t.view.length;
     el('more').textContent = 'Show more (' + (t.view.length - t.shown).toLocaleString('en-US') + ' left)';
@@ -1186,7 +1189,7 @@ function makeTable(id, cfg) {
   place(headRow);
   const ths = document.querySelectorAll(root + ' th[data-k]');
   ths.forEach(th => th.addEventListener('click', () => {
-    const k = th.dataset.k === 'fav' || th.dataset.k === 'plan' ? th.dataset.k : +th.dataset.k;   // 'fav' / 'plan': the star and the + columns sort their rows first
+    const k = ['fav', 'plan', 'flag', 'state'].includes(th.dataset.k) ? th.dataset.k : +th.dataset.k;   // 'fav' / 'plan' / 'flag' / 'state': the star, the +, the flag and the State columns sort their rows first
     if (t.sortKey === k) { if (t.sortDir === 1) t.sortDir = -1; else { t.sortKey = null; t.sortDir = 1; } } else { t.sortKey = k; t.sortDir = 1; }
     ths.forEach(x => { x.classList.remove('on'); x.querySelector('.s').textContent = '⇅'; });
     if (t.sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = t.sortDir === 1 ? ' ▲' : ' ▼'; }
@@ -1267,12 +1270,80 @@ function makeTable(id, cfg) {
    note), a CSV of what is shown. A mark echoes (FLAGM / GAPM) until live.alert.flag_n.t confirms it. */
 const FG = {file: null, loaded: 0, rows: [], state: 'all', kind: 'all', days: 0, map: new Map(), counts: null};
 const FLAGM = {}, GAPM = {};                       // item id / card id -> {state, note, t}: marks echoed until the collector confirms
-const FG_KIND_NAME = {gap: 'PC gap', pclow: 'too cheap vs PC', pchigh: 'too high vs PC', review: 'under 45% of the anchor'};
-const FG_STATES = ['unmarked', 'set mismatch', 'name mismatch', 'condition', 'fraud', 'pc stale', 'unknown'];
-const FG_CARD_STATES = ['unmarked', 'pc stale', 'fraud', 'mismatch', 'condition', 'unknown'];
+const FG_KIND_NAME = {gap: 'PC gap', pclow: 'too cheap vs PC', pchigh: 'too high vs PC', review: 'under 45% of the anchor', manual: 'your flag'};
+const FLAG_REASONS = ['set mismatch', 'name mismatch', 'condition', 'fraud', 'unknown'];   // a listing's reasons (the Flag column, Review's Flag section, the phone's No)
+const FG_STATES = ['unmarked'].concat(FLAG_REASONS);
+const FG_CARD_STATES = ['unmarked', 'pc inaccuracy', 'pc fine'];                              // a card's verdict (the held strip): PriceCharting is wrong for the card, or right
+const FG_CARD_WORDS = {unmarked: 'no verdict yet', 'pc inaccuracy': 'PC inaccuracy — PriceCharting is wrong for this card: release it', 'pc fine': 'PC is right — the sales behind the anchor are the problem: keep it held, mark them'};
 const FG_VERDICTS = new Set(['PC gap', 'mismatch: too cheap', 'mismatch: too high', 'review']);
 const fgStateOf = e => (FLAGM[e.i] && FLAGM[e.i].state) || e.state || 'unmarked';
 const fgNoteOf = e => FLAGM[e.i] ? FLAGM[e.i].note || '' : (e.note || '');
+/* The Flag column (2026-10-25, Brett: "there should be a column next to the (+) column, called 'flag', and each cell
+   has a flag icon that i can toggle on or off ... the listing does not disappear, but the flag icon turns red, and
+   the listing will appear in the flags button ... i should not receive any hits for flagged listings ... a state
+   column ... 'No Flag' ... a number, specifying what number of the same pokemon card has received that same flag
+   state"). Every listing table (Raw Data and its auctions view, Favorites, the card popup, the Flags archive, the
+   Planning view) carries two cells after +: the flag - grey = none, amber = the collector's own flag (PC gap, too
+   cheap / too high vs PC), red = his - and the State. A grey or amber flag opens a small reason menu (flagPop); a red
+   one takes the flag off with one click. A flagged listing stays on Raw Data, counts in nothing (no supply, no
+   anchor, no hit: the collector's rec["fl"], mirrored here by flaggedBy in verdictOf / fcCopyOk / fclOk / plRows), and
+   sits in the Flags archive; a set / name mismatch is also the "not the same card" answer. The live file carries the
+   map (live.alert.fl: item id -> [kind, state, card id]); his own marks echo through FLAGM until the collector
+   confirms them (flag_n.t). */
+function flagOf(iid) {                                   // {k: the collector's kind (null = none, 'manual' = his), st: his state ('unmarked' = none), c: card id}
+  const m = FLAGM[iid], e = LIVE.data && LIVE.data.alert && LIVE.data.alert.fl ? LIVE.data.alert.fl[iid] : null;
+  if (!m && !e) return null;
+  return {k: e ? e[0] : 'manual', st: m ? m.state : (e[1] || 'unmarked'), c: e && e[2] != null ? e[2] : (m && m.c != null ? m.c : null)};
+}
+const flaggedBy = iid => { const f = iid == null ? null : flagOf(iid); return f && f.st !== 'unmarked' ? f.st : null; };
+let FL_COUNTS = null;                                    // card id -> {state: n}: how many listings of the card carry each reason (the State cell's figure)
+function flCounts() {
+  if (FL_COUNTS) return FL_COUNTS;
+  const out = {}, seen = {};
+  const add = (c, st) => { if (c == null || !st || st === 'unmarked') return; const k = String(c); (out[k] = out[k] || {})[st] = (out[k][st] || 0) + 1; };
+  for (const [iid, e] of Object.entries((LIVE.data && LIVE.data.alert && LIVE.data.alert.fl) || {})) { const m = FLAGM[iid]; add(e[2], m ? m.state : e[1]); seen[iid] = 1; }
+  for (const [iid, m] of Object.entries(FLAGM)) if (!seen[iid]) add(m.c, m.state);
+  return FL_COUNTS = out;
+}
+const FLAG_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v18h2v-7h10l-2-3.5L17 7H7V3z" fill="currentColor"/></svg>';
+function flagCells(f, r) {                               // the two cells after +: the flag and the State
+  const iid = f.k(r), cid = f.c ? f.c(r) : null;
+  if (iid == null || iid === '') return '<td class="flc"></td><td class="fls"></td>';
+  const fl = flagOf(iid), st = fl ? fl.st : 'unmarked', kind = fl && fl.k && fl.k !== 'manual' ? (FG_KIND_NAME[fl.k] || fl.k) : null;
+  const n = st !== 'unmarked' && cid != null ? ((flCounts()[String(cid)] || {})[st] || 0) : 0;
+  const title = st !== 'unmarked' ? 'Flagged by you: ' + st + (n > 1 ? ' (' + n + ' listings of this card carry it)' : '') + '. Click to take the flag off.' : kind ? 'The collector flagged it: ' + kind + '. Click to add your reason.' : 'Not flagged. Click to flag it with a reason: it stays here, leaves the plan, the supply and the hits.';
+  return '<td class="flc"><button type="button" class="flb' + (st !== 'unmarked' ? ' on' : kind ? ' auto' : '') + '" data-i="' + esc(iid) + '" data-c="' + (cid == null ? '' : cid) + '" title="' + esc(title) + '">' + FLAG_SVG + '</button></td>' +
+    '<td class="fls' + (st !== 'unmarked' ? ' on' : '') + '">' + (st !== 'unmarked' ? esc(st) + (n ? ' <span class="n" title="listings of this card with this reason">' + n + '</span>' : '') : kind ? '<span class="dim" title="the collector\u2019s own flag; no reason of yours yet">' + esc(kind) + '</span>' : '<span class="dim">No Flag</span>') + '</td>';
+}
+function flagPop(btn) {                                  // the reason menu under a grey / amber flag
+  const iid = btn.dataset.i, cid = btn.dataset.c ? +btn.dataset.c : null, fl = flagOf(iid), kind = fl && fl.k && fl.k !== 'manual' ? (FG_KIND_NAME[fl.k] || fl.k) : null;
+  let pop = $('flpop'); if (!pop) { pop = document.createElement('div'); pop.id = 'flpop'; document.body.appendChild(pop); }
+  pop.innerHTML = '<div class="lab">Flag this listing' + (kind ? ' <span class="dim">(the collector\u2019s flag: ' + esc(kind) + ')</span>' : '') + '</div><div class="fbtns">' + FLAG_REASONS.map(st => '<button type="button" class="fbtn" data-s="' + st + '">' + st + '</button>').join('') + '</div>' +
+    '<input type="text" id="flpop-note" placeholder="why (kept with the flag, for the analysis later)"><div class="fsave"><button type="button" class="tbtn" id="flpop-rv">Open Review</button><span class="dim">pick a reason to flag it: it stays on Raw Data, leaves the plan and the hits; a set / name mismatch also answers \u201cnot the same card\u201d, fraud makes the seller suspect</span></div>';
+  pop.dataset.i = iid; pop.dataset.c = cid == null ? '' : cid;
+  const rect = btn.getBoundingClientRect(), w = Math.min(440, window.innerWidth - 16);
+  pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)) + 'px'; pop.style.top = (rect.bottom + 4 > window.innerHeight - 180 ? Math.max(8, rect.top - 184) : rect.bottom + 4) + 'px'; pop.style.width = w + 'px';
+  pop.classList.add('open');
+  const fe = FG.map.get(iid); if (fe) $('flpop-note').value = fgNoteOf(fe);
+}
+const flagPopClose = () => { const pop = $('flpop'); if (pop) pop.classList.remove('open'); };
+document.addEventListener('click', e => {
+  const b = e.target && e.target.closest ? e.target.closest('button.flb') : null;
+  if (b) {
+    e.preventDefault(); e.stopPropagation();
+    const iid = b.dataset.i;
+    if (flaggedBy(iid)) { flagPopClose(); flagMark(iid, 'unmarked', '', b.dataset.c ? +b.dataset.c : null).catch(() => {}); } else flagPop(b);
+    return;
+  }
+  const pop = $('flpop'); if (!pop || !pop.classList.contains('open')) return;
+  if (pop.contains(e.target)) {
+    const rb = e.target.closest('.fbtn'); if (rb) { const iid = pop.dataset.i, cid = pop.dataset.c ? +pop.dataset.c : null, note = $('flpop-note').value.trim(); flagPopClose(); flagMark(iid, rb.dataset.s, note, cid).catch(() => {}); return; }
+    if (e.target.closest('#flpop-rv')) { const iid = pop.dataset.i; flagPopClose(); openReview(iid); }
+    return;
+  }
+  flagPopClose();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') flagPopClose(); });
 async function fgLoad(force) {                     // live/flags.bin, once per 10 minutes or when the collector filed or confirmed a mark
   const b = Math.floor(Date.now() / 600000), ft = (LIVE.data && LIVE.data.alert && LIVE.data.alert.flag_n && LIVE.data.alert.flag_n.t) || 0;
   const key = b + ':' + ft;
@@ -1308,25 +1379,23 @@ function fgBuildRows() {
   FG.counts = c;
 }
 const fgOk = r => { const e = r.fg; if (!e) return false;
+  if (e.k === 'manual' && fgStateOf(e) === 'unmarked') return false;   // his own flag taken off: gone from here (the collector drops the entry)
   if (FG.state !== 'all' && fgStateOf(e) !== FG.state) return false;
   if (FG.kind !== 'all' && e.k !== FG.kind) return false;
   if (FG.days > 0 && Date.parse(e.t) < Date.now() - FG.days * 86400000) return false;
   return true; };
-function fgCells(r) {                              // State and Note, the first columns after Row / star / + (Brett: "the first column ... a column next to it called text")
-  const e = r.fg, st = fgStateOf(e), note = fgNoteOf(e), c = FG.counts || {state: {}, reviewed: 0};
-  const sub = st !== 'unmarked' && c.reviewed ? (c.state[st] || 0) + ' of ' + c.reviewed : '';
-  return '<td class="fgst"><button type="button" class="fgstb ' + (st === 'unmarked' ? 'unmarked' : st === 'fraud' ? 'fraud' : /mismatch/.test(st) ? 'mm' : '') + '" data-i="' + esc(e.i) + '" title="' + esc((FG_KIND_NAME[e.k] || e.k) + ' · flagged ' + rvWhen(e.t) + (e.mt ? ' · marked ' + rvWhen(e.mt) : '') + (sub ? ' · ' + sub + ' reviewed listings carry this reason' : '') + '. Click to mark it: the Review screen opens with its Flag section') + '">' + esc(st) + (sub ? '<small>' + sub + '</small>' : '') + '</button></td>' +
-    '<td class="fgnote">' + (note ? '<button type="button" class="fgnb" data-i="' + esc(e.i) + '" title="' + esc(note.slice(0, 200)) + '">💬</button>' : '<span class="dim">—</span>') + '</td>';
+function fgCells(r) {                              // the Note cell (after the Flag and State cells every listing table carries): his reasoning, flagged when
+  const e = r.fg, note = fgNoteOf(e);
+  return '<td class="fgnote" title="' + esc((FG_KIND_NAME[e.k] || e.k) + ' · flagged ' + rvWhen(e.t) + (e.mt ? ' · marked ' + rvWhen(e.mt) : '')) + '">' + (note ? '<button type="button" class="fgnb" data-i="' + esc(e.i) + '" title="' + esc(note.slice(0, 200)) + '">💬</button>' : '<span class="dim">—</span>') + '</td>';
 }
 const FG_TABLE = Object.assign({}, TABLES.er, {rows: () => FG.rows, extra: fgOk, ranges: [], maxes: [], chips: [], defaults: {}, store: 'fg', root: '#fov', name: 'Flags', noun: 'listings', key: r => String(r[22]),
                                                 row: r => fgCells(r) + (r.stub && r[0] == null ? unmRow(r) : TABLES.er.row(r)), rowClass: r => (r.um ? 'umm ' : '') + (r[29] === 'suspect' ? 'sus' : ''),
                                                 fav: {s: 'er', k: r => r[22], c: r => r[0], m: r => favMetaEr(r)}, plan: TABLES.er.plan});
-function fgBuild() {                               // the archive's header row: the Raw Data tab's with State and Note after the + column, before makeTable decorates the original
+function fgBuild() {                               // the archive's header row: the Raw Data tab's (Flag and State included) with Note after State, before makeTable decorates the original
   const fov = $('fov'); if (!fov) return;
   const thead = document.querySelector('#p-er thead').cloneNode(true), tr = thead.querySelector('tr:last-child');
-  const st = document.createElement('th'); st.textContent = 'State'; st.title = 'Your mark on the listing: unmarked, set mismatch, name mismatch, condition, fraud, pc stale, unknown (click the cell to mark)';
-  const nt = document.createElement('th'); nt.textContent = 'Note'; nt.title = 'Your reasoning, typed with the mark (click to read it)';
-  const after = tr.children[2] || tr.lastElementChild; after.insertAdjacentElement('afterend', nt); after.insertAdjacentElement('afterend', st);
+  const nt = document.createElement('th'); nt.textContent = 'Note'; nt.title = 'Your reasoning, typed with the flag (click to read it)';
+  const after = tr.children[4] || tr.lastElementChild; after.insertAdjacentElement('afterend', nt);
   fov.querySelector('table').insertBefore(thead, fov.querySelector('tbody'));
 }
 function fgChips() {
@@ -1341,34 +1410,37 @@ function fgHeld() {                                // the cards held now (and th
   for (const k in GAPM) marks[k] = Object.assign({}, marks[k] || {}, GAPM[k], {echo: 1});
   const held = (f.held || []).slice();
   const heldIds = new Set(held.map(h => String(h[0])));
-  const released = Object.entries(marks).filter(([cid, m]) => !heldIds.has(cid) && m.t && Date.parse(m.t) > Date.now() - 30 * 86400000 && m.state && m.state !== 'unknown');
+  const released = Object.entries(marks).filter(([cid, m]) => !heldIds.has(cid) && m.t && Date.parse(m.t) > Date.now() - 30 * 86400000 && (m.state === 'pc inaccuracy' || m.state === 'pc stale'));
   if (!held.length && !released.length) { box.innerHTML = '<div class="fgheld dim">No card is held: every card with a backed eBay anchor sits within ' + FC_GAP_PCT + '% of its PriceCharting price.</div>'; return; }
-  const sel = (cid, cur) => '<select class="fg-cstate" data-c="' + cid + '">' + FG_CARD_STATES.map(st => '<option value="' + st + '"' + (st === cur ? ' selected' : '') + '>' + st + '</option>').join('') + '</select>';
+  const sel = (cid, cur) => '<select class="fg-cstate" data-c="' + cid + '">' + FG_CARD_STATES.map(st => '<option value="' + st + '"' + (st === (cur === 'pc stale' ? 'pc inaccuracy' : cur) ? ' selected' : '') + '>' + FG_CARD_WORDS[st] + '</option>').join('') + '</select>';
   const rowOf = (cid, gap, A, An, pc, L, m, isHeld) => { const base = idRow.get(+cid) || [], mk = m || {};
     return '<div class="fgrow" data-c="' + cid + '"><span><a href="#" class="fcl-open" data-id="' + cid + '">' + esc(base[1] || ('card ' + cid)) + '</a> <span class="dim">' + esc(String(base[2] || '').replace(/^Pokemon /, '')) + '</span></span>' +
       '<span>' + (isHeld ? '<b class="gap">' + (gap > 0 ? '+' : '') + (gap == null ? '?' : gap.toFixed(0)) + '%</b>' : '<span class="dim">released</span>') + (A != null ? ' <span class="dim">eBay ' + fmtMoneyPlain(A) + ' (' + (An || 0) + ' sales) vs PC ' + fmtMoneyPlain(pc) + (L != null ? ' · floor ' + fmtMoneyPlain(L) : '') + '</span>' : '') + '</span>' +
-      (mk.state ? '<span class="dim">verdict: <b>' + esc(mk.state) + '</b> ' + (mk.t ? rvWhen(mk.t) : '') + (mk.echo ? ' (sent)' : '') + '</span>' : '') +
+      (mk.state ? '<span class="dim">verdict: <b>' + esc(mk.state === 'pc stale' ? 'pc inaccuracy' : mk.state) + '</b> ' + (mk.t ? rvWhen(mk.t) : '') + (mk.echo ? ' (sent)' : '') + '</span>' : '') +
       '<span class="lab">Card verdict</span>' + sel(cid, mk.state || 'unmarked') + '<input type="text" class="fg-cnote" data-c="' + cid + '" placeholder="why (kept with the verdict)" value="' + esc(mk.note || '') + '"><button type="button" class="tbtn fg-csave" data-c="' + cid + '">Save</button></div>'; };
-  box.innerHTML = '<div class="fgheld"><div class="dim" style="margin-bottom:4px"><b>Held cards</b> — eBay’s sold median and PriceCharting’s price ' + FC_GAP_PCT + '%+ apart: no buys, no hits, until you give a card verdict (any but “unknown” releases the card for 30 days; the listings behind the anchor are in the table below, kind “PC gap”).</div>' +
+  box.innerHTML = '<div class="fgheld"><div class="dim" style="margin-bottom:4px"><b>Held cards</b> — eBay’s sold median and PriceCharting’s price ' + FC_GAP_PCT + '%+ apart: no buys, no hits. Two ways out: click the card and flag the odd sales under “Sales behind the anchor” (the anchor recomputes without them and the hold lifts by itself), or the verdict <b>PC inaccuracy</b> (PriceCharting is wrong for this card: released for 30 days, and its PriceCharting rule stands down).</div>' +
     held.map(h => rowOf(h[0], h[1], h[2], h[3], h[4], h[5], marks[String(h[0])], true)).join('') + released.map(([cid, m]) => rowOf(cid, null, null, null, null, null, m, false)).join('') + '</div>';
 }
 async function gapMark(cid, state, note) {
-  const t = Date.now(); GAPM[String(cid)] = {state, note, t: new Date(t).toISOString()};
+  const t = nextT(); GAPM[String(cid)] = {state, note, t: new Date(t).toISOString()};
   fgHeld(); fgBadge();
   try { await alSend({type: 'gapmark', t, c: cid, state, note}); }
   catch (e) { delete GAPM[String(cid)]; fgHeld(); fgBadge(); $('fgsub').insertAdjacentHTML('beforeend', ' <span class="down">The verdict could not be sent (' + esc(e.message) + ').</span>'); }
 }
-async function flagMark(iid, state, note) {        // a listing's mark from the Review screen's Flag section
-  const t = Date.now(); FLAGM[iid] = {state, note, t};
-  if (/mismatch/.test(state)) { REVIEWS[iid] = {v: 0, t}; if (LIVE.data) rebuildLive(); }   // the collector answers "not the same card" for it: hidden everywhere, filed in Mismatches
-  try { await alSend({type: 'flag', t, i: iid, state, note}); }
-  catch (e) { delete FLAGM[iid]; if (/mismatch/.test(state)) { delete REVIEWS[iid]; if (LIVE.data) rebuildLive(); } throw e; }
+async function flagMark(iid, state, note, cid) {   // a listing's flag: the Flag column's menu, Review's Flag section; state 'unmarked' = the flag off
+  const t = nextT(), was = flaggedBy(iid), prev = FLAGM[iid];
+  FLAGM[iid] = {state, note: note || '', t, c: cid != null ? cid : (flagOf(iid) || {}).c}; FL_COUNTS = null;
+  if (/mismatch/.test(state)) REVIEWS[iid] = {v: 0, t};                                       // the collector answers "not the same card" for it: hidden everywhere, filed in Mismatches
+  else if (was && /mismatch/.test(was)) REVIEWS[iid] = {v: null, t};                          // ... and withdraws it when the mismatch flag comes off
+  if (LIVE.data) rebuildLive();                                                               // the verdict, the supply, the popup and the plan follow at once
+  try { await alSend({type: 'flag', t, i: iid, state, note: note || ''}); }
+  catch (e) { if (prev) FLAGM[iid] = prev; else delete FLAGM[iid]; FL_COUNTS = null; if (/mismatch/.test(state)) delete REVIEWS[iid]; if (LIVE.data) rebuildLive(); throw e; }
   fgBadge();
   if ($('fov').classList.contains('open') && FG.file) { fgBuildRows(); fgChips(); fgSub(); tables.fg.resync(); tables.fg.apply(); }
 }
 function fgBadge() {                               // the Flags buttons' count: the cards HELD (each wants his verdict), less the verdicts echoed here until the collector confirms them; the listing counts on hover
   const fn = (LIVE.data && LIVE.data.alert && LIVE.data.alert.flag_n) || {};
-  const held = Math.max(0, (fn.held || 0) - Object.values(GAPM).filter(m => m.state && m.state !== 'unknown').length);
+  const held = Math.max(0, (fn.held || 0) - Object.values(GAPM).filter(m => m.state === 'pc inaccuracy').length);
   const unmarked = Math.max(0, (fn.unmarked || 0) - Object.values(FLAGM).filter(m => m.state !== 'unmarked').length);
   document.querySelectorAll('.nfg').forEach(el => { el.textContent = held; const b = el.closest('button'); if (b) b.title = held + ' card' + (held === 1 ? '' : 's') + ' held for a PC gap (no buys, no hits until your verdict) \u00b7 ' + (fn.total || 0) + ' listing' + (fn.total === 1 ? '' : 's') + ' in the archive, ' + unmarked + ' unmarked'; });
 }
@@ -1376,14 +1448,14 @@ function fgSub() {
   const c = FG.counts || {state: {}}, held = (FG.file && FG.file.held) || [];
   $('fgsub').textContent = FG.rows.length + ' listing' + (FG.rows.length === 1 ? '' : 's') + ' flagged, ' + (c.state.unmarked || 0) + ' unmarked · ' + held.length + ' card' + (held.length === 1 ? '' : 's') + ' held · newest first · click a State cell to mark a listing (Review opens with its Flag section), the note icon to read your reasoning · as of ' + ageText(FG.file.t);
 }
-function reviewFlagHtml(e) {                       // the Review screen's Flag section (2026-10-25): why it was flagged, Brett's state and note
-  const st = fgStateOf(e), note = fgNoteOf(e);
-  return '<div class="rvflag"><span class="lab">Flagged ' + rvWhen(e.t) + ' · ' + esc(FG_KIND_NAME[e.k] || e.k) + '</span>' +
-    '<div>' + (e.k === 'gap' ? 'eBay’s sold median ' + fmtMoneyPlain(e.A) + ' (' + (e.An || 0) + ' sales) against PriceCharting ' + fmtMoneyPlain(e.pc) + ': <b>' + (e.gap > 0 ? '+' : '') + (e.gap == null ? '?' : e.gap.toFixed(0)) + '%</b>' + (e.st === 'sold' ? ' · this is one of the sales behind the anchor' : ' · the card is held until you give it a verdict in Flags') :
+function reviewFlagHtml(e) {                       // the Review screen's Flag section (2026-10-25): why it was flagged, Brett's state and note - on every listing
+  const st = fgStateOf(e), note = fgNoteOf(e), auto = e.k && e.k !== 'manual', kind = auto ? (FG_KIND_NAME[e.k] || e.k) : '';
+  return '<div class="rvflag' + (st === 'unmarked' && !auto ? ' off' : '') + '"><span class="lab">' + (auto ? (e.virtual ? 'Flagged by the collector · ' : 'Flagged ' + rvWhen(e.t) + ' · ') + esc(kind) : st !== 'unmarked' ? 'Flagged by you' + (e.mt ? ' ' + rvWhen(e.mt) : '') : 'Flag') + '</span>' +
+    '<div>' + (!auto ? (st !== 'unmarked' ? 'This listing counts in nothing: no supply, no anchor, no hit. It stays on the Raw Data tab and sits in Flags.' : 'Not flagged. A flag keeps the listing out of the plan, the supply and the hits; it stays on the Raw Data tab and goes to Flags with your reason.') : e.virtual ? 'The collector flagged it (' + esc(kind) + '); the archive\u2019s details load in a moment.' : e.k === 'gap' ? 'eBay’s sold median ' + fmtMoneyPlain(e.A) + ' (' + (e.An || 0) + ' sales) against PriceCharting ' + fmtMoneyPlain(e.pc) + ': <b>' + (e.gap > 0 ? '+' : '') + (e.gap == null ? '?' : e.gap.toFixed(0)) + '%</b>' + (e.st === 'sold' ? ' · this is one of the sales behind the anchor' : ' · the card is held until you give it a verdict in Flags') :
       e.k === 'review' ? 'listed at ' + fmtMoneyPlain(e.tot) + ', under 45% of the anchor ' + fmtMoneyPlain(e.A) : 'listed at ' + fmtMoneyPlain(e.tot) + ' against PriceCharting ' + fmtMoneyPlain(e.pc) + ' (' + (e.vspc > 0 ? '+' : '') + (e.vspc == null ? '?' : e.vspc.toFixed(0)) + '%)') + '</div>' +
     '<span class="lab" style="margin-top:6px">Why? Mark the listing</span><div class="fbtns">' + FG_STATES.filter(s => s !== 'unmarked').map(s => '<button type="button" class="fbtn' + (st === s ? ' on' : '') + '" data-s="' + s + '">' + s + '</button>').join('') + '</div>' +
     '<textarea id="rvf-note" placeholder="your reasoning (kept with the mark, for the analysis later)">' + esc(note) + '</textarea>' +
-    '<div class="fsave"><button type="button" class="tbtn" id="rvf-save">Save the mark</button><span class="dim" id="rvf-msg">' + (st !== 'unmarked' ? 'marked ' + st + (e.mt ? ' ' + rvWhen(e.mt) : '') : 'a set / name mismatch also answers “not the same card”; fraud makes the listing and its seller suspect') + '</span></div></div>';
+    '<div class="fsave"><button type="button" class="tbtn" id="rvf-save">' + (st !== 'unmarked' ? 'Save the change' : 'Flag it') + '</button>' + (st !== 'unmarked' ? '<button type="button" class="tbtn" id="rvf-off">Take the flag off</button>' : '') + '<span class="dim" id="rvf-msg">' + (st !== 'unmarked' ? 'flagged: ' + st + (e.mt ? ' ' + rvWhen(e.mt) : '') : 'a set / name mismatch also answers “not the same card”; fraud makes the listing and its seller suspect') + '</span></div></div>';
 }
 async function openFlags(kind) {
   if (kind) { FG.kind = kind; }
@@ -1406,11 +1478,10 @@ if ($('fov')) {
   $('fg-chips').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; if (b.dataset.g === 'state') FG.state = b.dataset.k; else FG.kind = b.dataset.k; fgChips(); tables.fg.apply(); });
   $('fg-days').addEventListener('input', () => { const v = parseInt($('fg-days').value, 10); FG.days = isNaN(v) || v < 0 ? 0 : v; tables.fg.apply(); });
   $('fg-csv').addEventListener('click', fgCsv);
-  $('fg-held').addEventListener('click', e => { const b = e.target.closest('button.fg-csave'); if (!b) return; const cid = b.dataset.c, st = $('fg-held').querySelector('select.fg-cstate[data-c="' + cid + '"]').value, note = $('fg-held').querySelector('input.fg-cnote[data-c="' + cid + '"]').value.trim(); if (st === 'unmarked') return; gapMark(+cid, st, note); });
+  $('fg-held').addEventListener('click', e => { const b = e.target.closest('button.fg-csave'); if (!b) return; const cid = b.dataset.c, st = $('fg-held').querySelector('select.fg-cstate[data-c="' + cid + '"]').value, note = $('fg-held').querySelector('input.fg-cnote[data-c="' + cid + '"]').value.trim(); gapMark(+cid, st, note); });
   ['fg-btn', 'fc-flags'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => openFlags()); });
   document.addEventListener('click', e => {
     const o = e.target.closest ? e.target.closest('a.fg-open') : null; if (o) { e.preventDefault(); openFlags(); return; }
-    const sb = e.target.closest ? e.target.closest('button.fgstb') : null; if (sb && sb.dataset.i) { openReview(sb.dataset.i); return; }
     const nb = e.target.closest ? e.target.closest('button.fgnb') : null;
     if (nb && nb.dataset.i) { const en = FG.map.get(nb.dataset.i); if (!en) return; $('htitle').textContent = 'Your note · ' + String(en.ti || en.i).slice(0, 80); $('hbody').innerHTML = '<p class="dim">' + esc(fgStateOf(en)) + (en.mt ? ' · marked ' + rvWhen(en.mt) : '') + ' · ' + esc(FG_KIND_NAME[en.k] || en.k) + ', flagged ' + rvWhen(en.t) + '</p><p style="white-space:pre-wrap">' + esc(fgNoteOf(en) || '(no note)') + '</p>'; $('hov').classList.add('open'); }
   });
@@ -1771,9 +1842,10 @@ function openReview(iid) {
   const v = reviewOf(iid);
   $('btitle').textContent = r[1] + ' \u2014 ' + String(r[2] || '').replace('Pokemon ', '');
   $('bsub').innerHTML = favBtn('er', iid, r[0], favMetaEr(r), 'rvstar') + 'Is the card in the eBay photos the card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 || r.um ? '<b class="down">You said: not the same.</b>' : '');
-  const fe = (typeof FG !== 'undefined' && FG.map.get(iid)) || null;   // an archived listing: the Flag section first (2026-10-25)
-  if (!fe && typeof FG !== 'undefined' && FG_VERDICTS.has(r[14]) && !FG.file) fgLoad().then(() => { if (FG.map.has(iid) && $('bov').classList.contains('open') && LIVE.rvItem === iid && !$('bbody').querySelector('.rvflag')) openReview(iid); });
-  let h = (fe ? reviewFlagHtml(fe) : '') + '<div class="rvpair">' +
+  const fl0 = (typeof FG !== 'undefined' && flagOf(iid)) || null;
+  const fe = (typeof FG !== 'undefined' && FG.map.get(iid)) || {i: iid, k: fl0 ? fl0.k : null, state: fl0 ? fl0.st : 'unmarked', note: '', virtual: 1};   // the Flag section on every listing (2026-10-25): the archive's entry when there is one
+  if (fe.virtual && typeof FG !== 'undefined' && (fl0 || FG_VERDICTS.has(r[14])) && !FG.file) fgLoad().then(() => { if (FG.map.has(iid) && $('bov').classList.contains('open') && LIVE.rvItem === iid) openReview(iid); });
+  let h = reviewFlagHtml(fe) + '<div class="rvpair">' +
     '<div class="rvside"><h4>PriceCharting <a href="' + pcPage + '" target="_blank" rel="noopener">\u2197</a></h4>' +
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
            : '<div class="rvbox" data-pc="1"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>being fetched now \u2014 it appears here within a minute or two</small></div>') + '</div>' +
@@ -1825,16 +1897,17 @@ function openReview(iid) {
   };
   $('bbody').querySelectorAll('.cbtn').forEach(b => b.addEventListener('click', () => grade(b.dataset.c)));
   const cc = $('rv-cclear'); if (cc) cc.addEventListener('click', () => grade(null));
-  if (fe) {                                        // the Flag section: pick a state, type the reasoning, Save
+  {                                                // the Flag section: pick a reason, type the reasoning, Flag it / Take the flag off
     let fst = fgStateOf(fe) === 'unmarked' ? null : fgStateOf(fe);
     $('bbody').querySelectorAll('.rvflag .fbtn').forEach(b => b.addEventListener('click', () => { fst = b.dataset.s; $('bbody').querySelectorAll('.rvflag .fbtn').forEach(x => x.classList.toggle('on', x === b)); }));
     $('rvf-save').addEventListener('click', async () => {
       const note = $('rvf-note').value.trim(), msg = $('rvf-msg');
       if (!fst) { msg.innerHTML = '<span class="down">Pick a reason first.</span>'; return; }
       msg.textContent = 'Sending\u2026';
-      try { await flagMark(iid, fst, note); msg.innerHTML = 'Saved: <b>' + esc(fst) + '</b>' + (/mismatch/.test(fst) ? ' \u2014 the listing leaves every tab (Mismatches has it, with Restore)' : fst === 'fraud' ? ' \u2014 the listing and its seller are suspect from the collector\u2019s next pass' : '') + '.'; }
+      try { await flagMark(iid, fst, note, r[0]); msg.innerHTML = 'Saved: <b>' + esc(fst) + '</b>' + (/mismatch/.test(fst) ? ' \u2014 the listing leaves every tab (Mismatches has it, with Restore)' : fst === 'fraud' ? ' \u2014 the listing and its seller are suspect from the collector\u2019s next pass' : ' \u2014 out of the plan, the supply and the hits; still on Raw Data') + '.'; }
       catch (e) { msg.innerHTML = '<span class="down">The mark could not be sent (' + esc(e.message) + ').</span>'; }
     });
+    const off = $('rvf-off'); if (off) off.addEventListener('click', async () => { const msg = $('rvf-msg'); msg.textContent = 'Sending\u2026'; try { await flagMark(iid, 'unmarked', '', r[0]); msg.textContent = 'The flag is off.'; } catch (e) { msg.innerHTML = '<span class="down">Could not be sent (' + esc(e.message) + ').</span>'; } });
   }
 }
 
@@ -1844,6 +1917,7 @@ function verdictOf(x, cs, S) {
   if (total == null) return ['no price', null, null];
   const allin = Math.round((total + (item || 0) * S.tax) * 100) / 100;
   if (umOf(x[0], x[31])) return ['mismatch: marked by you', allin, null];
+  const flb = flaggedBy(x[0]); if (flb) return ['flagged: ' + flb, allin, null];   // his flag (2026-10-25): never a hit, still shown
   if (x[22] != null && x[22] < 2) return ['fewer than 2 photos', allin, null];
   if (x[23] === 'suspect') return ['suspect', allin, null];
   if (x[32]) return ['learned', allin, null];              // held back by what his earlier marks taught
@@ -1943,6 +2017,7 @@ function rebuildLive() {
   const fn = (live.alert && live.alert.flag_n) || {};       // the Flags archive (2026-10-25): the buttons' count = unmarked listings; marks echoed until confirmed
   for (const k of Object.keys(FLAGM)) if ((fn.t || 0) >= FLAGM[k].t) delete FLAGM[k];
   for (const k of Object.keys(GAPM)) if ((fn.t || 0) >= Date.parse(GAPM[k].t)) delete GAPM[k];
+  FL_COUNTS = null;
   fgBadge();
   if ($('fov') && $('fov').classList.contains('open') && FG.file) { fgBuildRows(); fgChips(); fgHeld(); fgSub(); tables.fg.resync(); tables.fg.apply(); }
   if (AU_ON()) { auMode(); tables.er.apply(); }
@@ -2825,11 +2900,12 @@ function fcBookEff(b, c) {
   const lpd = ((c && c.lpd) || 0) / 100, e = b[1] * (b.length > 5 && b[5] ? FC_BO_HAIRCUT : 1);
   return b.length > 4 && b[4] === 'LP' && lpd < 1 ? e / (1 - lpd) : e;
 }
-const FC_SUP_DEFAULT = {conds: ['NM', 'LP', 'UNK'], nowatch: true, minfb: 0};
+const FC_SUP_DEFAULT = {conds: ['NM', 'LP', 'UNK'], nowatch: true, minfb: 0, q: false};
 const FC_GAP_PCT = 30;                                   // eBay's anchor and PriceCharting this far apart (%) = a held card (ebay_sweep.GAP_HOLD_PCT)
-function fcCopyOk(b, sup) {                              // does Supply count this book copy? (forecast_math.copy_ok) a copy whose condition is not read yet never does (b[11] = 0)
+function fcCopyOk(b, sup) {                              // does Supply count this book copy? (forecast_math.copy_ok) a copy whose condition is not read yet does only with the "?" switch (b[11] = 0); a flagged copy never
   sup = sup || FC_SUP_DEFAULT;
-  if (b.length > 11 && !b[11]) return false;
+  if (flaggedBy(b[0])) return false;
+  if (b.length > 11 && !b[11]) return !!sup.q;
   if (!(sup.conds || FC_SUP_DEFAULT.conds).includes(b.length > 4 ? b[4] : 'UNK')) return false;
   if ((sup.nowatch == null ? true : sup.nowatch) && b.length > 12 && (b[12] === 'watch' || b[12] === 'suspect')) return false;
   if ((sup.minfb || 0) > 0 && ((b.length > 6 ? b[6] : null) || 0) < sup.minfb) return false;
@@ -2843,6 +2919,8 @@ function fcSupplyAt(c, price, sup) {                     // {n, dear: the deares
   return {n: at.length, dear: at.length ? Math.max(...at.map(b => b[1])) : null, cheapest: asks.length ? Math.min(...asks) : null, ids: new Set(at.map(b => b[0])), unread: unread.length, unreadIds: unread.map(b => b[0])};
 }
 function fcCredWhy(r, c) {                               // why the floor would not count this copy (credible() in ebay_sweep); null when it would
+  const flb = flaggedBy(r[22]); if (flb) return 'flagged by you: ' + flb;
+  if (r.um) return 'not the same card, you said';
   if (r[29] === 'watch' || r[29] === 'suspect') return r[29] + ' listing';
   if (r[17] == null || r[17] < 50) return 'seller under 50 ratings';
   if (sellerBar(r[17], r[18]) != null) return 'seller feedback under the bar';
@@ -2950,7 +3028,7 @@ function fcInputs() {
   return {cap: Math.max(0, n('fc-cap', 0)), h: +$('fc-h').value || 3, disc: Math.min(0.6, Math.max(0, n('fc-disc', 0) / 100)), pmin: Math.max(10, n('fc-pmin', 50)), pmax: Math.max(10, n('fc-pmax', 500)),
           share: Math.min(1, Math.max(0.05, n('fc-share', 20) / 100)), minp: Math.min(0.95, Math.max(0, n('fc-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fc-copies', 1)))),
           young: $('fc-young').checked, untracked: $('fc-untracked').checked, recent: $('fc-recent').checked, gate: $('fc-gate').checked,
-          sup: {conds: [['fc-sup-nm', 'NM'], ['fc-sup-lp', 'LP'], ['fc-sup-ns', 'UNK']].filter(([id]) => $(id).checked).map(([, k]) => k), nowatch: $('fc-sup-nowatch').checked, minfb: Math.max(0, Math.round(n('fc-sup-minfb', 0)))}};   // which copies Supply counts (2026-10-25)
+          sup: {conds: [['fc-sup-nm', 'NM'], ['fc-sup-lp', 'LP'], ['fc-sup-ns', 'UNK']].filter(([id]) => $(id).checked).map(([, k]) => k), nowatch: $('fc-sup-nowatch').checked, minfb: Math.max(0, Math.round(n('fc-sup-minfb', 0))), q: $('fc-sup-q').checked}};   // which copies Supply counts (2026-10-25); q = the unread "?" copies too
 }
 function fcCompute() {
   const doc = FC.doc; if (!doc) return;
@@ -2969,14 +3047,15 @@ function fcCompute() {
     if (!(buy >= I.pmin && buy <= I.pmax) || vol12 < FC_MIN_VOL12) continue;
     if (!I.young && !(age >= 24)) continue;
     let supply = null, ask = null, dear = null;          // the collector only follows listings inside its price band: outside it the supply is unknown
-    if (c && c.book && buy >= band[0] && buy <= band[1]) { const sa = fcSupplyAt(c, buy * (1 - I.disc), I.sup); supply = sa.n; ask = sa.cheapest; dear = sa.dear; }
+    let unread = 0;
+    if (c && c.book && buy >= band[0] && buy <= band[1]) { const sa = fcSupplyAt(c, buy * (1 - I.disc), I.sup); supply = sa.n; ask = sa.cheapest; dear = sa.dear; unread = I.sup && I.sup.q ? 0 : sa.unread; }
     if (supply == null && !I.untracked) continue;        // a card with no copy at the plan's price stays on the list: supply 0, nothing to buy today, the cell says so
     if (I.recent && c && !((c.k || 0) >= 1)) continue;   // no comparable eBay sale in the collector's 30-day window: nobody is buying it, whatever the supply
     const bucket = fcBucket(pct), tab = fcTable(I.h, bucket); if (!tab) continue;
     const d = fcDist(buy, tab, S, I.disc, sell);
     rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, why: lv.why, A: lv.A, An: lv.An, k: c ? (c.k || 0) : null, ask, supply, dear, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
                              mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], dev12: ix.dev12 != null ? a[ix.dev12] : null, m12: ix.m12 != null ? a[ix.m12] : null,
-                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0, gap: lv.gap, hold: lv.hold ? 1 : 0, pcNow: c && c.pc != null ? c.pc : null}, d));
+                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0, gap: lv.gap, hold: lv.hold ? 1 : 0, pcNow: c && c.pc != null ? c.pc : null, unread}, d));
   }
   rows.sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // buy order: chance to the whole percent, then the rank (otherwise price alone breaks the tie)
   const elig = rows.filter(r => r.p >= I.minp && !r.hold);   // a held card (the PC gap, unreviewed) gets no money
@@ -3064,10 +3143,11 @@ function fcRenderPicks() {
       '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (S.fee * 100).toFixed(1) + '% + $' + (S.fixed + S.shipOut + S.supplies).toFixed(2) + '</div><div class="d">eBay fee, label, supplies' + (S.tax ? ', ' + (S.tax * 100).toFixed(2) + '% buy tax' : '') + ' (Raw Data boxes)</div></div></div>';
   }
   const held = FC.rows.filter(r => r.hold).length;      // the PC gap (2026-10-25)
-  if (held) sum += '<p class="dim fc-heldnote">' + held + ' card' + (held === 1 ? ' is' : 's are') + ' <b>held</b>: eBay\u2019s sold median and PriceCharting\u2019s price are ' + FC_GAP_PCT + '%+ apart, so one of the two is wrong - no buys and no hits on ' + (held === 1 ? 'it' : 'them') + ' until you review ' + (held === 1 ? 'it' : 'them') + ' in <a href="#" class="fg-open">Flags</a> (a card verdict there releases the card for 30 days).</p>';
+  if (held) sum += '<p class="dim fc-heldnote">' + held + ' card' + (held === 1 ? ' is' : 's are') + ' <b>held</b>: eBay\u2019s sold median and PriceCharting\u2019s price are ' + FC_GAP_PCT + '%+ apart, so one of the two is wrong - no buys and no hits on ' + (held === 1 ? 'it' : 'them') + ' until you review ' + (held === 1 ? 'it' : 'them') + ' in <a href="#" class="fg-open">Flags</a> (flag the odd sales behind the anchor and it recomputes, or the verdict PC inaccuracy releases the card for 30 days).</p>';
   $('fc-summary').innerHTML = sum;
   const rows = picks.concat(FC.rows.filter(r => !r.qty).slice(0, Math.max(0, 40 - picks.length)));
-  const supplyCell = r => r.supply == null ? '<span class="dim">untracked</span>' : r.supply === 0 ? '0' + (r.ask != null ? ' <span class="dim">(cheapest ' + fmtMoneyPlain(r.ask) + ')</span>' : '') : r.supply + (r.dear != null ? ' <span class="dim">(up to ' + fmtMoneyPlain(r.dear) + ')</span>' : '');
+  const supplyCell = r => (r.supply == null ? '<span class="dim">untracked</span>' : r.supply === 0 ? '0' + (r.ask != null ? ' <span class="dim">(cheapest ' + fmtMoneyPlain(r.ask) + ')</span>' : '') : r.supply + (r.dear != null ? ' <span class="dim">(up to ' + fmtMoneyPlain(r.dear) + ')</span>' : '')) +
+    (r.unread ? ' <span class="dim cq" title="' + r.unread + ' cop' + (r.unread === 1 ? 'y' : 'ies') + ' at your price whose condition is not read yet: counted in nothing until it is (the ? switch under Supply counts them)">· ' + r.unread + ' ?</span>' : '');
   let html = '<div class="pctbox fc-box"><table data-sel="fcpicks"><thead><tr><th title="Favorites: the star keeps this pick, with the hold, the discount and its numbers, on the Favorites tab">\u2605</th><th>Card</th><th class="num">Price</th><th class="num" title="Open copies listed at or under your price for the card (the standard price less your discount), a Best Offer ask counted at 90% and an LP copy at its NM-equivalent; in brackets the dearest of them, or with none the cheapest copy there is. Click for the copies themselves">Supply</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
   rows.forEach(r => {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
@@ -3075,7 +3155,7 @@ function fcRenderPicks() {
     // the gap is measured against PriceCharting's price TODAY (the collector's figure, what the hold and Flags use); the "PC $" beside it is this month's average so far, the series the model learned on - named when the two differ
     const pcDiff = r.pcNow != null && Math.abs(r.pcNow - r.price) > 0.005;
     const gapNote = r.gap != null ? '<span class="fc-gapv' + (Math.abs(r.gap) >= FC_GAP_PCT ? ' down' : '') + '" title="eBay\u2019s sold median ' + (r.A != null ? fmtMoneyPlain(r.A) + ' ' : '') + '(' + r.An + ' sales) against PriceCharting\u2019s price today' + (r.pcNow != null ? ', ' + fmtMoneyPlain(r.pcNow) : '') + (pcDiff ? ' (the PC figure beside it is this month\u2019s average so far, the series the model learned on)' : '') + (Math.abs(r.gap) >= FC_GAP_PCT ? '. ' + FC_GAP_PCT + '%+ apart: one of the two is wrong' : '') + '">' + (r.gap > 0 ? '+' : '') + r.gap.toFixed(0) + '% vs PC' + (pcDiff ? ' today ' + fmtMoneyPlain(r.pcNow) : '') + '</span>' : '';
-    html += '<tr class="' + (r.hold ? 'fc-held ' : '') + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
+    html += '<tr class="' + (r.hold ? 'fc-held ' : '') + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td class="cardc"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
       '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (note || gapNote || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
         [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '', gapNote].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="' + (r.supply ? 'The ' + r.supply + ' open cop' + (r.supply === 1 ? 'y' : 'ies') + ' at your price (every open copy is a click away in the popup)' : 'The open copies of this card on eBay') + '">' + supplyCell(r) + '</a></td>' +
       '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span></td>' +
@@ -3137,6 +3217,8 @@ function fclRowsFor(cid) {                               // every open copy of t
   for (const x of Object.values((LIVE.data && LIVE.data.plan && LIVE.data.plan.rows) || {})) if (x[1] === cid) add(erowOf(x, S, base, cs));
   ((FCL.file && FCL.file.rows && FCL.file.rows[String(cid)]) || []).forEach(x => add(erowOf(x, S, base, cs)));
   const rows = [...out.values()]; if (FC.doc) rows.forEach(r => { r[56] = fcListing(cid, r[9], r[22], (FC.inputs || fcInputs()).h, S); });
+  // the sales behind the anchor (the collector's rows for the sold listings of the window, the ones he marked out included): the "Sales behind the anchor" chip
+  ((FCL.file && FCL.file.sales && FCL.file.sales[String(cid)]) || []).forEach(x => { if (!out.has(x[0])) { const r = erowOf(x, S, base, cs); r.sale = true; rows.push(r); } });
   return rows;
 }
 function fclPlanAt(cid, c) {                             // the plan's price for the card at the Forecast tab's inputs, and the copies at it (null without a book)
@@ -3151,7 +3233,7 @@ function fclPlanAt(cid, c) {                             // the plan's price for
 const READ_ONLY_ASKED = {};
 function fclAskReads() {
   if (!HKEY) return 0;
-  const at = FCL.at, want = FCL.rows.filter(r => r[19] === 'open' && condUnread(r) && (!at || FCL.mode === 'all' || (at.unreadIds || []).includes(r[22])));
+  const at = FCL.at, want = FCL.rows.filter(r => r[19] === 'open' && !r.sale && condUnread(r) && (!at || FCL.mode === 'all' || (at.unreadIds || []).includes(r[22])));
   let n = 0;
   for (const r of want.slice(0, 6)) {
     const iid = r[22]; if (READ_ONLY_ASKED[iid] > Date.now() - 300000) continue;
@@ -3162,11 +3244,13 @@ function fclAskReads() {
 }
 function fclModeRender() {                               // the switch above the rows: the copies at the plan's price | every open copy
   const el = $('fcl-mode'); if (!el) return;
-  const at = FCL.at, all = FCL.rows.filter(r => r[19] === 'open' && !r.um).length;
-  if (!at) { el.innerHTML = ''; FCL.mode = 'all'; return; }
-  const here = FCL.rows.filter(r => r[19] === 'open' && !r.um && at.ids.has(r[22])).length;
-  el.innerHTML = '<button type="button" class="fvchip' + (FCL.mode === 'plan' ? ' on' : '') + '" data-m="plan" title="The copies the Supply cell counts: listed at or under the plan\u2019s price for this card (a Best Offer ask at 90%, an LP copy at its NM-equivalent)">At your price \u2264 ' + fmtMoneyPlain(at.T) + '<span class="n">' + at.n + '</span></button>' +
-    '<button type="button" class="fvchip' + (FCL.mode === 'all' ? ' on' : '') + '" data-m="all" title="Every open copy of the card the collector follows">All open copies<span class="n">' + all + '</span></button>' +
+  const at = FCL.at, all = FCL.rows.filter(r => r[19] === 'open' && !r.sale && !r.um).length, sales = FCL.rows.filter(r => r.sale), c = LIVE.dec && LIVE.dec[String(FCL.cid)];
+  const salesChip = sales.length ? '<button type="button" class="fvchip' + (FCL.mode === 'sales' ? ' on' : '') + '" data-m="sales" title="The sold listings of the last 30 days behind this card\u2019s eBay anchor (the ones you flagged are greyed and out of it): flag the odd ones and the anchor recomputes without them">Sales behind the anchor<span class="n">' + sales.length + '</span></button>' : '';
+  if (!at) { el.innerHTML = salesChip + (salesChip && FCL.mode === 'sales' && c && c.A != null ? ' <span class="dim">anchor ' + fmtMoneyPlain(c.A) + ' on ' + (c.A_n || 0) + ' sales · ' + sales.filter(r => flaggedBy(r[22]) || r.um).length + ' marked out by you</span>' : ''); if (FCL.mode !== 'sales' || !salesChip) FCL.mode = 'all'; return; }
+  const here = FCL.rows.filter(r => r[19] === 'open' && !r.sale && !r.um && at.ids.has(r[22]) && !flaggedBy(r[22])).length;
+  el.innerHTML = '<button type="button" class="fvchip' + (FCL.mode === 'plan' ? ' on' : '') + '" data-m="plan" title="The copies the Supply cell counts: listed at or under the plan\u2019s price for this card (a Best Offer ask at 90%, an LP copy at its NM-equivalent); a copy you flagged is not among them">At your price \u2264 ' + fmtMoneyPlain(at.T) + '<span class="n">' + at.n + '</span></button>' +
+    '<button type="button" class="fvchip' + (FCL.mode === 'all' ? ' on' : '') + '" data-m="all" title="Every open copy of the card the collector follows">All open copies<span class="n">' + all + '</span></button>' + salesChip +
+    (FCL.mode === 'sales' ? ' <span class="dim">' + (c && c.A != null ? 'anchor ' + fmtMoneyPlain(c.A) + ' on ' + (c.A_n || 0) + ' sales' : '') + ' · ' + sales.filter(r => flaggedBy(r[22]) || r.um).length + ' marked out by you · flag an odd sale (another card, a damaged copy, a fake sale) and the anchor recomputes without it</span>' : '') +
     '<span class="dim"> ' + (at.disc ? Math.round(at.disc * 100) + '% under the standard price of ' + fmtMoneyPlain(at.buy) : 'the standard price') + (here < at.n ? ' \u00b7 ' + (at.n - here) + ' of the ' + at.n + ' cop' + (at.n - here === 1 ? 'y has' : 'ies have') + ' no row loaded yet' : '') +
     (at.unread ? ' \u00b7 <span title="No grade in the title and eBay\u2019s condition field not read yet: these count in nothing until they are read; the collector is reading them now">' + at.unread + ' cop' + (at.unread === 1 ? 'y' : 'ies') + ' at the price not read yet (reading\u2026)</span>' : '') + '</span>';
   fclAskReads();
@@ -3180,8 +3264,9 @@ async function fcOpenListings(cid) {
   await fclLoad();
   if (FCL.cid !== cid) return;                           // another card was opened meanwhile
   FCL.rows = fclRowsFor(cid);
-  const c = LIVE.dec && LIVE.dec[String(cid)], open = FCL.rows.filter(r => r[19] === 'open' && !r.um).length;
+  const c = LIVE.dec && LIVE.dec[String(cid)], open = FCL.rows.filter(r => r[19] === 'open' && !r.sale && !r.um).length;
   FCL.at = fclPlanAt(cid, c);
+  if (FCL.mode === 'sales') FCL.mode = 'plan';
   $('lsub').textContent = base[2] + ' · #' + base[3] + (c && c.A != null ? ' · anchor ' + fmtMoneyPlain(c.A) + ' (' + (c.A_n || 0) + ' sales)' : '') + (c && c.L != null ? ' · credible floor ' + fmtMoneyPlain(c.L) : '') +
     ' · ' + open + ' open cop' + (open === 1 ? 'y' : 'ies') + ' the collector follows · + puts a copy on your plan, ★ on your favorites · greyed rows are copies the floor does not count as credible (a new or low-rated seller, far under the anchor, a watch listing, an ask that has sat for days)';
   fclModeRender();
@@ -3197,7 +3282,7 @@ $('lov').addEventListener('click', e => { if (e.target === $('lov')) $('lov').cl
 $('fc-cols').addEventListener('click', () => { if (tables.fcl) tables.fcl.openColumns(); });
 $('fcl-mode').addEventListener('click', e => {
   const b = e.target.closest('.fvchip'); if (!b || !tables.fcl) return;
-  FCL.mode = b.dataset.m === 'all' ? 'all' : 'plan'; try { localStorage.setItem('fcl-mode', FCL.mode); } catch (x) {}
+  FCL.mode = b.dataset.m === 'all' ? 'all' : b.dataset.m === 'sales' ? 'sales' : 'plan'; try { if (FCL.mode !== 'sales') localStorage.setItem('fcl-mode', FCL.mode); } catch (x) {}
   fclModeRender(); tables.fcl.apply();
 });
 function fcModeApply() {                                 // Forecasting shows the model's picks; Planning the listings he added
@@ -3236,7 +3321,8 @@ function plRows() {
     const m = p.m || {};
     const row = {iid, cid: cid == null ? null : +cid, name: base ? base[1] : (m.ti || iid), set: base ? base[2] : '', title: r ? r[6] : (m.ti || ''), url: r ? r[20] : (m.u || null), status: r ? r[19] : 'unknown',
                  total: r ? r[9] : (m.p == null ? null : +m.p), fb: r ? r[17] : null, pctFb: r ? r[18] : null, cond: r ? r[15] : null, hours: r ? r[5] : null, t: p.t, qty: 0, tab: null, p: null, m,
-                 tier: r ? r[29] : 'clean', unread: r ? condUnread(r) : false};
+                 tier: r ? r[29] : 'clean', unread: r ? condUnread(r) : false, flag: flaggedBy(iid)};
+    if (row.flag) row.status = 'flagged: ' + row.flag;                           // out of the money (a flag means it is not a copy to buy), listed greyed until he takes it off the plan
     if (!plFilterOk(row)) { out.filtered = (out.filtered || 0) + 1; continue; }   // the Planning view's own filters (2026-10-25)
     const a = doc && ix && base ? doc.cards[String(cid)] : null;
     if (a && row.total != null && row.total > 0) {
@@ -3261,7 +3347,7 @@ function plRows() {
 const PL_F = {open: true, gone: true, nm: true, lp: true, ns: true, oth: true, nowatch: true};
 try { Object.assign(PL_F, JSON.parse(localStorage.getItem('pl-filt') || '{}')); } catch (e) {}
 function plFilterOk(row) {
-  if (row.status === 'open' ? !PL_F.open : !PL_F.gone) return false;
+  if (row.flag ? !PL_F.open : row.status === 'open' ? !PL_F.open : !PL_F.gone) return false;
   const c = row.cond; const k = row.unread || c == null || !['NM', 'LP', 'UNK'].includes(c) ? 'oth' : c === 'NM' ? 'nm' : c === 'LP' ? 'lp' : 'ns';
   if (!PL_F[k]) return false;
   if (PL_F.nowatch && (row.tier === 'watch' || row.tier === 'suspect')) return false;
@@ -3292,13 +3378,13 @@ function plRender() {
       '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (S.fee * 100).toFixed(1) + '% + $' + (S.fixed + S.shipOut + S.supplies).toFixed(2) + '</div><div class="d">eBay fee, label, supplies' + (S.tax ? ', ' + (S.tax * 100).toFixed(2) + '% buy tax' : '') + ' (Raw Data boxes)</div></div></div>';
   }
   el.innerHTML = sum;
-  let html = '<div class="pctbox fc-box"><table data-sel="plpicks"><thead><tr><th title="★ keeps the listing on the Favorites tab; − takes it off the plan">★ / −</th><th>Card</th><th class="num">Price</th><th title="the listing itself">Listing</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
+  let html = '<div class="pctbox fc-box"><table data-sel="plpicks"><thead><tr><th title="★ keeps the listing on the Favorites tab; − takes it off the plan">★ / −</th><th title="Flag: a flagged listing counts in nothing (no supply, no hit, out of the money here) and sits in Flags; click to flag it or to take the flag off">Flag</th><th title="your reason for the flag, and how many listings of this card carry it">State</th><th>Card</th><th class="num">Price</th><th title="the listing itself">Listing</th><th class="num">Rank</th><th class="num" title="10th percentile – median – 90th percentile">Net per copy</th><th class="num">Chance</th><th class="num">Buy</th><th class="num">Cost</th><th class="num">Net</th></tr></thead><tbody>';
   rows.forEach(r => {
     const costEach = r.total == null ? null : r.total * (1 + S.tax), note = r.tab ? fcSellNote(r) : '';
     const listing = (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" title="' + esc(r.title) + '">' + esc(String(r.title || r.iid).slice(0, 60)) + '</a>' : esc(String(r.title || r.iid).slice(0, 60))) +
       '<br><span class="dim">' + (r.status === 'open' ? 'open' : r.status === 'unknown' ? 'not on record' : '<span class="down">' + esc(r.status) + '</span>') + (r.unread ? ' · <span title="condition not read yet">?</span>' : r.cond ? ' · ' + (r.cond === 'UNK' ? 'n/s' : esc(r.cond)) : '') + (r.tier === 'watch' || r.tier === 'suspect' ? ' · <span class="amber" title="the scam screen\u2019s tier">' + r.tier + '</span>' : '') + (r.fb != null ? ' · seller ' + fmtInt(r.fb) + (r.pctFb != null ? ' · ' + r.pctFb.toFixed(1) + '%' : '') : '') + (r.hours != null ? ' · listed ' + (r.hours < 48 ? r.hours.toFixed(0) + ' h' : (r.hours / 24).toFixed(0) + ' d') + ' ago' : '') + '</span>';
-    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + esc(r.iid) + '"><td class="favc">' + favBtn('fl', r.iid, r.cid, Object.assign({ti: String(r.title || '').slice(0, 90), u: r.url, p: r.total, h: I.h}, r.tab ? {c: Math.round(r.p * 1000) / 1000, lo: r2(r.lo), med: r2(r.med), hi: r2(r.hi), sell: r2(r.sell)} : {}), 'sm') + ' ' + planBtn(r.iid, r.cid, r.m, 'sm') + '</td>' +
-      '<td>' + (r.cid != null ? '<a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card">' + esc(r.name) + '</a>' : esc(r.name)) + '<br><span class="dim">' + esc(r.set) + '</span>' + (r.tab ? '<br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span>' : '') + '</td>' +
+    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + esc(r.iid) + '"><td class="favc">' + favBtn('fl', r.iid, r.cid, Object.assign({ti: String(r.title || '').slice(0, 90), u: r.url, p: r.total, h: I.h}, r.tab ? {c: Math.round(r.p * 1000) / 1000, lo: r2(r.lo), med: r2(r.med), hi: r2(r.hi), sell: r2(r.sell)} : {}), 'sm') + ' ' + planBtn(r.iid, r.cid, r.m, 'sm') + '</td>' + flagCells({k: x => x.iid, c: x => x.cid}, r) +
+      '<td class="cardc">' + (r.cid != null ? '<a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card">' + esc(r.name) + '</a>' : esc(r.name)) + '<br><span class="dim">' + esc(r.set) + '</span>' + (r.tab ? '<br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span>' : '') + '</td>' +
       '<td class="num">' + (r.total == null ? dash : fmtMoneyPlain(r.total)) + (note || (r.price != null && r.total != null && Math.abs(r.total - r.price) > 0.005) ? '<br><span class="dim' + (r.sell && (r.total < 0.7 * r.sell || r.total > 1.3 * r.sell) ? ' down' : '') + '">' + [note, r.price != null && Math.abs(r.total - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td>' +
       '<td class="ttl">' + listing + '</td>' +
       '<td class="num">' + (r.tab ? FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span>' : '<span class="dim">no score</span>') + '</td>' +
@@ -3339,7 +3425,7 @@ async function loadForecast() {
     $('meta-fc').textContent = 'Forecast · the model file could not be loaded (' + e.message + ') — it is built by the daily site update; try again after the next build.';
   }
 }
-['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-copies', 'fc-young', 'fc-untracked', 'fc-recent', 'fc-gate', 'fc-sup-nm', 'fc-sup-lp', 'fc-sup-ns', 'fc-sup-nowatch', 'fc-sup-minfb'].forEach(id => $(id).addEventListener('input', () => {
+['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-copies', 'fc-young', 'fc-untracked', 'fc-recent', 'fc-gate', 'fc-sup-nm', 'fc-sup-lp', 'fc-sup-ns', 'fc-sup-q', 'fc-sup-nowatch', 'fc-sup-minfb'].forEach(id => $(id).addEventListener('input', () => {
   if (!FC.doc) return;
   fcCompute();
   if (id === 'fc-h' && LIVE.data) { fcStampRows(); tables.er.apply(true); }          // the Raw Data column follows the hold
