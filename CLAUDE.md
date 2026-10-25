@@ -1230,6 +1230,79 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   and what learns from it, Restore clearing the phone's No, supply_at / book_eff); test_page (hidden + Restore),
   test_ui9 / test_ui10 / test_ui14 / test_ui16 and ut/test_forecast_rec ported to the new supply rule (a cheap copy
   added to their books so the discount lever still finds one).
+- THE PC GAP HOLD AND THE FLAGS ARCHIVE, "?" CONDITIONS, THE SUPPLY SWITCHES, THE PLANNING FILTERS (2026-10-25, Brett:
+  "My one concern about the forecast tab, occurs when the ebay anchor differs alot from pc charting ... scammers
+  deliberately influence pricecharting ... a threshold ... the removal of the listings that exceed the difference must
+  be stored in a button similar to matches button but called 'PC% High' ... the same columns as the popup/ebay-raw-data
+  tab ... mark it as such [set mismatch, name mismatch, condition, unknown, fraud, unmarked as the first column] ... a
+  description box, where i can type in my reasoning ... stored for permanent archive ... '2 of 10' ... underneath
+  'sells $305.75 . PC $333.70', there should be text that states the PC%"; the Gyarados EX whose Cond said n/s while
+  eBay's field said Lightly Played: "This is a big problem ... the most recently posted cards rather than the old
+  cards"; "the ? conditions listings probably shouldnt even be shown in the forcast tab or forcast history tab. nor
+  should they go to high PC% differences archive, at not until their condition is actually read"; "i would like the
+  newest listings to go to PC% High and then the other older ones can back fill"; "the forecast button and planning
+  button should have their own respective filters ... 'warning' ... their stated condition"; "for the default state you
+  can have it not show watch and suspect"). (1) THE "?": es.cond_known(r) = a grade in the title or eBay's condition
+  field read ("ec" in rec, even ""); live_row 35 is None until then (was "" for both), erowOf keeps null, condUnread(r)
+  on the page = UNK + r[55] null + no grade of Brett's -> the Cond cell shows "?" (not "n/s"), the Review row says
+  "not read yet ... being read now" and openReview asks the collector for the read (readAsk, as for a missing photo);
+  the card popup lists "N copies at the price not read yet (reading...)" and asks up to 6 reads at once (fclAskReads,
+  READ_ONLY_ASKED). Until read, a copy counts in NOTHING on the Forecast tab: book rows carry [11] cond_known and [12]
+  the scam tier; copy_ok / fcCopyOk refuse b[11] = 0; flags_update skips UNK-and-unread live rows; the Forecast
+  History tab lists cards, not listings, so nothing to exclude there. WHY THE GYARADOS HAPPENED: cond_queue counted a
+  listing as read when "ef" was present - and the ePID memory gives the facts (set / rarity / finish) WITHOUT reading
+  the copy, so inherited listings were never queued; and only the last 24 h were queued, dearest first. Now
+  cond_queue(state, cfg, cards): every unknown-condition listing, tiers plan (0) / a card's cheapest copies at or
+  under its floor (1, not pcm) / alerted (2) / the rest in the band (3), newest first inside each tier, no age cutoff;
+  COND_DAILY_MAX 400 -> 600 (12% of the budget; still one read every 90 s). (2) THE GAP HOLD: es.card_gap(state, cid,
+  A, A_n, pc) -> (gap %, hold): a card with a backed anchor (ANCHOR_MIN sales) whose anchor and PriceCharting price are
+  GAP_HOLD_PCT = 30%+ apart is HELD - verdict "PC gap" (no hits, no leads; compute_stats cs.gap / cs.gap_hold),
+  forecast_math.levels why "gap" projects the sale from the LOWER of the two (pc_buy when under the sell), plan() gives
+  a held card no money (elig excludes hold; rows carry gap / hold), the page mirrors it (fcLevels / fcCompute, the row
+  greyed tr.fc-held, Buy cell "held", "+80% vs PC" in red under "sells . PC" via fcRenderPicks' gapNote - every row shows
+  its gap, red at 30%+ -, the summary "N cards are held ... see Flags"). A card verdict in Flags (any state but
+  unknown / unmarked) releases the card for GAP_RELEASE_D = 30 days (vps.gap_marks[cid] = {state, note, t, mt}). Brett
+  chose the hold over a mere flag ("im okay with holding flagged cards from both buys and hits until reviewed"); the
+  threshold is mine ("for the gap, you would know what is best"). (3) THE FLAGS ARCHIVE (he named it "PC% High"; the
+  button is "Flags N" on the Raw Data and Forecast tabs, N = unmarked): collector.flags_update after each build files a
+  snapshot (flag_snapshot: the listing's words, prices, seller, condition, photos, facts; the card's A / A_n / pc / L /
+  gap; vspc; status; verdict; state "unmarked", note "", mt) of every live row whose verdict is "PC gap" (kind gap),
+  "mismatch: too cheap" / "too high" (pclow / pchigh), "review" (under 45% of the anchor) - condition known only - plus,
+  once per hold (vps.gap_flagged), up to GAP_SOLD_MAX = 20 of the sales behind a held card's anchor (st "sold", v "sold
+  behind the anchor"); FLAGS_NEW_MAX 300 a pass, FLAGS_KEEP 5000 newest in vps.flags, the month's entries to
+  flags/<YYYY-MM>.jsonl.gz.enc on the archive branch (archive_tick). live/flags.bin = flags_file (every entry newest
+  first, gap_marks, held = [[cid, gap, A, A_n, pc, L]], the state lists), published every 10 min or at once after a
+  mark (vps.flag_t != flag_pub_t); live.alert.flag_n = {total, unmarked, held, t} and live.alert.gap_marks. Marks:
+  'flag' {t, i, state, note} -> flag_mark (set / name mismatch also answers "not the same card" through review_listing;
+  fraud sets rec.fraud and adds the seller to vps.fraud_sellers - score_listings gives "fsl" +5 = suspect to the listing
+  and the seller's others; condition / pc stale / unknown just record), 'gapmark' {t, c, state, note} -> gap_mark. The
+  page (app.js "The Flags archive" block, store 'fg', FG_TABLE = TABLES.er with State and Note as the first columns after
+  Row / star / +; fgBuild clones the Raw Data header): #fov overlay (z 44, under the card popup) with the held-card strip
+  (fgHeld: gap, "eBay $A (n sales) vs PC $pc . floor", card verdict select + note + Save -> gapMark, GAPM echo; released
+  cards for 30 days), chips State x Kind with counts (fgChips), a day filter, sortable / pickable columns like Raw Data,
+  the State cell "fraud / 1 of 2" (its share of the reviewed listings; click = openReview, which puts the Flag section
+  first: why it was flagged, the six states, the note, "Save the mark" -> flagMark, FLAGM echo until flag_n.t), the Note
+  cell's icon opens the note (#hov), Download CSV (fgCsv, what is shown with the marks). fgRowOf takes the live row
+  while there is one, else a row built from the snapshot (erStub + the saved fields), so a listing long gone from eBay
+  still shows its words, prices and photos; openReview falls back to FG.rows. (4) THE SWITCHES: "Supply counts copies
+  that are..." under the Forecast inputs (#fc-sup: NM / LP / n/s, "no watch / suspect copies" ON by default, "seller >=
+  N ratings"; FC_SUP_DEFAULT, inputs.sup -> fcCopyOk / fcSupplyAt and forecast_math.copy_ok / supply_at(c, price, sup);
+  STD_INPUTS.sup for the collector's standard plan; test_fcmath holds parity). The popup's "At your price" chip follows
+  the same rule, so the count and the rows agree. (5) THE PLANNING FILTERS (#pl-filt, PL_F in localStorage pl-filt):
+  "no watch / suspect" (on by default), NM / LP / n/s / other condition; plRows drops what they exclude and the summary
+  says "N planned listings left out by the filters above" (the money is unchanged: a planned copy is a buy). Help:
+  fc_sup, fc_nowatch, fc_minfb, pl_filt, fg; er_cond ("?" and the order of the reads), er_verdict ("PC gap"); the
+  Forecast README's Supply paragraph; the Raw Data README's Flags bullet. Tests: ut/test_flags.py (cond_known /
+  cond_queue tiers and order / card_gap release / flags_update's kinds, the condition rule, the sold entries once per
+  hold, the cap / flag_mark's three side effects / gap_mark / flags_file / the live counts), ut/test_cond.py ported to
+  the new order, t/pcpop/test_ui18.py (the switches and the cell, the popup's chips, "?" and the read request, the
+  Review row, the held row and summary, the "PC gap" verdict, the Flags popup: counts, chips, day filter, note popup,
+  a fraud mark from Review with its message, the card verdict, a name-mismatch mark hiding the listing, the CSV, the
+  Planning filters), t/test_risk.js (the "?" cell). Pre-existing, unrelated failures left as they were: ut/test_classic
+  (photo count), ut/test_pc2 (FakeRequests headers), ut/test_cardfacts (needs PW), t/test_pcask.js (the process
+  lingers on jsdom timers; its checks pass). Deployed 2026-10-25 ~03:30 UTC through the editor (collector.py 48f079d2,
+  ebay_sweep.py 17177b99, forecast_math.py 3599d919, body.html 5f388b10, style.css f85c702b, help.js af21a4da, app.js
+  fe47cdc3); the droplet picks the collector up on its 5-minute pull.
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
