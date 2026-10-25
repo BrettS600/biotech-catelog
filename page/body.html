@@ -263,6 +263,8 @@
     <button class="close" id="lclose" title="Close">✕</button>
     <h2 id="ltitle"></h2>
     <div class="sub" id="lsub"></div>
+    <!-- the copies the Supply cell counted (at the plan's price for the card) | every open copy (2026-10-25) -->
+    <div class="fvchips fcl-mode" id="fcl-mode"></div>
     <div class="controls"><input type="search" id="q-fcl" placeholder="Search title…"><select id="set-fcl" hidden><option value="">All sets</option></select><span class="count" id="count-fcl"></span></div>
     <div class="ranges" id="ranges-fcl"><button class="reset" id="reset-fcl">Reset</button></div>
     <div class="wrap lwrap"><table class="wide"><tbody id="rows-fcl"></tbody></table></div>
@@ -328,7 +330,7 @@
 <div class="actbar fc-bar">
   <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
-  <span class="fc-tools"><label class="fc-ua">Listings at least <input type="number" id="fc-ua" min="0" max="80" step="5" value="0"> % under the anchor<button class="help" data-h="fc_ua">?</button></label><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
+  <span class="fc-tools"><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>
 <div class="al fc" id="fc-al">
   <div class="al-card" id="fc-side">
