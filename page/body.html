@@ -373,6 +373,13 @@
   </div>
   <div class="al-card" id="fc-main">
     <h3>What to buy<button class="help" data-h="fc_picks">?</button></h3>
+    <!-- the Forecasting view's filters (2026-10-25, Brett: "some more filters in the forecast tab"): they narrow the candidates, so the plan follows -->
+    <div class="pl-filt fc-filt" id="fc-filt"><span class="dim">Only:</span>
+      <select id="fc-f-set"><option value="">any set</option></select><select id="fc-f-rar"><option value="">any rarity</option></select><select id="fc-f-fin"><option value="">any finish</option></select>
+      <span class="sep"></span><span class="dim">rank</span><label><input type="checkbox" id="fc-f-top10" checked> deepest 10%</label><label><input type="checkbox" id="fc-f-b90" checked> top 25%</label><label><input type="checkbox" id="fc-f-b75" checked> upper half</label><label><input type="checkbox" id="fc-f-b50" checked> lower half</label>
+      <span class="sep"></span><label><input type="checkbox" id="fc-f-sup"> a copy at my price</label><label><input type="checkbox" id="fc-f-au"> an auction at my price</label><label><input type="checkbox" id="fc-f-noheld"> not held</label><label><input type="checkbox" id="fc-f-nopcbad"> PriceCharting trusted</label>
+      <span class="sep"></span><label title="PriceCharting sales in the last 12 months, at least"><input type="number" id="fc-f-vol" min="0" step="1" value="0" style="width:3.6em"> PC sales / yr</label><label title="comparable eBay sales in the collector's 30-day window, at least"><input type="number" id="fc-f-k" min="0" step="1" value="0" style="width:3.2em"> eBay sales / 30 d</label>
+      <button type="button" class="tbtn" id="fc-f-reset">Reset</button><button class="help" data-h="fc_filt">?</button></div>
     <div id="fc-summary" class="al-now"></div>
     <div id="fc-picks"></div>
     <h3>Past forecasts<button class="help" data-h="fc_record">?</button></h3>
