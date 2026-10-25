@@ -1353,7 +1353,7 @@ def bad_titles(state):
     with no seller on record (an auction, an old phone answer) teaches no title at all."""
     out = {}
     for w in (state.get("vps") or {}).get("wrong", []):
-        if w.get("ti") and w.get("sl") and w.get("card") is not None:
+        if w.get("ti") and w.get("sl") and w.get("card") is not None and not w.get("sc"):   # sc: a phone No on a watch / suspect listing ("scam"), 2026-10-25
             out.setdefault((w["sl"], title_key(w["ti"])), set()).add(w["card"])
     return out
 
@@ -1361,7 +1361,7 @@ def bad_titles(state):
 def learn_tables(state, cat):
     """-> {"titles": {(seller, key): {cards}}, "sellers": {(seller, card)}, "words": {word: mismatches containing it}}"""
     v = state.get("vps") or {}
-    wrong = v.get("wrong", [])
+    wrong = [w for w in v.get("wrong", []) if not w.get("sc")]   # a phone No on a watch / suspect listing ("scam") teaches nothing about titles (2026-10-25)
     out = {"titles": bad_titles(state), "sellers": {(w["sl"], w["card"]) for w in wrong if w.get("sl") and w.get("card") is not None}, "words": {}}
     if len(wrong) < LEARN_MIN:
         return out
@@ -1442,7 +1442,7 @@ def rematch(state, cat):
 
     def redo(r):
         title = r.get("title") or ""
-        t = r.get("ecc") or title_condition(title)       # eBay's stated condition, once read, outranks the title
+        t = r.get("bc") or seller_cond(r)                 # Brett's grade from the photos, else eBay's stated condition (once read), else the title
         if t != r.get("tcond", "UNK"):
             r["tcond"] = t
             n["cond"] += 1
@@ -1520,9 +1520,16 @@ def ebay_condition(it):
     return code, text[:60]
 
 
+def seller_cond(r):
+    """The seller's own condition for a listing: eBay's condition field when it names a grade (ecc), else the title's
+    words. What the record's tcond is unless Brett has graded the card from the photos himself (bc, 2026-10-25)."""
+    return r.get("ecc") or title_condition(r.get("title") or "")
+
+
 def apply_condition(r, it):
     """Keep eBay's stated condition on the record (ec: the text, ecc: its code) and let it set the condition the
-    gate uses when it names one - the seller's structured declaration beats words in the title."""
+    gate uses when it names one - the seller's structured declaration beats words in the title. Brett's own grade
+    from the photos (bc) outranks both."""
     code, text = ebay_condition(it)
     if text is None:
         r.setdefault("ec", "")                        # read, and the listing carries none ("" tells that apart from never read)
@@ -1533,7 +1540,8 @@ def apply_condition(r, it):
     r["ec"] = text
     if code != "UNK":
         r["ecc"] = code
-        r["tcond"] = code
+        if not r.get("bc"):
+            r["tcond"] = code
 
 
 def item_facts(r, it):
@@ -2810,7 +2818,9 @@ def live_row(r, cs):
             1 if r.get("um") else 0, r.get("lrn") or "",   # 31: marked a mismatch by Brett; 32: held back by learning, and why
             (r.get("imgs") or [])[1:4],                    # 33: the listing's other photos (the first is 20), for the Review screen
             facts_row(r),                                  # 34: eBay's facts (None = not looked up, [] = none on the listing)
-            r.get("ec") or ""]                             # 35: the condition eBay states on the listing ("" = not read / none)
+            r.get("ec") or "",                             # 35: the condition eBay states on the listing ("" = not read / none)
+            r.get("bc") or "",                             # 36: Brett's own grade from the photos (2026-10-25); when set, 13 carries it ...
+            seller_cond(r) if r.get("bc") else ""]         # 37: ... and this is the seller's own basis (eBay's field, else the title)
 
 
 def build_live(state, cards, lp):
