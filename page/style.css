@@ -342,6 +342,8 @@ button.wbtn { flex:none; font:inherit; font-size:12px; font-weight:600; padding:
 .pl-filt { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:12px; margin:0 0 8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--head); }
 .pl-filt label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
 .pl-filt .sep { width:1px; height:14px; background:var(--line); }
+.fc-filt select { font:inherit; font-size:12px; padding:2px 4px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); max-width:200px; }
+.fc-filt input[type=number] { font:inherit; font-size:12px; padding:1px 4px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
 /* the Forecast row: the anchor against PriceCharting, held cards */
 .fc-gapv.down { color:var(--down); font-weight:600; }
 tr.fc-held td { opacity:.6; }
@@ -459,6 +461,10 @@ button.fc-fold:hover { color:var(--fg); border-color:var(--link); }
 .fc .fc-box td.flc, .fc .fc-box td.fls { width:1%; }
 .fc .fc-box td.fls { white-space:nowrap; }
 .fc-au { white-space:nowrap; }                                   /* the auction line under Supply (2026-10-25) */
+.fc-pcbad { color:#9e6a03; font-weight:600; }                      /* the automatic PC-inaccuracy word on a Forecast row (2026-10-25) */
+.fgauto { margin:8px 0 4px; padding:8px 10px; border:1px solid #9e6a03; border-radius:8px; font-size:12px; }
+.fgautol { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; }
+.fgauto1 { white-space:nowrap; }
 #fcl-au { margin:6px 0 10px; max-height:none; }
 #fcl-au table { font-size:12px; }
 #fcl-au td, #fcl-au th { white-space:nowrap; padding:4px 7px; }
