@@ -1302,7 +1302,26 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (photo count), ut/test_pc2 (FakeRequests headers), ut/test_cardfacts (needs PW), t/test_pcask.js (the process
   lingers on jsdom timers; its checks pass). Deployed 2026-10-25 ~03:30 UTC through the editor (collector.py 48f079d2,
   ebay_sweep.py 17177b99, forecast_math.py 3599d919, body.html 5f388b10, style.css f85c702b, help.js af21a4da, app.js
-  fe47cdc3); the droplet picks the collector up on its 5-minute pull.
+  fe47cdc3); the droplet picks the collector up on its 5-minute pull. FIRST LIVE LOOK (03:30 UTC, site build #128):
+  the collector had filed 1,080 entries in two passes (331 gap - 70 open copies + 261 sales behind the anchors of 39
+  held cards -, 703 "too high vs PC", 46 "too cheap"); 13 of the 1,380 Forecast rows held; the 24-hour table 57% "?"
+  (4,003 of 7,059 rows unread; 41% of the 15,087 book copies known, the cheapest copy known on 1,810 of 4,677 cards -
+  the Forecast tab's Supply is thinner until the reads catch up at 600 a day, tier 1 first). Three things fixed in
+  the follow-up (r41b, ~03:55 UTC): (a) the gap figure is measured against PriceCharting's price TODAY (cs.pc, the
+  catalog's loose price) while the row's "PC $" is the forecast doc's figure (this month's average so far, the
+  model's series) - "sells $172.74 . PC $170.79 . -11% vs PC" read as a contradiction (the daily price was $194.99),
+  so the row now says "-11% vs PC today $194.99" when the two differ (fcCompute row.pcNow, the tooltip names both);
+  (b) the Flags button's count is the cards HELD (what wants his verdict; a verdict echoed through GAPM lowers it at
+  once), the listing counts are on hover - 1,080 unmarked listings read as a to-do list and most are the collector's
+  own "too high vs PC" wrong matches; (c) a card verdict "pc stale" also stands the per-listing PriceCharting rule
+  down for the card for 30 days (es.pc_stale_cards, stamp_pc leaves pcm "") - the top held cards were 30th
+  Celebration singles PriceCharting lists at $1.99 (eBay $55.72 on 20 sales, +2700%), and without this a release
+  would still leave every copy "mismatch: too high"; a fraud mark on a SALE now takes it out of the anchor
+  (wrong_card includes rec.fraud), so marking the inflated sales behind a held card brings its anchor back. Also the
+  Planning view with every listing filtered out says so instead of "Nothing on your plan yet" (his one planned
+  listing is a watch copy, hidden by the default filter), and its listing line shows "?" and the watch / suspect
+  tier. Tests extended: ut/test_flags (wrong_card fraud, stamp_pc under the three verdict states), t/pcpop/test_ui18
+  (the badge = held, "vs PC today", the empty Planning text, the tier on the line).
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
