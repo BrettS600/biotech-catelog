@@ -458,6 +458,12 @@ button.fc-fold:hover { color:var(--fg); border-color:var(--link); }
 .fc .fc-box td.cardc a { font-weight:600; }
 .fc .fc-box td.flc, .fc .fc-box td.fls { width:1%; }
 .fc .fc-box td.fls { white-space:nowrap; }
+.fc-au { white-space:nowrap; }                                   /* the auction line under Supply (2026-10-25) */
+#fcl-au { margin:6px 0 10px; max-height:none; }
+#fcl-au table { font-size:12px; }
+#fcl-au td, #fcl-au th { white-space:nowrap; padding:4px 7px; }
+#fcl-au td.ttl { white-space:normal; min-width:220px; }
+#fcl-au tr.fc-buy td { background:rgba(35,134,54,.12); }
 /* a quiet word at the bottom of the window (a star that could not be sent, the 400 cap) */
 #fvtoast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); max-width:min(560px, 90vw); background:var(--fg); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:13px; z-index:70; opacity:0; pointer-events:none; transition:opacity .2s; }
 #fvtoast.open { opacity:.95; }
