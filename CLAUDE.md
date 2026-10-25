@@ -1395,6 +1395,111 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   clickable), hit vs forecast hit details, a test alert; auctions under the Supply cell ("3 (up to $X) auction",
   visibility and alerts only, no effect on the figures); the automatic PC-inaccuracy detector (a measurement pass over
   PriceCharting's posted sales first); more Forecast filters.
+- THE PHONE'S CHECK SCREEN TALKS BACK WITH REASONS; THE PUSH IN THE BACKGROUND (2026-10-25 evening, round 3 stage 2a;
+  Brett: "if it asks is this the same card, and i select 'no', then a popup will appear and i select the reason why,
+  and provide a text response, that is saved and archived ... question 1 ask for the condition ... if i select LP,
+  then go to second question, i want it to only show the lightly played max bid, profit, roi ... if changing the
+  condition ... causes bid to be over your max, then the light played should appear as the color red instead of
+  color green. Even if it is red, i would still like it to be clickable ... question 2 should specify if it is a hit
+  or forecast hit. If it is a forecast hit, then the 1 3 and 6 month holds should be specified, as well as the other
+  input variables. I would also like the hits, to have variables such as confidence and margin ... Please send ntfy
+  test example to phone so that i can confirm"). page/hit.html: Q1 carries the condition row (NM / LP / MP / HP / DMG,
+  button.cb; a tap tells nm / lp / mp / hp / dmg at once and pre-selects from d.bc); No opens the reason panel
+  (#nopanel: set mismatch / name mismatch / condition / fraud / unknown, a note, Send -> tell({d: 'no', st, note}),
+  Cancel); Yes -> Q2. Q2: "The numbers" + the kind badge (Hit / Forecast hit when d.fc.on / Lead / Auction / Test),
+  the condition row again (synced), ONE figure block for the chosen grade (figBtn: green .yes = a buy, red .over =
+  over the max buy or under the ROI, both open the listing through go(); MP / HP / DMG = .nobuy "Not a buy at this
+  grade" with "Open the listing anyway"; no grade yet = both NM and LP), "How the max buy is computed" (#how: the sell
+  level for the grade, the anchor + fast-sale median, the floor other than this copy, confidence within the window,
+  the rate and sell-through, margin, fees, all-in vs the max), the Forecast section (#fcb, when d.fc: the filter's
+  state, a table of the 1 / 3 / 6-month chance of a profit at this price + the card's rank + expected move, the
+  projected sale and why, the standard price and 12-month mean, model month, market, fees). tell() takes an object.
+  Collector: PHONE_GRADES / PHONE_ANSWERS; the dec handler takes st + note with a No -> flag_mark (a mismatch reason is
+  the old "not the same card", fraud marks the seller, the rest flag the listing), an old plain No keeps the old
+  note_wrong path, the side effects run once per listing even when it sits in two histories; hit_payload adds conf,
+  win, L (the floor other than this copy), af, lpd, fee [pct, fixed], lam, stt; forecast_block(cards, cfg, cid, total,
+  iid) = {h, on, bar, q{1,3,6}, pct{}, pred{}, sell, why, comp, std, m12, month, reg, fees} rides as d["fc"] on hit and
+  auction alerts (the auction's at the max bid + shipping); test_hit(state, cat, cards) sends a sample check screen
+  with the test alert on the best-looking open listing (a PASS, else a LEAD, else the cheapest judged copy; never
+  watch / suspect / um / fl), d["test"] = 1, logged kind "test-hit" and never counted as the listing's alert. The
+  Alerts tab names the new answers (ans: mp / hp / dmg, "No (the reason is on its flag)"); help: the test alert's
+  sample. THE PUSH: since 12:56 UTC every other push to the live branch timed out at 120 s (88 "Publish failed" in six
+  hours, each stalling the loop two minutes; the live file was 5-25 min stale). publish() now writes and commits,
+  then push_live() force-pushes in a daemon thread (PUSH_TIMEOUT_S 600); a publish under a running push is skipped
+  (the next carries everything); slow pushes (> 90 s) and skips are logged every 30 min at most with the size; git()
+  takes a timeout; the repo sweep never runs under a push. fc_rows.bin doubled with the sales behind the anchors
+  (864 -> 1,832 KB every 10 min) - watch the push log line. Tests: t/hit/test_cond.py rewritten (the condition row,
+  Q2 with no grade / LP red but a link / MP not a buy, the forecast hit's badge, table and inputs, No -> fraud with
+  a note -> {d, st, note}, name mismatch -> "Rejected", Cancel), ut/test_phone.py (the dec stream through a fake poll:
+  fraud / name mismatch / an old No / hp + dmg / a wrong token; the payload's inputs; forecast_block on a tiny model
+  file; test_hit's pick, link, log entry and its skipping of flagged copies), ut/test_push.py. Deployed 2026-10-25
+  ~19:25 UTC: collector.py 894e4a59 then fb656e2a (the push), hit.html 9e122544, app.js 9429782c, help.js 9e062c61;
+  site build #133.
+- AUCTIONS UNDER SUPPLY, FORECAST AUCTION ALERTS, THE AUTOMATIC PC INACCURACY, THE FORECAST FILTERS (2026-10-25 evening,
+  round 3 stages 2b-2d; Brett: "there is an at your price, but maybe should another option for at your price auction
+  ... 3 (up to $91.61) auction underneath it ... auctions shouldnt affect forecast numbers or modeling, its really
+  just there for visibility and alerts ... forecast auction hits should alert my phone as well"; "when you open
+  price chart for a card, you see that there are many listings with radically different values ... measure the
+  variance ... set a threshold ... automatically gets flagged ... PC Inaccuracy"; "I would prefer to have some more
+  filters in the forecast tab"). (1) AUCTIONS: collector.auction_supply every AUCTION_SUPPLY_EVERY_S = 1200 reads up
+  to AUCTION_SUPPLY_PAGES = 4 pages (800) of raw-single auctions ending soonest (the trial's search, one call a
+  page), matches each title to a card (MP / HP titles and flagged ids out) -> state["au_open"] = {t, until, read,
+  rows}; au_open_live publishes the running ones as live.au_open rows [id, card, bid, ship, bids, end, title, url,
+  tcond, fb, pct, photos, img]. Page: auByCard() (ended / flagged out; AU_BY_CARD reset on every live file and flag),
+  fcAuctionsAt(cid, price, sup) on the Supply switches' conditions and seller bar; fcCompute rows carry au = {n, dear,
+  soon}; the Supply cell's second line "N (up to $X) auctions" (span.fc-au, the tooltip explains); the summary's
+  fc-aunote (how many, the read's size and time); the popup's "Auctions N . K at your price" chip (mode 'au', not
+  persisted; fclAuRender draws #fcl-au above the hidden main table: ends in, Flag / State, bid, + ship, bids,
+  condition, seller, photos, title; green = at your price; flagCells so an auction can be flagged - collector.au_rec
+  builds its record for flag_mark). Nothing enters Supply, the odds or the plan. FORECAST AUCTION ALERTS:
+  forecast_auction(cards, cfg, cid, bid, ship, iid) = the card's standard buy price T (forecast_math.levels: the
+  floor, else the anchor, else PriceCharting; the plan's universe: $50-500, 6 PC sales a year, 2 years old), bid +
+  ship <= T, the chance at T for the Alerts tab's hold at or over its bar (fc_minp) -> {T, p, h, sell, why, nm, lp}
+  with [sell, T, net - T, ROI, max bid = (T - ship) / (1 + tax)] on the Forecast fee arithmetic (the LP side at the
+  LP discount). auction_alerts: the gate's hits / leads first; what they do not qualify, and cards only the model
+  prices (basis "fc"), go through forecast_auction -> kind "fcau", title "Forecast auction ends in N min . bid up to
+  $X", kd "auction-forecast" (the page labels it ", forecast"), d["kd"] = "fcau" on the check screen ("Auction .
+  forecast" badge, the max bid's basis named). hit_payload's side() returns blanks for a card without gate numbers;
+  auction_finish prices a forecast auction's close against the max bid it was sent with. NOTE: at the standard price
+  the chance is usually ~35% (buy = sell = the floor, the model's expected move alone), so with the default 50% bar
+  few auctions qualify - the bar is the Alerts tab's; lower it there for more. (2) THE AUTOMATIC PC INACCURACY:
+  pchist.sales_table(html) parses the card page's "Ungraded Sold Listings" table (div.completed-auctions-used >
+  table > tr#ebay-N: td.date YYYY-MM-DD, td.image, td.title "[eBay] <a>TITLE</a>", td.numeric > span.js-price
+  "$482.81", td.numeric.listed-price, td.thumb-down - the structure read from a live page in Brett's Chrome on
+  2026-10-25; the page is server-rendered, so the worker's existing read carries it); pchist.spread(sales) over the
+  sales of the last SPREAD_WINDOW_D = 90 days (SPREAD_MIN_N = 6): {n, med (cents), iqr = (q3 - q1) / median, out =
+  the share outside 60-140% of the median, lo, hi, d}; extract() keeps "sl" (the last SALES_KEEP = 20 [date, cents,
+  title]) and "sp" on the record (the data disk); publish_files drops "sl" from the published shard (the push is
+  heavy enough), keeps "sp"; spreads_all() reads every shard. collector.pc_spread_tick every PC_SPREAD_EVERY_S = 6 h:
+  a card with iqr >= PC_SPREAD_BAR = 0.5 gets gap_marks[cid] = {state "pc inaccuracy", auto 1, sp [n, iqr, med], note
+  "PriceCharting's last N ungraded sales (90 days) spread +-X% around $M ($lo to $hi)...", t refreshed} - released
+  from the gap hold and its per-listing PriceCharting rule down (PC_WRONG_STATES) -, withdrawn when it falls under
+  the bar or the spread leaves the file; a verdict Brett gave by hand (no auto) is never touched; the distribution
+  is logged each pass ("PC spread: N cards measured; iqr/median p50 .. p95; K at or over the 0.5 bar") - THE BAR IS
+  PROVISIONAL: read that line after a day of page reads and move it (the pages are re-read weekly for active cards,
+  monthly otherwise, so the measure fills in over a week). live.alert.gap_marks carry auto + sp. Page: fgHeld lists
+  the automatic verdicts apart (div.fgauto: "PriceCharting unreliable for N cards (automatic)", each with "+-X%
+  around $M on n sales", widest first, 12 then "+ N more"; they are not "released" rows); the Forecast row's price
+  cell says "PC unreliable" (span.fc-pcbad) with the figures. (3) THE FORECAST FILTERS (#fc-filt above the picks,
+  FC_F in localStorage fc-filt): set / rarity / finish selects (fcFiltOptions fills them from the scored cards after
+  the model loads), the four rank buckets, "a copy at my price" (Supply >= 1), "an auction at my price", "not held",
+  "PriceCharting trusted" (no automatic verdict), floors on PC sales / yr (vol12) and eBay sales / 30 d (c.k); they
+  narrow the candidates IN fcCompute (FC.filtered counts the cards left out; the summary's fc-filtnote), so the plan
+  follows; Reset. Help: fc_supply (the auction line), al_fc (forecast auctions), fg (the automatic verdict), fc_filt.
+  Tests: ut/test_auctions.py (auction_supply's pages / matches / flagged ids, au_open_live, forecast_auction's
+  qualification and figures, a flag on an auction), ut/test_pcsales.py (the parser on the page structure, spread,
+  extract, the published shard without "sl", spreads_all, pc_spread_tick's verdicts / his verdict kept / withdrawal /
+  the release and the PC rule), t/pcpop/test_ui19.py (the Supply line, the n/s switch, the summary note, the popup's
+  Auctions chip and table, a flag from it, the automatic verdict's word and list, the filters: options, set, not
+  held, PC trusted, a bucket, remembered across a reload, Reset, auction, eBay sales), t/hit/test_cond.py. Deployed
+  2026-10-25: ~20:00 UTC collector.py 42dd4393 (the auctions; its first read at 19:54 found 585 open auctions on
+  known cards among the 800 ending soonest, published as live.au_open) then the page (app.js 43941d6d, style.css
+  483c9198, help.js 8ac936a4, hit.html 2d0d0666; site build #134); ~20:25 UTC pchist.py b8240911 (9f2ee3e) BEFORE
+  collector.py 827b7b8e (0ea7a59; the droplet restarted on both at 20:24:37 - the unit's ExecStartPre pull took the
+  second commit made 20 s earlier), then the page (app.js a387247b, body.html e0b79981, style.css e5fbc3a0, help.js
+  3b2b9211; site build #135). The first "PC spread:" line comes once pages have been re-read with the new parser (the
+  tick at start found no spread on file; the next is 6 h later). The push after the fix: 91 s for 25.7 MB, no timeouts.
+  Round 3 is complete bar the bar-tuning note above.
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
