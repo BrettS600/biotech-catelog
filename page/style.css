@@ -338,6 +338,7 @@ button.fc-fold:hover { color:var(--fg); border-color:var(--link); }
 .fc-bar label.fc-ua { display:inline-flex; align-items:center; gap:5px; font-size:13px; color:var(--muted); }
 .fc-bar label.fc-ua input { font:inherit; width:62px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
 .fc-pc { font-size:12px; text-decoration:none; }
+#lov { z-index:45; }                 /* the card popup sits UNDER the Book / Review / column picker overlays (#bov, before it in the DOM) opened from its rows (2026-10-25, Brett: "the review button does not work ... the book button does not work") */
 .modal.listings { width:min(1500px, 100%); }
 .modal.listings .lwrap { overflow:auto; max-height:70vh; border-top:1px solid var(--line); }
 .modal.listings .controls { padding:0 0 8px; }
