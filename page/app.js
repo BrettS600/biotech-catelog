@@ -693,10 +693,12 @@ function auMode() {
 
 // condition: NM / LP / MP / HP from eBay's own condition field when the collector has read the listing (r[55] holds
 // eBay's words), else from the title; n/s = neither names one (hover says which)
+const condUnread = r => r[15] === 'UNK' && r[55] == null && !r[57];   // no grade in the title and eBay's condition field never read (2026-10-25: shown as "?", counted nowhere on the Forecast tab)
 function condCell(r) {
   const ec = r[55] || '', bc = r[57] || '';
   if (bc) return '<span title="' + esc('Your grade from the photos; every figure uses it. The seller: ' + (r[58] && r[58] !== 'UNK' ? r[58] : 'no grade') + (ec ? ' (eBay\u2019s condition field: ' + ec + ')' : '')) + '">' + esc(bc) + '<sup class="dim" title="your grade from the photos">you</sup></span>';
-  if (r[15] === 'UNK') return '<span class="dim" title="' + esc(ec ? 'eBay\u2019s condition field says: ' + ec + ' (no grade in it)' : r[48] == null ? 'no condition in the title; eBay\u2019s condition field has not been read yet (the collector reads it for listings in the alert price band, dearest first)' : 'no condition in the title and none on the listing') + '">n/s</span>';
+  if (condUnread(r)) return '<span class="dim cq" title="Condition not read yet: no grade in the title, and eBay\u2019s condition field (one lookup per listing) has not been read. The collector reads it within minutes for the copies you look at (a card\u2019s popup, Review), then your plan\u2019s listings, each card\u2019s cheapest copies and the hits, then the rest newest first. Until then the copy counts in nothing on the Forecast tab.">?</span>';
+  if (r[15] === 'UNK') return '<span class="dim" title="' + esc(ec ? 'eBay\u2019s condition field says: ' + ec + ' (no grade in it)' : 'no condition in the title, and none stated on the listing (eBay\u2019s condition field was read)') + '">n/s</span>';
   return '<span title="' + esc(ec ? 'eBay\u2019s condition field: ' + ec : 'from the title') + '">' + esc(r[15]) + (ec ? '<sup class="dim" title="stated on eBay">e</sup>' : '') + '</span>';
 }
 // scam screen: tier badge with the score and the signals behind it on hover; a click opens the points table
@@ -764,6 +766,8 @@ function verdictCell(r) {
   if (v === 'mismatch: too cheap') return tip('under ' + pcPct('pcLow', 0.4) + '% of the PriceCharting price: treated as a wrong match (another printing or language, a lot, a fake - far more often than a bargain). Never a hit, left out of the statistics; check it by hand', badge('mismatch ↓', 'watch'));
   if (v === 'mismatch: too high') return tip('over ' + pcPct('pcHigh', 3) + '% of the PriceCharting price: treated as a wrong match and left out of the statistics', badge('mismatch ↑'));
   if (v === 'review') return tip('under 45% of the anchor: more often misidentified, damaged or fake than a bargain - check the photos and the seller', badge('review', 'watch'));
+  if (v === 'PC gap') { const g = LIVE.dec && LIVE.dec[String(r[0])] && LIVE.dec[String(r[0])].gap;
+    return tip('eBay\u2019s sold median and PriceCharting\u2019s price for this card are ' + (g != null ? Math.abs(g).toFixed(0) + '% apart' : 'far apart') + ' (eBay ' + (g > 0 ? 'above' : 'below') + '): one of the two is wrong. The card is held from buys and hits until you review it in Flags - a card verdict there releases it for 30 days.', badge('PC gap', 'warn')); }
   return /scam|suspect/.test(v) ? badge(v, 'warn') : badge(v);
 }
 // Raw Data condition filter (NM / LP / n/s chips); MP and HP rows show only when all three are ticked
@@ -1250,12 +1254,174 @@ function makeTable(id, cfg) {
   t.apply();
   return t;
 }
+/* ---------------- The Flags archive (2026-10-25, Brett) ----------------
+   "the removal of the listings that exceed the difference must be stored in a button ... where i can see the same
+   columns as the popup / ebay raw data tab, that way i can review them, to see why their %PC was so off ... a column
+   that marks their state ... a description box where i can type in my reasoning ... stored for permanent archive".
+   The collector files every price anomaly (collector.flags_update): the listings of a card whose eBay anchor and
+   PriceCharting price are 30%+ apart (kind gap - the card is HELD from buys and hits meanwhile), a listing under 40% /
+   over 300% of PriceCharting (pclow / pchigh), a listing under 45% of the anchor (review); only listings whose
+   condition is known; newest first. live/flags.bin carries them (10-minute buckets, at once after a mark). Here: the
+   held cards with a card verdict (releases the hold for 30 days), chips by state and kind with counts, a day filter,
+   the Raw Data columns (store 'fg') with State and Note first, Review (its Flag section marks the listing: state +
+   note), a CSV of what is shown. A mark echoes (FLAGM / GAPM) until live.alert.flag_n.t confirms it. */
+const FG = {file: null, loaded: 0, rows: [], state: 'all', kind: 'all', days: 0, map: new Map(), counts: null};
+const FLAGM = {}, GAPM = {};                       // item id / card id -> {state, note, t}: marks echoed until the collector confirms
+const FG_KIND_NAME = {gap: 'PC gap', pclow: 'too cheap vs PC', pchigh: 'too high vs PC', review: 'under 45% of the anchor'};
+const FG_STATES = ['unmarked', 'set mismatch', 'name mismatch', 'condition', 'fraud', 'pc stale', 'unknown'];
+const FG_CARD_STATES = ['unmarked', 'pc stale', 'fraud', 'mismatch', 'condition', 'unknown'];
+const FG_VERDICTS = new Set(['PC gap', 'mismatch: too cheap', 'mismatch: too high', 'review']);
+const fgStateOf = e => (FLAGM[e.i] && FLAGM[e.i].state) || e.state || 'unmarked';
+const fgNoteOf = e => FLAGM[e.i] ? FLAGM[e.i].note || '' : (e.note || '');
+async function fgLoad(force) {                     // live/flags.bin, once per 10 minutes or when the collector filed or confirmed a mark
+  const b = Math.floor(Date.now() / 600000), ft = (LIVE.data && LIVE.data.alert && LIVE.data.alert.flag_n && LIVE.data.alert.flag_n.t) || 0;
+  const key = b + ':' + ft;
+  if (!force && FG.loaded === key && FG.file) return;
+  if (!LIVE_URL || !HKEY) return;
+  try {
+    const res = await fetch(LIVE_URL.replace(/[^/]+$/, 'flags.bin') + '?t=' + b + '_' + ft, {cache: 'no-store'});
+    if (res.ok) { FG.file = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY); FG.loaded = key; }
+  } catch (e) { /* the popup says so */ }
+}
+function fgRowOf(e) {                              // the Raw Data row for an archived listing: the live row while there is one, else a row from the snapshot
+  let r = (LIVE.erMap && LIVE.erMap.get(e.i)) || (LIVE.favEr && LIVE.favEr.get(e.i)) || (LIVE.au || []).find(z => z[22] === e.i) || (LIVE.hh || []).find(z => z[22] === e.i) || (e.c != null ? flRowOf(e.i, e.c) : null);
+  if (!r) {
+    r = erStub({k: e.i, c: e.c, m: {ti: e.ti, u: e.u, p: e.tot}});
+    const base = (e.c != null && idRow.get(+e.c)) || [];
+    if (!base.length) { r[1] = e.n || ''; r[2] = e.s || ''; r[3] = e.num || ''; }
+    r[5] = e.first ? Math.round((Date.now() - Date.parse(e.first)) / 36e4) / 10 : null; r[7] = e.it; r[8] = e.sh; r[9] = e.tot; r[10] = e.tot;
+    r[11] = e.A == null ? null : e.A; r[12] = e.A && e.tot ? Math.round((e.tot / e.A - 1) * 1000) / 10 : null; r[14] = e.v || ''; r[15] = e.tc || 'UNK'; r[17] = e.fb; r[18] = e.pct;
+    r[19] = e.st || 'unknown'; r[21] = (e.im || [])[0] || null; r[29] = e.tier || 'clean'; r[30] = RISK_RANK[e.tier] || 0; r[32] = (e.im || []).length || 99; r[34] = e.first || '';
+    r[35] = e.pc == null ? null : e.pc; r[36] = e.vspc == null ? null : e.vspc; r[48] = e.ef === undefined ? null : e.ef; r[49] = r[48] && r[48].length ? r[48][0] || '' : ''; r[50] = r[48] && r[48].length ? rfText([r[48][1], r[48][2]]) : '';
+    r[55] = e.ec === undefined ? null : e.ec; r[57] = e.bc || ''; r[58] = e.tc || 'UNK'; r.pics = (e.im || []).slice(1);
+    r.um = reviewOf(e.i) === 0;
+  }
+  r.fg = e;
+  return r;
+}
+function fgBuildRows() {
+  const flags = (FG.file && FG.file.flags) || [];
+  FG.map = new Map(flags.map(e => [e.i, e]));
+  FG.rows = flags.map(fgRowOf);
+  const c = {state: {}, kind: {}, reviewed: 0};
+  flags.forEach(e => { const st = fgStateOf(e); c.state[st] = (c.state[st] || 0) + 1; c.kind[e.k] = (c.kind[e.k] || 0) + 1; if (st !== 'unmarked') c.reviewed++; });
+  FG.counts = c;
+}
+const fgOk = r => { const e = r.fg; if (!e) return false;
+  if (FG.state !== 'all' && fgStateOf(e) !== FG.state) return false;
+  if (FG.kind !== 'all' && e.k !== FG.kind) return false;
+  if (FG.days > 0 && Date.parse(e.t) < Date.now() - FG.days * 86400000) return false;
+  return true; };
+function fgCells(r) {                              // State and Note, the first columns after Row / star / + (Brett: "the first column ... a column next to it called text")
+  const e = r.fg, st = fgStateOf(e), note = fgNoteOf(e), c = FG.counts || {state: {}, reviewed: 0};
+  const sub = st !== 'unmarked' && c.reviewed ? (c.state[st] || 0) + ' of ' + c.reviewed : '';
+  return '<td class="fgst"><button type="button" class="fgstb ' + (st === 'unmarked' ? 'unmarked' : st === 'fraud' ? 'fraud' : /mismatch/.test(st) ? 'mm' : '') + '" data-i="' + esc(e.i) + '" title="' + esc((FG_KIND_NAME[e.k] || e.k) + ' · flagged ' + rvWhen(e.t) + (e.mt ? ' · marked ' + rvWhen(e.mt) : '') + (sub ? ' · ' + sub + ' reviewed listings carry this reason' : '') + '. Click to mark it: the Review screen opens with its Flag section') + '">' + esc(st) + (sub ? '<small>' + sub + '</small>' : '') + '</button></td>' +
+    '<td class="fgnote">' + (note ? '<button type="button" class="fgnb" data-i="' + esc(e.i) + '" title="' + esc(note.slice(0, 200)) + '">💬</button>' : '<span class="dim">—</span>') + '</td>';
+}
+const FG_TABLE = Object.assign({}, TABLES.er, {rows: () => FG.rows, extra: fgOk, ranges: [], maxes: [], chips: [], defaults: {}, store: 'fg', root: '#fov', name: 'Flags', noun: 'listings', key: r => String(r[22]),
+                                                row: r => fgCells(r) + (r.stub && r[0] == null ? unmRow(r) : TABLES.er.row(r)), rowClass: r => (r.um ? 'umm ' : '') + (r[29] === 'suspect' ? 'sus' : ''),
+                                                fav: {s: 'er', k: r => r[22], c: r => r[0], m: r => favMetaEr(r)}, plan: TABLES.er.plan});
+function fgBuild() {                               // the archive's header row: the Raw Data tab's with State and Note after the + column, before makeTable decorates the original
+  const fov = $('fov'); if (!fov) return;
+  const thead = document.querySelector('#p-er thead').cloneNode(true), tr = thead.querySelector('tr:last-child');
+  const st = document.createElement('th'); st.textContent = 'State'; st.title = 'Your mark on the listing: unmarked, set mismatch, name mismatch, condition, fraud, pc stale, unknown (click the cell to mark)';
+  const nt = document.createElement('th'); nt.textContent = 'Note'; nt.title = 'Your reasoning, typed with the mark (click to read it)';
+  const after = tr.children[2] || tr.lastElementChild; after.insertAdjacentElement('afterend', nt); after.insertAdjacentElement('afterend', st);
+  fov.querySelector('table').insertBefore(thead, fov.querySelector('tbody'));
+}
+function fgChips() {
+  const c = FG.counts || {state: {}, kind: {}}, total = FG.rows.length;
+  const chip = (group, k, name, n) => '<button type="button" class="fvchip' + ((group === 'state' ? FG.state : FG.kind) === k ? ' on' : '') + '" data-g="' + group + '" data-k="' + k + '">' + name + '<span class="n">' + n + '</span></button>';
+  $('fg-chips').innerHTML = '<span class="lbl">State</span>' + chip('state', 'all', 'All', total) + FG_STATES.map(st => chip('state', st, st, c.state[st] || 0)).join('') +
+    '<span class="lbl" style="margin-left:10px">Kind</span>' + chip('kind', 'all', 'All', total) + Object.keys(FG_KIND_NAME).map(k => chip('kind', k, FG_KIND_NAME[k], c.kind[k] || 0)).join('');
+}
+function fgHeld() {                                // the cards held now (and the ones released lately), with the card verdict
+  const box = $('fg-held'); if (!box) return;
+  const f = FG.file || {}, marks = Object.assign({}, f.gap_marks || {}, (LIVE.data && LIVE.data.alert && LIVE.data.alert.gap_marks) || {});
+  for (const k in GAPM) marks[k] = Object.assign({}, marks[k] || {}, GAPM[k], {echo: 1});
+  const held = (f.held || []).slice();
+  const heldIds = new Set(held.map(h => String(h[0])));
+  const released = Object.entries(marks).filter(([cid, m]) => !heldIds.has(cid) && m.t && Date.parse(m.t) > Date.now() - 30 * 86400000 && m.state && m.state !== 'unknown');
+  if (!held.length && !released.length) { box.innerHTML = '<div class="fgheld dim">No card is held: every card with a backed eBay anchor sits within ' + FC_GAP_PCT + '% of its PriceCharting price.</div>'; return; }
+  const sel = (cid, cur) => '<select class="fg-cstate" data-c="' + cid + '">' + FG_CARD_STATES.map(st => '<option value="' + st + '"' + (st === cur ? ' selected' : '') + '>' + st + '</option>').join('') + '</select>';
+  const rowOf = (cid, gap, A, An, pc, L, m, isHeld) => { const base = idRow.get(+cid) || [], mk = m || {};
+    return '<div class="fgrow" data-c="' + cid + '"><span><a href="#" class="fcl-open" data-id="' + cid + '">' + esc(base[1] || ('card ' + cid)) + '</a> <span class="dim">' + esc(String(base[2] || '').replace(/^Pokemon /, '')) + '</span></span>' +
+      '<span>' + (isHeld ? '<b class="gap">' + (gap > 0 ? '+' : '') + (gap == null ? '?' : gap.toFixed(0)) + '%</b>' : '<span class="dim">released</span>') + (A != null ? ' <span class="dim">eBay ' + fmtMoneyPlain(A) + ' (' + (An || 0) + ' sales) vs PC ' + fmtMoneyPlain(pc) + (L != null ? ' · floor ' + fmtMoneyPlain(L) : '') + '</span>' : '') + '</span>' +
+      (mk.state ? '<span class="dim">verdict: <b>' + esc(mk.state) + '</b> ' + (mk.t ? rvWhen(mk.t) : '') + (mk.echo ? ' (sent)' : '') + '</span>' : '') +
+      '<span class="lab">Card verdict</span>' + sel(cid, mk.state || 'unmarked') + '<input type="text" class="fg-cnote" data-c="' + cid + '" placeholder="why (kept with the verdict)" value="' + esc(mk.note || '') + '"><button type="button" class="tbtn fg-csave" data-c="' + cid + '">Save</button></div>'; };
+  box.innerHTML = '<div class="fgheld"><div class="dim" style="margin-bottom:4px"><b>Held cards</b> — eBay’s sold median and PriceCharting’s price ' + FC_GAP_PCT + '%+ apart: no buys, no hits, until you give a card verdict (any but “unknown” releases the card for 30 days; the listings behind the anchor are in the table below, kind “PC gap”).</div>' +
+    held.map(h => rowOf(h[0], h[1], h[2], h[3], h[4], h[5], marks[String(h[0])], true)).join('') + released.map(([cid, m]) => rowOf(cid, null, null, null, null, null, m, false)).join('') + '</div>';
+}
+async function gapMark(cid, state, note) {
+  const t = Date.now(); GAPM[String(cid)] = {state, note, t: new Date(t).toISOString()};
+  fgHeld();
+  try { await alSend({type: 'gapmark', t, c: cid, state, note}); }
+  catch (e) { delete GAPM[String(cid)]; fgHeld(); $('fgsub').insertAdjacentHTML('beforeend', ' <span class="down">The verdict could not be sent (' + esc(e.message) + ').</span>'); }
+}
+async function flagMark(iid, state, note) {        // a listing's mark from the Review screen's Flag section
+  const t = Date.now(); FLAGM[iid] = {state, note, t};
+  if (/mismatch/.test(state)) { REVIEWS[iid] = {v: 0, t}; if (LIVE.data) rebuildLive(); }   // the collector answers "not the same card" for it: hidden everywhere, filed in Mismatches
+  try { await alSend({type: 'flag', t, i: iid, state, note}); }
+  catch (e) { delete FLAGM[iid]; if (/mismatch/.test(state)) { delete REVIEWS[iid]; if (LIVE.data) rebuildLive(); } throw e; }
+  fgBadge();
+  if ($('fov').classList.contains('open') && FG.file) { fgBuildRows(); fgChips(); fgSub(); tables.fg.resync(); tables.fg.apply(); }
+}
+function fgBadge() {                               // the Flags buttons' count: unmarked listings, less the marks echoed here until the collector confirms them
+  const fn = (LIVE.data && LIVE.data.alert && LIVE.data.alert.flag_n) || {};
+  document.querySelectorAll('.nfg').forEach(el => { el.textContent = Math.max(0, (fn.unmarked || 0) - Object.values(FLAGM).filter(m => m.state !== 'unmarked').length); });
+}
+function fgSub() {
+  const c = FG.counts || {state: {}}, held = (FG.file && FG.file.held) || [];
+  $('fgsub').textContent = FG.rows.length + ' listing' + (FG.rows.length === 1 ? '' : 's') + ' flagged, ' + (c.state.unmarked || 0) + ' unmarked · ' + held.length + ' card' + (held.length === 1 ? '' : 's') + ' held · newest first · click a State cell to mark a listing (Review opens with its Flag section), the note icon to read your reasoning · as of ' + ageText(FG.file.t);
+}
+function reviewFlagHtml(e) {                       // the Review screen's Flag section (2026-10-25): why it was flagged, Brett's state and note
+  const st = fgStateOf(e), note = fgNoteOf(e);
+  return '<div class="rvflag"><span class="lab">Flagged ' + rvWhen(e.t) + ' · ' + esc(FG_KIND_NAME[e.k] || e.k) + '</span>' +
+    '<div>' + (e.k === 'gap' ? 'eBay’s sold median ' + fmtMoneyPlain(e.A) + ' (' + (e.An || 0) + ' sales) against PriceCharting ' + fmtMoneyPlain(e.pc) + ': <b>' + (e.gap > 0 ? '+' : '') + (e.gap == null ? '?' : e.gap.toFixed(0)) + '%</b>' + (e.st === 'sold' ? ' · this is one of the sales behind the anchor' : ' · the card is held until you give it a verdict in Flags') :
+      e.k === 'review' ? 'listed at ' + fmtMoneyPlain(e.tot) + ', under 45% of the anchor ' + fmtMoneyPlain(e.A) : 'listed at ' + fmtMoneyPlain(e.tot) + ' against PriceCharting ' + fmtMoneyPlain(e.pc) + ' (' + (e.vspc > 0 ? '+' : '') + (e.vspc == null ? '?' : e.vspc.toFixed(0)) + '%)') + '</div>' +
+    '<span class="lab" style="margin-top:6px">Why? Mark the listing</span><div class="fbtns">' + FG_STATES.filter(s => s !== 'unmarked').map(s => '<button type="button" class="fbtn' + (st === s ? ' on' : '') + '" data-s="' + s + '">' + s + '</button>').join('') + '</div>' +
+    '<textarea id="rvf-note" placeholder="your reasoning (kept with the mark, for the analysis later)">' + esc(note) + '</textarea>' +
+    '<div class="fsave"><button type="button" class="tbtn" id="rvf-save">Save the mark</button><span class="dim" id="rvf-msg">' + (st !== 'unmarked' ? 'marked ' + st + (e.mt ? ' ' + rvWhen(e.mt) : '') : 'a set / name mismatch also answers “not the same card”; fraud makes the listing and its seller suspect') + '</span></div></div>';
+}
+async function openFlags(kind) {
+  if (kind) { FG.kind = kind; }
+  $('fov').classList.add('open'); $('fgsub').textContent = 'loading…';
+  await fgLoad();
+  if (!FG.file) { $('fgsub').innerHTML = '<span class="down">The archive could not be loaded (live/flags.bin): the collector publishes it once it has filed something.</span>'; return; }
+  fgBuildRows(); fgChips(); fgHeld(); fgSub();
+  const t = tables.fg; t.resync(); t.apply();
+}
+function fgCsv() {                                 // what the table shows, with the marks and notes, as a CSV (Brett downloads it himself)
+  const cols = ['flagged', 'kind', 'state', 'note', 'marked', 'card', 'set', 'number', 'rarity', 'finish', 'listing', 'url', 'pricecharting', 'total', 'item', 'ship', 'seller', 'ratings', 'positive_pct', 'condition_stated', 'ebay_condition', 'your_grade', 'anchor', 'anchor_sales', 'pc_price', 'floor', 'anchor_vs_pc_pct', 'listing_vs_pc_pct', 'status', 'verdict', 'tier', 'first_seen'];
+  const q = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [cols.join(',')].concat((tables.fg.view || []).map(r => { const e = r.fg; return [e.t, e.k, fgStateOf(e), fgNoteOf(e), e.mt, e.n, e.s, e.num, (e.rf || [])[0], (e.rf || [])[1], e.ti, e.u, e.c != null ? 'https://www.pricecharting.com/game/' + e.c : '', e.tot, e.it, e.sh, e.sl, e.fb, e.pct, e.tc, e.ec, e.bc, e.A, e.An, e.pc, e.L, e.gap, e.vspc, e.st, e.v, e.tier, e.first].map(q).join(','); }));
+  const blob = new Blob(['﻿' + lines.join('\n')], {type: 'text/csv;charset=utf-8'}), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'flags-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+if ($('fov')) {
+  $('fgclose').addEventListener('click', () => $('fov').classList.remove('open'));
+  $('fov').addEventListener('click', e => { if (e.target === $('fov')) $('fov').classList.remove('open'); });
+  $('fg-chips').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; if (b.dataset.g === 'state') FG.state = b.dataset.k; else FG.kind = b.dataset.k; fgChips(); tables.fg.apply(); });
+  $('fg-days').addEventListener('input', () => { const v = parseInt($('fg-days').value, 10); FG.days = isNaN(v) || v < 0 ? 0 : v; tables.fg.apply(); });
+  $('fg-csv').addEventListener('click', fgCsv);
+  $('fg-held').addEventListener('click', e => { const b = e.target.closest('button.fg-csave'); if (!b) return; const cid = b.dataset.c, st = $('fg-held').querySelector('select.fg-cstate[data-c="' + cid + '"]').value, note = $('fg-held').querySelector('input.fg-cnote[data-c="' + cid + '"]').value.trim(); if (st === 'unmarked') return; gapMark(+cid, st, note); });
+  ['fg-btn', 'fc-flags'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => openFlags()); });
+  document.addEventListener('click', e => {
+    const o = e.target.closest ? e.target.closest('a.fg-open') : null; if (o) { e.preventDefault(); openFlags(); return; }
+    const sb = e.target.closest ? e.target.closest('button.fgstb') : null; if (sb && sb.dataset.i) { openReview(sb.dataset.i); return; }
+    const nb = e.target.closest ? e.target.closest('button.fgnb') : null;
+    if (nb && nb.dataset.i) { const en = FG.map.get(nb.dataset.i); if (!en) return; $('htitle').textContent = 'Your note · ' + String(en.ti || en.i).slice(0, 80); $('hbody').innerHTML = '<p class="dim">' + esc(fgStateOf(en)) + (en.mt ? ' · marked ' + rvWhen(en.mt) : '') + ' · ' + esc(FG_KIND_NAME[en.k] || en.k) + ', flagged ' + rvWhen(en.t) + '</p><p style="white-space:pre-wrap">' + esc(fgNoteOf(en) || '(no note)') + '</p>'; $('hov').classList.add('open'); }
+  });
+}
+
 const tables = {};
 fvBuild();                                                // the Favorites tab's copies of the header rows, before the eyes and handles go on the originals
 fclBuild();                                               // ... and the Forecast tab's card popup's
+fgBuild();                                                // ... and the Flags archive's (State and Note after the + column)
 for (const id in TABLES) tables[id] = makeTable(id, TABLES[id]);
 for (const id in FV_TABLES) tables[id] = makeTable(id, FV_TABLES[id]);
 if ($('lov')) { tables.fcl = makeTable('fcl', FCL_TABLE); const fb = [...$('ranges-fcl').querySelectorAll('button.reset')].find(b => b.textContent === 'Filters\u2026'); if (fb) fb.remove(); }   // the popup has no filter chips, so no Filters... button
+if ($('fov')) { tables.fg = makeTable('fg', FG_TABLE); const fb = [...$('ranges-fg').querySelectorAll('button.reset')].find(b => b.textContent === 'Filters\u2026'); if (fb) fb.remove(); }   // the Flags archive (2026-10-25): its chips are its own
 periodBar('rv', () => tables.rv.apply());
 periodBar('er', () => { hitSummary(); if (tables.er) tables.er.apply(); }, 'd');   // the period chooses the table's rows too; starts on today
 tables.rv.apply();
@@ -1569,7 +1735,7 @@ function applyRead(iid, m) {
 function openReview(iid) {
   // the row may be a live listing, an auction sent to the phone or a hit from the history - those two outlive the
   // 24-hour table, so the button failed on them until 2026-10-17 (Brett: "the review button does not work for auctions")
-  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid) || (LIVE.favEr && LIVE.favEr.get(iid)) || (typeof FCL !== 'undefined' && (FCL.rows || []).find(z => z[22] === iid));   // ... or a row of the Forecast tab's popup (2026-10-25)
+  const r = (LIVE.erMap && LIVE.erMap.get(iid)) || (LIVE.au || []).find(z => z[22] === iid) || (LIVE.hh || []).find(z => z[22] === iid) || (LIVE.favEr && LIVE.favEr.get(iid)) || (typeof FCL !== 'undefined' && (FCL.rows || []).find(z => z[22] === iid)) || (typeof FG !== 'undefined' && (FG.rows || []).find(z => z[22] === iid));   // ... or a row of the Forecast tab's popup, or the Flags archive's snapshot of a listing long gone (2026-10-25)
   if (!r) return;
   const x = (LIVE.data.live || []).find(z => z[0] === iid) || ((LIVE.data.favs || {}).rows || {})[iid] || ((LIVE.data.plan || {}).rows || {})[iid] || (typeof FCL !== 'undefined' && FCL.file && FCL.file.rows && (FCL.file.rows[String(r[0])] || []).find(z => z[0] === iid)) || [];
   const cs = (LIVE.dec || {})[String(r[0])] || {}, base = idRow.get(r[0]) || [];
@@ -1589,7 +1755,7 @@ function openReview(iid) {
   const p = pcRF(base) || ['', ''], ef = r[48];
   // an incomplete eBay side - no photo, facts never read, or n/s with eBay's condition field unread - is read now: the
   // collector does one full look at the listing (open, sold or long gone) and answers on the channel (readAsk, 2026-10-23)
-  const incomplete = !pics.length || ef == null || (r[15] === 'UNK' && !r[55]);
+  const incomplete = !pics.length || ef == null || condUnread(r);
   const reading = incomplete && !READ_DONE[iid] ? readAsk(iid) : false;
   const pcv = v => v ? '<b class="fit">' + esc(v) + '</b>' : '<b class="fit mute">unknown</b>';
   const ebv = (i, cmp) => ef == null ? '<b class="fit mute">not read</b>' : !ef.length || !ef[i] ? '<b class="fit mute">not stated</b>'
@@ -1598,12 +1764,14 @@ function openReview(iid) {
                                                                      '<span class="lab">' + lab + '</span>' + ebv(i, ef && ef[6 + i]))).join('');
   // the condition under the trio (2026-10-25): the seller's own (eBay's field, else the title), and Brett's grade from the photos if he has given one
   const ec = r[55] || '', bc = r[57] || '', sellerC = r[58] || r[15] || 'UNK';
-  const condRow = row(fact('Condition \u00b7 seller', sellerC === 'UNK' ? '<span class="dim">not stated</span>' : esc(sellerC), ec ? 'eBay\u2019s condition field: ' + esc(ec) : sellerC !== 'UNK' ? 'from the title' : r[48] == null ? 'none in the title; eBay\u2019s condition field not read yet' : 'none in the title, none on the listing'),
+  const condRow = row(fact('Condition \u00b7 seller', sellerC === 'UNK' ? '<span class="dim">' + (condUnread(r) ? 'not read yet' : 'not stated') + '</span>' : esc(sellerC), ec ? 'eBay\u2019s condition field: ' + esc(ec) : sellerC !== 'UNK' ? 'from the title' : condUnread(r) ? 'none in the title; eBay\u2019s condition field is being read now' : 'none in the title, none on the listing'),
                        fact('Condition \u00b7 you', bc ? esc(bc) : '<span class="dim">\u2014</span>', bc ? 'your grade from the photos; every figure uses it' : 'grade it below, from the photos'));
   const v = reviewOf(iid);
   $('btitle').textContent = r[1] + ' \u2014 ' + String(r[2] || '').replace('Pokemon ', '');
   $('bsub').innerHTML = favBtn('er', iid, r[0], favMetaEr(r), 'rvstar') + 'Is the card in the eBay photos the card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 || r.um ? '<b class="down">You said: not the same.</b>' : '');
-  let h = '<div class="rvpair">' +
+  const fe = (typeof FG !== 'undefined' && FG.map.get(iid)) || null;   // an archived listing: the Flag section first (2026-10-25)
+  if (!fe && typeof FG !== 'undefined' && FG_VERDICTS.has(r[14]) && !FG.file) fgLoad().then(() => { if (FG.map.has(iid) && $('bov').classList.contains('open') && LIVE.rvItem === iid && !$('bbody').querySelector('.rvflag')) openReview(iid); });
+  let h = (fe ? reviewFlagHtml(fe) : '') + '<div class="rvpair">' +
     '<div class="rvside"><h4>PriceCharting <a href="' + pcPage + '" target="_blank" rel="noopener">\u2197</a></h4>' +
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
            : '<div class="rvbox" data-pc="1"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>being fetched now \u2014 it appears here within a minute or two</small></div>') + '</div>' +
@@ -1655,6 +1823,17 @@ function openReview(iid) {
   };
   $('bbody').querySelectorAll('.cbtn').forEach(b => b.addEventListener('click', () => grade(b.dataset.c)));
   const cc = $('rv-cclear'); if (cc) cc.addEventListener('click', () => grade(null));
+  if (fe) {                                        // the Flag section: pick a state, type the reasoning, Save
+    let fst = fgStateOf(fe) === 'unmarked' ? null : fgStateOf(fe);
+    $('bbody').querySelectorAll('.rvflag .fbtn').forEach(b => b.addEventListener('click', () => { fst = b.dataset.s; $('bbody').querySelectorAll('.rvflag .fbtn').forEach(x => x.classList.toggle('on', x === b)); }));
+    $('rvf-save').addEventListener('click', async () => {
+      const note = $('rvf-note').value.trim(), msg = $('rvf-msg');
+      if (!fst) { msg.innerHTML = '<span class="down">Pick a reason first.</span>'; return; }
+      msg.textContent = 'Sending\u2026';
+      try { await flagMark(iid, fst, note); msg.innerHTML = 'Saved: <b>' + esc(fst) + '</b>' + (/mismatch/.test(fst) ? ' \u2014 the listing leaves every tab (Mismatches has it, with Restore)' : fst === 'fraud' ? ' \u2014 the listing and its seller are suspect from the collector\u2019s next pass' : '') + '.'; }
+      catch (e) { msg.innerHTML = '<span class="down">The mark could not be sent (' + esc(e.message) + ').</span>'; }
+    });
+  }
 }
 
 function verdictOf(x, cs, S) {
@@ -1677,6 +1856,7 @@ function verdictOf(x, cs, S) {
     if (!cs || cs.A == null) return [cs ? 'no sales yet' : 'no data yet', allin, null];
     return ['too few sales (' + (cs.A_n || 0) + ')', allin, null];
   }
+  if (cs.gap_hold) return ['PC gap', allin, null];         // eBay's anchor and PriceCharting 30%+ apart: held until he reviews the card (Flags, 2026-10-25)
   if (!cs.liquid) return ['not liquid', allin, null];
   if (!COMPARABLE.has(x[13])) return ['condition ' + x[13], allin, null];
   const bar = sellerBar(x[15], x[16]);
@@ -1758,6 +1938,11 @@ function rebuildLive() {
   LIVE.au = auRows(live); $('nau').textContent = LIVE.au.length;
   if (FC.doc) fcStampRows();                            // the Raw Data Forecast % column: the chance at each listing's own price
   $('nmm').textContent = ((live.alert && live.alert.wrong) || []).filter(w => !mmRestored(w[1])).length;
+  const fn = (live.alert && live.alert.flag_n) || {};       // the Flags archive (2026-10-25): the buttons' count = unmarked listings; marks echoed until confirmed
+  for (const k of Object.keys(FLAGM)) if ((fn.t || 0) >= FLAGM[k].t) delete FLAGM[k];
+  for (const k of Object.keys(GAPM)) if ((fn.t || 0) >= Date.parse(GAPM[k].t)) delete GAPM[k];
+  fgBadge();
+  if ($('fov') && $('fov').classList.contains('open') && FG.file) { fgBuildRows(); fgChips(); fgHeld(); fgSub(); tables.fg.resync(); tables.fg.apply(); }
   if (AU_ON()) { auMode(); tables.er.apply(); }
   LIVE.rv = ((live.acct && live.acct.rows) || []).map((r, i) => r.concat([i]));
   tables.rv.apply();
@@ -1807,7 +1992,7 @@ function erowOf(x, S, base, cs) {
                 null, null, null, null, LIVE.er.length];                     // 42-45 belong to the auction view (auRows)
   erow[46] = mtOf(x[1]);
   erow[51] = base[PC_LIVE.kt]; erow[52] = base[PC_LIVE.hits]; erow[53] = base[PC_LIVE.hitpct]; erow[54] = base[PC_LIVE.pcmm];
-  erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34]; erow[55] = x[35] || '';
+  erow[47] = rfText(pcRF(base)); erow[48] = x[34] === undefined ? null : x[34]; erow[55] = x[35] == null ? null : x[35];   // 55: eBay's condition words; null = the field was never read (2026-10-25)
   erow[49] = erow[48] && erow[48].length ? erow[48][0] || '' : ''; erow[50] = erow[48] && erow[48].length ? rfText([erow[48][1], erow[48][2]]) : '';
   erow[57] = bc || ''; erow[58] = sellerC || 'UNK';                          // 57 Brett's grade from the photos ('' = none), 58 the seller's own
   erow.um = x[0] in REVIEWS ? REVIEWS[x[0]].v === 0 : umOf(x[0], x[31]); erow.lrn = x[32] || ''; erow.tw = (cs && cs.tw) || null;
@@ -2015,6 +2200,7 @@ function openMismatches() {
   draw();
   $('bov').classList.add('open');
 }
+
 
 function openOffers() {
   const rows = (LIVE.offers || []).slice(0, 300), S = settings();
@@ -2637,11 +2823,22 @@ function fcBookEff(b, c) {
   const lpd = ((c && c.lpd) || 0) / 100, e = b[1] * (b.length > 5 && b[5] ? FC_BO_HAIRCUT : 1);
   return b.length > 4 && b[4] === 'LP' && lpd < 1 ? e / (1 - lpd) : e;
 }
-function fcSupplyAt(c, price) {                          // {n, dear: the dearest ask among them, cheapest: the cheapest ask of all, ids}; null without a book
+const FC_SUP_DEFAULT = {conds: ['NM', 'LP', 'UNK'], nowatch: true, minfb: 0};
+const FC_GAP_PCT = 30;                                   // eBay's anchor and PriceCharting this far apart (%) = a held card (ebay_sweep.GAP_HOLD_PCT)
+function fcCopyOk(b, sup) {                              // does Supply count this book copy? (forecast_math.copy_ok) a copy whose condition is not read yet never does (b[11] = 0)
+  sup = sup || FC_SUP_DEFAULT;
+  if (b.length > 11 && !b[11]) return false;
+  if (!(sup.conds || FC_SUP_DEFAULT.conds).includes(b.length > 4 ? b[4] : 'UNK')) return false;
+  if ((sup.nowatch == null ? true : sup.nowatch) && b.length > 12 && (b[12] === 'watch' || b[12] === 'suspect')) return false;
+  if ((sup.minfb || 0) > 0 && ((b.length > 6 ? b[6] : null) || 0) < sup.minfb) return false;
+  return true;
+}
+function fcSupplyAt(c, price, sup) {                     // {n, dear: the dearest ask among them, cheapest: the cheapest ask among the copies that could count, ids, unread: copies at the price whose condition is not read yet}; null without a book
   const book = c && c.book; if (!book) return null;
-  const at = book.filter(b => { const e = fcBookEff(b, c); return e != null && e <= price + 0.005; });
-  const asks = book.map(b => b[1]).filter(v => v != null);
-  return {n: at.length, dear: at.length ? Math.max(...at.map(b => b[1])) : null, cheapest: asks.length ? Math.min(...asks) : null, ids: new Set(at.map(b => b[0]))};
+  const under = book.filter(b => { const e = fcBookEff(b, c); return e != null && e <= price + 0.005; });
+  const at = under.filter(b => fcCopyOk(b, sup)), unread = under.filter(b => b.length > 11 && !b[11]);
+  const asks = book.filter(b => b[1] != null && fcCopyOk(b, sup)).map(b => b[1]);
+  return {n: at.length, dear: at.length ? Math.max(...at.map(b => b[1])) : null, cheapest: asks.length ? Math.min(...asks) : null, ids: new Set(at.map(b => b[0])), unread: unread.length, unreadIds: unread.map(b => b[0])};
 }
 function fcCredWhy(r, c) {                               // why the floor would not count this copy (credible() in ebay_sweep); null when it would
   if (r[29] === 'watch' || r[29] === 'suspect') return r[29] + ' listing';
@@ -2693,12 +2890,15 @@ function fcLevels(c, pcBuy, skip) {
   let sell = aOk ? c.A : L != null ? Math.min(pcBuy, L) : pcBuy, why = aOk ? 'A' : c && c.A != null ? 'thin' : 'pc';
   const comp = cred.find(e => e[0] !== (skip != null ? skip : (cred[0] || [])[0]));
   if (comp && comp[1] < sell) { sell = comp[1]; why = 'ask'; }
-  return {buy, sell, src, why, A: c && c.A != null ? c.A : null, An: n, comp: comp ? comp[1] : null};
+  const hold = !!(c && c.gap_hold);                       // the PC gap (2026-10-25): unreviewed, the sale is projected from the lower of the two levels
+  if (hold && pcBuy != null && pcBuy < sell) { sell = pcBuy; why = 'gap'; }
+  return {buy, sell, src, why, A: c && c.A != null ? c.A : null, An: n, comp: comp ? comp[1] : null, gap: c && c.gap != null ? c.gap : null, hold};
 }
 function fcSellNote(r) {                                 // the "sells" figure under a pick's price: where the sale is projected from, and which guard set it
   if (r.why === 'A') return r.sell !== r.pcBuy ? '<span title="eBay\u2019s sold median (' + r.An + ' sales): what buyers actually pay; the sale is projected from it">sells ' + fmtMoneyPlain(r.sell) + '</span>' : '';
   if (r.why === 'ask') return '<span class="fc-guard" title="Capped at the cheapest competing credible copy: the one you buy leaves the market and this is the ask you sell against' + (r.A != null ? ' (eBay\u2019s sold median is ' + fmtMoneyPlain(r.A) + (r.An < FC_MIN_SALES() ? ', on only ' + r.An + ' sale' + (r.An === 1 ? '' : 's') : ', ' + r.An + ' sales') + ')' : '') + '">sells ' + fmtMoneyPlain(r.sell) + ' <small>ask</small></span>';
   if (r.why === 'thin') return '<span class="fc-guard" title="eBay has only ' + r.An + ' sale' + (r.An === 1 ? '' : 's') + ' of this card in its window, too few to trust its median of ' + fmtMoneyPlain(r.A) + ', so the sale is projected from PriceCharting\u2019s level' + (r.sell < r.pcBuy ? ', capped by the floor' : '') + '">sells ' + fmtMoneyPlain(r.sell) + ' <small>thin</small></span>';
+  if (r.why === 'gap') return '<span class="fc-guard" title="eBay\u2019s sold median (' + fmtMoneyPlain(r.A) + ', ' + r.An + ' sales) and PriceCharting (' + fmtMoneyPlain(r.pcBuy) + ') are ' + Math.abs(r.gap || 0).toFixed(0) + '% apart and the card is unreviewed: the sale is projected from the lower of the two">sells ' + fmtMoneyPlain(r.sell) + ' <small>PC gap</small></span>';
   return '';                                             // 'pc': no eBay sales at all - the PC figure beside it is the level
 }
 /* The chance for one listing bought at its own price (the Raw Data tab's Forecast % column and its "Forecast hits"
@@ -2747,7 +2947,8 @@ function fcInputs() {
   const n = (id, d) => { const v = parseFloat($(id).value); return isNaN(v) ? d : v; };
   return {cap: Math.max(0, n('fc-cap', 0)), h: +$('fc-h').value || 3, disc: Math.min(0.6, Math.max(0, n('fc-disc', 0) / 100)), pmin: Math.max(10, n('fc-pmin', 50)), pmax: Math.max(10, n('fc-pmax', 500)),
           share: Math.min(1, Math.max(0.05, n('fc-share', 20) / 100)), minp: Math.min(0.95, Math.max(0, n('fc-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fc-copies', 1)))),
-          young: $('fc-young').checked, untracked: $('fc-untracked').checked, recent: $('fc-recent').checked, gate: $('fc-gate').checked};
+          young: $('fc-young').checked, untracked: $('fc-untracked').checked, recent: $('fc-recent').checked, gate: $('fc-gate').checked,
+          sup: {conds: [['fc-sup-nm', 'NM'], ['fc-sup-lp', 'LP'], ['fc-sup-ns', 'UNK']].filter(([id]) => $(id).checked).map(([, k]) => k), nowatch: $('fc-sup-nowatch').checked, minfb: Math.max(0, Math.round(n('fc-sup-minfb', 0)))}};   // which copies Supply counts (2026-10-25)
 }
 function fcCompute() {
   const doc = FC.doc; if (!doc) return;
@@ -2766,17 +2967,17 @@ function fcCompute() {
     if (!(buy >= I.pmin && buy <= I.pmax) || vol12 < FC_MIN_VOL12) continue;
     if (!I.young && !(age >= 24)) continue;
     let supply = null, ask = null, dear = null;          // the collector only follows listings inside its price band: outside it the supply is unknown
-    if (c && c.book && buy >= band[0] && buy <= band[1]) { const sa = fcSupplyAt(c, buy * (1 - I.disc)); supply = sa.n; ask = sa.cheapest; dear = sa.dear; }
+    if (c && c.book && buy >= band[0] && buy <= band[1]) { const sa = fcSupplyAt(c, buy * (1 - I.disc), I.sup); supply = sa.n; ask = sa.cheapest; dear = sa.dear; }
     if (supply == null && !I.untracked) continue;        // a card with no copy at the plan's price stays on the list: supply 0, nothing to buy today, the cell says so
     if (I.recent && c && !((c.k || 0) >= 1)) continue;   // no comparable eBay sale in the collector's 30-day window: nobody is buying it, whatever the supply
     const bucket = fcBucket(pct), tab = fcTable(I.h, bucket); if (!tab) continue;
     const d = fcDist(buy, tab, S, I.disc, sell);
     rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, why: lv.why, A: lv.A, An: lv.An, k: c ? (c.k || 0) : null, ask, supply, dear, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
                              mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], dev12: ix.dev12 != null ? a[ix.dev12] : null, m12: ix.m12 != null ? a[ix.m12] : null,
-                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0}, d));
+                             be: fcBreakEven(buy, S, I.disc, sell), qty: 0, gap: lv.gap, hold: lv.hold ? 1 : 0}, d));
   }
   rows.sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // buy order: chance to the whole percent, then the rank (otherwise price alone breaks the tie)
-  const elig = rows.filter(r => r.p >= I.minp);
+  const elig = rows.filter(r => r.p >= I.minp && !r.hold);   // a held card (the PC gap, unreviewed) gets no money
   const gated = I.gate && 'up' in doc.regime && !doc.regime.up;   // the gate: a falling market buys nothing (the research's one rule that removed every losing cycle)
   let left = I.cap;
   if (!gated) elig.forEach(r => {                        // greedy: best chance first, up to the share cap, the copies-per-card cap and the eBay supply
@@ -2840,7 +3041,7 @@ function fcRenderPicks() {
     sum = '<p><b>Nothing to buy: the market is falling</b> (the typical card ' + fcPct(FC.doc.regime.reg3, 1) + ' a month over the last three months) and \u201cBuy only when the market is rising\u201d is ticked. In the research the gate was the one rule that removed every losing cycle; a falling market keeps falling 88% of the time. ' +
       (n ? n + ' card' + (n > 1 ? 's' : '') + ' would clear your bar anyway \u2014 the list below is in buy order; untick the box to override.' : 'The list below is in buy order.') + '</p>';
   } else if (!picks.length) {
-    const clear = FC.rows.filter(r => r.p >= I.minp), noCopy = clear.filter(r => r.supply === 0);
+    const clear = FC.rows.filter(r => r.p >= I.minp && !r.hold), noCopy = clear.filter(r => r.supply === 0);
     if (clear.length && noCopy.length === clear.length) {    // the bar is cleared, but nothing is listed that cheap (2026-10-25)
       sum = '<p><b>Nothing listed at your price.</b> ' + clear.length + ' card' + (clear.length > 1 ? 's clear' : ' clears') + ' your bar over ' + unit + ', but ' + (clear.length > 1 ? 'none has' : 'it has no') + ' open copy at ' +
         (I.disc ? (I.disc * 100).toFixed(0) + '% under the standard price' : 'the standard price') + ' or less (Supply 0; the cheapest copy there is sits in brackets). Lower the discount, or let the alerts catch a copy that cheap. The list below is in buy order anyway.</p>';
@@ -2851,7 +3052,7 @@ function fcRenderPicks() {
         '; your bar is ' + (I.minp * 100).toFixed(0) + '%. ' + (need != null ? 'It clears the bar when bought <b>' + (need * 100).toFixed(0) + '% under</b> the standard price — that is what the hit alerts are for.' : 'No discount up to 60% clears the bar at this hold.') + ' The list below is in buy order anyway: what to buy if you can get it cheap.</p>';
     }
   } else {
-    const idle = I.cap - FC.spent, elig = FC.rows.filter(r => r.p >= I.minp && r.supply !== 0).length, noCopy = FC.rows.filter(r => r.p >= I.minp && r.supply === 0).length;
+    const idle = I.cap - FC.spent, elig = FC.rows.filter(r => r.p >= I.minp && r.supply !== 0 && !r.hold).length, noCopy = FC.rows.filter(r => r.p >= I.minp && r.supply === 0 && !r.hold).length;
     sum = '<p>Spend <b>' + fcMoney(FC.spent) + '</b> of ' + fcMoney(I.cap) + ' on <b>' + picks.length + ' card' + (picks.length > 1 ? 's' : '') + '</b> (' + (n => n + (n === 1 ? ' copy' : ' copies'))(picks.reduce((s, r) => s + r.qty, 0)) + '), hold ' + unit + ', sell at eBay\u2019s going price then.' +
       (idle > Math.max(50, I.cap * 0.1) ? ' <span class="dim">' + fcMoney(idle) + ' stays idle: only ' + elig + ' card' + (elig === 1 ? '' : 's') + ' clear' + (elig === 1 ? 's' : '') + ' your bar today with a copy listed at your price' + (noCopy ? ' (' + noCopy + ' more clear' + (noCopy === 1 ? 's' : '') + ' it with nothing listed that cheap)' : '') + ', at ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' each \u2014 the supply of discounted copies, not the capital, is the limit (keep the rest for next month\u2019s floors or the hit alerts).</span>' : '') + '</p>' +
       '<div class="stats fc-stats">' +
@@ -2860,6 +3061,8 @@ function fcRenderPicks() {
       '<div class="stat"><div class="k">Chance of a profit</div><div class="v">' + (mc.p * 100).toFixed(0) + '%</div><div class="d">P(basket net &gt; 0), ' + (I.disc ? 'bought ' + (I.disc * 100).toFixed(0) + '% under' : 'at the standard price') + '; half of each card’s swing is the market’s</div></div>' +
       '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (S.fee * 100).toFixed(1) + '% + $' + (S.fixed + S.shipOut + S.supplies).toFixed(2) + '</div><div class="d">eBay fee, label, supplies' + (S.tax ? ', ' + (S.tax * 100).toFixed(2) + '% buy tax' : '') + ' (Raw Data boxes)</div></div></div>';
   }
+  const held = FC.rows.filter(r => r.hold).length;      // the PC gap (2026-10-25)
+  if (held) sum += '<p class="dim fc-heldnote">' + held + ' card' + (held === 1 ? ' is' : 's are') + ' <b>held</b>: eBay\u2019s sold median and PriceCharting\u2019s price are ' + FC_GAP_PCT + '%+ apart, so one of the two is wrong - no buys and no hits on ' + (held === 1 ? 'it' : 'them') + ' until you review ' + (held === 1 ? 'it' : 'them') + ' in <a href="#" class="fg-open">Flags</a> (a card verdict there releases the card for 30 days).</p>';
   $('fc-summary').innerHTML = sum;
   const rows = picks.concat(FC.rows.filter(r => !r.qty).slice(0, Math.max(0, 40 - picks.length)));
   const supplyCell = r => r.supply == null ? '<span class="dim">untracked</span>' : r.supply === 0 ? '0' + (r.ask != null ? ' <span class="dim">(cheapest ' + fmtMoneyPlain(r.ask) + ')</span>' : '') : r.supply + (r.dear != null ? ' <span class="dim">(up to ' + fmtMoneyPlain(r.dear) + ')</span>' : '');
@@ -2867,12 +3070,13 @@ function fcRenderPicks() {
   rows.forEach(r => {
     const costEach = r.buy * (1 - I.disc) * (1 + S.tax);
     const note = fcSellNote(r);
-    html += '<tr class="' + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
-      '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (note || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
-        [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : ''].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="' + (r.supply ? 'The ' + r.supply + ' open cop' + (r.supply === 1 ? 'y' : 'ies') + ' at your price (every open copy is a click away in the popup)' : 'The open copies of this card on eBay') + '">' + supplyCell(r) + '</a></td>' +
+    const gapNote = r.gap != null ? '<span class="fc-gapv' + (Math.abs(r.gap) >= FC_GAP_PCT ? ' down' : '') + '" title="eBay\u2019s sold median (' + r.An + ' sales) against PriceCharting\u2019s price for the card' + (Math.abs(r.gap) >= FC_GAP_PCT ? ': ' + FC_GAP_PCT + '%+ apart, one of the two is wrong' : '') + '">' + (r.gap > 0 ? '+' : '') + r.gap.toFixed(0) + '% vs PC</span>' : '';
+    html += '<tr class="' + (r.hold ? 'fc-held ' : '') + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
+      '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (note || gapNote || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
+        [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '', gapNote].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="' + (r.supply ? 'The ' + r.supply + ' open cop' + (r.supply === 1 ? 'y' : 'ies') + ' at your price (every open copy is a click away in the popup)' : 'The open copies of this card on eBay') + '">' + supplyCell(r) + '</a></td>' +
       '<td class="num">' + FC_BUCKET_WORDS[r.bucket] + '<br><span class="dim">' + fcOrd(Math.round(r.pct * 100)) + ' pct</span></td>' +
       '<td class="num">' + fcMoney2(r.lo) + ' – <b>' + fcMoney2(r.med) + '</b> – ' + fcMoney2(r.hi) + '</td><td class="num">' + (r.p * 100).toFixed(0) + '%</td>' +
-      '<td class="num">' + (r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
+      '<td class="num">' + (r.hold ? '<span class="fc-holdnote" title="Held: eBay\u2019s anchor and PriceCharting are ' + Math.abs(r.gap || 0).toFixed(0) + '% apart - review the card in Flags">held</span>' : r.qty ? '<b>' + r.qty + '</b>' : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fmtMoneyPlain(r.qty * costEach) : '<span class="dim">—</span>') + '</td><td class="num">' + (r.qty ? fcMoney2(r.qty * r.mean) : '<span class="dim">' + fcMoney2(r.mean) + ' each</span>') + '</td></tr>';
   });
   html += '</tbody></table></div><p class="dim">Bold rows are the buys; the rest is the list in buy order (up to 40). Rank = how far the card sits below its own 12-month mean, against every card $25+ with six PriceCharting sales in its last twelve months (the deepest 10% beat the band by 6\u201310 points a quarter in every year since 2022). Net per copy = sold at eBay\u2019s going price at the end of the hold (the card\u2019s sold median moved by the realized return of its rank bucket in this kind of market; PriceCharting\u2019s price when the collector has no sales for it), less eBay\u2019s fee, the label and supplies, less what you paid. The range is what cards in the same bucket actually did, 2022 to the last complete month.</p>';
   $('fc-picks').innerHTML = html; selApply($('fc-picks').querySelector('table'));
@@ -2936,7 +3140,21 @@ function fclPlanAt(cid, c) {                             // the plan's price for
   const I = FC.inputs || fcInputs(), base = idRow.get(cid), a = FC.doc && FC.ix ? FC.doc.cards[String(cid)] : null;
   const pcBuy = a ? a[FC.ix.buy] : base ? base[6] : null, lv = fcLevels(c, pcBuy);
   if (lv.buy == null) return null;
-  return Object.assign({T: lv.buy * (1 - I.disc), buy: lv.buy, disc: I.disc}, fcSupplyAt(c, lv.buy * (1 - I.disc)));
+  return Object.assign({T: lv.buy * (1 - I.disc), buy: lv.buy, disc: I.disc}, fcSupplyAt(c, lv.buy * (1 - I.disc), I.sup));
+}
+// the popup asks the collector to read the condition of the unread copies it shows (one lookup each, a handful per
+// card): the "?" rows turn into NM / LP / n/s within a minute or two and the live file brings them (2026-10-25)
+const READ_ONLY_ASKED = {};
+function fclAskReads() {
+  if (!HKEY) return 0;
+  const at = FCL.at, want = FCL.rows.filter(r => r[19] === 'open' && condUnread(r) && (!at || FCL.mode === 'all' || (at.unreadIds || []).includes(r[22])));
+  let n = 0;
+  for (const r of want.slice(0, 6)) {
+    const iid = r[22]; if (READ_ONLY_ASKED[iid] > Date.now() - 300000) continue;
+    READ_ONLY_ASKED[iid] = Date.now(); n++;
+    alSend({type: 'read', t: Date.now(), i: iid}).catch(() => { delete READ_ONLY_ASKED[iid]; });
+  }
+  return n;
 }
 function fclModeRender() {                               // the switch above the rows: the copies at the plan's price | every open copy
   const el = $('fcl-mode'); if (!el) return;
@@ -2945,7 +3163,9 @@ function fclModeRender() {                               // the switch above the
   const here = FCL.rows.filter(r => r[19] === 'open' && !r.um && at.ids.has(r[22])).length;
   el.innerHTML = '<button type="button" class="fvchip' + (FCL.mode === 'plan' ? ' on' : '') + '" data-m="plan" title="The copies the Supply cell counts: listed at or under the plan\u2019s price for this card (a Best Offer ask at 90%, an LP copy at its NM-equivalent)">At your price \u2264 ' + fmtMoneyPlain(at.T) + '<span class="n">' + at.n + '</span></button>' +
     '<button type="button" class="fvchip' + (FCL.mode === 'all' ? ' on' : '') + '" data-m="all" title="Every open copy of the card the collector follows">All open copies<span class="n">' + all + '</span></button>' +
-    '<span class="dim"> ' + (at.disc ? Math.round(at.disc * 100) + '% under the standard price of ' + fmtMoneyPlain(at.buy) : 'the standard price') + (here < at.n ? ' \u00b7 ' + (at.n - here) + ' of the ' + at.n + ' cop' + (at.n - here === 1 ? 'y has' : 'ies have') + ' no row loaded yet' : '') + '</span>';
+    '<span class="dim"> ' + (at.disc ? Math.round(at.disc * 100) + '% under the standard price of ' + fmtMoneyPlain(at.buy) : 'the standard price') + (here < at.n ? ' \u00b7 ' + (at.n - here) + ' of the ' + at.n + ' cop' + (at.n - here === 1 ? 'y has' : 'ies have') + ' no row loaded yet' : '') +
+    (at.unread ? ' \u00b7 <span title="No grade in the title and eBay\u2019s condition field not read yet: these count in nothing until they are read; the collector is reading them now">' + at.unread + ' cop' + (at.unread === 1 ? 'y' : 'ies') + ' at the price not read yet (reading\u2026)</span>' : '') + '</span>';
+  fclAskReads();
 }
 async function fcOpenListings(cid) {
   const base = idRow.get(cid), t = tables.fcl; if (!base || !t) return;
@@ -3011,7 +3231,9 @@ function plRows() {
     if (r && r.um) { out.hidden = (out.hidden || 0) + 1; continue; }   // not the same card, he said: out of every tab (2026-10-25)
     const m = p.m || {};
     const row = {iid, cid: cid == null ? null : +cid, name: base ? base[1] : (m.ti || iid), set: base ? base[2] : '', title: r ? r[6] : (m.ti || ''), url: r ? r[20] : (m.u || null), status: r ? r[19] : 'unknown',
-                 total: r ? r[9] : (m.p == null ? null : +m.p), fb: r ? r[17] : null, pctFb: r ? r[18] : null, cond: r ? r[15] : null, hours: r ? r[5] : null, t: p.t, qty: 0, tab: null, p: null, m};
+                 total: r ? r[9] : (m.p == null ? null : +m.p), fb: r ? r[17] : null, pctFb: r ? r[18] : null, cond: r ? r[15] : null, hours: r ? r[5] : null, t: p.t, qty: 0, tab: null, p: null, m,
+                 tier: r ? r[29] : 'clean', unread: r ? condUnread(r) : false};
+    if (!plFilterOk(row)) { out.filtered = (out.filtered || 0) + 1; continue; }   // the Planning view's own filters (2026-10-25)
     const a = doc && ix && base ? doc.cards[String(cid)] : null;
     if (a && row.total != null && row.total > 0) {
       const pct = a[ix['pct' + I.h]], pcBuy = a[ix.buy], tab = pct == null ? null : fcTable(I.h, fcBucket(pct));
@@ -3024,18 +3246,33 @@ function plRows() {
     }
     out.push(row);
   }
-  const hidden = out.hidden || 0;
+  const hidden = out.hidden || 0, filtered = out.filtered || 0;
   out.sort((x, y) => (y.qty - x.qty) || ((y.p || 0) - (x.p || 0)) || (x.t - y.t));
-  out.hidden = hidden;
+  out.hidden = hidden; out.filtered = filtered;
   return out;
 }
+/* The Planning view's filters (2026-10-25, Brett: "the forecast button and planning button should have their own
+   respective filters, where i can filter out the listings that say warning and filter for their stated condition"):
+   what the list shows and the figures count. Remembered (pl-filt). */
+const PL_F = {open: true, gone: true, nm: true, lp: true, ns: true, oth: true, nowatch: true};
+try { Object.assign(PL_F, JSON.parse(localStorage.getItem('pl-filt') || '{}')); } catch (e) {}
+function plFilterOk(row) {
+  if (row.status === 'open' ? !PL_F.open : !PL_F.gone) return false;
+  const c = row.cond; const k = row.unread || c == null || !['NM', 'LP', 'UNK'].includes(c) ? 'oth' : c === 'NM' ? 'nm' : c === 'LP' ? 'lp' : 'ns';
+  if (!PL_F[k]) return false;
+  if (PL_F.nowatch && (row.tier === 'watch' || row.tier === 'suspect')) return false;
+  return true;
+}
+function plFiltPaint() { for (const k of Object.keys(PL_F)) { const e = $('pl-f-' + k); if (e) e.checked = !!PL_F[k]; } }
+if ($('pl-filt')) { plFiltPaint(); $('pl-filt').addEventListener('change', e => { const b = e.target.closest('input'); if (!b) return; PL_F[b.id.replace('pl-f-', '')] = b.checked; try { localStorage.setItem('pl-filt', JSON.stringify(PL_F)); } catch (x) {} plRender(); }); }
 function plRender() {
   const el = $('pl-summary'); if (!el) return;
   const I = FC.inputs || fcInputs(), S = FC.S || settings(), unit = I.h + ' month' + (I.h > 1 ? 's' : '');
   const rows = plRows(), picks = rows.filter(r => r.qty && r.tab), stale = rows.filter(r => r.status !== 'open').length, unscored = rows.filter(r => r.status === 'open' && !r.tab).length;
   const spent = picks.reduce((s, r) => s + r.total * (1 + S.tax), 0), mc = fcMonteCarlo(picks, S, 0), cards = new Set(picks.map(r => r.cid)).size;
   let sum = '';
-  const hid = rows.hidden ? ' <span class="dim">' + rows.hidden + ' planned listing' + (rows.hidden === 1 ? ' you said is' : 's you said are') + ' not the same card ' + (rows.hidden === 1 ? 'is' : 'are') + ' hidden \u2014 the Mismatches list on the Raw Data tab has ' + (rows.hidden === 1 ? 'it' : 'them') + ', with Restore.</span>' : '';
+  const hid = (rows.hidden ? ' <span class="dim">' + rows.hidden + ' planned listing' + (rows.hidden === 1 ? ' you said is' : 's you said are') + ' not the same card ' + (rows.hidden === 1 ? 'is' : 'are') + ' hidden \u2014 the Mismatches list on the Raw Data tab has ' + (rows.hidden === 1 ? 'it' : 'them') + ', with Restore.</span>' : '') +
+              (rows.filtered ? ' <span class="dim">' + rows.filtered + ' planned listing' + (rows.filtered === 1 ? '' : 's') + ' left out by the filters above.</span>' : '');
   if (!rows.length) sum = '<p>Nothing on your plan yet. On the Forecasting view, click a card to see its open copies and press <b>+</b> on the ones you mean to buy; the + is on every Raw Data row too. The plan is kept by the collector, so it is the same on your laptop and your phone.' + hid + '</p>';
   else {
     if (!FC.doc) sum = '<p>The model file is not loaded yet: the listings are listed, their odds come when it is.</p>';
@@ -3097,7 +3334,7 @@ async function loadForecast() {
     $('meta-fc').textContent = 'Forecast · the model file could not be loaded (' + e.message + ') — it is built by the daily site update; try again after the next build.';
   }
 }
-['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-copies', 'fc-young', 'fc-untracked', 'fc-recent', 'fc-gate'].forEach(id => $(id).addEventListener('input', () => {
+['fc-cap', 'fc-h', 'fc-disc', 'fc-pmin', 'fc-pmax', 'fc-share', 'fc-minp', 'fc-copies', 'fc-young', 'fc-untracked', 'fc-recent', 'fc-gate', 'fc-sup-nm', 'fc-sup-lp', 'fc-sup-ns', 'fc-sup-nowatch', 'fc-sup-minfb'].forEach(id => $(id).addEventListener('input', () => {
   if (!FC.doc) return;
   fcCompute();
   if (id === 'fc-h' && LIVE.data) { fcStampRows(); tables.er.apply(true); }          // the Raw Data column follows the hold
