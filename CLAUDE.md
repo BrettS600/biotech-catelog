@@ -1328,7 +1328,12 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   increasing stamps and alSend posts one message at a time in the order made (AL_CHAIN); readAsk and fclAskReads use
   nextT. Seen live: of five reads asked for Mewtwo & Mew GX #SM191 one came back (LP, "Lightly played (Excellent)" -
   the Gyarados case caught), the log showed one "Site read" per cycle. test_ui18 asks two and checks both arrive in
-  order.
+  order. Confirmed live at 04:12 UTC: five reads asked for Blastoise #2's cheap "?" copies, all five served (two came
+  back MP, the rest left the book the same cycle - a $70 Base Set Blastoise is damaged or not the card). COMMIT ORDER
+  LESSON: the droplet pulled collector.py (03:25) a few minutes before ebay_sweep.py landed and two cycles failed
+  ("module 'ebay_sweep' has no attribute 'cond_known'") until the next pull - when collector.py starts using a new
+  ebay_sweep / forecast_math name, commit THOSE first and collector.py last (the loop catches the exception and
+  carries on, so nothing was lost, but the live file stood still for the gap).
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
