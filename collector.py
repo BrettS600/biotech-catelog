@@ -1011,7 +1011,7 @@ def wrong_rows(v):
 
 # ---------------- Favorites (Brett, 2026-10-23: a star on every row; the starred rows gathered on a Favorites tab) ----------------
 FAV_MAX = 400                    # favorites kept (the oldest star goes when a new one would be one too many)
-FAV_SRC = ("pc", "ec", "er", "fc", "um")   # where a star can come from: the catalog tabs, a listing, a Forecast pick, an unmatched title
+FAV_SRC = ("pc", "ec", "er", "fc", "fl", "um")   # where a star can come from: the catalog tabs, a listing, a Forecast pick, a listing starred on the Forecast tab (fl, 2026-10-25), an unmatched title
 
 
 def fav_set(state, msg, t):
@@ -1051,7 +1051,7 @@ def fav_live(state, cards, live_ids):
     favs = v.get("favs") or {}
     out = {"t": v.get("fav_t", 0), "list": [[f["s"], f["k"], f.get("c"), f["t"], f.get("m") or None] for f in sorted(favs.values(), key=lambda f: f["t"])], "rows": {}}
     for f in favs.values():
-        if f["s"] == "er" and f["k"] not in live_ids:
+        if f["s"] in ("er", "fl") and f["k"] not in live_ids:   # fl: a listing starred in a card's popup or on the plan (the Forecast view of the Favorites tab)
             rec = find_rec(state, f["k"])
             if rec is not None:
                 try:
