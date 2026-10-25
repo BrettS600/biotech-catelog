@@ -853,7 +853,7 @@ function hitSummary() {
 function openHits() {
   const L = hitLedger(), now = new Map((LIVE.er || []).map(r => [r[22], r]));
   const when = t => new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
-  const ans = {nm: 'Yes, near mint', lp: 'Yes, lightly played', no: 'No', yes: 'Same card'};
+  const ans = {nm: 'Yes, near mint', lp: 'Yes, lightly played', mp: 'graded moderately played', hp: 'graded heavily played', dmg: 'graded damaged', no: 'No (the reason is on its flag)', yes: 'Same card'};
   $('btitle').textContent = 'Hits in ' + PERIOD.er.label();
   $('bsub').textContent = 'Every hit the collector alerted you to in the period, newest first. The table behind this list only holds the last 24 hours and judges each listing as it stands now, so a hit from earlier can be missing there or no longer pass.';
   $('bbody').innerHTML = !L.length ? '<p>None in this period.</p>' :
