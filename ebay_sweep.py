@@ -1026,7 +1026,7 @@ def fav_listing_ids(state):
     """The item ids Brett starred (Favorites, 2026-10-23) or put on his plan (Planning, 2026-10-24): their records and
     photos stay past the usual prune, so the Favorites tab and the Planning view can always show them."""
     v = state.get("vps") or {}
-    return {f["k"] for f in (v.get("favs") or {}).values() if f.get("s") == "er"} | {str(p["i"]) for p in (v.get("plan") or {}).values()}
+    return {f["k"] for f in (v.get("favs") or {}).values() if f.get("s") in ("er", "fl")} | {str(p["i"]) for p in (v.get("plan") or {}).values()}
 
 
 def close_listing(state, iid, rec, outcome, when, total=None):
