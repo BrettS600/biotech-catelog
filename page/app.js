@@ -1693,7 +1693,7 @@ const READ_ASKED = {}, READ_DONE = {};
 function readAsk(iid) {
   if (!iid || !HKEY) return false;
   if (READ_ASKED[iid] > Date.now() - 300000) return true;
-  const t = Date.now(); READ_ASKED[iid] = t;
+  const t = nextT(); READ_ASKED[iid] = t;
   alSend({type: 'read', t, i: iid}).then(() => readWait(iid, t)).catch(() => { delete READ_ASKED[iid]; });
   return true;
 }
@@ -3156,7 +3156,7 @@ function fclAskReads() {
   for (const r of want.slice(0, 6)) {
     const iid = r[22]; if (READ_ONLY_ASKED[iid] > Date.now() - 300000) continue;
     READ_ONLY_ASKED[iid] = Date.now(); n++;
-    alSend({type: 'read', t: Date.now(), i: iid}).catch(() => { delete READ_ONLY_ASKED[iid]; });
+    alSend({type: 'read', t: nextT(), i: iid}).catch(() => { delete READ_ONLY_ASKED[iid]; });   // strictly increasing t, posted one after another: the collector serves them all
   }
   return n;
 }
@@ -3672,11 +3672,20 @@ async function alChannel() {
   return {topic: 'pc-' + (await hex(HKEY + ':alerts-topic')).slice(0, 40),
           key: await crypto.subtle.importKey('raw', enc.encode(await hex(HKEY + ':alerts-key')), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign', 'verify'])};
 }
+// The collector acts on a message only when its t is NEWER than the last one it acted on (its replay guard), so two
+// messages in the same millisecond, or one overtaking another on the way, lose the second: nextT() hands out strictly
+// increasing stamps and alSend posts one message at a time, in the order they were made (2026-10-25: the popup's
+// batch of condition reads arrived together and only the first was served).
+let AL_T = 0, AL_CHAIN = Promise.resolve();
+const nextT = () => { AL_T = Math.max(Date.now(), AL_T + 1); return AL_T; };
 async function alSend(msg, suffix) {                // suffix: a side topic of the same channel ('-pc' = picture requests)
   const ch = await alChannel(), body = JSON.stringify(msg);
+  if (msg && typeof msg.t === 'number' && msg.t > AL_T) AL_T = msg.t;
   const sig = [...new Uint8Array(await crypto.subtle.sign('HMAC', ch.key, new TextEncoder().encode(body)))].map(b => b.toString(16).padStart(2, '0')).join('');
-  const r = await fetch('https://ntfy.sh/' + ch.topic + (suffix || ''), {method: 'POST', body: JSON.stringify({m: body, s: sig})});
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const run = async () => { const r = await fetch('https://ntfy.sh/' + ch.topic + (suffix || ''), {method: 'POST', body: JSON.stringify({m: body, s: sig})}); if (!r.ok) throw new Error('HTTP ' + r.status); };
+  const p = AL_CHAIN.then(run, run);
+  AL_CHAIN = p.catch(() => {});
+  return p;
 }
 async function alAct(kind) {
   if (!HKEY) { AL.note = 'This page has no key for the collector yet.'; AL.cls = 'warn'; return alRender(); }
