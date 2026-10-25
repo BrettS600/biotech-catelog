@@ -1410,8 +1410,12 @@ function fgHeld() {                                // the cards held now (and th
   for (const k in GAPM) marks[k] = Object.assign({}, marks[k] || {}, GAPM[k], {echo: 1});
   const held = (f.held || []).slice();
   const heldIds = new Set(held.map(h => String(h[0])));
-  const released = Object.entries(marks).filter(([cid, m]) => !heldIds.has(cid) && m.t && Date.parse(m.t) > Date.now() - 30 * 86400000 && (m.state === 'pc inaccuracy' || m.state === 'pc stale'));
-  if (!held.length && !released.length) { box.innerHTML = '<div class="fgheld dim">No card is held: every card with a backed eBay anchor sits within ' + FC_GAP_PCT + '% of its PriceCharting price.</div>'; return; }
+  const released = Object.entries(marks).filter(([cid, m]) => !heldIds.has(cid) && !m.auto && m.t && Date.parse(m.t) > Date.now() - 30 * 86400000 && (m.state === 'pc inaccuracy' || m.state === 'pc stale'));
+  const auto = Object.entries(marks).filter(([cid, m]) => m.auto && m.state === 'pc inaccuracy').sort((x, y) => ((y[1].sp || [])[1] || 0) - ((x[1].sp || [])[1] || 0));   // the detector's verdicts (2026-10-25), widest spread first
+  const autoHtml = auto.length ? '<div class="fgauto"><div class="dim"><b>PriceCharting unreliable for ' + auto.length + ' card' + (auto.length === 1 ? '' : 's') + '</b> (automatic): the middle half of its last ungraded sales on PriceCharting spans ' + Math.round(FG_SPREAD_BAR * 100) + '%+ of their median, so its PriceCharting price is not trusted - ' + (auto.length === 1 ? 'it is' : 'they are') + ' never held for a PC gap and the per-listing PriceCharting rule stands down. Your own verdict on a card (PC is right) overrides it.</div>' +
+    '<div class="fgautol" id="fgautol">' + auto.slice(0, FG.autoAll ? auto.length : 12).map(([cid, m]) => { const base = idRow.get(+cid) || [], sp = m.sp || []; return '<span class="fgauto1"><a href="#" class="fcl-open" data-id="' + cid + '">' + esc(base[1] || ('card ' + cid)) + '</a> <span class="dim">' + esc(String(base[2] || '').replace(/^Pokemon /, '')) + (sp.length ? ' \u00b7 \u00b1' + Math.round(sp[1] * 50) + '% around ' + fmtMoneyPlain(sp[2] / 100) + ' on ' + sp[0] + ' sales' : '') + '</span></span>'; }).join('') +
+    (auto.length > 12 && !FG.autoAll ? ' <button type="button" class="tbtn" id="fgauto-more">+ ' + (auto.length - 12) + ' more</button>' : '') + '</div></div>' : '';
+  if (!held.length && !released.length) { box.innerHTML = autoHtml + '<div class="fgheld dim">No card is held: every card with a backed eBay anchor sits within ' + FC_GAP_PCT + '% of its PriceCharting price.</div>'; return; }
   const sel = (cid, cur) => '<select class="fg-cstate" data-c="' + cid + '">' + FG_CARD_STATES.map(st => '<option value="' + st + '"' + (st === (cur === 'pc stale' ? 'pc inaccuracy' : cur) ? ' selected' : '') + '>' + FG_CARD_WORDS[st] + '</option>').join('') + '</select>';
   const rowOf = (cid, gap, A, An, pc, L, m, isHeld) => { const base = idRow.get(+cid) || [], mk = m || {};
     return '<div class="fgrow" data-c="' + cid + '"><span><a href="#" class="fcl-open" data-id="' + cid + '">' + esc(base[1] || ('card ' + cid)) + '</a> <span class="dim">' + esc(String(base[2] || '').replace(/^Pokemon /, '')) + '</span></span>' +
@@ -1419,8 +1423,10 @@ function fgHeld() {                                // the cards held now (and th
       (mk.state ? '<span class="dim">verdict: <b>' + esc(mk.state === 'pc stale' ? 'pc inaccuracy' : mk.state) + '</b> ' + (mk.t ? rvWhen(mk.t) : '') + (mk.echo ? ' (sent)' : '') + '</span>' : '') +
       '<span class="lab">Card verdict</span>' + sel(cid, mk.state || 'unmarked') + '<input type="text" class="fg-cnote" data-c="' + cid + '" placeholder="why (kept with the verdict)" value="' + esc(mk.note || '') + '"><button type="button" class="tbtn fg-csave" data-c="' + cid + '">Save</button></div>'; };
   box.innerHTML = '<div class="fgheld"><div class="dim" style="margin-bottom:4px"><b>Held cards</b> — eBay’s sold median and PriceCharting’s price ' + FC_GAP_PCT + '%+ apart: no buys, no hits. Two ways out: click the card and flag the odd sales under “Sales behind the anchor” (the anchor recomputes without them and the hold lifts by itself), or the verdict <b>PC inaccuracy</b> (PriceCharting is wrong for this card: released for 30 days, and its PriceCharting rule stands down).</div>' +
-    held.map(h => rowOf(h[0], h[1], h[2], h[3], h[4], h[5], marks[String(h[0])], true)).join('') + released.map(([cid, m]) => rowOf(cid, null, null, null, null, null, m, false)).join('') + '</div>';
+    held.map(h => rowOf(h[0], h[1], h[2], h[3], h[4], h[5], marks[String(h[0])], true)).join('') + released.map(([cid, m]) => rowOf(cid, null, null, null, null, null, m, false)).join('') + '</div>' + autoHtml;
 }
+const FG_SPREAD_BAR = 0.5;                                // collector.PC_SPREAD_BAR: the automatic PC-inaccuracy bar (iqr / median of PriceCharting's last ungraded sales)
+document.addEventListener('click', e => { const b = e.target.closest ? e.target.closest('#fgauto-more') : null; if (!b) return; FG.autoAll = true; fgHeld(); });
 async function gapMark(cid, state, note) {
   const t = nextT(); GAPM[String(cid)] = {state, note, t: new Date(t).toISOString()};
   fgHeld(); fgBadge();
@@ -3047,12 +3053,45 @@ function fcInputs() {
           young: $('fc-young').checked, untracked: $('fc-untracked').checked, recent: $('fc-recent').checked, gate: $('fc-gate').checked,
           sup: {conds: [['fc-sup-nm', 'NM'], ['fc-sup-lp', 'LP'], ['fc-sup-ns', 'UNK']].filter(([id]) => $(id).checked).map(([, k]) => k), nowatch: $('fc-sup-nowatch').checked, minfb: Math.max(0, Math.round(n('fc-sup-minfb', 0))), q: $('fc-sup-q').checked}};   // which copies Supply counts (2026-10-25); q = the unread "?" copies too
 }
+/* The Forecasting view's filters (2026-10-25, Brett: "I would prefer to have some more filters in the forecast tab"):
+   set, rarity, finish, the rank buckets, a copy / an auction at my price, not held, PriceCharting trusted, PC sales a
+   year, eBay sales in 30 days. They narrow the candidates in fcCompute, so the money follows them (unlike the Planning
+   view's filters, which only hide). Remembered in localStorage (fc-filt). */
+const FC_F = {set: '', rar: '', fin: '', top10: true, b90: true, b75: true, b50: true, sup: false, au: false, noheld: false, nopcbad: false, vol: 0, k: 0};
+try { Object.assign(FC_F, JSON.parse(localStorage.getItem('fc-filt') || '{}')); } catch (e) {}
+function fcFiltPaint() {
+  for (const k of ['top10', 'b90', 'b75', 'b50', 'sup', 'au', 'noheld', 'nopcbad']) { const e = $('fc-f-' + k); if (e) e.checked = !!FC_F[k]; }
+  for (const k of ['set', 'rar', 'fin']) { const e = $('fc-f-' + k); if (e) e.value = FC_F[k] || ''; }
+  for (const k of ['vol', 'k']) { const e = $('fc-f-' + k); if (e) e.value = FC_F[k] || 0; }
+}
+function fcFiltOptions() {                               // the selects' choices: what the scored cards have
+  if (!FC.doc || !$('fc-f-set')) return;
+  const sets = new Set(), rars = new Set(), fins = new Set();
+  for (const cid in FC.doc.cards) { const b = idRow.get(+cid); if (!b) continue; if (b[2]) sets.add(b[2]); if (b[14]) rars.add(b[14]); if (b[15]) fins.add(b[15]); }
+  const fill = (id, vals, any, strip) => { const e = $(id), cur = FC_F[id.replace('fc-f-', '')] || ''; e.innerHTML = '<option value="">' + any + '</option>' + [...vals].sort().map(v => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(strip ? String(v).replace(/^Pokemon /, '') : v) + '</option>').join(''); if (cur && !vals.has(cur)) e.value = ''; };
+  fill('fc-f-set', sets, 'any set', true); fill('fc-f-rar', rars, 'any rarity'); fill('fc-f-fin', fins, 'any finish');
+}
+const fcFiltOn = () => !!(FC_F.set || FC_F.rar || FC_F.fin || !FC_F.top10 || !FC_F.b90 || !FC_F.b75 || !FC_F.b50 || FC_F.sup || FC_F.au || FC_F.noheld || FC_F.nopcbad || FC_F.vol > 0 || FC_F.k > 0);
+if ($('fc-filt')) {
+  fcFiltPaint();
+  $('fc-filt').addEventListener('change', e => {
+    const el = e.target.closest('input, select'); if (!el || !el.id.startsWith('fc-f-')) return;
+    const k = el.id.replace('fc-f-', '');
+    FC_F[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Math.max(0, Math.round(parseFloat(el.value) || 0)) : el.value;
+    try { localStorage.setItem('fc-filt', JSON.stringify(FC_F)); } catch (x) {}
+    fcCompute(); fcRenderPicks(); if (typeof plRender === 'function') plRender();
+  });
+  $('fc-f-reset').addEventListener('click', () => { Object.assign(FC_F, {set: '', rar: '', fin: '', top10: true, b90: true, b75: true, b50: true, sup: false, au: false, noheld: false, nopcbad: false, vol: 0, k: 0}); try { localStorage.removeItem('fc-filt'); } catch (x) {} fcFiltPaint(); fcCompute(); fcRenderPicks(); if (typeof plRender === 'function') plRender(); });
+}
 function fcCompute() {
   const doc = FC.doc; if (!doc) return;
   const S = settings(), I = fcInputs(), ix = FC.ix = Object.fromEntries(doc.cols.map((k, i) => [k, i]));
   const rows = [];
+  let filtered = 0;
+  const gmarks = (LIVE.data && LIVE.data.alert && LIVE.data.alert.gap_marks) || {};
   for (const cid in doc.cards) {
     const a = doc.cards[cid], base = idRow.get(+cid); if (!base) continue;
+    if ((FC_F.set && base[2] !== FC_F.set) || (FC_F.rar && base[14] !== FC_F.rar) || (FC_F.fin && base[15] !== FC_F.fin)) { filtered++; continue; }
     const pcBuy = a[ix.buy], pct = a[ix['pct' + I.h]], age = a[ix.age], vol12 = a[ix.vol12] || 0;
     const c = LIVE.dec && LIVE.dec[cid], band = (LIVE.data && LIVE.data.band) || [50, 500];
     // the standard price: what a credible copy costs on eBay now (the card's credible floor, else its sold median),
@@ -3070,12 +3109,15 @@ function fcCompute() {
     if (supply == null && !I.untracked) continue;        // a card with no copy at the plan's price stays on the list: supply 0, nothing to buy today, the cell says so
     if (I.recent && c && !((c.k || 0) >= 1)) continue;   // no comparable eBay sale in the collector's 30-day window: nobody is buying it, whatever the supply
     const bucket = fcBucket(pct), tab = fcTable(I.h, bucket); if (!tab) continue;
+    if (!FC_F[bucket] || (FC_F.sup && !(supply > 0)) || (FC_F.au && !au) || (FC_F.noheld && lv.hold) || (FC_F.vol > 0 && vol12 < FC_F.vol) || (FC_F.k > 0 && !(c && (c.k || 0) >= FC_F.k)) ||
+        (FC_F.nopcbad && gmarks[cid] && gmarks[cid].auto && gmarks[cid].state === 'pc inaccuracy')) { filtered++; continue; }   // the filters (2026-10-25)
     const d = fcDist(buy, tab, S, I.disc, sell);
     rows.push(Object.assign({cid: +cid, name: base[1], set: base[2], price: a[ix.price], pcBuy, buy, sell, src, why: lv.why, A: lv.A, An: lv.An, k: c ? (c.k || 0) : null, ask, supply, dear, pct, pred: a[ix['pred' + I.h]], bucket, tab, age, vol: a[ix.vol], vol12,
                              mom1: a[ix.mom1], mom3: a[ix.mom3], mom12: a[ix.mom12], dd12: a[ix.dd12], setm: a[ix.set_mom1], dev12: ix.dev12 != null ? a[ix.dev12] : null, m12: ix.m12 != null ? a[ix.m12] : null,
                              be: fcBreakEven(buy, S, I.disc, sell), qty: 0, gap: lv.gap, hold: lv.hold ? 1 : 0, pcNow: c && c.pc != null ? c.pc : null, unread, au}, d));
   }
   rows.sort((x, y) => Math.round(y.p * 100) - Math.round(x.p * 100) || y.pct - x.pct);   // buy order: chance to the whole percent, then the rank (otherwise price alone breaks the tie)
+  FC.filtered = filtered;
   const elig = rows.filter(r => r.p >= I.minp && !r.hold);   // a held card (the PC gap, unreviewed) gets no money
   const gated = I.gate && 'up' in doc.regime && !doc.regime.up;   // the gate: a falling market buys nothing (the research's one rule that removed every losing cycle)
   let left = I.cap;
@@ -3160,6 +3202,7 @@ function fcRenderPicks() {
       '<div class="stat"><div class="k">Chance of a profit</div><div class="v">' + (mc.p * 100).toFixed(0) + '%</div><div class="d">P(basket net &gt; 0), ' + (I.disc ? 'bought ' + (I.disc * 100).toFixed(0) + '% under' : 'at the standard price') + '; half of each card’s swing is the market’s</div></div>' +
       '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (S.fee * 100).toFixed(1) + '% + $' + (S.fixed + S.shipOut + S.supplies).toFixed(2) + '</div><div class="d">eBay fee, label, supplies' + (S.tax ? ', ' + (S.tax * 100).toFixed(2) + '% buy tax' : '') + ' (Raw Data boxes)</div></div></div>';
   }
+  if (fcFiltOn()) sum += '<p class="dim fc-filtnote">Filters on: ' + (FC.filtered || 0) + ' scored card' + (FC.filtered === 1 ? '' : 's') + ' left out by the filter row above (the plan buys only within it).</p>';
   const ao = LIVE.data && LIVE.data.au_open, nAu = FC.rows.reduce((n, r) => n + (r.au ? r.au.n : 0), 0);
   if (ao && ao.rows && ao.rows.length) sum += '<p class="dim fc-aunote">' + (nAu ? '<b>' + nAu + ' auction' + (nAu === 1 ? '' : 's') + '</b> on these cards ' + (nAu === 1 ? 'has' : 'have') + ' a current bid at or under your price (the line under Supply)' : 'No auction on these cards has a current bid at or under your price yet') + ' \u2014 among the ' + ao.read + ' raw-single auctions ending soonest' + (ao.until ? ' (before ' + new Date(ao.until).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) + ')' : '') + ', read ' + rvWhen(ao.t) + '. Auctions count in nothing above; the phone gets a forecast auction alert when one ends within minutes with the bid still under the standard price.</p>';
   const held = FC.rows.filter(r => r.hold).length;      // the PC gap (2026-10-25)
@@ -3175,7 +3218,9 @@ function fcRenderPicks() {
     const note = fcSellNote(r);
     // the gap is measured against PriceCharting's price TODAY (the collector's figure, what the hold and Flags use); the "PC $" beside it is this month's average so far, the series the model learned on - named when the two differ
     const pcDiff = r.pcNow != null && Math.abs(r.pcNow - r.price) > 0.005;
-    const gapNote = r.gap != null ? '<span class="fc-gapv' + (Math.abs(r.gap) >= FC_GAP_PCT ? ' down' : '') + '" title="eBay\u2019s sold median ' + (r.A != null ? fmtMoneyPlain(r.A) + ' ' : '') + '(' + r.An + ' sales) against PriceCharting\u2019s price today' + (r.pcNow != null ? ', ' + fmtMoneyPlain(r.pcNow) : '') + (pcDiff ? ' (the PC figure beside it is this month\u2019s average so far, the series the model learned on)' : '') + (Math.abs(r.gap) >= FC_GAP_PCT ? '. ' + FC_GAP_PCT + '%+ apart: one of the two is wrong' : '') + '">' + (r.gap > 0 ? '+' : '') + r.gap.toFixed(0) + '% vs PC' + (pcDiff ? ' today ' + fmtMoneyPlain(r.pcNow) : '') + '</span>' : '';
+    const gmk = LIVE.data && LIVE.data.alert && LIVE.data.alert.gap_marks && LIVE.data.alert.gap_marks[String(r.cid)];
+    const pcBad = gmk && gmk.auto && gmk.state === 'pc inaccuracy' ? '<span class="fc-pcbad" title="PriceCharting unreliable for this card (automatic): the middle half of its last ' + ((gmk.sp || [])[0] || '?') + ' ungraded sales there spans \u00b1' + Math.round(((gmk.sp || [])[1] || 0) * 50) + '% around ' + fmtMoneyPlain(((gmk.sp || [])[2] || 0) / 100) + '. It is never held for a PC gap and its per-listing PriceCharting rule stands down; see Flags.">PC unreliable</span>' : '';
+    const gapNote = (r.gap != null ? '<span class="fc-gapv' + (Math.abs(r.gap) >= FC_GAP_PCT ? ' down' : '') + '" title="eBay\u2019s sold median ' + (r.A != null ? fmtMoneyPlain(r.A) + ' ' : '') + '(' + r.An + ' sales) against PriceCharting\u2019s price today' + (r.pcNow != null ? ', ' + fmtMoneyPlain(r.pcNow) : '') + (pcDiff ? ' (the PC figure beside it is this month\u2019s average so far, the series the model learned on)' : '') + (Math.abs(r.gap) >= FC_GAP_PCT ? '. ' + FC_GAP_PCT + '%+ apart: one of the two is wrong' : '') + '">' + (r.gap > 0 ? '+' : '') + r.gap.toFixed(0) + '% vs PC' + (pcDiff ? ' today ' + fmtMoneyPlain(r.pcNow) : '') + '</span>' : '') + (pcBad ? (r.gap != null ? ' \u00b7 ' : '') + pcBad : '');
     html += '<tr class="' + (r.hold ? 'fc-held ' : '') + (r.qty ? 'fc-buy' : 'fc-watch') + '" data-key="' + r.cid + '"><td class="favc">' + favBtn('fc', r.cid, r.cid, {h: I.h, d: I.disc, buy: r2(r.buy), med: r2(r.med), lo: r2(r.lo), hi: r2(r.hi), p: Math.round(r.p * 1000) / 1000, q: r.qty, n: r.name, s: r.set}, 'sm') + '</td><td class="cardc"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="The open copies of this card on eBay, with the Raw Data columns">' + esc(r.name) + '</a> <a class="dim fc-pc" href="https://www.pricecharting.com/search-products?q=' + encodeURIComponent(r.name + ' ' + r.set) + '&type=prices" target="_blank" rel="noopener" title="PriceCharting">\u2197</a><br><span class="dim">' + esc(r.set) + '</span><br><span class="dim fc-why">' + esc(fcWhy(r)) + '</span></td>' +
       '<td class="num" title="' + esc(r.src) + '">' + fmtMoneyPlain(r.buy) + (note || gapNote || Math.abs(r.buy - r.price) > 0.005 ? '<br><span class="dim' + (r.buy < 0.7 * r.sell || r.buy > 1.3 * r.sell ? ' down' : '') + '">' +
         [note, Math.abs(r.buy - r.price) > 0.005 ? '<span title="PriceCharting’s ungraded price; the model’s history is in this series">PC ' + fmtMoneyPlain(r.price) + '</span>' : '', gapNote].filter(Boolean).join(' · ') + '</span>' : '') + '</td><td class="num"><a href="#" class="fcl-open" data-id="' + r.cid + '" title="' + (r.supply ? 'The ' + r.supply + ' open cop' + (r.supply === 1 ? 'y' : 'ies') + ' at your price (every open copy is a click away in the popup)' : 'The open copies of this card on eBay') + '">' + supplyCell(r) + '</a></td>' +
@@ -3451,6 +3496,7 @@ async function loadForecast() {
     const doc = await decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
     if (!doc || !doc.cols || !doc.cards || !doc.calib || !doc.regime) throw new Error('not a forecast file');
     FC.doc = doc; FC.err = null; FC.loaded = b; FC.ix = Object.fromEntries(doc.cols.map((k, i) => [k, i]));
+    fcFiltOptions();                                    // the filter row's set / rarity / finish choices (2026-10-25)
     $('meta-fc').textContent = 'Forecast \u00b7 which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market \u00b7 model ' + (FC.doc.model || 'v1') + ' of ' + esc(FC.doc.month) + ' built ' + (FC.doc.t || '').replace('T', ' ').replace('Z', ' UTC') + ' \u00b7 ' + Number(FC.doc.n).toLocaleString('en-US') + ' cards' + (FC.doc.n_ranked ? ', ' + Number(FC.doc.n_ranked).toLocaleString('en-US') + ' ranked' : '');
     fcCompute();
     if (LIVE.data) { fcStampRows(); tables.er.apply(true); alRender(); }   // the Raw Data Forecast % column fills in; the alerts preview can apply its forecast filter
