@@ -22,7 +22,7 @@ import gzip, json, math
 
 P_CAP = 0.95                     # no stated chance above this: the measured ranges end at the 5th percentile
 MIN_VOL12 = 6                    # a card needs six PriceCharting sales in its last twelve months
-ASK_LIMIT = 1.15                 # a listing counts as supply when its total is within 15% of the buy price
+BO_HAIRCUT = 0.90                # a Best Offer listing counts at 90% of its ask (ebay_sweep.BO_HAIRCUT); an LP copy at its NM-equivalent (the card's lpd)
 RHO = 0.5                        # share of each pick's variance that is the market's (the Monte Carlo's copula)
 BUCKETS = ("b50", "b75", "b90", "top10")
 # the constants of the archived plans and the history replay (Brett, 2026-10-23: "fees included held constant 14.1% +
@@ -147,13 +147,36 @@ def listing_chance(doc, ix, cards, cid, total, iid, h, S, min_sales):
     return round(dist(doc["calib"]["quantiles"], tab, total, S, 0.0, lv["sell"]).get("p") * 1000) / 1000
 
 
+def book_eff(b, c):
+    """What a book copy costs on the floor's own basis: a Best Offer listing at 90% of its ask, an LP copy at its
+    NM-equivalent (the card's lpd). b = a book entry [id, total, item, ship, tcond, bo, ...]."""
+    if b[1] is None:
+        return None
+    lpd = ((c or {}).get("lpd") or 0) / 100.0
+    e = b[1] * (BO_HAIRCUT if len(b) > 5 and b[5] else 1.0)
+    return e / (1 - lpd) if len(b) > 4 and b[4] == "LP" and lpd < 1 else e
+
+
+def supply_at(c, price):
+    """The open copies at or under the plan's price (Brett, 2026-10-25: "if it says 3, then it shows 3 listings"): their
+    number, the dearest's asking total, the cheapest ask of all, their ids. None without a book."""
+    book = (c or {}).get("book")
+    if book is None:
+        return None
+    at = [b for b in book if (lambda e: e is not None and e <= price + 0.005)(book_eff(b, c))]
+    asks = [b[1] for b in book if b[1] is not None]
+    return {"n": len(at), "dear": max((b[1] for b in at), default=None), "cheapest": min(asks, default=None), "ids": [b[0] for b in at]}
+
+
 def plan(doc, cards, S, inputs, band, min_sales, names=None):
     """fcCompute: every ranked card in the price band with enough history and known supply gets its chance; cards at or
     above the bar get money best chance first (the share cap, the copies-per-card cap, the eBay supply, the money
     left) - unless the gate is on and the market is down, when nothing is bought. inputs: cap, h, disc, pmin, pmax,
     share, minp, young, untracked, copies (per card, default 1), recent (a card needs an eBay sale in the collector's
     30-day window, default True; a replay stub with "supply" is exempt), gate (default True). names: {cid: (name, set)}
-    for the rows (optional). Returns {rows, picks, spent, gated} with rows in buy order (chance, then rank)."""
+    for the rows (optional). Returns {rows, picks, spent, gated} with rows in buy order (chance, then rank).
+    Supply (2026-10-25) = the open copies at or under the plan's price for the card, buy x (1 - disc), on the floor's
+    basis (supply_at); a card with none stays in the rows (so the page can say so) but gets no money."""
     ix = col_index(doc)
     qs = doc["calib"]["quantiles"]
     I = inputs
@@ -171,14 +194,14 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
             continue
         if not I["young"] and not (age is not None and age >= 24):
             continue
-        supply, ask = None, None
+        supply, ask, dear = None, None, None
         book = (c or {}).get("book")
         if c and c.get("supply") is not None:              # the history replay: a supply from PriceCharting's monthly sales (no book then)
             supply = c["supply"]
         elif c and book is not None and band[0] <= buy <= band[1]:
-            supply = sum(1 for b in book if b[1] <= buy * ASK_LIMIT)
-            ask = book[0][1] if book else None
-        if supply == 0 or (supply is None and not I["untracked"]):
+            sa = supply_at(c, buy * (1 - I["disc"]))
+            supply, ask, dear = sa["n"], sa["cheapest"], sa["dear"]
+        if supply is None and not I["untracked"]:
             continue
         if I.get("recent", True) and c and c.get("supply") is None and not ((c.get("k") or 0) >= 1):
             continue                                        # no comparable eBay sale in the window: nobody is buying it
@@ -189,7 +212,7 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
         d = dist(qs, tab, buy, S, I["disc"], sell)
         nm = (names or {}).get(int(cid)) or ("", "")
         rows.append(dict(d, cid=int(cid), name=nm[0], set=nm[1], price=a[ix["price"]], pc_buy=pc_buy, buy=buy, sell=sell, src=lv["src"], why=lv["why"],
-                         A=lv["A"], An=lv["An"], ask=ask, supply=supply, pct=pct, bucket=b, tab=tab, age=age, vol12=vol12, qty=0))
+                         A=lv["A"], An=lv["An"], ask=ask, supply=supply, dear=dear, pct=pct, bucket=b, tab=tab, age=age, vol12=vol12, qty=0))
     rows.sort(key=lambda r: (-round(r["p"] * 100), -r["pct"]))
     elig = [r for r in rows if r["p"] >= I["minp"]]
     left = I["cap"]
