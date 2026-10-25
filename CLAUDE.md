@@ -1174,6 +1174,62 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   summary and chance, Record this plan, the live confirmation, the -, the Raw Data + and its sort, the Favorites view),
   test_ui10 / test_ui13 ported (the Forecast % header is index 33 now, the card cell children[4]). NOT done: the phone
   check screen (hit.html) has no + yet.
+- SUPPLY AT YOUR PRICE, THE REVIEW POPUP'S WARNINGS AND CONDITION QUESTION, A "NO" HIDES THE LISTING EVERYWHERE
+  (2026-10-25, Brett: "says the supply is 3 (from $65.00). even though it says 3 listings it only shows 1. and idk
+  what (from $65.00) even means. shouldnt it be like under instead of from? like if i say buy at 20% under ...
+  if it says 3, then it shows 3 listing, with the one closest to 20%=< ... as 1 of the 3, and then remaining 2
+  listings are marked as a price below"; "that warning button you added to ntfy, need to also be added to the pc
+  review button"; "needs to show the conditions underneath the 'finish' section. i want to see the ebay sellers
+  reported condition, and then in the next question, i can answer the condition based on my thoughts of the images";
+  "if i answer 'no' ... then that listing should dissapear from all tabs, and reappear in the mismatch button popup
+  ... a column that says restore"). Before: Supply counted book copies within 15% ABOVE the standard price (so "3
+  (from $65)" for Garchomp & Giratina GX: $65, $75.43 and $76.61 against a $74.44 floor x 1.15), while the popup
+  filtered by the separate under-the-anchor box - two different rules, so the count and the rows disagreed. Now:
+  (A) Supply = the open copies in the collector's book whose effective price - a Best Offer ask at 90%
+  (BO_HAIRCUT), an LP copy at its NM-equivalent (the card's lpd), the floor's own basis - is at or under the PLAN'S
+  price for the card, buy x (1 - "I buy at"): fcSupplyAt / fcBookEff on the page, forecast_math.supply_at / book_eff
+  in Python (ASK_LIMIT is gone; test_fcmath still holds parity). The cell reads "3 (up to $65.00)" - the dearest
+  of the counted copies - or "0 (cheapest $76.61)"; a card with supply 0 stays on the list in buy order but is not
+  bought (qty 0), and the summary says "Nothing listed at your price" when the bar is cleared but no copy is listed
+  that cheap, or "N more clear it with nothing listed that cheap" beside the idle money. At 20% under most cards
+  show 0 - that is the honest answer (nothing is listed that cheap today), and the alerts are what catch such a
+  copy. The card popup opens on EXACTLY those copies: chips above the rows (#fcl-mode) "At your price <= $T (N)" |
+  "All open copies (M)" (FCL.mode, localStorage fcl-mode; FCL.at = fclPlanAt(cid, cs) = fcLevels buy x (1 - disc) +
+  fcSupplyAt), refreshed by fcCompute (the discount box) and rebuildLive; the "Listings at least N% under the anchor"
+  box (fc-ua, help fc_ua) is gone. Rows the floor would not count as credible are greyed (tr.nocred via fcCredWhy:
+  watch/suspect, seller under 50 ratings or under the bar, condition not NM/LP/n.s, eff under 75% of A, sat longer
+  than min(7, max(1, 1.6/lam)) days) - still buyable, which is where Review and its Warnings matter. (B) The Review
+  popup carries the phone's scam block (reviewScamHtml: tier + points, a Warnings button that unfolds riskTableHtml,
+  the table openRisk now shares; a clean listing with no signal gets one dim line). (C) The condition: a row under
+  Finish - "Condition . seller" (eBay's condition field, else the title; r[58]) and "Condition . you" (r[57]) - and
+  under the two buttons the second question "What condition is it, from the photos?" NM / LP / MP / HP / DMG (+
+  "back to the seller's"), sent as {type: 'cond', t, i, v} (CONDS echoes until live.alert.cond_t; live.alert.conds
+  carries them all). His grade outranks the seller's everywhere: erowOf / auRows / hhRows put it in r[15] (the
+  verdict follows: "condition MP"), condCell marks it "you" with the seller's on hover; the collector's cond_set sets
+  rec tcond + bc (and the alert records' bc), None goes back to es.seller_cond (ecc, else the title); ebay_sweep's
+  apply_condition and rematch leave a graded listing alone; live_row adds 36 = bc and 37 = the seller's basis when
+  graded; hit_payload carries tc / ec (None = never read) / bc. The phone's check screen: the same row under Finish,
+  the second question says what the seller claims, and a third button "Worse than lightly played" tells 'mp' (the
+  collector files MP; nm / lp file NM / LP now too) and opens nothing. (D) "Not the same card" (the Review popup, the
+  phone's No) takes the listing out of EVERY tab: TABLES.er extra (!r.um; the hits view no longer keeps marked rows),
+  fclOk, favRowsEr / favRowsAll / fvCounts / fvRenderFl (favHidden), plRows (hidden count, a note in the Planning
+  summary). The Mismatches popup lists the listings behind a card as a table with a Restore column
+  (restoreListing: REVIEWS[iid] = {v: null}, MARKS[iid] = {v: 0}, type 'review' v null; the collector's
+  review_listing(None) also clears a phone 'no' and sets review_t) and hides restored ones (mmRestored) until the
+  collector's list catches up. A phone No on a watch / suspect listing used to be dropped ("may mean scam"); now
+  note_wrong keeps it with sc: 1 - hidden and restorable like any other, shown in the popup as "watch/suspect: no
+  lesson for the matcher" (wrong_rows index 9) - and learn_tables / bad_titles skip it; mm_counts and match_table
+  still count it as his mark. Deployed 2026-10-25 ~01:30 UTC through the editor (collector.py 6343d495, ebay_sweep.py
+  840f56e0, forecast_math.py 4e0ce0a8, body.html 79204fe9, style.css 04509b8d, hit.html 48529054, help.js 93cbb07a,
+  app.js d15409f5), site build #127. Tests: t/pcpop/test_ui17.py (the cell at 0 / 20 / 40% under, the popup's chips
+  and rows, the greying reasons, the Review scam block and its table, the condition rows, grading X1 MP -> the
+  message, the popup, the Cond cell, the verdict; back to the seller's; a grade from the live file on an fc_rows copy;
+  a No hides X1 from the popup, Raw Data, Favorites and Planning; the Mismatches table with the sc note; Restore),
+  t/hit/test_cond.py (the row under Finish in four states, the second question, 'mp', the No message),
+  ut/test_cond2.py (cond_set round trip, the sweep leaving bc alone, live_row 36-37, the payload, a watch No's sc flag
+  and what learns from it, Restore clearing the phone's No, supply_at / book_eff); test_page (hidden + Restore),
+  test_ui9 / test_ui10 / test_ui14 / test_ui16 and ut/test_forecast_rec ported to the new supply rule (a cheap copy
+  added to their books so the discount lever still finds one).
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
   tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
   trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
