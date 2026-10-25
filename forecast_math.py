@@ -29,7 +29,7 @@ BUCKETS = ("b50", "b75", "b90", "top10")
 # $5.20 where i assume 0% buy tax ... price range held constant ($50 to $500) ... buy only at 50% or better")
 STD_FEES = {"fee": 0.1325 * 1.065, "fixed": 0.40, "shipOut": 4.50, "supplies": 0.30, "tax": 0.0}
 STD_INPUTS = {"pmin": 50.0, "pmax": 500.0, "share": 0.2, "minp": 0.5, "young": False, "untracked": False, "copies": 1, "recent": True, "gate": True,
-              "sup": {"conds": ["NM", "LP", "UNK"], "nowatch": True, "minfb": 0}}   # which copies Supply counts (2026-10-25): conditions, no watch / suspect copies, seller ratings
+              "sup": {"conds": ["NM", "LP", "UNK"], "nowatch": True, "minfb": 0, "q": False}}   # which copies Supply counts (2026-10-25): conditions, no watch / suspect copies, seller ratings, "?" = copies whose condition is not read yet
 STD_CAPS = (500, 1000, 5000, 10000, 25000)
 STD_HOLDS = (1, 3, 6)
 STD_DISCS = (0.0, 0.2)
@@ -167,7 +167,7 @@ def copy_ok(b, sup):
     conditions (n/s = UNK, read and none stated); no watch / suspect copies when nowatch; the seller's ratings."""
     sup = sup or STD_INPUTS["sup"]
     if len(b) > 11 and not b[11]:
-        return False
+        return bool(sup.get("q"))                      # the "?" switch (Brett, 2026-10-25): count the unread copies too; off by default
     if (b[4] if len(b) > 4 else "UNK") not in (sup.get("conds") or ["NM", "LP", "UNK"]):
         return False
     if sup.get("nowatch", True) and len(b) > 12 and b[12] in ("watch", "suspect"):
@@ -217,7 +217,7 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
             continue
         if not I["young"] and not (age is not None and age >= 24):
             continue
-        supply, ask, dear = None, None, None
+        supply, ask, dear, sa = None, None, None, None
         book = (c or {}).get("book")
         if c and c.get("supply") is not None:              # the history replay: a supply from PriceCharting's monthly sales (no book then)
             supply = c["supply"]
@@ -236,7 +236,7 @@ def plan(doc, cards, S, inputs, band, min_sales, names=None):
         nm = (names or {}).get(int(cid)) or ("", "")
         rows.append(dict(d, cid=int(cid), name=nm[0], set=nm[1], price=a[ix["price"]], pc_buy=pc_buy, buy=buy, sell=sell, src=lv["src"], why=lv["why"],
                          A=lv["A"], An=lv["An"], ask=ask, supply=supply, dear=dear, pct=pct, bucket=b, tab=tab, age=age, vol12=vol12, qty=0,
-                         gap=lv.get("gap"), hold=lv.get("hold", 0)))
+                         gap=lv.get("gap"), hold=lv.get("hold", 0), unread=(sa or {}).get("unread", 0)))
     rows.sort(key=lambda r: (-round(r["p"] * 100), -r["pct"]))
     elig = [r for r in rows if r["p"] >= I["minp"] and not r.get("hold")]   # a held card (the PC gap, unreviewed) gets no money
     left = I["cap"]
