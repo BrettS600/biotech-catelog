@@ -80,6 +80,8 @@ a.back { display: inline-block; margin-top: 14px; color: #58a6ff; }
     <button class="yes" id="nm"></button>
     <button class="lp" id="lp"></button>
   </div>
+  <div class="btns"><button class="no" id="mp">Worse than lightly played<small>moderately / heavily played or damaged: not a buy</small></button></div>
+  <div class="dim" id="s2cond"></div>
   <a class="back" href="#" id="back">&larr; back to the pictures</a>
 </div>
 <div id="msg" class="hide"></div>
@@ -165,6 +167,14 @@ else {
     row(fact('Sales per month', d.pv == null ? '?' : one(d.pv / 12)), fact('Sold this month', d.k == null ? '?' : d.k, d.D == null ? '' : one(d.D) + ' days tracked')) +
     row('', fact('Seller', (d.fb == null ? '?' : Number(d.fb).toLocaleString('en-US')) + ' ratings', (d.pct != null ? d.pct + '% positive \u00b7 ' : '') + (d.ph == null ? '?' : d.ph) + ' photos'));
   fitRows(); window.addEventListener('resize', fitRows);
+  // the condition under the trio (Brett, 2026-10-25): what the seller says (eBay's condition field, else the title), and his own
+  // grade from the photos if he has given one - the next question asks for it
+  const COND = {NM: 'Near Mint', LP: 'Lightly Played', MP: 'Moderately Played', HP: 'Heavily Played', DMG: 'Damaged'};
+  const tc = d.tc && d.tc !== 'UNK' ? d.tc : null, bc = d.bc || null;
+  $('rows').insertAdjacentHTML('beforeend', row(fact('Condition \u00b7 seller', tc ? COND[tc] || tc : '<span class="dim">not stated</span>', d.ec ? 'eBay\u2019s condition field: ' + esc(d.ec) : tc ? 'from the title' : d.ec == null ? 'none in the title; eBay\u2019s condition field not read yet' : 'none in the title, none on the listing'),
+                                                 fact('Condition \u00b7 you', bc ? COND[bc] || bc : '<span class="dim">\u2014</span>', bc ? 'your grade from the photos' : 'the next question asks')));
+  const condRow = $('rows').lastElementChild, trioRows = $('rows').children;   // ... placed right under Finish
+  if (trioRows.length > 4) $('rows').insertBefore(condRow, trioRows[4]);
   if (d.tier === 'watch' || d.tier === 'suspect') {
     const sus = d.tier === 'suspect', k9 = d.risk && d.risk[1] ? d.risk[0] / d.risk[1] : null;
     $('scam').classList.remove('hide'); $('scam').classList.toggle('sus', sus);
@@ -192,9 +202,11 @@ else {
     $(id).addEventListener('click', () => { tell(id); done('Opening eBay\u2026<br><a class="back" href="' + esc(d.u) + '">Tap here if it does not open</a>'); location.href = d.u; }); };
   arm('nm', 'Near Mint', d.nm); arm('lp', 'Lightly Played', d.lp);
   $('s2sub').textContent = au ? 'Sells for about ' + money(d.nm[0]) + ' (NM). Bid your max in the last seconds: eBay never takes you over it.' : money(d.tot) + ' total \u00b7 sells for about ' + money(d.nm[0]) + ' (NM)';
+  $('s2cond').innerHTML = 'The seller says <b>' + (tc ? COND[tc] || tc : 'nothing') + '</b>' + (d.ec ? ' (eBay\u2019s condition field: ' + esc(d.ec) + ')' : tc ? ' (in the title)' : '') + '. Grade it yourself from the photos: your answer replaces the seller\u2019s in every figure on the site.';
+  $('mp').addEventListener('click', () => { tell('mp'); done('Not a buy: worse than lightly played.<br><span class="dim">Saved as your grade - it replaces the seller\u2019s on the site. You can close this page.</span>'); });
   $('yes').addEventListener('click', () => { tell('yes'); show('s2'); });     // "same card" is an answer in itself now
   $('next').addEventListener('click', e => { e.preventDefault(); show('s2'); });  // just look at the next question: nothing is recorded
-  $('no').addEventListener('click', () => { tell('no'); done('Rejected. Nothing was bought.' + (d.tier === 'watch' || d.tier === 'suspect' ? '' : '<br><span class="dim">Saved as a wrong match, to check the matcher against.</span>') + '<br><span class="dim">You can close this page.</span>'); });
+  $('no').addEventListener('click', () => { tell('no'); done('Rejected. Nothing was bought.<br><span class="dim">The listing leaves every tab of the site and sits in the Mismatches list (Raw Data tab), with a Restore button if this was a mistake.' + (d.tier === 'watch' || d.tier === 'suspect' ? '' : ' The matcher learns from it.') + '</span><br><span class="dim">You can close this page.</span>'); });
   $('back').addEventListener('click', e => { e.preventDefault(); show('s1'); });
 }
 </script></body></html>
