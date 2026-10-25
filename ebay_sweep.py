@@ -1315,8 +1315,10 @@ def reprint_twins(cat):
 
 
 def wrong_card(rec):
-    """An identity check says this listing is probably not the card it was matched to - or Brett did (rec["um"])."""
-    return bool(rec.get("pcm")) or rec.get("idv") == "conflict" or bool(rec.get("um"))
+    """An identity check says this listing is probably not the card it was matched to - or Brett did (rec["um"]) - or he
+    marked it fraud in the Flags archive (rec["fraud"], 2026-10-25): out of the statistics (a fraud-marked sale leaves
+    the anchor), never a hit."""
+    return bool(rec.get("pcm")) or rec.get("idv") == "conflict" or bool(rec.get("um")) or bool(rec.get("fraud"))
 
 
 # ---------------- learning from the listings Brett marks as mismatches (2026-10-06) ----------------
@@ -1470,13 +1472,28 @@ def rematch(state, cat):
     return n["moved"], n["dropped"], n["cond"]
 
 
+def pc_stale_cards(state):
+    """Cards Brett judged "pc stale" in the Flags archive within GAP_RELEASE_D days (2026-10-25): PriceCharting's price
+    is wrong for them, so the per-listing PriceCharting rule (pc_flag: "mismatch: too cheap / too high") stands down
+    too - otherwise a card whose PriceCharting price is a placeholder could never have a hit."""
+    out = set()
+    for cid, gm in ((state.get("vps") or {}).get("gap_marks") or {}).items():
+        if gm.get("state") != "pc stale":
+            continue
+        t = parse_ts(gm.get("t") or "")
+        if t is not None and (NOW - t).total_seconds() < GAP_RELEASE_D * 86400:
+            out.add(str(cid))
+    return out
+
+
 def stamp_pc(state, cat):
     """Judge every open listing against today's PriceCharting price (prices move, listings get repriced) and
     every closed one that was never judged. Runs each cycle before the statistics; it is a dictionary lookup."""
+    stale = pc_stale_cards(state)
     for r in state["open"].values():
         c = cat.by_id.get(r["card"])
         if c:
-            r["pc"], r["pcm"] = c.get("pc"), pc_flag(r, c)
+            r["pc"], r["pcm"] = c.get("pc"), "" if str(r["card"]) in stale else pc_flag(r, c)
     for r in state["closed"]:
         if "pcm" not in r:
             c = cat.by_id.get(r["card"])
