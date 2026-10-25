@@ -1504,7 +1504,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the widest were penny cards (a $0.06 card: 36 sales from $0.01 to $2.13, iqr/median 4.4 - eBay's price steps, not
   PriceCharting's error). So PC_SPREAD_MIN_MED = 1000 (cents): a card whose median sale is under $10 is never judged
   (an earlier automatic verdict on it is withdrawn) and the distribution line counts the cards from $10 only, naming
-  the cheaper ones left out; the Flags note and help say "cards from $10". Deployed ~21:40 UTC: collector.py c2049b5e,
+  the cheaper ones left out; the Flags note and help say "cards from $10". Deployed ~22:13 UTC: collector.py c2049b5e,
   app.js 8035ae29, help.js b52888dc (site build #136). The bar itself (0.5) is still to be judged from the log line.
   Round 3 is complete bar the bar-tuning note above.
 - THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
