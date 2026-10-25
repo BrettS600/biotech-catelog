@@ -1174,6 +1174,29 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   summary and chance, Record this plan, the live confirmation, the -, the Raw Data + and its sort, the Favorites view),
   test_ui10 / test_ui13 ported (the Forecast % header is index 33 now, the card cell children[4]). NOT done: the phone
   check screen (hit.html) has no + yet.
+- THE CARD POPUP'S BUTTONS AND ITS STAR (2026-10-25, Brett: "In the popup for forecast button and planning button in forecast
+  tab, the four buttons do not work: reset, reset columns, columns, and filters ... the review button does not work. The
+  trend button works. The book button does not work. Also, the star favorites button works ... however in the favorites
+  tab, it gets stored as ebay raw data, when it should be stored in the forecast"). (1) Review, Book, Columns and
+  Filters all open #bov, which comes BEFORE #lov in the DOM at the same z-index (50), so they opened BEHIND the popup
+  (Trend uses #ov, after #lov: it worked). `#lov { z-index:45 }`. (2) openReview also finds a popup row (FCL.rows) and
+  its compact row for the photos in live.plan.rows / fc_rows.bin, so Review works for a copy the 24-hour table does not
+  carry; rebuildLive refreshes an open popup (a Review answered, a copy sold). The popup has no filter chips, so its
+  "Filters..." button is removed after makeTable; "Reset" (the search box) and "Reset columns" were working. (3) A new
+  favorite kind, fl = a listing starred on the Forecast tab: FCL_TABLE.fav = {s: 'fl', k: item id, c: card id, m:
+  favMetaFl} and the Planning view's star use it; favMetaFl keeps the words (ti, u, p) plus h (the hold), c (the chance
+  at its price), lo / med / hi (the net per copy) and sell (the level the sale is projected from) at that moment. The
+  Favorites tab counts fl under the Forecast chip (fvCounts), the Forecast view shows "Listings starred on the Forecast
+  tab" above the cards (fvRenderFl: the figures then, and Now = status + the chance at the current hold, via flRowOf =
+  the 24-hour row / live.favs.rows / live.plan.rows / fc_rows.bin), the All view's note says "from: Forecast · N
+  listings"; the Raw Data view does not list them. Collector: FAV_SRC accepts fl, fav_live builds a row for an fl star
+  past the 24-hour table like an er star, ebay_sweep.fav_listing_ids keeps it from the prune. Help: fav, the Forecast
+  README's popup paragraph, the Favorites README's Forecast view. Deployed 2026-10-25 ~00:35 UTC (ebay_sweep.py
+  08328562, collector.py ba1ee177, style.css fa18c77c, help.js b12de7c0, app.js f03a1e5f), site build #126. Tests:
+  t/pcpop/test_ui16.py (the z-order, Columns... from the popup, Reset / Reset columns, no Filters..., Book with the row
+  marked, Review for X1 and for L1 (fc_rows.bin only), the star's fl message with the figures from the popup and from
+  the plan, the Favorites chips (Forecast 2, Raw Data 0), the Forecast view's listing rows, the All view's note, the
+  live confirmation with the collector's row), ut/test_fav.py (an fl star: the live block's list and row, the prune).
 - THE INPUTS CARD FOLDS AWAY (2026-10-24 late, Brett: "have the your plans variable pane, on the left ... collapsible,
   so that the other side ... will enlarge, so that way, i dont have to right scroll to the right to see all of the
   column. do this for both the planning and forcast buttons"). "Hide" (button.fc-fold, #fc-fold) in the header of the
