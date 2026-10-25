@@ -1072,6 +1072,8 @@ FLAG_KINDS = {"PC gap": "gap", "mismatch: too cheap": "pclow", "mismatch: too hi
 FLAG_STATES = ("unmarked", "set mismatch", "name mismatch", "condition", "fraud", "unknown")   # a listing's reasons (the Flag column / Review's Flag section)
 MISMATCH_STATES = ("set mismatch", "name mismatch")                # ... the two that are also the "not the same card" answer
 CARD_STATES = ("unmarked", "pc inaccuracy", "pc fine")             # a card's verdict (the Flags archive's held strip): PriceCharting is wrong for the card, or right
+PHONE_GRADES = {"nm": "NM", "lp": "LP", "mp": "MP", "hp": "HP", "dmg": "DMG"}   # the check screen's condition row -> cond_set
+PHONE_ANSWERS = ("yes", "no") + tuple(PHONE_GRADES)                  # what the phone's {dec: {d}} may say
 FLAGS_KEEP = 5000
 FLAGS_NEW_MAX = 300              # entries added per pass at most
 FLAGS_EVERY_S = 600              # the archive file (live/flags.bin) is republished this often, or at once after a mark
@@ -1426,16 +1428,23 @@ def read_requests(state, cat=None, cards=None):
             env = json.loads(ev["message"])
             if "dec" in env:                      # Brett's Yes / No on the phone's check screen
                 dec = env["dec"]
+                done_ids = set()
                 for e in v.get("alert_log", []) + v.get("au_hist", []) + v.get("hit_hist", []):
-                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in ("nm", "lp", "mp", "no", "yes"):
+                    if e["i"] == dec.get("i") and e.get("tk") == dec.get("tk") and dec.get("d") in PHONE_ANSWERS:
                         if dec["d"] == "yes" and e.get("dec"):
                             continue                 # "same card" never replaces an answer already given
                         e["dec"], e["dt"] = dec["d"], es.ts(es.NOW)
-                        if dec["d"] == "no" and "tot" in e:
+                        if e["i"] in done_ids:       # the same listing sits in two histories: the side effects once
+                            continue
+                        done_ids.add(e["i"])
+                        st = str(dec.get("st") or "")[:20]
+                        if dec["d"] == "no" and st in FLAG_STATES and st != "unmarked":   # the No with its reason (2026-10-25): the flag
+                            flag_mark(state, cat, cards, e["i"], st, str(dec.get("note") or "")[:1000], int(time.time() * 1000))
+                        elif dec["d"] == "no" and "tot" in e:   # an older check screen: the plain No
                             rec = find_rec(state, e["i"])       # the listing itself: its seller and its whole title
                             note_wrong(v, dict(e, sl=(rec or {}).get("seller"), ti=(rec or {}).get("title") or e.get("ti")), state)
-                        if dec["d"] in ("nm", "lp", "mp"):   # the condition from the photos (the second question, 2026-10-25)
-                            cond_set(state, e["i"], {"nm": "NM", "lp": "LP", "mp": "MP"}[dec["d"]], int(time.time() * 1000))
+                        if dec["d"] in PHONE_GRADES:   # the condition from the photos (2026-10-25): NM / LP / MP / HP / DMG
+                            cond_set(state, e["i"], PHONE_GRADES[dec["d"]], int(time.time() * 1000))
                 continue
             if not hmac.compare_digest(hmac.new(key, env["m"].encode(), "sha256").hexdigest(), str(env.get("s"))):
                 continue
@@ -1455,6 +1464,10 @@ def read_requests(state, cat=None, cards=None):
             if push("Test alert", "Sent from the Notification Settings tab. Your phone alerts are working.", priority=4, tags=("white_check_mark",)):
                 v["test_t"] = t
             log("Alerts tab: test alert requested" + ("" if NTFY_TOPIC else " - but no channel is set on this machine"))
+            try:
+                test_hit(state, cat, cards)              # ... and a sample check screen on a real listing (2026-10-25)
+            except Exception as e:
+                log(f"Alerts tab: the sample hit could not be sent ({str(e)[:120]})")
         elif msg.get("type") == "help":
             help_edit(v, msg, t)
         elif msg.get("type") == "mark" and msg.get("i"):
@@ -1538,6 +1551,41 @@ def forecast_chance(cards, cfg, cid, total, iid):
     except Exception as e:
         log(f"Forecast: chance failed for {iid} ({str(e)[:100]})")
         return None
+
+
+def forecast_block(cards, cfg, cid, total, iid):
+    """The check screen's Forecast section (2026-10-25, Brett: "if it is a forecast hit, then the 1 3 and 6 month holds
+    should be specified, as well as the other input variables"): the chance of a profit at this price for each hold,
+    the Alerts tab's forecast filter (its hold, its bar, on / off), and the model's inputs for the card - its rank
+    percentile and expected move per hold, the level the sale is projected from and where it comes from, its standard
+    buy price, the data month and the regime. None when the model has no score for the card (or no file)."""
+    doc = forecast_doc()
+    if not doc or total is None or not total > 0:
+        return None
+    ix = _fc["ix"]
+    a = doc["cards"].get(str(cid))
+    if not a:
+        return None
+    S = forecast_fees(cfg)
+    out = {"h": int(cfg.get("fc_h", 1)), "on": 1 if cfg.get("fc_only") else 0, "bar": cfg.get("fc_minp", 50), "q": {}, "pct": {}, "pred": {}}
+    for h in (1, 3, 6):
+        try:
+            out["q"][str(h)] = fm.listing_chance(doc, ix, cards, cid, total, iid, h, S, es.ANCHOR_MIN)
+        except Exception:
+            out["q"][str(h)] = None
+        out["pct"][str(h)] = a[ix["pct%d" % h]] if "pct%d" % h in ix else None
+        out["pred"][str(h)] = a[ix["pred%d" % h]] if "pred%d" % h in ix else None
+    try:
+        lv = fm.levels((cards or {}).get(str(cid)), a[ix["buy"]], es.ANCHOR_MIN, iid)
+        out["sell"], out["why"], out["comp"] = lv.get("sell"), lv.get("why"), lv.get("comp")
+    except Exception:
+        pass
+    out["std"] = a[ix["buy"]] if "buy" in ix else None
+    out["m12"] = a[ix["m12"]] if "m12" in ix else None
+    reg = doc.get("regime") or {}
+    out["month"], out["reg"] = doc.get("month"), ("up" if reg.get("up") else "down") + (", strong" if reg.get("strong") else "")
+    out["fees"] = [round(S["fee"] * 100, 2), round(S["fixed"] + S["shipOut"] + S["supplies"], 2), round(S["tax"] * 100, 2)]
+    return out
 
 
 def forecast_gate(cfg, fcp):
@@ -2266,7 +2314,13 @@ def hit_payload(rec, cs, cat, kind="hit"):
             # build) and eBay's record of this listing - es.facts_row: None = not read, [] = nothing on the listing
             "rf": [c.get("rarity") or "", c.get("finish") or ""], "ef": es.facts_row(rec),
             # the seller's condition (eBay's field, else the title's grade) and Brett's own if he has graded it (2026-10-25)
-            "tc": es.seller_cond(rec), "ec": rec.get("ec"), "bc": rec.get("bc", "")}      # ec: None = never read, "" = read, none stated
+            "tc": es.seller_cond(rec), "ec": rec.get("ec"), "bc": rec.get("bc", ""),      # ec: None = never read, "" = read, none stated
+            # the gate's inputs, for the second question's "how the max buy is computed" (2026-10-25): confidence and
+            # window, the floor other than this copy, eBay's fast median, the LP discount, the fees, the card's rate
+            "conf": round(es.CONFIDENCE * 100), "win": es.SELL_WINDOW_H,
+            "L": next((eff for i2, eff in cs.get("cred", []) if i2 != rec["id"]), None), "af": cs.get("A_fast"), "lpd": cs.get("lpd"),
+            "fee": [round(es.FEE_EFF * 100, 2), round(es.FEE_FIXED + es.SHIP_OUT + es.SUPPLIES, 2)],
+            "lam": cs.get("lam"), "stt": cs.get("st")}
 
 
 def mm_seed(v):
@@ -2481,6 +2535,7 @@ def alert_hits(state, cat, cards, live, cfg):
             return 0
         d["tk"], d["rq"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back
         d["pci"] = pc_image(state, d["pid"])
+        d["fc"] = forecast_block(cards, cfg, rec["card"], rec["total"], iid)   # the second question's Forecast section (2026-10-25)
         alert_extras(state, d, rec)
         flagged = rec.get("tier") in ("watch", "suspect")
         if flagged:
@@ -2519,6 +2574,53 @@ def alert_hits(state, cat, cards, live, cfg):
         del sent[iid]
     del hist[:-300]
     return n
+
+
+def test_hit(state, cat, cards):
+    """A sample of the phone's check screen on a real open listing, sent with the test alert (Brett, 2026-10-25: "Please
+    send ntfy test example to phone so that i can confirm"): the best-looking copy on file - a PASS if there is one,
+    else a LEAD, else the cheapest judged copy - with the same link, token and sections as a real hit. His answers on
+    it are real answers about a real listing (the grade, a flag); it is logged as kind "test-hit" and never counts
+    as the listing's alert, so the real one can still follow."""
+    if not NTFY_TOPIC or not cards or cat is None:
+        return 0
+    v = state["vps"]
+    cfg = alert_cfg(state)
+    best, best_rank = None, None
+    for iid, rec in state["open"].items():
+        cs = cards.get(str(rec.get("card")))
+        if not cs or rec.get("total") is None or rec.get("tier") in ("watch", "suspect") or rec.get("um") or rec.get("fl"):
+            continue
+        vd = es.verdict(rec, cs)[0]
+        rank = 0 if vd == "PASS" else 1 if vd == "LEAD" else 2 if cs.get("A") is not None and vd not in ("fewer than 2 photos", "no price") and not vd.startswith("mismatch") else None
+        if rank is None:
+            continue
+        key = (rank, rec["total"])
+        if best_rank is None or key < best_rank:
+            best, best_rank = (iid, rec, cs, vd), key
+        if rank == 0:
+            break
+    if best is None:
+        log("Alerts tab: no listing to build the sample check screen from")
+        return 0
+    iid, rec, cs, vd = best
+    kind = "lead" if vd == "LEAD" else "hit"
+    d = hit_payload(rec, cs, cat, kind)
+    fcp = forecast_chance(cards, cfg, rec["card"], rec["total"], iid)
+    d["tk"], d["rq"], d["pci"], d["test"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], alert_channel()[0] if es.PASSWORD else None, pc_image(state, d["pid"]), 1
+    d["fc"] = forecast_block(cards, cfg, rec["card"], rec["total"], iid)
+    alert_extras(state, d, rec)
+    link = CHECK_PAGE + "#" + base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode()).decode().rstrip("=")
+    msg = (f"A sample of the check screen on a real listing (verdict now: {vd}). Max buy ${d['nm'][1]:.2f}, ROI {d['nm'][3]:.0f}%"
+           + (f"\nForecast: {fcp * 100:.0f}% chance of a profit at this price, {cfg.get('fc_h', 1)}-month hold" if fcp is not None else "")
+           + f"\n{rec.get('title', '')[:80]}\nSeller {rec.get('fb') or '?'} ratings")
+    if not push(f"TEST \u00b7 {d['c']} \u00b7 ${rec['total']:.0f}", msg, click=link, image=rec.get("img"), priority=4, tags=("white_check_mark",)):
+        return 0
+    v.setdefault("alert_log", []).append({"i": iid, "t": es.ts(es.NOW), "tk": d["tk"], "c": d["c"], "ti": (rec.get("title") or "")[:70],
+                                          "u": rec.get("url"), "tot": rec["total"], "p": d["nm"][2], "kd": "test-" + kind,
+                                          "tr": rec.get("tier", "clean"), "card": rec["card"], "cs": d.get("s"), "fc": fcp})
+    log(f"Alerts tab: sample check screen sent on {iid} (verdict {vd})")
+    return 1
 
 
 def alert_status(state, cfg):
@@ -2699,6 +2801,7 @@ def auction_alerts(state, cat, cards, cfg):
             continue
         d["au"] = {"e": end, "b": rec["item"], "n": watch[iid].get("bids") or 0}
         d["tk"], d["rq"], d["pci"] = hashlib.sha1(os.urandom(16)).hexdigest()[:12], back, pc_image(state, d["pid"])
+        d["fc"] = forecast_block(cards, cfg, rec["card"], d["nm"][4] + (rec.get("ship") or 0), iid)
         alert_extras(state, d, rec)
         if rec["tier"] == "watch":
             d["risk"] = tier_risk(state, "watch")
