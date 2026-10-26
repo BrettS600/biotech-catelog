@@ -28,8 +28,8 @@ raise the Forecast's predictive power for 1–3-month holds starting from $2,000
    points over the band; P(net > 0 at 20% under) 69% vs 66%; up markets 78% vs 75.5%); in the reinvesting simulation
    with shared random draws it beats dev12 in 100% of draws, +$780–1,566 on $5,000 (+0.7–4.2 CAGR points, largest at
    15% under). Why: the reversal is entirely idiosyncratic — a whole set or character that falls does not come back; a
-   card that falls versus its peers does (E38). Optional refinement: blend 12- and 24-month anchors (E39).
-   (E33, E33b, E37, E38, E39)
+   card that falls versus its peers does (E38). It holds among the most liquid cards too (10+ sales a month: +9.7 vs +6.8
+   points, E33d). Optional refinement: blend 12- and 24-month anchors (E39). (E33, E33b, E33d, E37, E38, E39)
 2. **Use the E40 chance table** (`results/E40_chance_table_rel.csv`, same cells as E20, rebuilt on rel_combo; 3-month,
    up regime, 20% under, bottom decile 76% / +27%; out-of-sample error ~6 points).
 3. **Add the PSA 10 / raw ratio as a tilt and a displayed fact.** In October 2026 the raw price of cards whose PSA 10
