@@ -1,10 +1,10 @@
 {
- "run": "2026-10-25T14:34:23Z",
+ "run": "2026-10-26T16:59:12Z",
  "full": false,
  "pokeviews": {
   "top100_index": {
-   "rows": 932,
-   "last_date": "2026-10-24"
+   "rows": 933,
+   "last_date": "2026-10-25"
   },
   "top100_constituents": {
    "rows": 100,
@@ -15,8 +15,8 @@
    "last_date": null
   },
   "top250_index": {
-   "rows": 932,
-   "last_date": "2026-10-24"
+   "rows": 933,
+   "last_date": "2026-10-25"
   },
   "top250_constituents": {
    "rows": 250,
@@ -27,32 +27,32 @@
    "last_date": null
   },
   "hot_cold_index": {
-   "rows": 902,
-   "last_date": "2026-10-24"
+   "rows": 903,
+   "last_date": "2026-10-25"
   },
   "market_momentum": {
-   "rows": 955,
-   "last_date": "2026-10-24"
+   "rows": 956,
+   "last_date": "2026-10-25"
   },
   "new_highs_lows": {
-   "rows": 955,
-   "last_date": "2026-10-24"
+   "rows": 956,
+   "last_date": "2026-10-25"
   },
   "pokemon_vs_assets": {
+   "rows": 933,
+   "last_date": "2026-10-25"
+  },
+  "trend_extension": {
    "rows": 932,
    "last_date": "2026-10-24"
   },
-  "trend_extension": {
-   "rows": 931,
-   "last_date": "2026-10-23"
-  },
   "era_performance": {
-   "rows": 1758,
-   "last_date": "2026-10-24"
+   "rows": 1759,
+   "last_date": "2026-10-25"
   },
   "series_performance": {
-   "rows": 22962,
-   "last_date": "2026-10-24"
+   "rows": 22977,
+   "last_date": "2026-10-25"
   },
   "series_constituents": {
    "rows": 375,
@@ -67,14 +67,14 @@
    "last_date": null
   },
   "set_performance": {
-   "rows": 204292,
-   "last_date": "2026-10-24"
+   "rows": 204424,
+   "last_date": "2026-10-25"
   }
  },
  "ebay": {
-  "as_of": "2026-10-25T14:29:36Z",
-  "cards": 6725,
-  "file": "ebay/catalog/2026-10-25.csv.gz",
+  "as_of": "2026-10-26T16:55:54Z",
+  "cards": 6887,
+  "file": "ebay/catalog/2026-10-26.csv.gz",
   "gate": {
    "fee": 0.1325,
    "buyerTax": 0.065,
@@ -107,5 +107,5 @@
   ],
   "since": "2026-09-28"
  },
- "seconds": 12
+ "seconds": 9
 }
