@@ -47,6 +47,20 @@ rel_combo = mean of rank(setdev) and rank(peerdev); setdev alone for the 28% of 
 3 months: P(net20 > 0) 69.0% vs dev12 66.4% (up regime 78.1% vs 75.5%; net20 +25.8% vs +22.3%); excess positive in
 100% of months for every variant. 6 months: net20 +31.6% vs +28.5%.
 
+## E33d — liquid cards (`e33d_liquid_cards.py`)
+
+Same bottom-decile test at 3 months, restricted by this month's sales count (more sales = PriceCharting's monthly price
+is built from more real sales, less estimation noise and less room for the E33c lag):
+
+| sales in the month | band cards / month | dev12 excess | rel_combo excess | setdev excess | P(net20 > 0) dev12 / rel_combo | rel_combo beats dev12's decile |
+|---|---|---|---|---|---|---|
+| ≥ 2 | 733 | +7.5 | +9.6 | +9.5 | 66.4% / 69.0% | 79% of months |
+| ≥ 5 | 618 | +7.2 | +8.8 | +9.2 | 68.5% / 69.9% | 72% |
+| ≥ 10 | 428 | +6.8 | +9.7 | +9.2 | 69.7% / 72.3% | 72% |
+
+Among the most liquid cards dev12's decile beats the band in 88% of months and rel_combo's in 100%. The relative
+reversal's edge is not a thin-card artifact.
+
 ## E34 / E37 — inside the reinvesting portfolio
 
 E34 (E10 engine, each rule with its own random availability draws) pointed the same way but within ±10–15% draw noise.
