@@ -5,8 +5,9 @@ collected again (Brett, 2026-10-23). Four sources, four sub-folders:
 
 | folder | what | grain | refreshed by |
 |---|---|---|---|
-| `pokeviews/` | PokéViews' market indexes and indicators (the numbers behind their charts) | one row per day (or per day × series / set) | the Data archive workflow, daily |
+| `pokeviews/` | PokéViews' market indexes and indicators (the numbers behind their charts), including the PSA 10 Graded Indexes and the Grading Opportunity heatmap | one row per day (or per day × series / set / era; the heatmap: 96 cells per day) | the Data archive workflow, daily |
 | `pricecharting/` | the collector's PriceCharting history: ungraded price and sales volume per card per month since Dec 2020 (~2.3M card-months) | card × month | the Data archive workflow, the 2nd of each month (or a manual run with full = true) |
+| `pricecharting/daily/` | every column of PriceCharting's daily download since 2026-09-28: the ungraded price, the graded prices (grade 7 to PSA / BGS / CGC / SGC 10), PriceCharting's dealer buy / sell prices, sales volume | card × day (a full table per month + the day-to-day changes) | the Data archive workflow, daily |
 | `ebay/` | the eBay Catalog tab's figures for every card with eBay data, as the collector published them, one file per day; and the collector's per-card daily rollup | card × day | the Data archive workflow, daily (the rollup: monthly) |
 | `google_trends/` | Google Trends interest for the search term "pokemon cards", five Google properties, monthly since 2004 / 2008 | month | Brett downloads the files from Google Trends |
 
@@ -25,6 +26,9 @@ pc = pd.concat(pd.read_csv(f) for f in sorted(glob.glob("data/pricecharting/pc_m
 cards = pd.read_csv("data/pricecharting/cards.csv.gz")
 ebay = pd.read_csv("data/ebay/catalog/2026-10-23.csv.gz")
 trends = pd.read_csv("data/google_trends/pokemon_cards_interest.csv")
+graded = pd.read_csv("data/pokeviews/graded_index_by_era.csv", parse_dates=["date"])      # PSA 10 index per era
+heat = pd.read_csv("data/pokeviews/grading_opportunity_history.csv")                      # the heatmap, every day archived
+pc_today = pc_day("2026-10-26")      # every card's PriceCharting prices on one day - pc_day() is under pricecharting/daily/ below
 ```
 
 ---
@@ -55,6 +59,17 @@ The site's own explanations of every index and indicator, copied from pokeviews.
 | `series_constituents.csv` | 375 | card | the 25 cards per series this month, with `pricecharting_id` (matches `card_id` in `pricecharting/`), `ungraded_price`, `price_rank`, `change_30d_pct`, `cohort_month` |
 | `set_performance.csv.gz` | ~230,000 (132 sets × daily from 2022-01-01) | day × set | `series_name`, `set_name`, `index_value` = the average price in dollars of the set's top 10 ungraded cards, `data_source`, `n_contributing`, `index_rank` (among sets), `return_52w`, `rank_52w`, `return_all_time`, `rank_all_time`. The site serves one feed per series; they are combined here. |
 | `set_constituents.csv` | ~1,300 | card | the 10 cards per set this month (`pricecharting_id`, `set_name`, `series_name`, `ungraded_price`, `price_rank`, `change_30d_pct`, `cohort_month`) |
+| `graded_index.csv` | daily from 2022-01-01 | day | the **Top 250 Graded Index** (PSA 10; the page's "Top 250 Graded" chart): `index_value` (base 100 on 2022-01-01), `cohort_month` (the month's constituents), `n_contributing` (cards in the index), `n_constituents` (the eligible PSA 10 universe), `data_source` (`monthly` = a rebalancing point on the 1st, `interpolated` = PCHIP between points, `daily_current` = today), `value_1m_ago` / `value_6m_ago` / `value_1y_ago` and `change_1m_pct` / `change_6m_pct` / `change_1y_pct` (**percent**), `ma_90d`, `ma_180d`, `ma_200d`, `ma_365d`, `ath_price` / `ath_date`, `atl_price` / `atl_date` (all-time high / low as of the row), `rsi_14_monthly` |
+| `graded_index_constituents.csv` | 250 | card | this month's Top 250 Graded members: `pricecharting_id` (matches `card_id` in `pricecharting/`), `card_name`, `set_name`, `series_name`, `price_rank`, `psa10_price` (PriceCharting's PSA 10 price, $), `change_30d_pct` (**a fraction**: -0.048 = -4.8%), `image_url`, `cohort_month` |
+| `graded_index_series_composition.csv` | ~12 | series | how many Top 250 Graded members come from each series (`card_count`, `percentage`) |
+| `graded_index_by_era.csv` | ~7,000 (4 eras × daily from 2022-01-01) | day × era | the **Graded Index by Era** (PSA 10, top 50 per era): `era` (Vintage, Classic, Mid Era, Modern - Contemporary is excluded), `graded_index_value` (base 100 on 2022-01-01), `daily_return`, `return_30d`, `ytd_return`, `one_year_return`, `all_time_return` (**fractions**: 0.354 = +35.4%, 7.39 = +739% since 2022-01-01), `rank_30d` (the era's rank by 30-day return, 1 = best), `sma_30d`, `sma_90d`, `ema_30d`, `ema_90d`, `rsi_14` |
+| `graded_index_by_era_constituents.csv` | 200 | card | this month's 50 members per era: `era`, `pricecharting_id`, `card_name`, `set_name`, `series_name`, `price_rank` (within the era), `psa10_price`, `change_30d_pct` (a fraction), `image_url`, `cohort_month` |
+| `grading_opportunity.csv` | 96 | heatmap cell | today's **Grading Opportunity** heatmap: one card per cell of the 16 × 6 grid - `raw_price_bucket` (the x axis: `10-20`, `20-30`, ... `90-100`, `100-200`, `200-300`, `300-400`, `400-500`, `500-750`, `750-1000`, `1000+`, dollars of the ungraded price), `ratio_bucket` (the y axis: `2-4x`, `4-6x`, `6-10x`, `10-15x`, `15-30x`, `30x+`), the card in the cell (`card_name`, `set_name`, `card_number`, `series_name`, `image_url`) = the qualifying card with the most PSA 10 sales a year in that bucket; `ungraded_price`, `psa_10_price` ($, PriceCharting), `raw_to_psa_10_ratio` (= psa_10 / ungraded), `grading_profit` (= psa_10 - ungraded - $25 grading fee), `annual_sales_volume` (PSA 10 sales a year), `date` |
+| `grading_opportunity_history.csv` | 96 per day | day × cell | the same rows for every day the workflow has run since 2026-10-26 (the feed itself only ever holds today, so the history is built here, one day at a time; a re-run on the same day replaces that day's rows) |
+
+Checked on 2026-10-26 against the Graded Index page: the era ranks it shows (Mid Era 1647.53, Modern 890.70, Classic
+838.71, Vintage 566.57) and the Top 250 Graded value (673.78) equal the feeds' last rows, and its 30-day returns
+(Vintage +43.63%, Classic +35.42%) are `return_30d` × 100. The Grading Opportunity page draws `grading_opportunity.csv`.
 
 Checks made on 2026-10-23 against the charts: every right-axis label on the Top 100 chart (PV100 266.84, Bands
 269.25 / 266.23, EMA-30 267.88, MA-200 254.90, RSI 32.77) equals the feed's last row, and recomputing a 30-day EMA from
@@ -84,6 +99,82 @@ this panel; what it found about it is in CLAUDE.md (THE FORECAST TAB).
 `cards.csv.gz` - one row per catalog card (~44,000): `card_id`, `name`, `set`, `number`, `rarity`, `finish`,
 `release_date`, `price_now` (ungraded price in the snapshot), `sales_year` (PriceCharting's trailing-year sales),
 `history_months` (months of history on file), `history_from` (first month), `history_read` (the page's last read).
+
+### pricecharting/daily/
+
+Source: PriceCharting's own daily download - the price guide CSV the site build fetches every morning
+(`pc_catalog_<date>.csv.gz.enc` on the snapshots release, one per day since 2026-09-28, every column PriceCharting
+sends). The site only uses the ungraded price and the sales volume; everything else is kept here (2026-10-26, Brett).
+Unlike `pc_monthly_*` (the monthly series read off each card's page, back to 2020), this is PriceCharting's figure **of
+the day**, for every grade, and it only goes back to the first snapshot.
+
+Two kinds of file, to keep the repository small (~0.25 MB a day instead of ~1 MB):
+
+- `full_<date>.csv.gz` - the whole table on the first snapshot day of each month (and 2026-09-28): every card, every
+  column of the download, in PriceCharting's column names, prices in dollars (PriceCharting writes "$1,234.50").
+  Identity columns: `id` (PriceCharting's product id = `card_id` elsewhere), `console-name` (the set), `product-name`
+  (card name + `#number`, variants in brackets), `card-number` (added by the build), `release-date`, `genre` (always
+  "Pokemon Card"), `tcg-id` (TCGplayer's product id - the site's rarity / finish come through it), `upc`, `asin`,
+  `epid` (always empty for cards); from 2026-10 on also `rarity`, `finish`, `rf-source` (added by the build from
+  TCGplayer / pokemontcg.io).
+- `changes_<date>.csv.gz` - every other day: only the cards whose numbers differ from the snapshot before - `date`,
+  `card_id`, `status` (`changed`; `new` = the card first appeared that day; `removed` = gone from the download, numbers
+  empty), then the card's 18 numbers that day (all of them, not only the ones that moved). About 5,000-13,000 of the
+  ~44,000 cards change on a typical day.
+
+The numbers (dollars unless noted). What each price column means for a **card** is PriceCharting's own mapping:
+
+| column | meaning |
+|---|---|
+| `loose-price` | ungraded (raw) - the price the site shows |
+| `cib-price` | graded 7 or 7.5 |
+| `new-price` | graded 8 or 8.5 |
+| `graded-price` | graded 9 |
+| `box-only-price` | graded 9.5 |
+| `manual-only-price` | PSA 10 |
+| `bgs-10-price` | BGS 10 (Beckett) |
+| `condition-17-price` | CGC 10 |
+| `condition-18-price` | SGC 10 |
+| `retail-loose-buy`, `retail-loose-sell` | PriceCharting's suggested **dealer** prices for an ungraded copy: what a shop would pay you (buy) and would charge (sell). E.g. a $24.99 card: buy $8.10, sell $26.99 |
+| `retail-cib-buy`, `retail-cib-sell`, `retail-new-buy`, `retail-new-sell` | the same pair for the grade 7 / grade 8 columns |
+| `gamestop-price`, `gamestop-trade-price` | always empty for cards |
+| `sales-volume` | PriceCharting's count of sales over roughly the last year (all grades), a whole number |
+
+Coverage on 2026-10-26 (of 43,989 cards): ungraded 43,121; grade 9 39,224; PSA 10 38,393; BGS 10 38,398; CGC 10
+38,654; SGC 10 38,395; grade 7 15,123; grade 8 22,035; dealer buy (ungraded) 17,309; dealer sell (ungraded) 43,121.
+Many graded prices are PriceCharting's estimates for cards that rarely sell graded - weigh them by the graded sales the
+Grading Opportunity feed reports, not by their existence.
+
+Rebuilding any day (checked on all 29 days from 2026-09-28 to 10-26: identical to the download, every card, every
+number):
+
+```python
+import glob, re, pandas as pd
+NUM = ["loose-price", "cib-price", "new-price", "graded-price", "box-only-price", "manual-only-price", "bgs-10-price",
+       "condition-17-price", "condition-18-price", "retail-loose-buy", "retail-loose-sell", "retail-cib-buy",
+       "retail-cib-sell", "retail-new-buy", "retail-new-sell", "gamestop-price", "gamestop-trade-price", "sales-volume"]
+
+def pc_day(day, folder="data/pricecharting/daily"):
+    """PriceCharting's numbers for every card on one day (YYYY-MM-DD): the month's full file, then its changes in date order."""
+    full = sorted(f for f in glob.glob(f"{folder}/full_{day[:7]}-*.csv.gz") if f[-17:-7] <= day)[-1]
+    t = pd.read_csv(full, dtype={"tcg-id": str}).set_index("id")[NUM]
+    for f in sorted(glob.glob(f"{folder}/changes_{day[:7]}-*.csv.gz")):
+        d = re.search(r"(\d{4}-\d{2}-\d{2})", f).group(1)
+        if full[-17:-7] < d <= day:
+            c = pd.read_csv(f).set_index("card_id")
+            gone = c.index[c["status"] == "removed"]
+            upd = c[c["status"] != "removed"][NUM]
+            t = pd.concat([t.drop(gone.union(upd.index), errors="ignore"), upd])
+    return t.sort_index()
+
+# a card's PSA 10 price day by day
+series = pd.concat(pd.read_csv(f, usecols=lambda c: c in ("id", "card_id", "manual-only-price")).rename(columns={"id": "card_id"})
+                   .assign(date=re.search(r"(\d{4}-\d{2}-\d{2})", f).group(1)) for f in glob.glob("data/pricecharting/daily/*.csv.gz")
+                   ).sort_values(["card_id", "date"])
+```
+
+(The last two lines give each card's value only on the days it changed and on the month's first day; forward-fill
+by card for a daily series.)
 
 ---
 
@@ -257,3 +348,31 @@ Copied from pokeviews.com by Brett on 2026-10-23, so the numbers above can be re
 **Methodology.** Card Selection: Top 10 ungraded cards per set ranked by market price. Only includes mainline sets (excludes promotional sets). Requires a minimum number of annual sales to ensure liquidity. Excludes special cards (trophies, championships, errors, etc.). Set Coverage: Individual sets tracked separately (e.g., "Surging Sparks", "Shrouded Fable", "Destined Rivals"). Price Calculation: Equal-weighted average price of top 10 cards per set. The index represents actual dollar amounts, not normalized values. Rebalancing: Conducted monthly on the first day of each month to update the top 10 cards per set. Smoothing: PCHIP (Piecewise Cubic Hermite) interpolation applied to generate smooth daily values between monthly rebalancing points and the current day. Data Source: PriceCharting ungraded card prices. Start Date: January 1, 2022.
 
 **Why it matters.** The Set Index enables investors and collectors to compare performance and value levels across specific Pokémon TCG sets. This granular view allows for precise portfolio construction at the set level, revealing which individual sets command the highest premiums and identifying performance differences between editions (Twilight Masquerade vs Prismatic Evolutions) and printing variations. The metric helps allocate capital to specific sets based on their absolute value levels, track appreciation trends for target sets, and compare sets within the same series or across different eras. This set-level specificity provides the most detailed performance tracking available in the Pokémon card market.
+
+### Graded Indexes (PSA 10)
+
+Copied from pokeviews.com by Brett on 2026-10-26.
+
+**What is the Methodology for the PokéViews Graded Index by Era?** The PokéViews Graded Index by Era tracks PSA 10 graded Pokémon cards across four collecting eras using the following methodology: Baseline: All era indexes are set to 100 on January 1, 2022. Index values represent cumulative performance from this baseline (e.g., an index value of 264 means $100 invested at the start would be worth $264 today, a 164% return). Constituent Selection: The top 50 PSA 10 graded cards per era by market price are selected monthly (200 cards total across 4 eras). Cards must meet the following criteria: Minimum sales volume threshold to ensure reliable pricing; Active trading: Price changed in the last 30 days or newly listed; Volatility filters to exclude extremely illiquid markets. Eras Included: Vintage, Classic, Mid Era, and Modern. Contemporary Era Exclusion: Contemporary era PSA 10 cards are excluded due to insufficient price maturity and extreme volatility during initial grading periods. Contemporary exposure is available through the Sealed Index by Era. Individual sealed products, non-PSA graded cards, and non-English cards are excluded. Weighting Method: Equal-weighted within each era's top 50 cards. Rebalancing: Conducted monthly on the first day of each month. Smoothing: PCHIP (Piecewise Cubic Hermite) interpolation applied to generate smooth daily values between monthly rebalancing points and the current day. Calculation Frequency: Index levels are updated daily based on PriceCharting data.
+
+**Which Pokémon Series are in each Era?** Era Classification: 5 eras tracked: Vintage: Original, Legendary Collection, Neo series; Classic: E-Card, EX series; Mid Era: Diamond & Pearl, Platinum, HeartGold & SoulSilver, Black & White series; Modern: XY, Sun & Moon series; Contemporary: Sword & Shield, Scarlet & Violet, Mega Evolution series. Contemporary is excluded from the Graded Index by Era.
+
+**What is the Methodology for the PokéViews Top 250 Graded Index?** The PokéViews Top 250 Graded Index tracks PSA 10 graded Pokémon cards using the following methodology: Baseline: The index is set to 100 on January 1, 2022. Index values represent cumulative performance from this baseline (e.g., an index value of 231 means $100 invested at the start would be worth $231 today, a 131% return). Constituent Selection: The top 250 PSA 10 graded cards by market price are selected monthly. Cards must meet the following criteria: Minimum sales volume threshold to ensure reliable pricing; Active trading: Price changed in the last 30 days or newly listed; Volatility filters to exclude extremely illiquid markets. Individual sealed products, non-PSA graded cards, and non-English cards are excluded. Weighting Method: Equal-weighted across all 250 constituents. Rebalancing: Conducted monthly on the first day of each month. Smoothing: PCHIP (Piecewise Cubic Hermite) interpolation applied to generate smooth daily values between monthly rebalancing points and the current day. Calculation Frequency: Index levels are updated daily based on PriceCharting data.
+
+**Why are the PokéViews Graded Indexes Important?** The PokéViews Graded Indexes serve as market benchmarks for tracking the performance of premium graded Pokémon TCG cards. The Top 250 Graded Index provides a comprehensive view of the high-end graded card market across all eras, while the Graded Index by Era allows collectors to compare performance across different collecting periods—Vintage, Classic, Mid Era, and Modern. By focusing on PSA 10 graded cards with demonstrated sales activity and applying quality filters, these indexes provide investors and collectors with standardized measures to evaluate the graded card market and general appetite for premium collectibles.
+
+### Grading Opportunity
+
+Copied from pokeviews.com by Brett on 2026-10-26.
+
+**What is Grading Opportunity?** Grading Opportunity is a heatmap visualization that identifies the most active grading candidates across different price ranges and grading multiplier combinations. The metric creates a 16×6 grid (96 cells) showing the most liquid card in each price × ratio bucket, where price buckets range from $10-20 up to $1000+, and ratio buckets range from 2-4x up to 30x+ grading multipliers. Each cell displays the card with the highest PSA 10 annual sales volume in that specific price and multiplier combination, helping identify profitable grading opportunities with real market liquidity.
+
+**What is the Methodology for Grading Opportunity?** Card Selection: All cards priced ≥$10 with valid ungraded and PSA 10 pricing. Requires PSA 10 price to exceed ungraded price plus $25 grading fee. Minimum 2x grading multiplier required. Heatmap Structure: X-axis (Price): 16 buckets ($10-20, $20-30, ..., $90-100, $100-200, ..., $1000+); Y-axis (Multiplier): 6 buckets (2-4x, 4-6x, 6-10x, 10-15x, 15-30x, 30x+). Selection Logic: For each bucket combination, identifies all qualifying cards and selects the most liquid card based on actual PSA 10 annual sales volume sourced directly from PriceCharting transaction data. Metrics Provided: Ungraded Price: Current raw card price; PSA 10 Price: Current graded price; Grading Multiplier: PSA 10 price ÷ ungraded price; Grading Profit: PSA 10 price - ungraded price - $25 grading fee; Annual Sales Volume: Actual PSA 10 transactions per year. Data Source: PriceCharting. Parameters: $10 minimum price, $25 grading fee.
+
+**Why is Grading Opportunity Important?** Grading Opportunity enables collectors and investors to systematically identify profitable grading candidates across different price points and multiplier ranges. The heatmap structure reveals where the best grading opportunities exist in the market—whether in low-cost cards with extreme multipliers or high-value cards with moderate multipliers. By showing the most liquid card in each bucket (highest PSA 10 annual sales volume), the metric ensures recommended grading targets have active secondary markets for resale. This helps optimize grading strategies by matching investment capital to appropriate price ranges, identifying which multiplier tiers offer sufficient profit after grading costs, and focusing on cards with proven market demand rather than illiquid outliers.
+
+Notes for analysis: the "Grading Profit" counts only the $25 fee - no shipping, no selling fees, and no allowance for
+copies that do not come back a 10 (a raw card is not a PSA 10; most do not grade 10). Its prices are PriceCharting's
+`loose-price` and `manual-only-price` of the same day in `pricecharting/daily/` (checked: the 2026-10-25 heatmap's
+Ultra Ball $604.71 / $4,501 and Volcanion EX #115 $32.68 / $1,607.93 equal that day's download), so the heatmap can be
+recomputed for any archived day and for any fee or grade rate.
