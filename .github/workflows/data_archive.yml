@@ -4,6 +4,8 @@ name: Data archive
 # PriceCharting history and the eBay Catalog's figures, and commits them to data/ on main, so an analysis can start
 # from the repository instead of collecting again. Daily after the site build; the 2nd of each month (and a manual run
 # with full = true) also rewrites the big PriceCharting panel and the eBay daily rollup. data/README.md is the dictionary.
+# 2026-10-26: also PokeViews' PSA 10 Graded Indexes and Grading Opportunity heatmap (kept day by day), and every column
+# of PriceCharting's daily download (data/pricecharting/daily: graded prices, dealer buy / sell, volume).
 
 on:
   schedule:
@@ -36,14 +38,19 @@ jobs:
       - name: Install packages
         run: pip install -r requirements.txt
 
-      - name: Fetch the newest PriceCharting snapshot (card names for the exports)
+      - name: Fetch the PriceCharting snapshots (the newest for card names; every day not yet in data/pricecharting/daily)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p snapshots
-          newest=$(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | sort | last')
-          echo "newest snapshot: $newest"
-          gh release download snapshots --dir snapshots --pattern "$newest" --clobber
+          gh release view snapshots --json assets -q '.assets[].name | select(startswith("pc_catalog_"))' | sort > snapshot_names.txt
+          last=$(ls data/pricecharting/daily 2>/dev/null | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' | sort | tail -1 || true)
+          echo "newest snapshot: $(tail -1 snapshot_names.txt); last day archived: ${last:-none}"
+          # the newest (names) + the last archived day's (the base of the next changes file) + every day after it
+          { tail -1 snapshot_names.txt; awk -v l="pc_catalog_${last}" '$0 >= l' snapshot_names.txt; } | sort -u > want.txt
+          while read -r n; do gh release download snapshots --dir snapshots --pattern "$n" --clobber; done < want.txt
+          echo "$(ls snapshots | wc -l) snapshot(s) downloaded"
+          rm -f snapshot_names.txt want.txt
 
       - name: "Fetch the collector's files (the live branch: pc/ shards and the live file)"
         run: |
