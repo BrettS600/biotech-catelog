@@ -1504,13 +1504,25 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the share outside 60-140% of the median, lo, hi, d}; extract() keeps "sl" (the last SALES_KEEP = 20 [date, cents,
   title]) and "sp" on the record (the data disk); publish_files drops "sl" from the published shard (the push is
   heavy enough), keeps "sp"; spreads_all() reads every shard. collector.pc_spread_tick every PC_SPREAD_EVERY_S = 6 h:
-  a card with iqr >= PC_SPREAD_BAR = 0.5 gets gap_marks[cid] = {state "pc inaccuracy", auto 1, sp [n, iqr, med], note
+  a card with iqr >= PC_SPREAD_BAR (0.5 at first, 0.7 since 2026-10-26) gets gap_marks[cid] = {state "pc inaccuracy", auto 1, sp [n, iqr, med], note
   "PriceCharting's last N ungraded sales (90 days) spread +-X% around $M ($lo to $hi)...", t refreshed} - released
   from the gap hold and its per-listing PriceCharting rule down (PC_WRONG_STATES) -, withdrawn when it falls under
   the bar or the spread leaves the file; a verdict Brett gave by hand (no auto) is never touched; the distribution
-  is logged each pass ("PC spread: N cards measured; iqr/median p50 .. p95; K at or over the 0.5 bar") - THE BAR IS
-  PROVISIONAL: read that line after a day of page reads and move it (the pages are re-read weekly for active cards,
-  monthly otherwise, so the measure fills in over a week). live.alert.gap_marks carry auto + sp. Page: fgHeld lists
+  is logged each pass ("PC spread: N cards measured; iqr/median p50 .. p95; K at or over the 0.7 bar") - THE BAR WAS
+  TUNED 0.5 -> 0.7 on 2026-10-26 (the scheduled check after a day of reads): 766 cards judged, iqr/median p50 0.43 /
+  p75 0.65 / p90 0.85 / p95 0.99, so 0.5 flagged 43%. Checked against the collector's own eBay sold anchor (205 cards
+  with 5+ comparable sales): the share 25%+ apart from PriceCharting rises with the spread (<0.3: 2%, 0.3-0.5: ~15%,
+  0.5-0.6: 17%, 0.6-0.8: 32%, 0.8+: 40%; Spearman 0.39), but many wide-spread cards are vintage WOTC holos whose
+  posted "ungraded" sales mix played and near-mint copies while PriceCharting's price equals eBay's anchor (Base Set
+  Blastoise iqr 0.77, PC $103.99 vs anchor $104.40 on 91 sales; Team Rocket Dark Charizard 0.75, $219.99 vs $213.00).
+  0.7 flags ~20% (153 of 766), 43% of the flagged eBay-anchored cards sit 25%+ from the anchor (28% at 0.5), and it
+  still releases 5 of the 15 cards 30%+ apart (8 at 0.5; the other gap cards stay held for review in Flags, which is
+  what a hold is for), while the per-listing PriceCharting rule stays on for twice as many cards. The measure's
+  blind spot, not fixed by any bar: PriceCharting LAGGING a fast mover (research E33c) - of the 7 cards 30%+ apart that
+  even 0.5 missed, 4 are 30th Celebration cards with tight posted sales and an eBay anchor 34-67% above PC (a new
+  set rising faster than PC's 90-day window); a lag measure (PC's price vs the median of its own last ~30 days of
+  posted sales, from the "sl" kept on the data disk) would catch those. The pages are re-read weekly for active cards,
+  monthly otherwise, so the measure keeps filling in. live.alert.gap_marks carry auto + sp. Page: fgHeld lists
   the automatic verdicts apart (div.fgauto: "PriceCharting unreliable for N cards (automatic)", each with "+-X%
   around $M on n sales", widest first, 12 then "+ N more"; they are not "released" rows); the Forecast row's price
   cell says "PC unreliable" (span.fc-pcbad) with the figures. (3) THE FORECAST FILTERS (#fc-filt above the picks,
