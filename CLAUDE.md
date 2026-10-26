@@ -65,7 +65,8 @@ Every table header has a `?` (help) and an eye (collapse the column to a thin st
 - `data_archive.py` + `.github/workflows/data_archive.yml` — the data folder (`data/`, see THE DATA FOLDER below): PokeViews'
   feeds, the PriceCharting panel, the eBay Catalog of the day, committed to main by the workflow daily. `data/README.md` is
   the dictionary; read it before analyzing anything in there.
-- `data/research/` — the forecast research log (2026-10-24, see THE RESEARCH FOLDER below): `experiments.csv` (the
+- `data/research/` — the forecast research log (round 1 2026-10-24, round 2 2026-10-26; see THE RESEARCH FOLDER and THE
+  RESEARCH FOLDER, ROUND 2 below): `experiments.csv` (the
   registry), `FINDINGS.md` (what to build), `notes/`, `results/`, `scripts/` (rerun with `run_all.sh` or the
   `Research results` workflow), `ideas_backlog.csv`, `sources.md`. Read experiments.csv and FINDINGS.md before touching the
   Forecast model.
@@ -1019,6 +1020,38 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   see THE FORECAST TAB, VERSION 2 below; of FINDINGS.md's build list only the fee options (Store rate, buyer-pays-shipping
   as plan options) are not built. The dry run that preceded the build is `scripts/dryrun_today.py` +
   `notes/DRYRUN_2026-10-24.md` + `results/DRYRUN_2026-10-24_*.csv` (not in the registry: a check, not an experiment).
+- THE RESEARCH FOLDER, ROUND 2 (2026-10-26, Brett: "may you see if buying graded cards and reselling is better than raw
+  cards. also is it better to to buy from retail and then sell on ebay ... Spend 1-hours, analyzing all of that data you
+  saved in data/ ... store what you learned in the data folder ... Do not update the website. Do not apply your findings
+  to the forecast tab ... In the next prompt, I will have you apply your findings"). Seventeen experiments E26-E42
+  (registry rows incl. b-e variants), same conventions as round 1; `FINDINGS.md` now OPENS with a round-2 section (round 1
+  below it still stands except where round 2 says otherwise); notes E26_E28_graded_market, E27_psa10_raw_ratio,
+  E29_E30_grading_and_buy_channels, E31_E35_risk_and_pc_lag, E33_relative_reversal, E41_reprint_event; new loader
+  `scripts/daily_panel.py` (rebuilds every day of data/pricecharting/daily from full_ + changes_ files: graded columns,
+  dealer prices, volume); backlog B15-B21. ANSWERS: graded (PSA 10) indexes outran raw in every era 2022-26 and net
+  better in % (no fixed-cost bite on $1.5k+ slabs) but $2-10k buys 1-5 slabs (no diversification) at an unprecedented
+  graded extreme - do NOT switch to slabs (E26); grading raw cards yourself fails the 1-3-month goal (PSA Regular $79.99,
+  70-80 business days, Value tiers paused; modern bought raw: 12% of liquid cards EV>0, median -48%) (E29); buying at
+  retail (shop sells 1.10x market) to resell on eBay loses 23-41% before any move - the money is in the buy: deep eBay
+  floors and private / collection purchases at or near shop-buy levels (+29-72% before any move) (E30). FOR THE NEXT BUILD
+  (FINDINGS.md round 2 "What to build"): (1) replace dev12 with the RELATIVE REVERSAL rel_combo = mean of rank(setdev =
+  dev12 minus the set's median dev12) and rank(peerdev = dev12 minus the mean dev12 of the same Pokemon's other
+  printings, needs >= 2 others; setdev alone otherwise) - beats dev12 every year / regime / horizon (3-mo excess +9.6 vs
+  +7.5 pts, P(net>0 at 20% under) 69% vs 66%) and in 100% of paired simulation draws (+$780-1,566 on $5k) (E33, E33b,
+  E37); the reversal is entirely idiosyncratic - group (set / name) moves carry none (E38); setdev24 >= setdev12 (E39);
+  (2) the E40 chance table (results/E40_chance_table_rel.csv, E20's cells on rel_combo; 3-mo up 20% under bottom decile
+  76% / +27%); (3) the PSA 10 / raw ratio (manual-only-price / loose-price) as a tilt + displayed fact: IC 0.25 on PC's
+  next 28 days, independent of dev12, every week, and 0.37 on eBay's own sold medians - but ONE month inside the record
+  graded rally, so re-test monthly (B16) (E27-E27e, E32); (4) keep the reg3>0 gate; show last month's Top 250 Graded
+  move beside it (best new 1-month timing input, OOS R2 0.42 -> 0.55) - as a gate it did not raise the simulated
+  bankroll (E28, E36, E26b, E42); (5) holds: 2 months for 20%-under buys, 3 for 15%-under (E37); (6) warn when a pick's
+  eBay median is already well above PC: E33c RED FLAG - in October, for 290 eBay-liquid cards the reversal pointed the
+  WRONG way on eBay prices (hot cards +25% on eBay vs +2.7% on PC: PC can lag eBay for fast movers; no market-level lag,
+  E35); validating the reversal on eBay transactions (B04/B15) is the most important open question. FAILED (do not
+  repeat without new data): volatility-managed exposure, dispersion gate, era rotation (E31); OU / z-score / MAX
+  reversal variants (E33); Trends image / news / shopping / YouTube (E28); PC dealer prices and sales pace as signals
+  (E27, E32); "buy the post-reprint dip" (E41: Celebrations originals rose into the announcement, lagged after). The
+  `Research results` workflow's loop and `scripts/run_all.sh` include e26-e42 (research.yml timeout 120 min).
 - THE FORECAST TAB, VERSION 2 (2026-10-24, Brett: "before updating the forcast tab and forcast history, i wanted to ask if
   you needed more time to look at the data" - no; then "can you just do it for me? and the build? like the number of ebay
   sales and the mis-listed copies obviouslyt need to be considered. wouldnt want the forcast telling me to buy a card,
