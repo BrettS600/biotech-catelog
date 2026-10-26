@@ -1,0 +1,51 @@
+/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1997: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/runner/work/biotech-catelog/biotech-catelog/data/research/scripts/xs.py:40: RuntimeWarning: All-NaN slice encountered
+  out[:, j] = np.nanmax(a[:, j - w + 1:j + 1], axis=1)
+/home/runner/work/biotech-catelog/biotech-catelog/data/research/scripts/xs.py:47: RuntimeWarning: All-NaN slice encountered
+  out[:, j] = np.nanmin(a[:, j - w + 1:j + 1], axis=1)
+<string>:35: RuntimeWarning: All-NaN slice encountered
+<string>:61: RuntimeWarning: invalid value encountered in divide
+             months  coverage  decile_gross  excess  p_net20   net20  share_months_excess_pos
+h signal                                                                                     
+1 dev12          43    1.0000        0.0197  0.0205   0.5218  0.0290                   0.7674
+  peerdev        43    0.7251        0.0307  0.0315   0.5354  0.0398                   0.9302
+  rel_combo      43    1.0000        0.0299  0.0307   0.5430  0.0388                   0.9070
+  setdev         43    1.0000        0.0282  0.0290   0.5406  0.0380                   0.8605
+3 dev12          43    1.0000        0.1366  0.0751   0.6640  0.1545                   1.0000
+  peerdev        43    0.7251        0.1661  0.1046   0.6792  0.1852                   1.0000
+  rel_combo      43    1.0000        0.1574  0.0959   0.6899  0.1757                   1.0000
+  setdev         43    1.0000        0.1569  0.0954   0.6926  0.1761                   1.0000
+6 dev12          40    1.0000        0.2580  0.1015   0.7584  0.2847                   0.9750
+  peerdev        40    0.7192        0.3113  0.1548   0.7812  0.3407                   1.0000
+  rel_combo      40    1.0000        0.2884  0.1318   0.7774  0.3161                   1.0000
+  setdev         40    1.0000        0.2846  0.1281   0.7779  0.3131                   1.0000
+year           2022    2023    2024    2025    2026
+h signal                                           
+1 dev12     -0.0541  0.0207  0.0111  0.0228  0.0468
+  peerdev   -0.0463  0.0251  0.0248  0.0341  0.0655
+  rel_combo -0.0287  0.0245  0.0248  0.0361  0.0543
+  setdev    -0.0212  0.0299  0.0156  0.0370  0.0462
+3 dev12      0.0552  0.0939  0.0629  0.0716  0.0726
+  peerdev    0.0646  0.0831  0.0810  0.1277  0.1552
+  rel_combo  0.0791  0.0951  0.0815  0.0982  0.1244
+  setdev     0.0873  0.1128  0.0696  0.0983  0.1075
+6 dev12      0.0928  0.1309  0.0858  0.1048  0.0365
+  peerdev    0.0804  0.1264  0.1260  0.2003  0.2261
+  rel_combo  0.0826  0.1361  0.1155  0.1350  0.1840
+  setdev     0.0956  0.1481  0.0980  0.1313  0.1665
+             excess         p_net20           net20        
+up            False   True    False   True    False   True 
+h signal                                                   
+1 dev12      0.0124  0.0290  0.4565  0.5902 -0.0080  0.0677
+  peerdev    0.0195  0.0441  0.4706  0.6033  0.0004  0.0810
+  rel_combo  0.0194  0.0425  0.4797  0.6092 -0.0011  0.0806
+  setdev     0.0218  0.0366  0.4821  0.6019  0.0016  0.0760
+3 dev12      0.0813  0.0687  0.5773  0.7548  0.0893  0.2229
+  peerdev    0.0808  0.1295  0.5665  0.7973  0.0897  0.2853
+  rel_combo  0.0893  0.1028  0.6035  0.7805  0.0972  0.2580
+  setdev     0.0965  0.0942  0.6120  0.7770  0.1052  0.2505
+6 dev12      0.1066  0.0952  0.6708  0.8655  0.1675  0.4279
+  peerdev    0.1183  0.1994  0.6770  0.9085  0.1809  0.5361
+  rel_combo  0.1216  0.1443  0.6979  0.8747  0.1830  0.4788
+  setdev     0.1240  0.1331  0.7006  0.8725  0.1857  0.4688

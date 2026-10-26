@@ -1,0 +1,25 @@
+/home/runner/work/biotech-catelog/biotech-catelog/data/research/scripts/e27e_ratio_x_dev12.py:13: RuntimeWarning: Mean of empty slice
+  m12 = np.nanmean(price[:, j - 11:j + 1], axis=1); cnt = np.sum(~np.isnan(price[:, j - 11:j + 1]), axis=1)
+ratio_q          dev_t  cards  mean_change  median_change  p_net_pos_at_pc  p_net_pos_15under  p_net_pos_20under  mean_net_20under
+ Q1 low below 12m mean    281       -0.006         -0.002            0.036              0.146              0.498             0.006
+ Q1 low         middle     91        0.041         -0.002            0.088              0.220              0.495             0.050
+ Q1 low          above    145       -0.016          0.000            0.090              0.228              0.566            -0.000
+     Q2 below 12m mean    184        0.125          0.000            0.152              0.337              0.603             0.135
+     Q2         middle    162        0.082          0.027            0.191              0.457              0.648             0.092
+     Q2          above    170        0.088          0.021            0.235              0.429              0.606             0.100
+     Q3 below 12m mean    126        0.118          0.059            0.230              0.500              0.722             0.132
+     Q3         middle    186        0.072          0.034            0.177              0.441              0.618             0.084
+     Q3          above    205        0.106          0.041            0.200              0.498              0.673             0.123
+     Q4 below 12m mean    116        0.307          0.102            0.293              0.560              0.733             0.337
+     Q4         middle    224        0.121          0.093            0.268              0.607              0.746             0.137
+     Q4          above    176        0.091          0.071            0.216              0.534              0.682             0.103
+Q5 high below 12m mean    154        0.214          0.124            0.338              0.656              0.753             0.231
+Q5 high         middle    198        0.145          0.097            0.308              0.611              0.737             0.159
+Q5 high          above    165        0.089          0.029            0.224              0.473              0.588             0.095
+         cards  mean_change  p_net20  mean_net20
+ratio_q                                         
+Q1 low     517       -0.001    0.516       0.012
+Q2         516        0.099    0.618       0.110
+Q3         517        0.097    0.665       0.111
+Q4         516        0.153    0.721       0.170
+Q5 high    517        0.148    0.694       0.160

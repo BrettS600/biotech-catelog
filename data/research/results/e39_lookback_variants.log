@@ -1,0 +1,13 @@
+/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1997: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/runner/work/biotech-catelog/biotech-catelog/data/research/scripts/xs.py:40: RuntimeWarning: All-NaN slice encountered
+  out[:, j] = np.nanmax(a[:, j - w + 1:j + 1], axis=1)
+/home/runner/work/biotech-catelog/biotech-catelog/data/research/scripts/xs.py:47: RuntimeWarning: All-NaN slice encountered
+  out[:, j] = np.nanmin(a[:, j - w + 1:j + 1], axis=1)
+e33:35: RuntimeWarning: All-NaN slice encountered
+e33:61: RuntimeWarning: invalid value encountered in divide
+  signal  months  decile_gross  excess  p_net20  net20  share_months_beats_setdev12  fm_slope  fm_nw_t  fm_nw_t_setdev12_control
+setdev12      43        0.1569  0.0954   0.6926 0.1761                          NaN       NaN      NaN                       NaN
+setdev18      43        0.1591  0.0976   0.6956 0.1774                       0.5349   -0.0763  -2.7811                   -4.2859
+setdev24      43        0.1634  0.1019   0.7084 0.1811                       0.5116   -0.0644  -2.4877                   -5.7348
+ setdev6      43        0.1203  0.0588   0.6383 0.1381                       0.0698    0.0055   0.2426                   -8.0416

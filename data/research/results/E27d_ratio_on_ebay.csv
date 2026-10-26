@@ -1,0 +1,11 @@
+what,value
+cards,340
+spearman ratio vs eBay median change,0.3688151179813789
+"spearman ratio vs PC raw change (same cards, 10-03..10-23)",0.35043367723520463
+spearman PC raw change vs eBay median change,0.34151847561043963
+tercile low: ratio median / eBay change mean / median / cards,2.8 / -0.036 / -0.048 / 114
+tercile mid: ratio median / eBay change mean / median / cards,6.2 / +0.000 / -0.020 / 113
+tercile high: ratio median / eBay change mean / median / cards,43.5 / +0.201 / +0.112 / 113
+rank-OLS slope ratio (t),+0.370 (8.79)
+rank-OLS slope early eBay median vs PC raw (t),-0.389 (-8.33)
+rank-OLS slope log price (t),-0.012 (-0.31)

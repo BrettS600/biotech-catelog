@@ -1,0 +1,33 @@
+          scenario          psa_fee  buy_discount             cards    n  share_ev_pos  median_roi  top_decile_roi  median_roi_per_month  top_decile_roi_per_month  median_raw_price  median_g10_over_raw
+ modern_pack_fresh    regular_79.99          0.00 liquid_100+_sales  793         0.323      -0.241           0.682                -0.053                     0.152             24.07                6.065
+ modern_pack_fresh    regular_79.99          0.15 liquid_100+_sales  793         0.348      -0.207           0.767                -0.046                     0.170             24.07                6.065
+ modern_pack_fresh value_bulk_24.99          0.00 liquid_100+_sales  793         0.749       0.334           2.185                 0.074                     0.485             24.07                6.065
+ modern_pack_fresh value_bulk_24.99          0.15 liquid_100+_sales  793         0.787       0.467           2.414                 0.104                     0.536             24.07                6.065
+ modern_bought_raw    regular_79.99          0.00 liquid_100+_sales  793         0.120      -0.484           0.055                -0.108                     0.012             24.07                6.065
+ modern_bought_raw    regular_79.99          0.15 liquid_100+_sales  793         0.158      -0.465           0.150                -0.103                     0.033             24.07                6.065
+ modern_bought_raw value_bulk_24.99          0.00 liquid_100+_sales  793         0.444      -0.061           0.919                -0.014                     0.204             24.07                6.065
+ modern_bought_raw value_bulk_24.99          0.15 liquid_100+_sales  793         0.531       0.020           1.034                 0.005                     0.230             24.07                6.065
+vintage_bought_raw    regular_79.99          0.00 liquid_100+_sales 1427         0.779       1.453           6.940                 0.323                     1.542             56.27               43.082
+vintage_bought_raw    regular_79.99          0.15 liquid_100+_sales 1427         0.790       1.657           7.771                 0.368                     1.727             56.27               43.082
+vintage_bought_raw value_bulk_24.99          0.00 liquid_100+_sales 1427         0.938       2.774          10.364                 0.616                     2.303             56.27               43.082
+vintage_bought_raw value_bulk_24.99          0.15 liquid_100+_sales 1427         0.947       3.215          11.723                 0.715                     2.605             56.27               43.082
+ vintage_realistic    regular_79.99          0.00 liquid_100+_sales 1427         0.540       0.145           2.197                 0.032                     0.488             56.27               43.082
+ vintage_realistic    regular_79.99          0.15 liquid_100+_sales 1427         0.568       0.236           2.570                 0.052                     0.571             56.27               43.082
+ vintage_realistic value_bulk_24.99          0.00 liquid_100+_sales 1427         0.749       0.723           3.292                 0.161                     0.732             56.27               43.082
+ vintage_realistic value_bulk_24.99          0.15 liquid_100+_sales 1427         0.774       0.933           3.829                 0.207                     0.851             56.27               43.082
+              count    25%    50%    75%
+tier                                    
+(10, 25]     1603.0  0.338  0.736  1.421
+(25, 50]     1061.0  0.160  0.346  0.687
+(50, 100]     754.0  0.047  0.126  0.313
+(100, 250]    626.0  0.000  0.033  0.118
+(250, 500]    229.0  0.000  0.000  0.014
+(500, 1000]    62.0  0.000  0.000  0.000
+             count    25%    50%    75%
+tier                                   
+(10, 25]     404.0  0.593  1.086  1.500
+(25, 50]     205.0  0.408  0.776  1.275
+(50, 100]     89.0  0.410  0.706  0.953
+(100, 250]    62.0  0.309  0.553  0.774
+(250, 500]    22.0  0.220  0.351  0.415
+(500, 1000]    9.0  0.093  0.180  0.314

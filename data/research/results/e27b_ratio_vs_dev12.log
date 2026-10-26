@@ -1,0 +1,40 @@
+/home/runner/work/biotech-catelog/biotech-catelog/data/research/scripts/e27b_ratio_vs_dev12.py:17: RuntimeWarning: Mean of empty slice
+  m12 = np.nanmean(price[:, j - 11:j + 1], axis=1)
+  band target                              spec       var  slope      t    n    r2
+   10+  y_raw                           ratio10   ratio10  0.154 21.429 8602 0.051
+   10+  y_raw                             dev12     dev12 -0.021 -2.750 8602 0.001
+   10+  y_raw                     ratio10+dev12   ratio10  0.158 21.649 8602 0.054
+   10+  y_raw                     ratio10+dev12     dev12 -0.038 -4.975 8602 0.054
+   10+  y_raw ratio10+dev12+mom1+logp+sales_sep   ratio10  0.170 23.524 8602 0.071
+   10+  y_raw ratio10+dev12+mom1+logp+sales_sep     dev12 -0.031 -3.599 8602 0.071
+   10+  y_raw ratio10+dev12+mom1+logp+sales_sep      mom1 -0.044 -4.984 8602 0.071
+   10+  y_raw ratio10+dev12+mom1+logp+sales_sep      logp  0.051  7.093 8602 0.071
+   10+  y_raw ratio10+dev12+mom1+logp+sales_sep sales_sep -0.068 -9.987 8602 0.071
+   10+  y_psa                           ratio10   ratio10 -0.179 -2.306 8591 0.001
+   10+  y_psa                             dev12     dev12  0.579  7.077 8591 0.006
+   10+  y_psa                     ratio10+dev12   ratio10 -0.243 -3.060 8591 0.007
+   10+  y_psa                     ratio10+dev12     dev12  0.604  7.195 8591 0.007
+   10+  y_psa ratio10+dev12+mom1+logp+sales_sep   ratio10 -0.239 -3.057 8591 0.008
+   10+  y_psa ratio10+dev12+mom1+logp+sales_sep     dev12  0.584  6.274 8591 0.008
+   10+  y_psa ratio10+dev12+mom1+logp+sales_sep      mom1  0.031  0.326 8591 0.008
+   10+  y_psa ratio10+dev12+mom1+logp+sales_sep      logp  0.168  2.125 8591 0.008
+   10+  y_psa ratio10+dev12+mom1+logp+sales_sep sales_sep  0.098  1.491 8591 0.008
+50-500  y_raw                           ratio10   ratio10  0.159 11.282 2583 0.045
+50-500  y_raw                             dev12     dev12 -0.020 -1.278 2583 0.001
+50-500  y_raw                     ratio10+dev12   ratio10  0.164 11.399 2583 0.048
+50-500  y_raw                     ratio10+dev12     dev12 -0.039 -2.553 2583 0.048
+50-500  y_raw ratio10+dev12+mom1+logp+sales_sep   ratio10  0.188 12.995 2583 0.064
+50-500  y_raw ratio10+dev12+mom1+logp+sales_sep     dev12 -0.024 -1.267 2583 0.064
+50-500  y_raw ratio10+dev12+mom1+logp+sales_sep      mom1 -0.063 -3.425 2583 0.064
+50-500  y_raw ratio10+dev12+mom1+logp+sales_sep      logp  0.010  0.747 2583 0.064
+50-500  y_raw ratio10+dev12+mom1+logp+sales_sep sales_sep -0.085 -5.828 2583 0.064
+50-500  y_psa                           ratio10   ratio10 -0.284 -1.997 2581 0.001
+50-500  y_psa                             dev12     dev12  0.584  3.775 2581 0.005
+50-500  y_psa                     ratio10+dev12   ratio10 -0.356 -2.435 2581 0.007
+50-500  y_psa                     ratio10+dev12     dev12  0.626  3.911 2581 0.007
+50-500  y_psa ratio10+dev12+mom1+logp+sales_sep   ratio10 -0.409 -2.794 2581 0.009
+50-500  y_psa ratio10+dev12+mom1+logp+sales_sep     dev12  0.790  4.075 2581 0.009
+50-500  y_psa ratio10+dev12+mom1+logp+sales_sep      mom1 -0.223 -1.128 2581 0.009
+50-500  y_psa ratio10+dev12+mom1+logp+sales_sep      logp  0.019  0.130 2581 0.009
+50-500  y_psa ratio10+dev12+mom1+logp+sales_sep sales_sep  0.214  1.585 2581 0.009
+spearman ratio10 vs dev12 (10+): 0.107

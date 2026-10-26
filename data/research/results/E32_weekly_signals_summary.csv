@@ -1,0 +1,6 @@
+target,var,mean_slope,min_t,max_t,windows
+y_psa,prev_psa,-0.0609,-4.4572,-1.3936,3
+y_psa,prev_raw,0.0717,2.5006,4.1839,3
+y_raw,dvol,-0.0041,-3.7091,0.4153,3
+y_raw,prev_raw,-0.0444,-12.5517,-9.0989,3
+y_raw,ratio,0.0539,13.1877,15.1396,3

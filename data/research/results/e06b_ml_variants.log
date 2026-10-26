@@ -51,7 +51,7 @@ G_cls20 h=3 2024-12 ic 0.253 top10 gross +0.258 pnet 0.57 pnet20 0.88
 G_cls20 h=3 2025-06 ic 0.293 top10 gross +0.277 pnet 0.47 pnet20 0.87
 G_cls20 h=3 2025-12 ic 0.193 top10 gross +0.205 pnet 0.40 pnet20 0.90
 G_cls20 h=3 2026-06 ic 0.329 top10 gross +0.244 pnet 0.42 pnet20 0.82
---- G_cls20 h=3 7s
+--- G_cls20 h=3 8s
     variant  h   regime  months     ic  band_gross  band_pnet  band_pnet20  top10_gross  top10_net  top10_pnet  top10_pnet20  top10_net20  top5_gross  top5_pnet  top5_pnet20
 0    D_band  1      ALL      46  0.227      -0.003      0.080        0.464        0.047     -0.158       0.120         0.565        0.052       0.048      0.126        0.559
 1    D_band  3      ALL      44  0.216       0.052      0.193        0.536        0.108     -0.105       0.253         0.599        0.119       0.113      0.258        0.585

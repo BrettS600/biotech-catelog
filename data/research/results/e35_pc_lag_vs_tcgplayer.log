@@ -1,0 +1,21 @@
+tcg_index pv_month_measure  k_pv_leads_pc_by  months  spearman  pearson
+   top100        month_end                -2      28    -0.052    0.007
+   top100        month_end                -1      29     0.301    0.337
+   top100        month_end                 0      30     0.363    0.413
+   top100        month_end                 1      29     0.264    0.234
+   top100        month_end                 2      28     0.140    0.051
+   top100        month_avg                -2      28     0.140    0.187
+   top100        month_avg                -1      29     0.383    0.435
+   top100        month_avg                 0      30     0.291    0.319
+   top100        month_avg                 1      29     0.137    0.113
+   top100        month_avg                 2      28    -0.053   -0.148
+   top250        month_end                -2      28     0.155    0.147
+   top250        month_end                -1      29     0.468    0.417
+   top250        month_end                 0      30     0.483    0.543
+   top250        month_end                 1      29     0.348    0.279
+   top250        month_end                 2      28     0.164    0.062
+   top250        month_avg                -2      28     0.292    0.311
+   top250        month_avg                -1      29     0.477    0.525
+   top250        month_avg                 0      30     0.385    0.416
+   top250        month_avg                 1      29     0.213    0.181
+   top250        month_avg                 2      28    -0.050   -0.149

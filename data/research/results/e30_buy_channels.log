@@ -1,0 +1,16 @@
+market_price             25     50     100    250    500
+channel                                                 
+ebay_at_market        -0.349 -0.245 -0.193 -0.162 -0.152
+ebay_floor_15_under   -0.234 -0.112 -0.051 -0.014 -0.002
+ebay_floor_20_under   -0.186 -0.056  0.009  0.048  0.061
+private_at_dealer_buy  0.479  0.716  0.467  0.524  0.286
+private_midway        -0.096  0.048  0.041  0.081  0.022
+retail_shop_sell      -0.408 -0.314 -0.266 -0.238 -0.229
+market_price             25     50     100    250    500
+channel                                                 
+ebay_at_market         0.406  0.285  0.225  0.189  0.176
+ebay_floor_15_under    0.232  0.111  0.050  0.014  0.002
+ebay_floor_20_under    0.174  0.053 -0.008 -0.044 -0.056
+private_at_dealer_buy -0.246 -0.367 -0.299 -0.335 -0.219
+private_midway         0.080 -0.041 -0.037 -0.073 -0.022
+retail_shop_sell       0.523  0.402  0.341  0.305  0.293

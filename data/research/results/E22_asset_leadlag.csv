@@ -2,42 +2,42 @@ target,asset,lag_k,spearman,p,n,meaning
 pv250,spx,-3,-0.1044,0.6043,27,asset leads by 3 mo
 pv250,spx,-2,0.0104,0.9581,28,asset leads by 2 mo
 pv250,spx,-1,-0.0138,0.9434,29,asset leads by 1 mo
-pv250,spx,0,0.0776,0.6834,30,same month
-pv250,spx,1,0.0749,0.6995,29,asset lags by 1 mo
-pv250,spx,2,-0.1719,0.3818,28,asset lags by 2 mo
-pv250,spx,3,-0.0287,0.887,27,asset lags by 3 mo
+pv250,spx,0,0.0745,0.6955,30,same month
+pv250,spx,1,0.0778,0.6882,29,asset lags by 1 mo
+pv250,spx,2,-0.1554,0.4296,28,asset lags by 2 mo
+pv250,spx,3,-0.0098,0.9614,27,asset lags by 3 mo
 pv250,gold,-3,-0.105,0.6022,27,asset leads by 3 mo
 pv250,gold,-2,-0.2819,0.1462,28,asset leads by 2 mo
 pv250,gold,-1,-0.2601,0.173,29,asset leads by 1 mo
-pv250,gold,0,-0.2125,0.2597,30,same month
-pv250,gold,1,-0.0389,0.8411,29,asset lags by 1 mo
-pv250,gold,2,0.1418,0.4718,28,asset lags by 2 mo
-pv250,gold,3,0.1294,0.52,27,asset lags by 3 mo
+pv250,gold,0,-0.2085,0.269,30,same month
+pv250,gold,1,-0.0374,0.8471,29,asset lags by 1 mo
+pv250,gold,2,0.1396,0.4787,28,asset lags by 2 mo
+pv250,gold,3,0.1239,0.538,27,asset lags by 3 mo
 pv250,btc,-3,0.2497,0.2091,27,asset leads by 3 mo
 pv250,btc,-2,0.2271,0.2451,28,asset leads by 2 mo
 pv250,btc,-1,0.1606,0.4053,29,asset leads by 1 mo
-pv250,btc,0,0.1786,0.3449,30,same month
-pv250,btc,1,-0.0946,0.6255,29,asset lags by 1 mo
-pv250,btc,2,-0.1029,0.6023,28,asset lags by 2 mo
-pv250,btc,3,-0.1129,0.5749,27,asset lags by 3 mo
+pv250,btc,0,0.1831,0.3328,30,same month
+pv250,btc,1,-0.0966,0.6183,29,asset lags by 1 mo
+pv250,btc,2,-0.0985,0.6179,28,asset lags by 2 mo
+pv250,btc,3,-0.1093,0.5874,27,asset lags by 3 mo
 pc_median,spx,-3,-0.2076,0.2989,27,asset leads by 3 mo
 pc_median,spx,-2,-0.0476,0.8098,28,asset leads by 2 mo
 pc_median,spx,-1,-0.3453,0.0665,29,asset leads by 1 mo
-pc_median,spx,0,-0.1715,0.3647,30,same month
-pc_median,spx,1,-0.1338,0.4891,29,asset lags by 1 mo
-pc_median,spx,2,-0.0613,0.7566,28,asset lags by 2 mo
-pc_median,spx,3,0.0379,0.8513,27,asset lags by 3 mo
+pc_median,spx,0,-0.1791,0.3436,30,same month
+pc_median,spx,1,-0.1234,0.5236,29,asset lags by 1 mo
+pc_median,spx,2,-0.0602,0.7608,28,asset lags by 2 mo
+pc_median,spx,3,0.0458,0.8206,27,asset lags by 3 mo
 pc_median,gold,-3,0.1117,0.579,27,asset leads by 3 mo
 pc_median,gold,-2,-0.1768,0.3681,28,asset leads by 2 mo
 pc_median,gold,-1,-0.197,0.3056,29,asset leads by 1 mo
-pc_median,gold,0,0.065,0.733,30,same month
-pc_median,gold,1,-0.1493,0.4396,29,asset lags by 1 mo
-pc_median,gold,2,-0.173,0.3787,28,asset lags by 2 mo
-pc_median,gold,3,-0.2113,0.2901,27,asset lags by 3 mo
+pc_median,gold,0,0.0596,0.7543,30,same month
+pc_median,gold,1,-0.1483,0.4427,29,asset lags by 1 mo
+pc_median,gold,2,-0.1809,0.3569,28,asset lags by 2 mo
+pc_median,gold,3,-0.2198,0.2706,27,asset lags by 3 mo
 pc_median,btc,-3,-0.0317,0.8751,27,asset leads by 3 mo
 pc_median,btc,-2,-0.0925,0.6397,28,asset leads by 2 mo
 pc_median,btc,-1,-0.3005,0.1132,29,asset leads by 1 mo
-pc_median,btc,0,-0.032,0.8665,30,same month
+pc_median,btc,0,-0.0365,0.8482,30,same month
 pc_median,btc,1,-0.1234,0.5236,29,asset lags by 1 mo
-pc_median,btc,2,-0.0487,0.8055,28,asset lags by 2 mo
-pc_median,btc,3,0.1194,0.5531,27,asset lags by 3 mo
+pc_median,btc,2,-0.0591,0.7651,28,asset lags by 2 mo
+pc_median,btc,3,0.1166,0.5624,27,asset lags by 3 mo
