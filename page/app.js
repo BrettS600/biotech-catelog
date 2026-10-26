@@ -1425,7 +1425,7 @@ function fgHeld() {                                // the cards held now (and th
   box.innerHTML = '<div class="fgheld"><div class="dim" style="margin-bottom:4px"><b>Held cards</b> — eBay’s sold median and PriceCharting’s price ' + FC_GAP_PCT + '%+ apart: no buys, no hits. Two ways out: click the card and flag the odd sales under “Sales behind the anchor” (the anchor recomputes without them and the hold lifts by itself), or the verdict <b>PC inaccuracy</b> (PriceCharting is wrong for this card: released for 30 days, and its PriceCharting rule stands down).</div>' +
     held.map(h => rowOf(h[0], h[1], h[2], h[3], h[4], h[5], marks[String(h[0])], true)).join('') + released.map(([cid, m]) => rowOf(cid, null, null, null, null, null, m, false)).join('') + '</div>' + autoHtml;
 }
-const FG_SPREAD_BAR = 0.5;                                // collector.PC_SPREAD_BAR: the automatic PC-inaccuracy bar (iqr / median of PriceCharting's last ungraded sales)
+const FG_SPREAD_BAR = 0.7;                                // collector.PC_SPREAD_BAR: the automatic PC-inaccuracy bar (iqr / median of PriceCharting's last ungraded sales)
 document.addEventListener('click', e => { const b = e.target.closest ? e.target.closest('#fgauto-more') : null; if (!b) return; FG.autoAll = true; fgHeld(); });
 async function gapMark(cid, state, note) {
   const t = nextT(); GAPM[String(cid)] = {state, note, t: new Date(t).toISOString()};
