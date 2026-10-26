@@ -17,6 +17,11 @@ Runs on GitHub's machine (.github/workflows/data_archive.yml, daily after the si
                                   published them that day (live.cards: demand, supply, prices, trends, today's rollup).
   data/ebay/daily_rollup.csv.gz   the collector's per-card daily rollup (sales, their totals, the 7-day median, the
                                   cheapest ask, new listings) for the 120 days it keeps. Full runs only; overwritten.
+  data/pricecharting/daily/       every column of PriceCharting's daily download (the pc_catalog snapshots, 2026-09-28 on):
+                                  full_<date>.csv.gz = the whole table on the month's first snapshot day, changes_<date>.csv.gz
+                                  = the cards whose prices or volume moved since the snapshot before (graded prices PSA 10 /
+                                  BGS 10 / CGC 10 / SGC 10 / grade 7-9.5, the dealer buy / sell prices, sales volume). Daily;
+                                  a missing day is filled in from the release on the next run (2026-10-26, Brett).
 
 Keys: SITE_PASSWORD (env) decrypts the shards, the live file and the snapshot - nothing written here is encrypted,
 the repository is private. Nothing here changes the site or the collector.
@@ -46,7 +51,17 @@ FEEDS = {
     "series_performance": "pc_series_index/pc_series_index.json.gz",
     "series_constituents": "pc_series_index/pc_series_index_constituents_table.json.gz",
     "set_constituents": "pc_set_index/pc_set_index_constituents_table.json.gz",
+    # PSA 10 (2026-10-26, Brett: "the grading opportunity heat map data, as well as the graded index graph data")
+    "graded_index": "graded_index/graded_index.json.gz",
+    "graded_index_constituents": "graded_index/graded_index_constituents_table.json.gz",
+    "graded_index_series_composition": "graded_index/graded_index_series_composition.json.gz",
+    "graded_index_by_era": "graded_index_by_era/graded_index_by_era.json.gz",
+    "graded_index_by_era_constituents": "graded_index_by_era/graded_index_by_era_constituents_table.json.gz",
+    "grading_opportunity": "grading/grading_opportunity.json.gz",
 }
+# feeds that are one day's picture (no history in the feed): each run's rows are also added to <name>_history.csv,
+# replacing that day's rows if the day was already there
+SNAPSHOT_FEEDS = ("grading_opportunity",)
 CORRELATION = "asset_correlation/correlation_matrix.json.gz"
 SET_INDEX = "pc_set_index/pc_set_index_{slug}.json.gz"
 GZIP_OVER = 1_500_000                     # a CSV bigger than this is written gzipped (GitHub shows the small ones inline)
@@ -121,6 +136,34 @@ def date_span(rows, key="date"):
     return (min(ds), max(ds)) if ds else (None, None)
 
 
+def read_csv_any(path):
+    """A CSV written by write_rows (plain or gzipped) -> list of dicts (strings), or [] when absent."""
+    for cand in (path, path + ".gz", path[:-3] if path.endswith(".gz") else None):
+        if cand and os.path.exists(cand):
+            opener = gzip.open if cand.endswith(".gz") else open
+            with opener(cand, "rt", encoding="utf-8", newline="") as f:
+                return list(csv.DictReader(f))
+    return []
+
+
+def keep_history(folder, name, rows, url):
+    """<name>_history.csv: every day's rows of a one-day feed (the feed itself only ever holds today). Today's rows
+    replace the same day's earlier rows; older days stay as they were."""
+    path = os.path.join(folder, name + "_history.csv")
+    days = {r.get("date") for r in rows}
+    old = [r for r in read_csv_any(path) if r.get("date") not in days]
+    for f in (path, path + ".gz"):
+        if os.path.exists(f):
+            os.remove(f)
+    allrows = old + [{k: cell(v) for k, v in r.items()} for r in rows]
+    allrows.sort(key=lambda r: str(r.get("date") or ""))
+    p, n, cols = write_rows(allrows, path)
+    lo, hi = date_span(allrows)
+    log(f"pokeviews {name}_history: {n} rows, {lo}..{hi} ({len({r.get('date') for r in allrows})} days)")
+    return {"url": url, "file": os.path.basename(p), "rows": n, "columns": cols, "first_date": lo, "last_date": hi,
+            "days": len({r.get("date") for r in allrows})}
+
+
 def slug(series):
     """PokeViews' file name for a series: lower case, '&' -> 'and', spaces -> '_', hyphens kept ("e-card")."""
     s = series.lower().replace("&", "and")
@@ -144,6 +187,8 @@ def pokeviews(out):
         lo, hi = date_span(rows)
         manifest["feeds"][name] = {"url": PV + path, "file": os.path.basename(p), "rows": n, "columns": cols, "first_date": lo, "last_date": hi}
         log(f"pokeviews {name}: {n} rows, {lo}..{hi} -> {os.path.basename(p)}")
+        if name in SNAPSHOT_FEEDS:
+            manifest["feeds"][name + "_history"] = keep_history(folder, name, rows, PV + path)
     # the correlation matrix: labels x labels per aggregation and window -> long rows
     corr = fetch_json(CORRELATION)
     if corr:
@@ -251,6 +296,108 @@ def pricecharting(out, live_dir, snapshots, password):
     return {"snapshot": os.path.basename(snap), "cards_with_history": len(hist), "card_months": n, "catalog_rows": len(rows)}
 
 
+# ---------------- PriceCharting: every column of the daily download ----------------
+# PriceCharting's price guide for cards (their names; the grade each one means for a card, per PriceCharting's API docs):
+PC_MONEY = ["loose-price",            # ungraded
+            "cib-price",              # grade 7 / 7.5
+            "new-price",              # grade 8 / 8.5
+            "graded-price",           # grade 9
+            "box-only-price",         # grade 9.5
+            "manual-only-price",      # PSA 10
+            "bgs-10-price",           # BGS 10
+            "condition-17-price",     # CGC 10
+            "condition-18-price",     # SGC 10
+            "retail-loose-buy", "retail-loose-sell",      # PriceCharting's suggested dealer buy / sell prices: ungraded,
+            "retail-cib-buy", "retail-cib-sell",          # grade 7, grade 8 (the cib / new columns)
+            "retail-new-buy", "retail-new-sell",
+            "gamestop-price", "gamestop-trade-price"]     # always empty for cards
+PC_NUM = PC_MONEY + ["sales-volume"]
+
+
+def snap_date(path):
+    m = re.search(r"pc_catalog_(\d{4}-\d{2}-\d{2})", os.path.basename(path))
+    return m.group(1) if m else None
+
+
+def read_snapshot_raw(path, password):
+    """A pc_catalog snapshot -> every column as PriceCharting wrote it (strings), plus the build's card-number /
+    rarity / finish / rf-source."""
+    import pandas as pd
+    raw = gzip.decompress(F.decrypt_file_blob(open(path, "rb").read(), password))
+    return pd.read_csv(io.BytesIO(raw), dtype=str, keep_default_na=False)
+
+
+def pc_numbers(df):
+    """The snapshot's prices in dollars (\"$1,234.50\" -> 1234.5) and the sales volume, indexed by card id."""
+    import pandas as pd
+    out = pd.DataFrame(index=pd.Index(pd.to_numeric(df["id"], errors="coerce").astype("int64"), name="card_id"))
+    for c in PC_NUM:
+        v = df[c] if c in df.columns else pd.Series([""] * len(df))
+        v = pd.to_numeric(v.astype(str).str.replace(r"[$,\s]", "", regex=True), errors="coerce").to_numpy()
+        out[c] = v.round(2) if c != "sales-volume" else v
+    return out[~out.index.duplicated(keep="last")]
+
+
+def pc_daily(out, snapshots, password):
+    """data/pricecharting/daily/: one file per snapshot day not yet archived. The month's first day (and the very first
+    day) is written whole - full_<date>.csv.gz, every column of PriceCharting's download with the prices in dollars -
+    the other days as changes_<date>.csv.gz: date, card_id, status (changed / new / removed) and the card's 18 numbers
+    that day, for every card whose prices or volume differ from the snapshot before. A month = its full file + its
+    changes files, applied in date order."""
+    import pandas as pd
+    folder = os.path.join(out, "pricecharting", "daily")
+    os.makedirs(folder, exist_ok=True)
+    found = (re.search(r"(\d{4}-\d{2}-\d{2})", f) for f in os.listdir(folder) if f.endswith(".csv.gz"))
+    done = sorted({m.group(1) for m in found if m})
+    last = done[-1] if done else None
+    snaps = sorted((p for p in glob.glob(os.path.join(snapshots, "pc_catalog_*.csv.gz.enc")) if snap_date(p)), key=snap_date)
+    todo = [p for p in snaps if last is None or snap_date(p) > last]
+    info = {"days_on_file": len(done), "written": []}
+    if not todo:
+        log(f"pricecharting daily: nothing new (last {last})")
+        return info
+    base = [p for p in snaps if last is not None and snap_date(p) <= last]
+    prev, prev_day = None, None
+    if base:
+        prev, prev_day = pc_numbers(read_snapshot_raw(base[-1], password)), snap_date(base[-1])
+    for p in todo:
+        day = snap_date(p)
+        df = read_snapshot_raw(p, password)
+        num = pc_numbers(df)
+        if prev is None or prev_day[:7] != day[:7]:
+            full = df.copy()
+            for c in PC_MONEY:
+                if c in full.columns:
+                    full[c] = num[c].reindex(pd.to_numeric(full["id"], errors="coerce").astype("int64")).to_numpy()
+            full.insert(0, "date", day)
+            path = os.path.join(folder, f"full_{day}.csv.gz")
+            full.to_csv(path, index=False, compression={"method": "gzip", "compresslevel": 6})
+            kind, n = "full", len(full)
+        else:
+            j = num.join(prev, rsuffix="__p", how="outer")
+            in_cur, in_prev = j.index.isin(num.index), j.index.isin(prev.index)
+            moved = pd.Series(False, index=j.index)
+            for c in PC_NUM:
+                a, b = j[c], j[c + "__p"]
+                moved |= ~((a == b) | (a.isna() & b.isna()))
+            keep = (moved | ~in_cur | ~in_prev).to_numpy()
+            ch = j.loc[keep, PC_NUM].copy()
+            ch.insert(0, "status", pd.Series(in_cur, index=j.index)[keep].map({True: "changed", False: "removed"}).to_numpy())
+            ch.loc[~pd.Series(in_prev, index=j.index)[keep].to_numpy(), "status"] = "new"
+            ch.loc[ch["status"] == "removed", PC_NUM] = None
+            ch = ch.reset_index()
+            ch.insert(0, "date", day)
+            ch["sales-volume"] = ch["sales-volume"].astype("Int64")
+            path = os.path.join(folder, f"changes_{day}.csv.gz")
+            ch.to_csv(path, index=False, compression={"method": "gzip", "compresslevel": 6})
+            kind, n = "changes", len(ch)
+        info["written"].append({"date": day, "kind": kind, "rows": n, "bytes": os.path.getsize(path)})
+        log(f"pricecharting daily {day}: {kind}, {n:,} rows -> {os.path.basename(path)} ({os.path.getsize(path) / 1e6:.2f} MB)")
+        prev, prev_day = num, day
+    info["days_on_file"] = len(done) + len(todo)
+    return info
+
+
 # ---------------- eBay: the catalog's figures and the daily rollup ----------------
 TR_KEYS = ["spm", "d7", "d30", "pos", "hi", "lo", "vol", "ts", "tsq1", "tsq3", "vd", "vdp", "days"]
 CARD_KEYS = ["price", "k", "D", "lam", "N", "p1", "p2", "p3", "n30", "km", "kt", "mu", "dos", "io", "smed", "s80", "hrs", "st",
@@ -356,6 +503,7 @@ def main():
     else:
         if a.full:
             report["pricecharting"] = pricecharting(a.out, a.live_dir, a.snapshots, a.password)
+        report["pricecharting_daily"] = pc_daily(a.out, a.snapshots, a.password)
         if not a.skip_ebay:
             report["ebay"] = ebay(a.out, a.live_dir, a.snapshots, a.password, a.full)
     report["seconds"] = round(time.time() - t0)
