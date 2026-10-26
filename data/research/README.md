@@ -8,6 +8,10 @@ or a person) can pick up where this left off instead of repeating it. **Read `ex
 
 Nothing in here changes the website or the Forecast tab. Findings are applied in a separate step.
 
+Rounds so far: **round 1** (2026-10-24, E01–E25: the fee wall, the reversal, the regime gate, discounts, portfolio
+simulations) and **round 2** (2026-10-26, E26–E42: graded vs raw, the PSA 10 / raw ratio, grading economics, buying
+channels, new market-timing inputs, the relative reversal, a PriceCharting-lag red flag). `FINDINGS.md` opens with round 2.
+
 ## Layout
 
 | path | what |
@@ -16,7 +20,7 @@ Nothing in here changes the website or the Forecast tab. Findings are applied in
 | `FINDINGS.md` | the synthesis: what the evidence says to build, in priority order, what failed, and the caveats. |
 | `notes/E##_*.md` | the detail behind each registry row: hypothesis, exact method, the result tables that matter, interpretation, caveats, what to try next. |
 | `results/E##_*.csv` | the numbers each experiment produced (every table referenced in the notes). See "Where results/ comes from". |
-| `scripts/*.py` | the code. `common.py` loads the panel, `xs.py` is the cross-sectional engine; `e##_*.py` reproduce each experiment; `run_all.sh` runs them in order. Python 3 with numpy, pandas, scipy, scikit-learn, statsmodels. |
+| `scripts/*.py` | the code. `common.py` loads the monthly panel, `daily_panel.py` loads `pricecharting/daily/` (every column of PriceCharting's daily download, 2026-09-28 on: graded prices, dealer prices, volume), `xs.py` is the cross-sectional engine; `e##_*.py` reproduce each experiment; `run_all.sh` runs them in order. Python 3 with numpy, pandas, scipy, scikit-learn, statsmodels. |
 | `ideas_backlog.csv` | things not tried yet, with why they might matter — start here when extending the work. |
 | `sources.md` | outside reading (Pokémon investing, eBay fees, stock-market quant methods) and what in it was testable here. |
 

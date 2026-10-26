@@ -1,4 +1,81 @@
-# FINDINGS — what three hours of research say to build into the Forecast tab
+# FINDINGS — what the research says to build into the Forecast tab
+
+## Round 2 (2026-10-26): graded data, PriceCharting's full daily download, five Trends properties — E26–E42
+
+Read this first; round 1 (E01–E25, 2026-10-24) follows below and still stands except where this section says otherwise.
+Brett's questions this round: is buying graded better than raw? is buying retail and selling on eBay better? and how to
+raise the Forecast's predictive power for 1–3-month holds starting from $2,000–10,000.
+
+### Answers to the direct questions
+
+* **Graded vs raw (E26, E29).** In 2022–2026 the PSA 10 indexes outran the raw indexes in every era (e.g. Mid Era +1,271%
+  vs +304%) with a smaller fee drag in % (no fixed-cost bite on $1,500+ slabs): 3-month P(net > 0) 31–33% vs 13–24%.
+  But a top-50 slab costs $1,500–6,300, so $2–10k buys 1–5 of them — no diversification (E12: a single position loses
+  in ~40% of quarters) — and the graded market is at an unprecedented extreme (+33% in October, +258% in a year). **Do
+  not switch the business to slabs**; use the graded market as a signal for raw (below). **Grading raw cards yourself**
+  is not a 1–3-month business: PSA Regular is $79.99 with 70–80 business days (the cheap Value tiers are paused); for
+  modern cards bought raw only 12% of liquid cards have positive expected value (median ROI −48%); vintage only looks
+  good because PriceCharting's "ungraded" price is an average of played copies.
+* **Buying retail and selling on eBay (E30).** Never: a shop's price is 1.10 × market, so the round trip loses 23–41%
+  before any price move. The profit is made at the purchase: eBay floors ≥ 15–20% under the sold median (E07/E08) and
+  private / collection purchases at or near what a shop would pay (44–66% of market → +29–72% before any move).
+
+### What to build (round 2, in priority order)
+
+1. **Replace dev12 with the relative reversal (rel_combo)** — rank cards by how far they sit below their 12-month mean
+   *relative to their own set's median and to the same Pokémon's other printings* (mean of the two ranks; set-relative
+   alone when a card has fewer than 2 other printings). Every year, regime and horizon better than dev12 (3 months: +9.6 vs +7.5
+   points over the band; P(net > 0 at 20% under) 69% vs 66%; up markets 78% vs 75.5%); in the reinvesting simulation
+   with shared random draws it beats dev12 in 100% of draws, +$780–1,566 on $5,000 (+0.7–4.2 CAGR points, largest at
+   15% under). Why: the reversal is entirely idiosyncratic — a whole set or character that falls does not come back; a
+   card that falls versus its peers does (E38). Optional refinement: blend 12- and 24-month anchors (E39).
+   (E33, E33b, E37, E38, E39)
+2. **Use the E40 chance table** (`results/E40_chance_table_rel.csv`, same cells as E20, rebuilt on rel_combo; 3-month,
+   up regime, 20% under, bottom decile 76% / +27%; out-of-sample error ~6 points).
+3. **Add the PSA 10 / raw ratio as a tilt and a displayed fact.** In October 2026 the raw price of cards whose PSA 10
+   sells for many times the raw price rose fastest — on PriceCharting (28 days: top quintile +13.7% vs bottom −1.2%, IC
+   0.25, independent of the reversal) and on eBay's own sold prices (high tercile +11–20% in two weeks vs −4%; IC 0.37).
+   It stacks with the reversal (high ratio × below its mean: +21–31% in 28 days; 73–75% P(net > 0) at 20% under). But it
+   is one month, inside the steepest graded rally on record: use it as a tie-break inside the ranking and re-test monthly
+   (B16) — and especially in the first month the graded index falls. (E27, E27b–e, E32)
+4. **Market gate: keep reg3 > 0 (with reg1 confirm); show the PSA 10 market beside it.** Last month's Top 250 Graded move
+   is the best new 1-month timing input (next-month raw market OOS R² 0.42 → 0.55; + web search 0.60) and graded leads
+   raw at the era level (t 6.7). As a gate, "reg3 > 0 and graded up" was right 92.7% vs 90.9% — but it did not improve
+   the simulated bankroll (E36), so it is a display and a 1-month confirm, not a new gate. Google web search stays the
+   3-month input (E04); image / news / shopping / YouTube searches add nothing. (E26b, E28, E36, E42)
+5. **Holds.** With the new ranking (E37): 2-month holds compound as well as 3 (2-mo gated 20% under $5k → $17.9k vs 3-mo
+   $16.4k); 1-month holds still need the full 20% discount (E36: $19.7k gated, 4% losing cycles; at 15% under they
+   make only ~+14%/yr with a third of the months losing). So: 2 months by default for 20%-under buys, 3 months for 15%-under buys, 6 months only near the standard price.
+6. **Warn on possible PriceCharting lag (E33c).** In October, for 290 eBay-liquid cards, cards far *above* their 12-month
+   mean rose +25% on eBay in two weeks while PriceCharting moved +2.7%; the reversal ranking (dev12 or rel) pointed the
+   wrong way on eBay prices. When a pick's eBay sold median is already well above PriceCharting's price, the "dip" may be
+   lag — demote it. The full validation of the reversal on eBay transactions (B04 / B15) is now the most important open
+   question.
+
+### Round 2 — tried and did not work (do not repeat without new data)
+
+* Volatility-managed exposure (Moreira–Muir) — wrong sign; cross-sectional dispersion as a gate — re-describes the
+  regime, worse as a gate (E31).
+* Era rotation by PSA 10 momentum — +1.3 points a month, too small to build (E31).
+* Ornstein–Uhlenbeck per-card mean-reversion speed, volatility-scaled dev12 (z-score), MAX — none beats dev12, all below
+  the relative reversal (E33).
+* Google Trends image / news / shopping / YouTube search as market timers (E28).
+* PriceCharting's dealer buy / sell prices as signals — fixed multiples of the ungraded price (E27).
+* PriceCharting's sales-count pace (new sales recorded this week) — nothing (E32).
+* Buying at retail to resell on eBay (E30); grading cards bought raw at PSA Regular prices for a 1–3-month plan (E29).
+* "Buy the post-reprint dip" — the Celebrations originals rose into the reprint announcement and lagged afterwards (E41).
+* A market-level PriceCharting lag vs TCGplayer indexes — none (E35; the lag is card-level, E33c).
+
+### Round 2 caveats
+
+Graded data has only 29 daily observations per card and index-level history from 2022 inside one boom; every graded
+finding is regime-dependent and untested in a graded downturn. The daily panel and eBay rollup cover one month. The
+portfolio numbers inherit round 1's caveats (PriceCharting monthly prices, no time-to-sell, availability assumed
+constant) plus E33c's warning that PriceCharting can lag eBay for hot cards.
+
+---
+
+## Round 1 (2026-10-24): what three hours of research say to build into the Forecast tab
 
 Written 2026-10-24 from experiments E01–E25 (`experiments.csv`; detail in `notes/`). Goal as Brett set it: $2,000–10,000
 of capital, holds of 1–3 months preferred, profit reinvested, maximise return without taking on much risk. Nothing here

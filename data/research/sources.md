@@ -68,3 +68,34 @@ and mark what the data in `data/` could check.
   cooling after the 2025–26 run. **Here:** the market's own trailing move (E01 `median_mom1`: +0.6 % Sep 2026, +2.2 % Oct
   to date, down from +5–7 % in Mar–May 2026) and PokéViews' indicators (HCI 43, % above 30-day 0.57, distance from
   SMA200 shrinking) say the regime is still positive but decelerating — the gate is on, with less margin than in spring.
+
+## Round 2 (2026-10-26)
+
+* **PSA grading prices 2026** — allvintagecards.com, "PSA Grading Costs in 2026" https://allvintagecards.com/psa-grading-costs/
+  and "PSA Hikes Grading Costs And Turnaround Times (2026)" https://allvintagecards.com/psa-hikes-grading-costs-and-turnaround-times-2026/ ;
+  blog.justcollect.com "PSA Pauses Card Grading on Value Tiers Due to Demand" https://blog.justcollect.com/psa-pauses-card-grading-on-value-tiers-due-to-demand :
+  Value Bulk $24.99 / Value $32.99 / Value Plus $49.99 / Value Max $59.99-64.99 all paused; Regular $79.99 (max declared
+  $1,500, 70-80 business days), Express $149, Super Express $349, Walk Through $599; upcharge when the graded value
+  exceeds the tier cap. → E29 cost assumptions.
+* **Gem rates** — cllct.com "How many cards grade as PSA 10? Rate is at 43% so far in 2025"
+  https://www.cllct.com/sports-collectibles/sports-cards/how-many-cards-grade-as-10s-gem-rate-at-43-so-far-in-2025 :
+  PSA overall 43% (H1 2025), TCG (Pokémon + non-sport) 50% (53% in 2024), cards from the 2020s ~59%, vintage much lower
+  (SGC, vintage-heavy, 21%); Beckett 60% and CGC 55% for TCG. → E29 grade mixes (pack-fresh vs bought raw vs vintage).
+* **Sealed / booster-box ROI (trade press, unverified)** — pokemonpricetracker.com "Booster box ROI 2026"
+  https://www.pokemonpricetracker.com/blog/posts/booster-box-roi-2026-which-sets-are-most-profitable : SV-151 UK booster
+  products +60-89% in 60 days; Perfect Order ETBs +35% in 10 days; 12-18-month projections 30-120%; launch hype 15-30%
+  above sustainable levels; 13% eBay fees. Not testable with data/ (no sealed prices archived; backlog B20).
+* **PriceCharting's methodology** — https://www.pricecharting.com/page/methodology : prices come from eBay and their own
+  marketplace sold listings, weighing "most recent sale price, median price, average price" with age weighting and
+  outlier flags; no stated window or update speed and nothing on how thin graded grades are estimated. → consistent with
+  E33c (PriceCharting's figure can trail fast eBay moves) and E27 (graded figures change on only 2-4 days a month).
+* **Market state, October 2026** — cardtrack.com/pokemon/markets https://cardtrack.com/pokemon/markets (CardTrack 100 raw
+  index +7.3% in 30 days, 48% of priced cards up; JustTCG index +2.1% / 30 days); blog.cardcenteringtool.com October 2026
+  "prices rising" posts. → matches E28's reading: raw market positive but modest, graded market hot.
+* **Stock-market methods borrowed, round 2** (classic references, no URL needed): Moreira & Muir (2017) "Volatility-
+  Managed Portfolios" → E31 (fails here); Gatev, Goetzmann & Rouwenhorst (2006) pairs trading and Ornstein–Uhlenbeck
+  mean-reversion speeds → E33 ou3 (weak); industry-relative / within-industry reversal (Da, Liu & Schaumburg 2014,
+  "A closer look at the short-term return reversal": the reversal is stronger once industry/common components are removed)
+  → E33/E38 — the same structure holds in cards (set / same-Pokémon relative reversal); Moskowitz & Grinblatt (1999)
+  industry momentum → E31 era rotation (small); Bali, Cakici & Whitelaw (2011) MAX → E33 (fails); event-study
+  abnormal returns (MacKinlay 1997) → E41; common random numbers for comparing simulated strategies → E37.
