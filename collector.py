@@ -1213,8 +1213,11 @@ def flag_mark(state, cat, cards, iid, st, note, t):
     log(f"Flags: {iid} " + ("unflagged" if st == "unmarked" else f"marked {st}") + (f" ({len(note)} chars of note)" if note else ""))
 
 
-PC_SPREAD_BAR = 0.5              # the automatic "PC inaccuracy" (2026-10-25): the middle half of PriceCharting's last ungraded
+PC_SPREAD_BAR = 0.7              # the automatic "PC inaccuracy" (2026-10-25): the middle half of PriceCharting's last ungraded
 PC_SPREAD_EVERY_S = 6 * 3600     # sales (90 days, 6+ of them) spans this share of their median or more; judged this often
+                                 # (0.5 -> 0.7 on 2026-10-26 after a day of reads: 0.5 flagged 43% of the 766 judged cards, many of them
+                                 # vintage cards whose posted sales mix conditions while PriceCharting agreed with eBay's sold anchor;
+                                 # 0.7 flags ~20%, and 43% of those (vs 28% at 0.5) sit 25%+ from the eBay anchor - see CLAUDE.md)
 PC_SPREAD_MIN_MED = 1000         # cents: cards whose median sale is under this are never judged (the first pass: a $0.06 card's
                                  # sales ran $0.01-$2.13 - eBay's price steps, not PriceCharting's error; nothing under $10 is ever a hit or a pick)
 
