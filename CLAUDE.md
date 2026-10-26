@@ -1603,6 +1603,33 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   identical, verified by blob sha - the only change was a trailing newline on files that lacked one), the workflow file
   through the editor, and every big or binary file through the workflow itself. That division is the rule now: data is
   built on GitHub, never typed through a tool call.
+- THE DATA FOLDER, ROUND 2: GRADED DATA (2026-10-26, Brett: "could you add all of that data [the PriceCharting CSV columns the
+  site does not use] to the /data file on github, as well as the 'grading' opportunity heat map data, as well as the graded
+  index graph data from pokeviews? along with a description of what it so that you know, for when we analyze the data in
+  the future ... dont add the data to the website though"). Nothing on the site changed. (1) POKEVIEWS: six more feeds in
+  data_archive.FEEDS, found the old way (performance.getEntriesByType('resource') on pokeviews.com/graded_index and
+  /grading_opportunity in his Chrome): graded_index/graded_index(.json.gz) (Top 250 Graded, PSA 10, daily from
+  2022-01-01, index base 100, change_*_pct in PERCENT) + _constituents_table (250) + _series_composition;
+  graded_index_by_era/graded_index_by_era (4 eras x daily; returns are FRACTIONS) + _constituents_table (200);
+  grading/grading_opportunity (the 96-cell heatmap: raw_price_bucket x ratio_bucket, one card each, ungraded and PSA 10
+  price, ratio, grading_profit = psa10 - raw - $25, annual PSA 10 sales, date). The heatmap feed only ever holds today,
+  so SNAPSHOT_FEEDS + keep_history() add each run's rows to pokeviews/grading_opportunity_history.csv (the same day
+  replaced, registered in the manifest so the stale-file sweep keeps it). Checked against the page: era ranks 1647.53 /
+  890.70 / 838.71 / 566.57, Top 250 Graded 673.78, 30-day returns = return_30d x 100; the heatmap's prices equal that
+  day's snapshot loose-price / manual-only-price. (2) PRICECHARTING, EVERY COLUMN: pc_daily() writes
+  data/pricecharting/daily/ from the pc_catalog snapshots (2026-09-28 on): full_<date>.csv.gz on each month's first
+  snapshot day (every column of the download, prices in dollars; ~1.6 MB), changes_<date>.csv.gz otherwise (date,
+  card_id, status changed / new / removed, the card's 18 numbers; 5-13K cards a day, ~0.25 MB). Columns for a card
+  (PriceCharting's API mapping): loose = ungraded, cib = 7/7.5, new = 8/8.5, graded = 9, box-only = 9.5, manual-only =
+  PSA 10, bgs-10, condition-17 = CGC 10, condition-18 = SGC 10, retail-{loose,cib,new}-{buy,sell} = PriceCharting's
+  suggested dealer buy / sell, sales-volume; gamestop-*, upc, asin, epid always empty. Growth ~9 MB a month (~110 MB a
+  year, beside the eBay files' ~140) - watch it. The workflow's snapshot step now downloads the newest snapshot + the last
+  archived day's + every later day (all 29 on the first run). Checked locally on all 29 snapshots: full + changes
+  rebuild every day exactly (README's pc_day()). data/README.md describes every new file and column and carries
+  PokeViews' own text for the Graded Indexes and Grading Opportunity (Brett pasted it). Deployed 2026-10-26 ~21:00 UTC:
+  data_archive.py 2cdc2adc, .github/workflows/data_archive.yml 146ce7ec, data/README.md 7218f3ba. Data archive run #5
+  (dispatch, daily mode, 1 min 28 s) committed 547cae1: all 29 daily files (byte-identical to the local run that was
+  checked), the six feeds (graded_index 1,759 rows, graded_index_by_era 7,036, heatmap 96 + its history from 2026-10-25).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
