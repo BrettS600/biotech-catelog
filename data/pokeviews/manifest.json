@@ -1,5 +1,5 @@
 {
- "fetched": "2026-10-26T16:59:12Z",
+ "fetched": "2026-10-26T20:55:00Z",
  "source": "https://storage.googleapis.com/pokeviews-prod/",
  "feeds": {
   "top100_index": {
@@ -476,6 +476,154 @@
    ],
    "first_date": null,
    "last_date": null
+  },
+  "graded_index": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/graded_index/graded_index.json.gz",
+   "file": "graded_index.csv",
+   "rows": 1759,
+   "columns": [
+    "date",
+    "cohort_month",
+    "index_value",
+    "n_contributing",
+    "data_source",
+    "value_1m_ago",
+    "value_6m_ago",
+    "value_1y_ago",
+    "change_1m_pct",
+    "change_6m_pct",
+    "change_1y_pct",
+    "ma_90d",
+    "ma_180d",
+    "ma_200d",
+    "ma_365d",
+    "ath_price",
+    "ath_date",
+    "atl_price",
+    "atl_date",
+    "n_constituents",
+    "rsi_14_monthly"
+   ],
+   "first_date": "2022-01-01",
+   "last_date": "2026-10-25"
+  },
+  "graded_index_constituents": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/graded_index/graded_index_constituents_table.json.gz",
+   "file": "graded_index_constituents.csv",
+   "rows": 250,
+   "columns": [
+    "pricecharting_id",
+    "card_name",
+    "set_name",
+    "series_name",
+    "price_rank",
+    "psa10_price",
+    "change_30d_pct",
+    "image_url",
+    "cohort_month"
+   ],
+   "first_date": null,
+   "last_date": null
+  },
+  "graded_index_series_composition": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/graded_index/graded_index_series_composition.json.gz",
+   "file": "graded_index_series_composition.csv",
+   "rows": 12,
+   "columns": [
+    "series_name",
+    "card_count",
+    "percentage",
+    "cohort_month"
+   ],
+   "first_date": null,
+   "last_date": null
+  },
+  "graded_index_by_era": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/graded_index_by_era/graded_index_by_era.json.gz",
+   "file": "graded_index_by_era.csv",
+   "rows": 7036,
+   "columns": [
+    "date",
+    "era",
+    "graded_index_value",
+    "daily_return",
+    "return_30d",
+    "rank_30d",
+    "ytd_return",
+    "one_year_return",
+    "all_time_return",
+    "sma_30d",
+    "sma_90d",
+    "ema_30d",
+    "ema_90d",
+    "rsi_14"
+   ],
+   "first_date": "2022-01-01",
+   "last_date": "2026-10-25"
+  },
+  "graded_index_by_era_constituents": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/graded_index_by_era/graded_index_by_era_constituents_table.json.gz",
+   "file": "graded_index_by_era_constituents.csv",
+   "rows": 200,
+   "columns": [
+    "era",
+    "pricecharting_id",
+    "card_name",
+    "set_name",
+    "series_name",
+    "price_rank",
+    "psa10_price",
+    "change_30d_pct",
+    "image_url",
+    "cohort_month"
+   ],
+   "first_date": null,
+   "last_date": null
+  },
+  "grading_opportunity": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/grading/grading_opportunity.json.gz",
+   "file": "grading_opportunity.csv",
+   "rows": 96,
+   "columns": [
+    "raw_price_bucket",
+    "ratio_bucket",
+    "card_name",
+    "set_name",
+    "card_number",
+    "ungraded_price",
+    "psa_10_price",
+    "raw_to_psa_10_ratio",
+    "grading_profit",
+    "annual_sales_volume",
+    "series_name",
+    "image_url",
+    "date"
+   ],
+   "first_date": "2026-10-25",
+   "last_date": "2026-10-25"
+  },
+  "grading_opportunity_history": {
+   "url": "https://storage.googleapis.com/pokeviews-prod/grading/grading_opportunity.json.gz",
+   "file": "grading_opportunity_history.csv",
+   "rows": 96,
+   "columns": [
+    "raw_price_bucket",
+    "ratio_bucket",
+    "card_name",
+    "set_name",
+    "card_number",
+    "ungraded_price",
+    "psa_10_price",
+    "raw_to_psa_10_ratio",
+    "grading_profit",
+    "annual_sales_volume",
+    "series_name",
+    "image_url",
+    "date"
+   ],
+   "first_date": "2026-10-25",
+   "last_date": "2026-10-25",
+   "days": 1
   },
   "asset_correlation": {
    "url": "https://storage.googleapis.com/pokeviews-prod/asset_correlation/correlation_matrix.json.gz",

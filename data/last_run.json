@@ -1,5 +1,5 @@
 {
- "run": "2026-10-26T16:59:12Z",
+ "run": "2026-10-26T20:55:00Z",
  "full": false,
  "pokeviews": {
   "top100_index": {
@@ -62,6 +62,34 @@
    "rows": 1303,
    "last_date": null
   },
+  "graded_index": {
+   "rows": 1759,
+   "last_date": "2026-10-25"
+  },
+  "graded_index_constituents": {
+   "rows": 250,
+   "last_date": null
+  },
+  "graded_index_series_composition": {
+   "rows": 12,
+   "last_date": null
+  },
+  "graded_index_by_era": {
+   "rows": 7036,
+   "last_date": "2026-10-25"
+  },
+  "graded_index_by_era_constituents": {
+   "rows": 200,
+   "last_date": null
+  },
+  "grading_opportunity": {
+   "rows": 96,
+   "last_date": "2026-10-25"
+  },
+  "grading_opportunity_history": {
+   "rows": 96,
+   "last_date": "2026-10-25"
+  },
   "asset_correlation": {
    "rows": 576,
    "last_date": null
@@ -71,9 +99,188 @@
    "last_date": "2026-10-25"
   }
  },
+ "pricecharting_daily": {
+  "days_on_file": 29,
+  "written": [
+   {
+    "date": "2026-09-28",
+    "kind": "full",
+    "rows": 43891,
+    "bytes": 1624218
+   },
+   {
+    "date": "2026-09-29",
+    "kind": "changes",
+    "rows": 5260,
+    "bytes": 135503
+   },
+   {
+    "date": "2026-09-30",
+    "kind": "changes",
+    "rows": 2433,
+    "bytes": 68314
+   },
+   {
+    "date": "2026-10-01",
+    "kind": "full",
+    "rows": 43926,
+    "bytes": 1626638
+   },
+   {
+    "date": "2026-10-02",
+    "kind": "changes",
+    "rows": 10000,
+    "bytes": 266912
+   },
+   {
+    "date": "2026-10-03",
+    "kind": "changes",
+    "rows": 9935,
+    "bytes": 237914
+   },
+   {
+    "date": "2026-10-04",
+    "kind": "changes",
+    "rows": 12982,
+    "bytes": 336134
+   },
+   {
+    "date": "2026-10-05",
+    "kind": "changes",
+    "rows": 3974,
+    "bytes": 101976
+   },
+   {
+    "date": "2026-10-06",
+    "kind": "changes",
+    "rows": 8435,
+    "bytes": 226240
+   },
+   {
+    "date": "2026-10-07",
+    "kind": "changes",
+    "rows": 3978,
+    "bytes": 110946
+   },
+   {
+    "date": "2026-10-08",
+    "kind": "changes",
+    "rows": 13658,
+    "bytes": 366098
+   },
+   {
+    "date": "2026-10-09",
+    "kind": "changes",
+    "rows": 4074,
+    "bytes": 103852
+   },
+   {
+    "date": "2026-10-10",
+    "kind": "changes",
+    "rows": 12137,
+    "bytes": 309517
+   },
+   {
+    "date": "2026-10-11",
+    "kind": "changes",
+    "rows": 8697,
+    "bytes": 233606
+   },
+   {
+    "date": "2026-10-12",
+    "kind": "changes",
+    "rows": 12319,
+    "bytes": 318903
+   },
+   {
+    "date": "2026-10-13",
+    "kind": "changes",
+    "rows": 8046,
+    "bytes": 216850
+   },
+   {
+    "date": "2026-10-14",
+    "kind": "changes",
+    "rows": 5451,
+    "bytes": 145238
+   },
+   {
+    "date": "2026-10-15",
+    "kind": "changes",
+    "rows": 8566,
+    "bytes": 212641
+   },
+   {
+    "date": "2026-10-16",
+    "kind": "changes",
+    "rows": 9062,
+    "bytes": 249402
+   },
+   {
+    "date": "2026-10-17",
+    "kind": "changes",
+    "rows": 10304,
+    "bytes": 275412
+   },
+   {
+    "date": "2026-10-18",
+    "kind": "changes",
+    "rows": 5890,
+    "bytes": 151245
+   },
+   {
+    "date": "2026-10-19",
+    "kind": "changes",
+    "rows": 10796,
+    "bytes": 296971
+   },
+   {
+    "date": "2026-10-20",
+    "kind": "changes",
+    "rows": 7896,
+    "bytes": 211876
+   },
+   {
+    "date": "2026-10-21",
+    "kind": "changes",
+    "rows": 6811,
+    "bytes": 176023
+   },
+   {
+    "date": "2026-10-22",
+    "kind": "changes",
+    "rows": 29071,
+    "bytes": 642641
+   },
+   {
+    "date": "2026-10-23",
+    "kind": "changes",
+    "rows": 12540,
+    "bytes": 334027
+   },
+   {
+    "date": "2026-10-24",
+    "kind": "changes",
+    "rows": 5802,
+    "bytes": 154509
+   },
+   {
+    "date": "2026-10-25",
+    "kind": "changes",
+    "rows": 9787,
+    "bytes": 263290
+   },
+   {
+    "date": "2026-10-26",
+    "kind": "changes",
+    "rows": 9389,
+    "bytes": 255093
+   }
+  ]
+ },
  "ebay": {
-  "as_of": "2026-10-26T16:55:54Z",
-  "cards": 6887,
+  "as_of": "2026-10-26T20:51:28Z",
+  "cards": 6942,
   "file": "ebay/catalog/2026-10-26.csv.gz",
   "gate": {
    "fee": 0.1325,
@@ -107,5 +314,5 @@
   ],
   "since": "2026-09-28"
  },
- "seconds": 9
+ "seconds": 37
 }
