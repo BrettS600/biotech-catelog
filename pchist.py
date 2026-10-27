@@ -15,6 +15,18 @@ Storage: shard files on the data disk (`<store>/<shard>.json.gz`, shard = card i
 stays in memory so the reader's plan knows which cards still need a page, or need a refresh (active cards weekly,
 the rest monthly).
 
+Graded data (2026-10-26, Brett: "Yes, please do" - save the graded data the card page already carries): the same read
+keeps PriceCharting's monthly graded prices from chart_data ("g": {"g7", "g8", "g9", "g95", "psa10"}: grade 7, 8, 9,
+9.5 and PSA 10, cents per month on the record's own months; grades 7-9.5 are PriceCharting's blend of every grader),
+the PSA and CGC population report the page carries ("pop": {"psa": [grade 1..10], "cgc": [...]}), and the sold listings
+of every graded table on the page ("gs": [[row id, date, cents, grade, grader, best offer 0/1, title], ...], newest
+first, merged across reads, on the data disk only; grade "10" with the grader from the table's own label - PSA / CGC /
+BGS / SGC / TAG / ACE 10, "10P" = CGC 10 Pristine, "10B" = BGS 10 Black - or 7 / 8 / 9 / 9.5 with the grader read off
+the title), kept in their own files (<store>/gs/<card id % 1000>.json.gz). A grade's table shows its last 30 sales
+only, so a card whose full table spans less than about ten days is re-read sooner ("gdue" days). Rows first seen go to
+a queue (pcg_queue.jsonl) that the collector writes out as pcg/<stamp>.bin chunks on the live branch; the graded lines
+and the population report go out as pcgh/<shard>.bin; the Data archive workflow turns both into data/pricecharting/.
+
 The page's variable names were not checked before the first deploy (pricecharting.com cannot be reached from
 the build container): page_series() keeps every VGPC series it finds and pick() chooses the ungraded price and
 the volume by name; the first pages read are logged with the names and the first points, so a wrong pick shows
@@ -43,6 +55,27 @@ MISS_RETRY_D = 7                                            # a page with no his
 SALES_KEEP = 20
 SPREAD_WINDOW_D = 90
 SPREAD_MIN_N = 6
+# graded (2026-10-26)
+GRADED_VERSION = 1                                          # records read by an older parser are re-read once
+GRADE_SERIES = (("cib", "g7"), ("new", "g8"), ("graded", "g9"), ("boxonly", "g95"), ("manualonly", "psa10"))
+GS_KEEP_D = 400                                             # graded sales kept on the data disk this long ...
+GS_KEEP_N = 1500                                            # ... and at most this many per card (newest)
+GS_FULL = 30                                                # a grade's table shows at most this many sales
+GS_MIN_GRADE = 7                                            # the "Grade N" tables under this are not kept
+GDUE_MIN_D, GDUE_MAX_D = 1, 7                               # a card with a full graded table spanning under GDUE_MAX_D / 0.7 days
+GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..6 days)
+GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
+PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue")         # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
+GS_SHARDS = 1000                                            # the graded sales live in their own files (<store>/gs/<card id % 1000>.json.gz),
+                                                            # so the hourly reads of every history shard stay light
+OPTION = re.compile(r'<option value="completed-auctions-([a-z0-9-]+)"\s*>\s*([^<(]+?)\s*\((\d+)\)\s*</option>')
+TABLE_DIV = re.compile(r'<div class="completed-auctions-([a-z0-9-]+)"[^>]*>')
+GRADED_ROW = re.compile(r'<tr[^>]*?\bid="([^"]+)"[^>]*>\s*<td class="date">\s*(\d{4}-\d{2}-\d{2})\s*</td>(.*?)<td class="title">(.*?)</td>\s*'
+                        r'<td class="numeric">(.*?)</td>', re.S)
+PRICE = re.compile(r'\$([\d,]+(?:\.\d{2})?)')
+GRADER = re.compile(r'\b(PSA|CGC|BGS|BECKETT|SGC|TAG|ACE|AGS|PCG|HGA|GMA|ISA|MNT|ARS)\b', re.I)
+COMPANY_10 = re.compile(r'^(PSA|CGC|BGS|SGC|TAG|ACE|AGS)\s+10\b\s*(.*)$', re.I)
+GRADE_N = re.compile(r'^Grade\s+(\d+(?:\.5)?)$', re.I)
 SALE_ROW = re.compile(r'<tr[^>]*>\s*<td class="date">\s*(\d{4}-\d{2}-\d{2})\s*</td>(.*?)<td class="title">(.*?)</td>\s*<td class="numeric">\s*(?:<span[^>]*>\s*)?\$([\d,]+(?:\.\d{2})?)', re.S)
 
 _store = None
@@ -51,6 +84,9 @@ _miss = {}                                                  # card id -> day ind
 _cache = OrderedDict()                                      # shard -> dict, the few shards touched lately
 _dirty = set()                                              # shards changed since the last publish
 _lock = threading.Lock()
+_gq = []                                                    # graded sales first seen, not yet written out: [card id, *row]
+_gdirty = set()                                             # shards whose graded lines / population changed since the last pcgh publish
+_gstat = {"day": None, "new": 0, "by": {}, "cards": 0}      # today's graded intake, for the log
 SHAPES = []                                                 # what the first pages carried, for the log
 
 
@@ -206,6 +242,140 @@ def sales_table(html):
     return out
 
 
+def _plain(html_frag):
+    t = html_mod.unescape(re.sub(r"<[^>]+>", " ", html_frag or ""))
+    t = re.sub(r"\s+", " ", t).strip()
+    return re.sub(r"^\[[^\]]{1,20}\]\s*", "", t)          # "[eBay] ...", "[Goldin] ..."
+
+
+def grade_of(label):
+    """A sold-listings table's label -> (grade, grader): "PSA 10" -> ("10", "PSA"), "CGC 10 Prist." -> ("10P", "CGC"),
+    "BGS 10 Black" -> ("10B", "BGS"), "Grade 9.5" -> ("9.5", None: read off each title); (None, None) for anything else."""
+    label = (label or "").strip()
+    m = COMPANY_10.match(label)
+    if m:
+        rest = m.group(2).lower()
+        return ("10P" if rest.startswith("prist") else "10B" if rest.startswith("black") else "10"), m.group(1).upper()
+    m = GRADE_N.match(label)
+    if m:
+        return m.group(1), None
+    return None, None
+
+
+def grader_of(title):
+    m = GRADER.search(title or "")
+    if not m:
+        return ""
+    g = m.group(1).upper()
+    return "BGS" if g == "BECKETT" else g
+
+
+def graded_tables(html):
+    """Every graded sold-listings table on a card page -> ([[row id, date, cents, grade, grader, best offer, title], ...],
+    {grade label: rows in its table}). The page lists the tables in a select (completed-auctions-<key> -> "PSA 10 (30)")
+    and holds each in div class="completed-auctions-<key>" > table, rows tr#<source>-<id> (ebay / goldin / pwcc /
+    heritage ...): date, image, title, the sale price (a best offer: the accepted price first, then the list price),
+    listed price, report. The ungraded table is sales_table()'s; grades under GS_MIN_GRADE are skipped."""
+    labels = {k: lab.strip() for k, lab, _ in OPTION.findall(html)}
+    if not labels:
+        return [], {}
+    divs = list(TABLE_DIV.finditer(html))
+    out, sizes = [], {}
+    for n, m in enumerate(divs):
+        key = m.group(1)
+        if key == "used" or key not in labels:
+            continue
+        grade, grader = grade_of(labels[key])
+        if grade is None:
+            continue
+        if grade[0].isdigit() and not grade.startswith("10") and float(grade) < GS_MIN_GRADE:
+            continue
+        end = divs[n + 1].start() if n + 1 < len(divs) else len(html)
+        seg = html[m.end():end]
+        if "<table" not in seg:
+            continue
+        j = seg.find("</table>")
+        if j > 0:
+            seg = seg[:j]
+        rows = 0
+        for r in GRADED_ROW.finditer(seg):
+            pm = PRICE.search(r.group(5))
+            if not pm:
+                continue
+            try:
+                cents = int(round(float(pm.group(1).replace(",", "")) * 100))
+            except ValueError:
+                continue
+            title = _plain(r.group(4))[:70]
+            bo = 1 if "best offer accepted" in r.group(5).lower() else 0
+            out.append([r.group(1)[:80], r.group(2), cents, grade, grader or grader_of(title), bo, title])
+            rows += 1
+        sizes[labels[key]] = rows
+    return out, sizes
+
+
+def pop_report(html):
+    """The population report the page carries (VGPC.pop_data = {"psa": [grade 1..10], "cgc": [...]}) or None."""
+    m = re.search(r"VGPC\.pop_data\s*=\s*", html)
+    if not m:
+        return None
+    try:
+        val, _ = json.JSONDecoder().raw_decode(html, m.end())
+    except ValueError:
+        return None
+    if not isinstance(val, dict):
+        return None
+    out = {}
+    for k, v in val.items():
+        if isinstance(v, list) and v and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v):
+            out[str(k).lower()] = [int(x) for x in v]
+    return out or None
+
+
+def graded_series(series, m0, length):
+    """chart_data's graded lines -> {"g7": [cents|None per month], ...} on the record's months (m0, length); a line
+    with no price at all is left out."""
+    cd = series.get("chart_data") or {}
+    out = {}
+    for key, name in GRADE_SERIES:
+        pts = cd.get(key)
+        if not pts:
+            continue
+        P = {}
+        for ts, val in sorted(pts):
+            P[month_index(ts)] = val
+        cents = all(float(v).is_integer() for v in P.values())
+        arr = []
+        for i in range(length):
+            val = P.get(m0 + i)
+            arr.append(None if not val or val <= 0 else int(round(val if cents else val * 100)))
+        if any(x for x in arr):
+            out[name] = arr
+    return out
+
+
+def graded_due(rows, sizes, today=None):
+    """Days until the card's page should be read again for its graded sales: when a grade's table is full (GS_FULL
+    rows) and its rows span under ~10 days, the next read should come before they scroll off - 70% of the span, 1 to 6
+    days. None when no table is that busy (the normal refresh is enough)."""
+    best = None
+    by = {}
+    for r in rows:
+        by.setdefault((r[3], r[4] if r[3].startswith("10") else ""), []).append(day_of(r[1]))
+    full = {lab for lab, n in sizes.items() if n >= GS_FULL}
+    if not full:
+        return None
+    for (grade, grader), days in by.items():
+        if len(days) < GS_FULL:
+            continue
+        due = int((max(days) - min(days)) * GDUE_SHARE)
+        if due >= GDUE_MAX_D:                                # the table spans 10+ days: the normal refresh keeps up
+            continue
+        due = max(GDUE_MIN_D, due)
+        best = due if best is None else min(best, due)
+    return best
+
+
 def spread(sales, today=None, window_d=SPREAD_WINDOW_D, min_n=SPREAD_MIN_N):
     """How far apart PriceCharting's recent ungraded sales sit: over the sales of the last window_d days (at least
     min_n of them) the median in cents, the interquartile range as a share of the median (0.5 = the middle half of the
@@ -235,6 +405,23 @@ def extract(html):
     if vol is None and re.search(r"VGPC\.volume_data\s*=", html):   # the variable is there but holds no points: a card
         vol, how = [], how + "; volume_data present but empty"      # with no sales, read signed in (not a lost sign-in)
     rec = monthly(price, vol)
+    if rec is not None:                                      # the graded data on the same page (2026-10-26)
+        try:
+            g = graded_series(series, rec["m0"], len(rec["p"]))
+            if g:
+                rec["g"] = g
+            pop = pop_report(html)
+            if pop:
+                rec["pop"] = pop
+            gs, sizes = graded_tables(html)
+            rec["gs"] = gs
+            gd = graded_due(gs, sizes)
+            if gd:
+                rec["gdue"] = gd
+            rec["gv"] = GRADED_VERSION
+            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables" + (", pop" if pop else "") + (f", due {gd} d" if gd else "")
+        except Exception as e:                               # never lose the ungraded record over the graded part
+            how += f"; graded parse failed: {str(e)[:80]}"
     if rec is not None and sales is not None:
         rec["sl"] = sales[:SALES_KEEP]
         sp = spread(sales)
@@ -288,10 +475,22 @@ def init(store):
     idx, n = {}, 0
     for sh in range(SHARDS):
         for cid, rec in _load(sh).items():
-            idx[int(cid)] = (day_of(rec.get("t")), bool(rec.get("s")))
+            idx[int(cid)] = (day_of(rec.get("t")), bool(rec.get("s")), rec.get("gv") or 0, rec.get("gdue"))
             n += 1
+    q = []
+    try:
+        with open(os.path.join(store, "pcg_queue.jsonl"), encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    q.append(json.loads(line))
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
     with _lock:
         _index = idx
+        _gq[:] = q
     return n
 
 
@@ -344,16 +543,28 @@ def file(cid, rec, today=None):
         if rec is None:
             _miss[int(cid)] = day_index()
             return
+        rec = dict(rec)                                      # the caller's record is left as it was
         sh = shard_of(cid)
         d = _load(sh)
         old = d.get(str(cid))
         if old and (old.get("s") or old.get("sv")) and not rec.get("s"):
             rec = keep_volume(old, rec)
+        rec = keep_graded(cid, old, rec, today)
+        gs = rec.pop("gs", None)
+        if gs is not None:                                   # the merged graded sales go to their own file
+            gd = _gs_read(int(cid) % GS_SHARDS)
+            if gs:
+                gd[str(cid)] = gs
+            else:
+                gd.pop(str(cid), None)
+            _gs_save(int(cid) % GS_SHARDS, gd)
         d[str(cid)] = dict(rec, t=today)
         _save(sh, d)
-        _index[int(cid)] = (day_index(), bool(rec.get("s")))
+        _index[int(cid)] = (day_index(), bool(rec.get("s")), rec.get("gv") or 0, rec.get("gdue"))
         _miss.pop(int(cid), None)
         _dirty.add(sh)
+        if rec.get("g") or rec.get("pop"):
+            _gdirty.add(sh)
 
 
 def keep_volume(old, new):
@@ -368,26 +579,145 @@ def keep_volume(old, new):
     return dict(new, v=v, sv=old.get("sv") or old.get("t"))
 
 
+def keep_graded(cid, old, new, today):
+    """Merge the graded sales of a read with the ones on file (dedupe by row id, newest first, GS_KEEP_D days and
+    GS_KEEP_N rows at most) and queue the rows not seen before. A read that carried no graded parse keeps the old
+    graded fields. Called under _lock."""
+    old = old or {}
+    if not new.get("gv"):
+        for k in ("g", "pop", "gv", "gdue"):
+            if k in old and k not in new:
+                new[k] = old[k]
+        new.pop("gs", None)
+        return new
+    for k in ("g", "pop"):                                   # a page that lost a line or the report keeps the last one
+        if k not in new and k in old:
+            new[k] = old[k]
+    cutoff = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=GS_KEEP_D)).strftime("%Y-%m-%d")
+    olds = _gs_read(int(cid) % GS_SHARDS).get(str(cid)) or old.get("gs") or []
+    seen = {r[0] for r in olds}
+    fresh = [r for r in (new.get("gs") or []) if r[0] not in seen and r[1] >= cutoff]
+    merged = sorted(olds + fresh, key=lambda r: r[1], reverse=True)
+    new["gs"] = [r for r in merged if r[1] >= cutoff][:GS_KEEP_N]
+    if fresh:
+        rows = [[int(cid)] + list(r) for r in fresh]
+        _gq.extend(rows)
+        try:
+            with open(os.path.join(_store, "pcg_queue.jsonl"), "a", encoding="utf-8") as f:
+                for r in rows:
+                    f.write(json.dumps(r, separators=(",", ":")) + "\n")
+        except Exception:
+            pass
+        if _gstat["day"] != today:
+            _gstat.update(day=today, new=0, by={}, cards=0)
+        _gstat["new"] += len(fresh)
+        _gstat["cards"] += 1
+        for r in fresh:
+            k = (r[4] + " " if r[4] else "") + r[3]
+            _gstat["by"][k] = _gstat["by"].get(k, 0) + 1
+    return new
+
+
+def _gs_path(gsh):
+    return os.path.join(_store, "gs", f"{gsh}.json.gz")
+
+
+def _gs_read(gsh):
+    try:
+        with gzip.open(_gs_path(gsh), "rt", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _gs_save(gsh, d):
+    os.makedirs(os.path.join(_store, "gs"), exist_ok=True)
+    tmp = _gs_path(gsh) + ".tmp"
+    with gzip.open(tmp, "wt", encoding="utf-8") as f:
+        json.dump(d, f, separators=(",", ":"))
+    os.replace(tmp, _gs_path(gsh))
+
+
+def graded_sales(cid):
+    """The graded sales on file for a card (newest first) - [[row id, date, cents, grade, grader, best offer, title], ...]."""
+    with _lock:
+        return _gs_read(int(cid) % GS_SHARDS).get(str(cid)) or []
+
+
+def graded_queued():
+    with _lock:
+        return len(_gq)
+
+
+def write_graded_chunk(folder, encrypt, stamp, keep_d=10):
+    """Write the queued graded sales as <folder>/<stamp>.bin (gzip JSON {"cols", "rows"} through encrypt) and drop
+    chunks older than keep_d days from the folder; the next publish commits both. -> rows written."""
+    with _lock:
+        rows = list(_gq)
+        if not rows:
+            return 0
+        os.makedirs(folder, exist_ok=True)
+        raw = gzip.compress(json.dumps({"cols": GS_COLS, "rows": rows}, separators=(",", ":")).encode("utf-8"))
+        tmp = os.path.join(folder, f"{stamp}.bin.tmp")
+        with open(tmp, "wb") as f:
+            f.write(encrypt(raw))
+        os.replace(tmp, os.path.join(folder, f"{stamp}.bin"))
+        _gq.clear()
+        try:
+            open(os.path.join(_store, "pcg_queue.jsonl"), "w").close()
+        except Exception:
+            pass
+    cut = (datetime.now(timezone.utc) - timedelta(days=keep_d)).strftime("%Y%m%d")
+    for name in os.listdir(folder):
+        if name.endswith(".bin") and name[:8].isdigit() and name[:8] < cut:
+            try:
+                os.remove(os.path.join(folder, name))
+            except OSError:
+                pass
+    return len(rows)
+
+
+def graded_summary():
+    """For the hourly log line: cards read for grades, today's new graded sales by grade."""
+    with _lock:
+        n = sum(1 for v in _index.values() if len(v) > 2 and v[2] >= GRADED_VERSION)
+        hot = sum(1 for v in _index.values() if len(v) > 3 and v[3])
+        st = dict(_gstat)
+        q = len(_gq)
+    top = sorted(st["by"].items(), key=lambda kv: -kv[1])[:6] if st["by"] else []
+    return (f"graded: {n:,} cards read with the graded parser ({hot:,} re-read early for busy graded tables); "
+            f"{st['new']:,} graded sales new today on {st['cards']:,} cards" + (" (" + ", ".join(f"{k} {v}" for k, v in top) + ")" if top else "")
+            + f", {q:,} waiting to be written out")
+
+
 def get(cid):
     with _lock:
         return _load(shard_of(cid)).get(str(cid))
 
 
-def stale(cid, active=False, today=None, want_signed=False):
-    """Does this card need its page read for the history? Never read, read longer ago than its refresh, or (with a
-    working sign-in) read without the volume series."""
+def stale(cid, active=False, today=None, want_signed=False, want_graded=False):
+    """Does this card need its page read for the history? Never read, read longer ago than its refresh, (with a
+    working sign-in) read without the volume series, (want_graded) read by an older parser than the graded one, or
+    due early because a graded table is busy (gdue)."""
     today = day_index() if today is None else today
     cid = int(cid)
     last = _index.get(cid)
     if last is None:
         m = _miss.get(cid)
         return m is None or today - m >= MISS_RETRY_D
-    day, signed = last
+    day, signed = last[0], last[1]
+    gv = last[2] if len(last) > 2 else 0
+    gdue = last[3] if len(last) > 3 else None
     if want_signed and not signed:
+        return True
+    if want_graded and (gv or 0) < GRADED_VERSION:
         return True
     if active and month_of_day(day) < month_of_day(today):   # a new month: last month's bar is final now, read it
         return True                                           # (Brett, 2026-10-13: "PC sales" shows last month's bar)
-    return today - day >= (REFRESH_ACTIVE_D if active else REFRESH_OTHER_D)
+    refresh = REFRESH_ACTIVE_D if active else REFRESH_OTHER_D
+    if gdue:
+        refresh = min(refresh, gdue)
+    return today - day >= refresh
 
 
 def count():
@@ -395,7 +725,7 @@ def count():
 
 
 def count_signed():
-    return sum(1 for _, signed in _index.values() if signed)
+    return sum(1 for v in _index.values() if v[1])
 
 
 def publish_files(encrypt):
@@ -408,9 +738,31 @@ def publish_files(encrypt):
     for sh in todo:
         with _lock:
             d = _load(sh)
-        pub = {cid: ({k: v for k, v in rec.items() if k != "sl"} if "sl" in rec else rec) for cid, rec in d.items()}   # the posted sales stay on the data disk
-        raw = gzip.compress(json.dumps(pub, separators=(",", ":")).encode("utf-8"))
+        pub = {cid: {k: v for k, v in rec.items() if k not in PAGE_DROP} for cid, rec in d.items()}   # the posted sales stay on the data disk;
+        raw = gzip.compress(json.dumps(pub, separators=(",", ":")).encode("utf-8"))                  # the graded fields go out in pcgh/
         out[f"pc/{sh}.bin"] = encrypt(raw)
+    return out
+
+
+def graded_dirty_count():
+    with _lock:
+        return len(_gdirty)
+
+
+def publish_graded_hist(encrypt):
+    """The shards whose graded lines or population report changed, as {"pcgh/<shard>.bin": bytes}: per card {m0, g, pop,
+    t} only (the page never reads them - they are for the Data archive, published every few hours so the live branch is
+    not pushed 20 MB every ten minutes during a full pass)."""
+    with _lock:
+        todo = sorted(_gdirty)
+        _gdirty.clear()
+    out = {}
+    for sh in todo:
+        with _lock:
+            d = _load(sh)
+        pub = {cid: {k: rec[k] for k in ("m0", "g", "pop", "t") if k in rec} for cid, rec in d.items() if rec.get("g") or rec.get("pop")}
+        raw = gzip.compress(json.dumps(pub, separators=(",", ":")).encode("utf-8"))
+        out[f"pcgh/{sh}.bin"] = encrypt(raw)
     return out
 
 
@@ -434,6 +786,7 @@ def mark_all_dirty():
         for sh in range(SHARDS):
             if os.path.exists(_path(sh)):
                 _dirty.add(sh)
+                _gdirty.add(sh)                              # pcgh/ too (skipped for shards with no graded card)
 
 
 def dirty_count():
