@@ -8,6 +8,9 @@ collected again (Brett, 2026-10-23). Four sources, four sub-folders:
 | `pokeviews/` | PokéViews' market indexes and indicators (the numbers behind their charts), including the PSA 10 Graded Indexes and the Grading Opportunity heatmap | one row per day (or per day × series / set / era; the heatmap: 96 cells per day) | the Data archive workflow, daily |
 | `pricecharting/` | the collector's PriceCharting history: ungraded price and sales volume per card per month since Dec 2020 (~2.3M card-months) | card × month | the Data archive workflow, the 2nd of each month (or a manual run with full = true) |
 | `pricecharting/daily/` | every column of PriceCharting's daily download since 2026-09-28: the ungraded price, the graded prices (grade 7 to PSA / BGS / CGC / SGC 10), PriceCharting's dealer buy / sell prices, sales volume | card × day (a full table per month + the day-to-day changes) | the Data archive workflow, daily |
+| `pricecharting/graded_sales/` | every graded sale the collector reads off the card pages' sold-listings tables (PSA / CGC / BGS / SGC / TAG / ACE 10, CGC 10 Pristine, BGS 10 Black, grade 7 / 8 / 9 / 9.5 with the grader from the title), from 2026-10-26 | one row per sale (`graded_sales_<YYYY-MM>.csv.gz` by sale month) | the Data archive workflow, daily |
+| `pricecharting/pop/` | the PSA and CGC population report on each card page (how many copies graded at each grade 1-10) | card (`pop_<YYYY-MM>.csv.gz`, the month's latest) | the Data archive workflow, daily |
+| `pricecharting/pc_graded_monthly_<year>.csv.gz` | PriceCharting's monthly graded prices off each card's chart: grade 7, 8, 9, 9.5 (every grader blended) and PSA 10 | card × month | the Data archive workflow, full runs (the 2nd of each month or full = true) |
 | `ebay/` | the eBay Catalog tab's figures for every card with eBay data, as the collector published them, one file per day; and the collector's per-card daily rollup | card × day | the Data archive workflow, daily (the rollup: monthly) |
 | `google_trends/` | Google Trends interest for the search term "pokemon cards", five Google properties, monthly since 2004 / 2008 | month | Brett downloads the files from Google Trends |
 
@@ -145,6 +148,13 @@ Coverage on 2026-10-26 (of 43,989 cards): ungraded 43,121; grade 9 39,224; PSA 1
 Many graded prices are PriceCharting's estimates for cards that rarely sell graded - weigh them by the graded sales the
 Grading Opportunity feed reports, not by their existence.
 
+**The non-PSA 10 prices are mostly a formula, not sales** (checked 2026-10-26 on the 21,342 cards with a PSA 10 price of
+$50+): `bgs-10-price` = 1.30 x `manual-only-price` for 97% of cards, `condition-18-price` (SGC 10) = 0.60 x for 93%,
+`condition-17-price` (CGC 10) = 0.40 x for 50% (after a one-day re-basing on 2026-10-22). Only the cards off the formula
+carry sale-based figures (busy modern cards, off-formula: CGC 10 median 0.31 x PSA 10, BGS 10 1.8 x, SGC 10 0.29 x).
+Grades 7-9.5 are one figure for every grader (a PSA 9 and a CGC 9 share it). For prices by grader use
+`graded_sales/`.
+
 Rebuilding any day (checked on all 29 days from 2026-09-28 to 10-26: identical to the download, every card, every
 number):
 
@@ -175,6 +185,44 @@ series = pd.concat(pd.read_csv(f, usecols=lambda c: c in ("id", "card_id", "manu
 
 (The last two lines give each card's value only on the days it changed and on the month's first day; forward-fill
 by card for a daily series.)
+
+### pricecharting/graded_sales/, pricecharting/pop/, pc_graded_monthly_<year>.csv.gz - the graded data on the card pages
+
+Source: the card pages the collector already reads (with Brett's PriceCharting sign-in) for the picture and the
+monthly history; nothing else is fetched and no eBay call is spent (2026-10-26, Brett: "Yes, please do"). Every page
+carries, besides the ungraded table, a sold-listings table per grade - PSA 10, CGC 10, CGC 10 Pristine, BGS 10, BGS 10
+Black, SGC 10, TAG 10, ACE 10, Grade 9.5, 9, 8, 7 ... 1 - each showing its **last 30 sales** (eBay, Goldin, PWCC,
+Heritage), the PSA and CGC population report, and the chart's monthly graded lines. The collector keeps the sales of
+the 10s and of grades 7-9.5, merges them across reads (a sale is one row however often its page is read) and writes
+the ones not seen before to the live branch; this archive files them by sale month. The pages are re-read weekly for
+cards with eBay data, monthly for the rest, and **sooner when a grade's 30 rows span less than about ten days** (70% of
+the span, 1-7 days) - still, for a very busy grade (e.g. a new chase card's PSA 10, 30 sales in a day or two) more
+than 30 sales can pass between two reads, so the files undercount those grades: use them for prices, and for counts
+only where the grade's table spans longer than the time between reads. The first full pass over the catalog's
+~44,000 pages (one page every 2 s) takes about a day from 2026-10-26.
+
+`graded_sales/graded_sales_<YYYY-MM>.csv.gz` - one row per sale:
+
+| column | meaning |
+|---|---|
+| `card_id` | PriceCharting's product id (matches `card_id` everywhere) |
+| `date` | the sale date PriceCharting shows (`YYYY-MM-DD`) |
+| `grade` | `10`, `10P` (CGC 10 Pristine), `10B` (BGS 10 Black), `9.5`, `9`, `8`, `7` |
+| `grader` | `PSA`, `CGC`, `BGS`, `SGC`, `TAG`, `ACE`, ... - for a 10 from the table's own label; for 7-9.5 read off the title (empty when the title names none) |
+| `price` | the sale price in dollars; for an accepted best offer, the accepted price (PriceCharting shows it, like 130point) |
+| `best_offer` | 1 = an accepted best offer |
+| `source` | `ebay`, `goldin`, `pwcc`, `heritage`, ... (the row id's prefix) |
+| `row_id` | PriceCharting's row id (e.g. `ebay-<item id>`) - with `card_id`, the key |
+| `title` | the listing title (70 characters). PriceCharting files some listings under the wrong card (e.g. a Celebrations Classic Collection reprint in the original Charizard's CGC 10 table): filter on the title before trusting a price |
+
+`pop/pop_<YYYY-MM>.csv.gz` - one row per card: `card_id`, `read_date` (the page's last read), `psa_1` ... `psa_10`,
+`cgc_1` ... `cgc_10` (copies graded at each grade, as the page showed them). Month over month, the change is how many
+copies were graded in between - a supply signal (a fast-rising PSA 10 count can weigh on its price).
+
+`pc_graded_monthly_<year>.csv.gz` - `card_id`, `month`, `grade_7`, `grade_8`, `grade_9`, `grade_9_5`, `psa_10`:
+PriceCharting's price for the month (its chart's last point in the month, dollars), back to when PriceCharting began
+tracking the card (2020-12 for most). Grades 7-9.5 blend every grader; only PSA 10 is one company's. Written on full
+runs; the cards appear as the collector re-reads their pages with the graded parser.
 
 ---
 
