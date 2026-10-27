@@ -1,11 +1,11 @@
 {
- "fetched": "2026-10-26T20:55:00Z",
+ "fetched": "2026-10-27T03:49:03Z",
  "source": "https://storage.googleapis.com/pokeviews-prod/",
  "feeds": {
   "top100_index": {
    "url": "https://storage.googleapis.com/pokeviews-prod/top100_index/top100_index.json.gz",
    "file": "top100_index.csv",
-   "rows": 933,
+   "rows": 934,
    "columns": [
     "date",
     "index_value",
@@ -30,7 +30,7 @@
     "rsi_percentile"
    ],
    "first_date": "2024-04-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "top100_constituents": {
    "url": "https://storage.googleapis.com/pokeviews-prod/top100_index/top100_constituents_table.json.gz",
@@ -68,7 +68,7 @@
   "top250_index": {
    "url": "https://storage.googleapis.com/pokeviews-prod/top250_index/top250_index.json.gz",
    "file": "top250_index.csv",
-   "rows": 933,
+   "rows": 934,
    "columns": [
     "date",
     "index_value",
@@ -93,7 +93,7 @@
     "rsi_percentile"
    ],
    "first_date": "2024-04-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "top250_constituents": {
    "url": "https://storage.googleapis.com/pokeviews-prod/top250_index/top250_constituents_table.json.gz",
@@ -131,7 +131,7 @@
   "hot_cold_index": {
    "url": "https://storage.googleapis.com/pokeviews-prod/bull_bear_indicator/bull_bear_indicator.json.gz",
    "file": "hot_cold_index.csv",
-   "rows": 903,
+   "rows": 904,
    "columns": [
     "date",
     "display_score",
@@ -170,12 +170,12 @@
     "new_highs_50plus_signal"
    ],
    "first_date": "2024-05-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "market_momentum": {
    "url": "https://storage.googleapis.com/pokeviews-prod/mms/mms.json.gz",
    "file": "market_momentum.csv",
-   "rows": 956,
+   "rows": 957,
    "columns": [
     "date",
     "pct_above_30d",
@@ -239,12 +239,12 @@
     "top250_index_value"
    ],
    "first_date": "2024-03-09",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "new_highs_lows": {
    "url": "https://storage.googleapis.com/pokeviews-prod/new_highs_lows/new_highs_lows.json.gz",
    "file": "new_highs_lows.csv",
-   "rows": 956,
+   "rows": 957,
    "columns": [
     "date",
     "pct_at_30d_high",
@@ -300,12 +300,12 @@
     "top250_index_value"
    ],
    "first_date": "2024-03-09",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "pokemon_vs_assets": {
    "url": "https://storage.googleapis.com/pokeviews-prod/asset_comparison/asset_comparison.json.gz",
    "file": "pokemon_vs_assets.csv",
-   "rows": 933,
+   "rows": 934,
    "columns": [
     "date",
     "pv250_index",
@@ -338,12 +338,12 @@
     "btc_rank_all_time"
    ],
    "first_date": "2024-04-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "trend_extension": {
    "url": "https://storage.googleapis.com/pokeviews-prod/trend_exhaustion/trend_exhaustion.json.gz",
    "file": "trend_extension.csv",
-   "rows": 932,
+   "rows": 933,
    "columns": [
     "date",
     "index_value",
@@ -375,12 +375,12 @@
     "sma200_52w_low_date"
    ],
    "first_date": "2024-04-01",
-   "last_date": "2026-10-24"
+   "last_date": "2026-10-25"
   },
   "era_performance": {
    "url": "https://storage.googleapis.com/pokeviews-prod/pc_era_index/pc_era_index.json.gz",
    "file": "era_performance.csv",
-   "rows": 1759,
+   "rows": 1760,
    "columns": [
     "date",
     "vintage_index_value",
@@ -420,12 +420,12 @@
     "contemporary_n_contributing"
    ],
    "first_date": "2022-01-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "series_performance": {
    "url": "https://storage.googleapis.com/pokeviews-prod/pc_series_index/pc_series_index.json.gz",
    "file": "series_performance.csv.gz",
-   "rows": 22977,
+   "rows": 22992,
    "columns": [
     "date",
     "series_name",
@@ -439,7 +439,7 @@
     "rank_all_time"
    ],
    "first_date": "2022-01-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "series_constituents": {
    "url": "https://storage.googleapis.com/pokeviews-prod/pc_series_index/pc_series_index_constituents_table.json.gz",
@@ -480,7 +480,7 @@
   "graded_index": {
    "url": "https://storage.googleapis.com/pokeviews-prod/graded_index/graded_index.json.gz",
    "file": "graded_index.csv",
-   "rows": 1759,
+   "rows": 1760,
    "columns": [
     "date",
     "cohort_month",
@@ -505,7 +505,7 @@
     "rsi_14_monthly"
    ],
    "first_date": "2022-01-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "graded_index_constituents": {
    "url": "https://storage.googleapis.com/pokeviews-prod/graded_index/graded_index_constituents_table.json.gz",
@@ -541,7 +541,7 @@
   "graded_index_by_era": {
    "url": "https://storage.googleapis.com/pokeviews-prod/graded_index_by_era/graded_index_by_era.json.gz",
    "file": "graded_index_by_era.csv",
-   "rows": 7036,
+   "rows": 7040,
    "columns": [
     "date",
     "era",
@@ -559,7 +559,7 @@
     "rsi_14"
    ],
    "first_date": "2022-01-01",
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "graded_index_by_era_constituents": {
    "url": "https://storage.googleapis.com/pokeviews-prod/graded_index_by_era/graded_index_by_era_constituents_table.json.gz",
@@ -599,13 +599,13 @@
     "image_url",
     "date"
    ],
-   "first_date": "2026-10-25",
-   "last_date": "2026-10-25"
+   "first_date": "2026-10-26",
+   "last_date": "2026-10-26"
   },
   "grading_opportunity_history": {
    "url": "https://storage.googleapis.com/pokeviews-prod/grading/grading_opportunity.json.gz",
    "file": "grading_opportunity_history.csv",
-   "rows": 96,
+   "rows": 192,
    "columns": [
     "raw_price_bucket",
     "ratio_bucket",
@@ -622,8 +622,8 @@
     "date"
    ],
    "first_date": "2026-10-25",
-   "last_date": "2026-10-25",
-   "days": 1
+   "last_date": "2026-10-26",
+   "days": 2
   },
   "asset_correlation": {
    "url": "https://storage.googleapis.com/pokeviews-prod/asset_correlation/correlation_matrix.json.gz",
@@ -637,7 +637,7 @@
     "correlation",
     "last_updated"
    ],
-   "last_updated": "2026-10-25T21:52:58.403728+00:00",
+   "last_updated": "2026-10-26T21:56:51.353900+00:00",
    "labels": [
     "Top 100",
     "Top 250",
@@ -669,7 +669,7 @@
     "XY": "pc_set_index/pc_set_index_xy.json.gz"
    },
    "file": "set_performance.csv.gz",
-   "rows": 204424,
+   "rows": 204556,
    "columns": [
     "date",
     "series_name",
@@ -684,7 +684,7 @@
     "rank_all_time"
    ],
    "first_date": "2022-01-01",
-   "last_date": "2026-10-25",
+   "last_date": "2026-10-26",
    "series": 15,
    "sets": 133
   }

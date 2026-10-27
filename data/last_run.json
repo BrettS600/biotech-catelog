@@ -1,10 +1,10 @@
 {
- "run": "2026-10-26T20:55:00Z",
+ "run": "2026-10-27T03:49:03Z",
  "full": false,
  "pokeviews": {
   "top100_index": {
-   "rows": 933,
-   "last_date": "2026-10-25"
+   "rows": 934,
+   "last_date": "2026-10-26"
   },
   "top100_constituents": {
    "rows": 100,
@@ -15,8 +15,8 @@
    "last_date": null
   },
   "top250_index": {
-   "rows": 933,
-   "last_date": "2026-10-25"
+   "rows": 934,
+   "last_date": "2026-10-26"
   },
   "top250_constituents": {
    "rows": 250,
@@ -27,32 +27,32 @@
    "last_date": null
   },
   "hot_cold_index": {
-   "rows": 903,
-   "last_date": "2026-10-25"
+   "rows": 904,
+   "last_date": "2026-10-26"
   },
   "market_momentum": {
-   "rows": 956,
-   "last_date": "2026-10-25"
+   "rows": 957,
+   "last_date": "2026-10-26"
   },
   "new_highs_lows": {
-   "rows": 956,
-   "last_date": "2026-10-25"
+   "rows": 957,
+   "last_date": "2026-10-26"
   },
   "pokemon_vs_assets": {
+   "rows": 934,
+   "last_date": "2026-10-26"
+  },
+  "trend_extension": {
    "rows": 933,
    "last_date": "2026-10-25"
   },
-  "trend_extension": {
-   "rows": 932,
-   "last_date": "2026-10-24"
-  },
   "era_performance": {
-   "rows": 1759,
-   "last_date": "2026-10-25"
+   "rows": 1760,
+   "last_date": "2026-10-26"
   },
   "series_performance": {
-   "rows": 22977,
-   "last_date": "2026-10-25"
+   "rows": 22992,
+   "last_date": "2026-10-26"
   },
   "series_constituents": {
    "rows": 375,
@@ -63,8 +63,8 @@
    "last_date": null
   },
   "graded_index": {
-   "rows": 1759,
-   "last_date": "2026-10-25"
+   "rows": 1760,
+   "last_date": "2026-10-26"
   },
   "graded_index_constituents": {
    "rows": 250,
@@ -75,8 +75,8 @@
    "last_date": null
   },
   "graded_index_by_era": {
-   "rows": 7036,
-   "last_date": "2026-10-25"
+   "rows": 7040,
+   "last_date": "2026-10-26"
   },
   "graded_index_by_era_constituents": {
    "rows": 200,
@@ -84,204 +84,37 @@
   },
   "grading_opportunity": {
    "rows": 96,
-   "last_date": "2026-10-25"
+   "last_date": "2026-10-26"
   },
   "grading_opportunity_history": {
-   "rows": 96,
-   "last_date": "2026-10-25"
+   "rows": 192,
+   "last_date": "2026-10-26"
   },
   "asset_correlation": {
    "rows": 576,
    "last_date": null
   },
   "set_performance": {
-   "rows": 204424,
-   "last_date": "2026-10-25"
+   "rows": 204556,
+   "last_date": "2026-10-26"
   }
  },
  "pricecharting_daily": {
   "days_on_file": 29,
-  "written": [
-   {
-    "date": "2026-09-28",
-    "kind": "full",
-    "rows": 43891,
-    "bytes": 1624218
-   },
-   {
-    "date": "2026-09-29",
-    "kind": "changes",
-    "rows": 5260,
-    "bytes": 135503
-   },
-   {
-    "date": "2026-09-30",
-    "kind": "changes",
-    "rows": 2433,
-    "bytes": 68314
-   },
-   {
-    "date": "2026-10-01",
-    "kind": "full",
-    "rows": 43926,
-    "bytes": 1626638
-   },
-   {
-    "date": "2026-10-02",
-    "kind": "changes",
-    "rows": 10000,
-    "bytes": 266912
-   },
-   {
-    "date": "2026-10-03",
-    "kind": "changes",
-    "rows": 9935,
-    "bytes": 237914
-   },
-   {
-    "date": "2026-10-04",
-    "kind": "changes",
-    "rows": 12982,
-    "bytes": 336134
-   },
-   {
-    "date": "2026-10-05",
-    "kind": "changes",
-    "rows": 3974,
-    "bytes": 101976
-   },
-   {
-    "date": "2026-10-06",
-    "kind": "changes",
-    "rows": 8435,
-    "bytes": 226240
-   },
-   {
-    "date": "2026-10-07",
-    "kind": "changes",
-    "rows": 3978,
-    "bytes": 110946
-   },
-   {
-    "date": "2026-10-08",
-    "kind": "changes",
-    "rows": 13658,
-    "bytes": 366098
-   },
-   {
-    "date": "2026-10-09",
-    "kind": "changes",
-    "rows": 4074,
-    "bytes": 103852
-   },
-   {
-    "date": "2026-10-10",
-    "kind": "changes",
-    "rows": 12137,
-    "bytes": 309517
-   },
-   {
-    "date": "2026-10-11",
-    "kind": "changes",
-    "rows": 8697,
-    "bytes": 233606
-   },
-   {
-    "date": "2026-10-12",
-    "kind": "changes",
-    "rows": 12319,
-    "bytes": 318903
-   },
-   {
-    "date": "2026-10-13",
-    "kind": "changes",
-    "rows": 8046,
-    "bytes": 216850
-   },
-   {
-    "date": "2026-10-14",
-    "kind": "changes",
-    "rows": 5451,
-    "bytes": 145238
-   },
-   {
-    "date": "2026-10-15",
-    "kind": "changes",
-    "rows": 8566,
-    "bytes": 212641
-   },
-   {
-    "date": "2026-10-16",
-    "kind": "changes",
-    "rows": 9062,
-    "bytes": 249402
-   },
-   {
-    "date": "2026-10-17",
-    "kind": "changes",
-    "rows": 10304,
-    "bytes": 275412
-   },
-   {
-    "date": "2026-10-18",
-    "kind": "changes",
-    "rows": 5890,
-    "bytes": 151245
-   },
-   {
-    "date": "2026-10-19",
-    "kind": "changes",
-    "rows": 10796,
-    "bytes": 296971
-   },
-   {
-    "date": "2026-10-20",
-    "kind": "changes",
-    "rows": 7896,
-    "bytes": 211876
-   },
-   {
-    "date": "2026-10-21",
-    "kind": "changes",
-    "rows": 6811,
-    "bytes": 176023
-   },
-   {
-    "date": "2026-10-22",
-    "kind": "changes",
-    "rows": 29071,
-    "bytes": 642641
-   },
-   {
-    "date": "2026-10-23",
-    "kind": "changes",
-    "rows": 12540,
-    "bytes": 334027
-   },
-   {
-    "date": "2026-10-24",
-    "kind": "changes",
-    "rows": 5802,
-    "bytes": 154509
-   },
-   {
-    "date": "2026-10-25",
-    "kind": "changes",
-    "rows": 9787,
-    "bytes": 263290
-   },
-   {
-    "date": "2026-10-26",
-    "kind": "changes",
-    "rows": 9389,
-    "bytes": 255093
-   }
-  ]
+  "written": []
+ },
+ "pricecharting_graded": {
+  "graded_sales": {
+   "chunks": 3,
+   "rows_read": 34641,
+   "rows_added": 32856
+  },
+  "pop_cards": 268
  },
  "ebay": {
-  "as_of": "2026-10-26T20:51:28Z",
-  "cards": 6942,
-  "file": "ebay/catalog/2026-10-26.csv.gz",
+  "as_of": "2026-10-27T03:46:55Z",
+  "cards": 7027,
+  "file": "ebay/catalog/2026-10-27.csv.gz",
   "gate": {
    "fee": 0.1325,
    "buyerTax": 0.065,
@@ -314,5 +147,5 @@
   ],
   "since": "2026-09-28"
  },
- "seconds": 37
+ "seconds": 13
 }
