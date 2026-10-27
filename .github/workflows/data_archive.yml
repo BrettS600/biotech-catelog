@@ -8,6 +8,11 @@ name: Data archive
 # of PriceCharting's daily download (data/pricecharting/daily: graded prices, dealer buy / sell, volume).
 # 2026-10-26 (later): the graded data the collector reads off the card pages - graded sales (pcg/ chunks on the live
 # branch -> data/pricecharting/graded_sales), the PSA / CGC population report (pop/), monthly graded prices (full runs).
+# 2026-10-27: THE DATA FOLDER LIVES IN THE PRIVATE REPO BrettS600/card-data (same layout: data/...). This repo is public
+# (the website loads its live files from it) and none of the data is for redistribution (PriceCharting's terms, PokeViews',
+# the paid sources to come), so the workflow checks card-data out with the DATA_REPO_TOKEN secret (a fine-grained token:
+# card-data only, Contents read and write), writes the archive there and pushes it there. The first run copies this repo's
+# old data/ folder into card-data, and once that push has gone through, removes data/ from this repo.
 
 on:
   schedule:
@@ -20,7 +25,7 @@ on:
         default: false
 
 permissions:
-  contents: write             # the results are committed to main
+  contents: write             # only for the one-time removal of the old data/ folder from this repo
 
 concurrency:
   group: data-archive
@@ -33,6 +38,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check out the private data repo (BrettS600/card-data)
+        uses: actions/checkout@v4
+        with:
+          repository: BrettS600/card-data
+          token: ${{ secrets.DATA_REPO_TOKEN }}
+          path: card-data
+
+      - name: "One-time: copy this repo's old data/ folder into card-data"
+        run: |
+          if [ -d data ] && [ ! -d card-data/data ]; then
+            cp -r data card-data/data
+            echo "copied $(find card-data/data -type f | wc -l) files into card-data/data"
+          else
+            echo "nothing to copy"
+          fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -40,13 +61,13 @@ jobs:
       - name: Install packages
         run: pip install -r requirements.txt
 
-      - name: Fetch the PriceCharting snapshots (the newest for card names; every day not yet in data/pricecharting/daily)
+      - name: Fetch the PriceCharting snapshots (the newest for card names; every day not yet in card-data/data/pricecharting/daily)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p snapshots
           gh release view snapshots --json assets -q '.assets[].name | select(startswith("pc_catalog_"))' | sort > snapshot_names.txt
-          last=$(ls data/pricecharting/daily 2>/dev/null | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' | sort | tail -1 || true)
+          last=$(ls card-data/data/pricecharting/daily 2>/dev/null | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' | sort | tail -1 || true)
           echo "newest snapshot: $(tail -1 snapshot_names.txt); last day archived: ${last:-none}"
           # the newest (names) + the last archived day's (the base of the next changes file) + every day after it
           { tail -1 snapshot_names.txt; awk -v l="pc_catalog_${last}" '$0 >= l' snapshot_names.txt; } | sort -u > want.txt
@@ -72,19 +93,34 @@ jobs:
           full=""
           if [ "$FULL" = "true" ] || [ "$(date -u +%d)" = "02" ]; then full="--full"; fi
           echo "mode: ${full:-daily}"
-          python data_archive.py --live-dir live_pc --snapshots snapshots --out data $full
-          du -sh data data/* | sort -k2
+          python data_archive.py --live-dir live_pc --snapshots snapshots --out card-data/data $full
+          du -sh card-data/data card-data/data/* | sort -k2
 
-      - name: Commit to main
+      - name: Commit to card-data
+        working-directory: card-data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
           if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
-          git commit -m "Data archive $(date -u +%F)" -m "data_archive.py (the Data archive workflow) refreshed: $(git diff --cached --name-only | sed 's#/[^/]*$##' | sort -u | tr '\n' ' ')"
+          git commit -q -m "Data archive $(date -u +%F)" -m "data_archive.py (the Data archive workflow in biotech-catelog) refreshed: $(git diff --cached --name-only | sed 's#/[^/]*$##' | sort -u | tr '\n' ' ')"
           for i in 1 2 3; do
             if git push origin HEAD:main; then exit 0; fi
-            echo "push rejected (main moved) - rebasing and trying again"
+            echo "push rejected (card-data moved) - rebasing and trying again"
+            git pull --rebase origin main
+          done
+          exit 1
+
+      - name: "One-time: remove the old data/ folder from this public repo"
+        run: |
+          if [ ! -d data ]; then echo "data/ is already gone from this repo"; exit 0; fi
+          test -f card-data/data/README.md                   # the copy is in card-data (the push above went through)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r -q data
+          git commit -q -m "Move data/ to the private repo BrettS600/card-data" -m "This repo is public; the data is not for redistribution. The Data archive and Research workflows now read and write card-data (DATA_REPO_TOKEN)."
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
             git pull --rebase origin main
           done
           exit 1
