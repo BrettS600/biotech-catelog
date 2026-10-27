@@ -22,6 +22,15 @@ Runs on GitHub's machine (.github/workflows/data_archive.yml, daily after the si
                                   = the cards whose prices or volume moved since the snapshot before (graded prices PSA 10 /
                                   BGS 10 / CGC 10 / SGC 10 / grade 7-9.5, the dealer buy / sell prices, sales volume). Daily;
                                   a missing day is filled in from the release on the next run (2026-10-26, Brett).
+  data/pricecharting/graded_sales/ graded_sales_<YYYY-MM>.csv.gz = every graded sale the collector read off the card pages'
+                                  sold-listings tables (PSA / CGC / BGS / SGC / TAG / ACE 10, CGC 10 Pristine, BGS 10 Black,
+                                  grade 7 / 8 / 9 / 9.5 with the grader read off the title), from the live branch's pcg/
+                                  chunks; by sale month, deduplicated. Daily (2026-10-26, Brett: "Yes, please do").
+  data/pricecharting/pop/         pop_<YYYY-MM>.csv.gz = the PSA and CGC population report each card page carries (grades
+                                  1-10), as of the page's last read; the month's file is rewritten daily, so the last one
+                                  of each month is that month's snapshot.
+  data/pricecharting/             pc_graded_monthly_<year>.csv.gz = PriceCharting's monthly graded prices off each card's
+                                  chart (grade 7, 8, 9, 9.5 - every grader blended - and PSA 10). Full runs only.
 
 Keys: SITE_PASSWORD (env) decrypts the shards, the live file and the snapshot - nothing written here is encrypted,
 the repository is private. Nothing here changes the site or the collector.
@@ -483,6 +492,106 @@ def ebay(out, live_dir, snapshots, password, full):
     return info
 
 
+# ---------------- PriceCharting: the graded data the collector reads off the card pages (2026-10-26) ----------------
+GRADED_SERIES = (("g7", "grade_7"), ("g8", "grade_8"), ("g9", "grade_9"), ("g95", "grade_9_5"), ("psa10", "psa_10"))
+GS_OUT = ["card_id", "date", "grade", "grader", "price", "best_offer", "source", "row_id", "title"]
+
+
+def pc_graded(out, live_dir, password, full):
+    """(1) The collector's pcg/<stamp>.bin chunks (graded sales first seen on the card pages) -> graded_sales/
+    graded_sales_<YYYY-MM>.csv.gz by sale month, merged with what is there and deduplicated on (card_id, row_id);
+    (2) the PSA / CGC population report on each pcgh/<shard>.bin record -> pop/pop_<this month>.csv.gz; (3) full runs:
+    the monthly graded prices on each record -> pc_graded_monthly_<year>.csv.gz."""
+    import pandas as pd
+    folder = os.path.join(out, "pricecharting")
+    res = {}
+    chunks = sorted(glob.glob(os.path.join(live_dir, "pcg", "*.bin")))
+    rows = []
+    for f in chunks:
+        try:
+            doc = json.loads(gzip.decompress(F.decrypt_live(open(f, "rb").read(), password)))
+        except Exception as e:
+            log(f"graded: chunk {os.path.basename(f)} unreadable ({str(e)[:80]})")
+            continue
+        cols = doc.get("cols") or []
+        rows.extend(dict(zip(cols, r)) for r in doc.get("rows") or [])
+    added = 0
+    if rows:
+        gfolder = os.path.join(folder, "graded_sales")
+        os.makedirs(gfolder, exist_ok=True)
+        df = pd.DataFrame(rows)
+        df["row_id"] = df["row_id"].astype(str)
+        df["source"] = df["row_id"].str.split("-").str[0]
+        df["price"] = (pd.to_numeric(df["cents"], errors="coerce") / 100).round(2)
+        df["grade"] = df["grade"].astype(str)
+        df = df[GS_OUT]
+        for month, part in df.groupby(df["date"].astype(str).str[:7]):
+            path = os.path.join(gfolder, f"graded_sales_{month}.csv.gz")
+            n0 = 0
+            if os.path.exists(path):
+                old = pd.read_csv(path, dtype={"grade": str, "row_id": str, "grader": str, "title": str})
+                n0 = len(old)
+                part = pd.concat([old, part], ignore_index=True)
+            part = part.drop_duplicates(["card_id", "row_id"], keep="first").sort_values(["date", "card_id", "row_id"])
+            part.to_csv(path, index=False, compression={"method": "gzip", "compresslevel": 6})
+            added += len(part) - n0
+    res["graded_sales"] = {"chunks": len(chunks), "rows_read": len(rows), "rows_added": added}
+    log(f"graded: {len(chunks)} chunk(s), {len(rows):,} rows read, {added:,} new graded sales filed")
+    try:
+        hist = F.read_shards(os.path.join(live_dir, "pcgh"), password)   # the collector's graded shards: {m0, g, pop, t} per card
+    except Exception as e:
+        log(f"graded: shards unreadable ({str(e)[:80]})")
+        return res
+    pop_rows = []
+    for cid, r in hist.items():
+        p = r.get("pop")
+        if not p:
+            continue
+        psa = list((p.get("psa") or [])[:10]); cgc = list((p.get("cgc") or [])[:10])
+        psa += [None] * (10 - len(psa)); cgc += [None] * (10 - len(cgc))
+        pop_rows.append([int(cid), r.get("t")] + psa + cgc)
+    if pop_rows:
+        pfolder = os.path.join(folder, "pop")
+        os.makedirs(pfolder, exist_ok=True)
+        cols = ["card_id", "read_date"] + [f"psa_{i}" for i in range(1, 11)] + [f"cgc_{i}" for i in range(1, 11)]
+        path = os.path.join(pfolder, f"pop_{datetime.now(timezone.utc).strftime('%Y-%m')}.csv.gz")
+        with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(cols)
+            w.writerows(sorted(pop_rows))
+    res["pop_cards"] = len(pop_rows)
+    log(f"graded: population report on {len(pop_rows):,} cards")
+    if full:
+        by_year = {}
+        for cid in sorted(hist, key=int):
+            r = hist[cid]
+            g = r.get("g")
+            if not g:
+                continue
+            m0 = r["m0"]
+            L = max(len(v) for v in g.values())
+            for k in range(L):
+                vals = [(g.get(key) or [])[k] if k < len(g.get(key) or []) else None for key, _ in GRADED_SERIES]
+                if not any(vals):
+                    continue
+                mn = month_name(m0 + k)
+                by_year.setdefault(mn[:4], []).append([cid, mn] + [round(v / 100.0, 2) if v else "" for v in vals])
+        n = 0
+        if by_year:
+            for f in glob.glob(os.path.join(folder, "pc_graded_monthly*.csv.gz")):
+                os.remove(f)
+            for year, yr in sorted(by_year.items()):
+                path = os.path.join(folder, f"pc_graded_monthly_{year}.csv.gz")
+                with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
+                    w = csv.writer(f, lineterminator="\n")
+                    w.writerow(["card_id", "month"] + [c for _, c in GRADED_SERIES])
+                    w.writerows(yr)
+                n += len(yr)
+        res["graded_monthly_rows"] = n
+        log(f"graded: {n:,} card-months of graded prices in {len(by_year)} file(s)")
+    return res
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data")
@@ -504,6 +613,11 @@ def main():
         if a.full:
             report["pricecharting"] = pricecharting(a.out, a.live_dir, a.snapshots, a.password)
         report["pricecharting_daily"] = pc_daily(a.out, a.snapshots, a.password)
+        try:
+            report["pricecharting_graded"] = pc_graded(a.out, a.live_dir, a.password, a.full)
+        except Exception as e:                       # the rest of the archive must not fail over the graded part
+            log(f"graded: failed ({str(e)[:160]})")
+            report["pricecharting_graded"] = {"error": str(e)[:160]}
         if not a.skip_ebay:
             report["ebay"] = ebay(a.out, a.live_dir, a.snapshots, a.password, a.full)
     report["seconds"] = round(time.time() - t0)
