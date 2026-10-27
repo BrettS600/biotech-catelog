@@ -1726,6 +1726,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   also strips a trailing "[eBay]" (18% of the titles), and keep_graded() mends a filed row without a grader when a re-read
   names one and queues it again (data_archive keeps the later copy: drop_duplicates keep="last"); the v1 cards are
   re-read during the pass. First chunk after the fix: 12 of 8,856 rows without a grader.
+- THE DATA FOLDER MOVED TO THE PRIVATE REPO BrettS600/card-data (2026-10-27). biotech-catelog is PUBLIC (verified signed
+  out; it has to be: the page loads its live files from raw.githubusercontent.com), so data/ - PriceCharting's prices,
+  graded sales, pop, PokeViews' feeds, the eBay figures, the research - was readable by anyone, against PriceCharting's
+  terms ("not for external display or redistribution"; internal business use needs a current Legendary subscription).
+  Brett created card-data (private, made in his Chrome) and a fine-grained token on card-data only (Contents read and
+  write), stored as the Actions secret DATA_REPO_TOKEN in biotech-catelog. data_archive.yml checks card-data out at
+  ./card-data (actions/checkout, repository: BrettS600/card-data, token: DATA_REPO_TOKEN), runs data_archive.py --out
+  card-data/data and pushes there; its first run copied the old data/ over, then git rm'd data/ here. research.yml runs
+  in card-data/data/research/scripts and pushes the results there. Same layout (data/...), so every path in
+  data/README.md and the research scripts holds. The old files are still in this repo's git HISTORY (scrubbing them
+  means rewriting main, which would break the droplet's --ff-only pull - not done). Anything bought later (Card Hedge,
+  GemRate, PokemonPriceTracker...) goes to card-data only. PokemonPriceTracker's licensing forbids subscribing for a
+  month to bulk-download history and cancelling ("not a bulk sweep of the catalogue on your way out the door").
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
