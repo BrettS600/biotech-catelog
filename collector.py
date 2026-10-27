@@ -2052,6 +2052,8 @@ def pc_image(state, pid):
 PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
 PC_POLL_S = 20                   # how often the picture worker polls its request topic (-pc); see poll_requests for why not 4 s
 PC_HIST_PUBLISH_S = 600          # changed history shards go to the live branch this often
+PCG_KEEP_D = 10                  # graded-sales chunks (pcg/<stamp>.bin) stay on the live branch this long (the archive reads them daily)
+PCGH_PUBLISH_S = 6 * 3600        # the graded lines + population shards (pcgh/<shard>.bin, for the archive only) go out this often
 PCM_PUBLISH_S = 3600             # pcm.bin (every card's last complete month of PriceCharting sales) goes out hourly
 PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
 
@@ -2266,7 +2268,7 @@ def pc_plan(state, cards, cat=None):
             if cid in seen:
                 continue
             want_img = group < 2 and k not in cache and not fresh_miss(k)
-            if want_img or pchist.stale(cid, active=cid in active, today=today_i, want_signed=want_signed):
+            if want_img or pchist.stale(cid, active=cid in active, today=today_i, want_signed=want_signed, want_graded=True):
                 seen.add(cid)
                 out.append((cid, want_img))
     return out
@@ -3649,7 +3651,10 @@ def cycle(state, cat, sched, counters):
     if pc is not None and pc.backlog() and due("pictures", 600):   # while the backlog lasts: a line every ten minutes
         log(f"Pictures: {len(v.get('pc_img', {}))} on file, {pc.read} pages read since the start, {pc.backlog()} to go, "
             f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s; "
-            f"history: {pchist.count():,} of {len(cat.cards):,} cards on file, {pchist.count_signed():,} with the volume series")
+            f"history: {pchist.count():,} of {len(cat.cards):,} cards on file, {pchist.count_signed():,} with the volume series; "
+            + pchist.graded_summary())
+    if due("graded_log", 3600):                              # PriceCharting's graded data (2026-10-26): hourly
+        log("PriceCharting " + pchist.graded_summary())
     live["pcimg"] = pc_image_table(state)
     live["pch"] = {"n": pchist.count(), "total": len(cat.cards), "shards": pchist.SHARDS,   # the page's "history for N cards so far"
                    "signed": pchist.count_signed(), "signin": v.get("pch_signin", "none") if PC_COOKIE else "none"}
@@ -3704,6 +3709,19 @@ def cycle(state, cat, sched, counters):
         if due("backup", STATE_BACKUP_EVERY_S):
             state_raw = save_state(state)
             files[es.STATE_NAME] = es.encrypt_file_blob(state_raw, es.PASSWORD) if es.PASSWORD else state_raw
+        if not DRY_RUN and pchist.graded_queued() and due("pcgraded", PC_HIST_PUBLISH_S):   # graded sales first seen (2026-10-26)
+            try:                                             # written straight into the live checkout: committed by this publish
+                nrows = pchist.write_graded_chunk(os.path.join(LIVE_DIR, "pcg"), lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw,
+                                                  es.NOW.strftime("%Y%m%d-%H%M%S"), keep_d=PCG_KEEP_D)
+                if nrows:
+                    log(f"PriceCharting graded: {nrows:,} sales written to pcg/ for the data archive")
+            except Exception as e:
+                log(f"PriceCharting graded: chunk failed ({str(e)[:120]})")
+        if pchist.graded_dirty_count() and due("pcgh", PCGH_PUBLISH_S):   # the graded lines and population report (2026-10-26), daily
+            try:
+                files.update(pchist.publish_graded_hist(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
+            except Exception as e:
+                log(f"PriceCharting graded: pcgh publish failed ({str(e)[:120]})")
         if pchist.dirty_count() and (due("pchist", PC_HIST_PUBLISH_S) or urgent):   # PriceCharting history shards that changed
             try:
                 files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
