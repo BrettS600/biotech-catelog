@@ -1721,6 +1721,11 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (data/research, round 3) - does it pick slabs that beat the graded average? Tests: ut/test_graded.py (a page built on
   the live structure: tables, best offer, Goldin / PWCC / Heritage rows, labels, pop, series, due, merge / dedupe /
   retention / queue / restart, stale, pcgh, chunk), ut/test_archive_graded.py.
+  FIX 2026-10-27 03:31 (pchist GRADED_VERSION 2): the grader was read off the 70-character cut title - the first two
+  chunks (25,785 rows on 278 cards) had 11% of the rows without one. Now grader_of() reads the whole title, _plain()
+  also strips a trailing "[eBay]" (18% of the titles), and keep_graded() mends a filed row without a grader when a re-read
+  names one and queues it again (data_archive keeps the later copy: drop_duplicates keep="last"); the v1 cards are
+  re-read during the pass. First chunk after the fix: 12 of 8,856 rows without a grader.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
