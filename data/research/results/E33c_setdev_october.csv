@@ -1,7 +1,0 @@
-source,signal,cards,spearman_ic,bottom_quintile_mean,top_quintile_mean,all_mean
-pricecharting_raw_28d,setdev,2068,-0.1469,0.1600,0.0682,0.0963
-pricecharting_raw_28d,dev12,2068,-0.0612,0.1153,0.0679,0.0963
-pricecharting_raw_28d,peerdev,1708,-0.1278,0.1569,0.0596,0.0975
-ebay_sold_median_2wk,setdev,290,0.1073,0.0665,0.1576,0.0803
-ebay_sold_median_2wk,dev12,290,0.2916,0.0085,0.2542,0.0803
-ebay_sold_median_2wk,peerdev,224,0.0758,0.0517,0.2101,0.0935

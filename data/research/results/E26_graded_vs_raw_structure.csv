@@ -1,5 +1,0 @@
-era,months,corr_same_month,corr_graded_leads_raw_1m,corr_raw_leads_graded_1m,corr_graded_leads_raw_3m_sum,raw_total_return,psa10_total_return,raw_max_drawdown,psa10_max_drawdown,raw_monthly_vol,psa10_monthly_vol
-Vintage,57,0.4737,0.4131,0.4143,0.6441,1.9225,3.0469,-0.2668,-0.2645,0.0519,0.0516
-Classic,57,0.4801,0.5510,0.5595,0.6941,3.4793,5.4094,-0.1976,-0.3001,0.0594,0.0645
-Mid Era,57,0.5809,0.4458,0.6655,0.4902,3.0417,12.7125,-0.0908,-0.1688,0.0383,0.0821
-Modern,57,0.4990,0.4081,0.5013,0.2294,4.0237,6.2854,-0.2464,-0.2918,0.0588,0.0788

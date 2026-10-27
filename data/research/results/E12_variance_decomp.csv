@@ -1,3 +1,0 @@
-h,months,picks,mean_net20,std_net20,std_month_means,std_residual,share_market,implied_pair_corr,p_month_mean_neg,corr_month_mean_vs_reg3
-1,57,4380,0.0429,0.3352,0.059,0.3299,0.031,0.031,0.4386,0.6885
-3,55,3961,0.1686,0.4514,0.1074,0.4385,0.0566,0.0566,0.0909,0.7212

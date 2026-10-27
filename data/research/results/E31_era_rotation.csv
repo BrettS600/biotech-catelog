@@ -1,4 +1,0 @@
-signal,months,top_era_next_raw,bottom_era_next_raw,avg_era_next_raw,top_minus_avg,top_beats_avg_share,t_top_minus_avg
-psa10_last_month,56,0.0387,0.0233,0.0258,0.0129,0.6250,2.4888
-psa10_minus_raw_3m,54,0.0267,0.0251,0.0268,-0.0000,0.5000,-0.0028
-raw_last_month,56,0.0338,0.0208,0.0258,0.0081,0.5536,1.3952
