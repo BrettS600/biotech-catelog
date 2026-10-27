@@ -532,7 +532,8 @@ def pc_graded(out, live_dir, password, full):
                 old = pd.read_csv(path, dtype={"grade": str, "row_id": str, "grader": str, "title": str})
                 n0 = len(old)
                 part = pd.concat([old, part], ignore_index=True)
-            part = part.drop_duplicates(["card_id", "row_id"], keep="first").sort_values(["date", "card_id", "row_id"])
+            part = part.drop_duplicates(["card_id", "row_id"], keep="last").sort_values(["date", "card_id", "row_id"])   # a row queued
+                                                     # again (its grader mended on a later read) replaces the earlier copy
             part.to_csv(path, index=False, compression={"method": "gzip", "compresslevel": 6})
             added += len(part) - n0
     res["graded_sales"] = {"chunks": len(chunks), "rows_read": len(rows), "rows_added": added}
