@@ -1675,6 +1675,52 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   data_archive.py 2cdc2adc, .github/workflows/data_archive.yml 146ce7ec, data/README.md 7218f3ba. Data archive run #5
   (dispatch, daily mode, 1 min 28 s) committed 547cae1: all 29 daily files (byte-identical to the local run that was
   checked), the six feeds (graded_index 1,759 rows, graded_index_by_era 7,036, heatmap 96 + its history from 2026-10-25).
+- THE GRADED DATA ON THE CARD PAGES (2026-10-26/27, Brett: "So how did Poke Views get the grading index ... are you sure
+  there's no other sources ... to get PSA or CGC data" -> "Yes, please do"). PokeViews' graded indexes are PriceCharting's
+  PSA 10 prices (their methodology: "non-PSA graded cards" excluded, "based on PriceCharting data"). What a card page
+  carries, read in Brett's Chrome on 2026-10-26 (Base Set Charizard 630417, Mega Charizard X ex 11069001): chart_data =
+  {used, cib, new, graded, boxonly, manualonly} monthly lines (ungraded, 7, 8, 9, 9.5, PSA 10; 71 points); volume_data =
+  {volume: [...]} ONE series - the bars are every grade summed, there are NO per-grade monthly counts; VGPC.pop_data =
+  {"psa": [grade 1..10], "cgc": [grade 1..10]} (the population report; also on anonymous reads); and a sold-listings
+  table per grade: select#completed-auctions-condition options "completed-auctions-<key>" -> "PSA 10 (30)" (keys: used
+  = Ungraded (up to 60: 30 eBay + 30 TCGplayer), manual-only = PSA 10, grade-seventeen = CGC 10, grade-nineteen = CGC 10
+  Prist., loose-and-box = BGS 10, grade-twenty = BGS 10 Black, grade-eighteen = SGC 10, grade-twenty-one = TAG 10,
+  grade-twenty-two = ACE 10, box-only = Grade 9.5, graded = 9, new = 8, cib = 7, grade-six .. grade-three,
+  box-and-manual = 2, loose-and-manual = 1), each div class="completed-auctions-<key>" style=... > table.hoverable-rows
+  > tbody > tr id="<source>-<id>" (ebay / goldin / pwcc / heritage / tcgplayer): td.date, td.image, td.title, td.numeric
+  (a best offer: span.js-price title="best offer accepted price" first, then the list price), td.numeric.listed-price,
+  td.thumb-down. AT MOST 30 ROWS PER GRADE: the hot card's PSA 10 table spanned 1 day, its CGC 10 two months. Titles name
+  the grader for the blended grade tables (all but 2 of 318 rows); some rows are filed under the wrong card (a
+  Celebrations Classic Collection reprint in the original Charizard's CGC 10 table) - filter on titles. PriceCharting's
+  download's non-PSA 10 prices are mostly FORMULAS (2026-10-26, 21,342 cards with PSA 10 >= $50): BGS 10 = 1.30 x PSA 10
+  for 97%, SGC 10 = 0.60 x for 93%, CGC 10 = 0.40 x for 50%. THE COLLECTOR NOW KEEPS IT (pchist, same page read, no eBay
+  call): extract() adds rec["g"] = {g7, g8, g9, g95, psa10} (cents per month on the record's months, a line with no price
+  left out; graded_series), rec["pop"] (pop_report), the graded sold listings (graded_tables: the 10s with the grader
+  from the label - "10P" = CGC 10 Pristine, "10B" = BGS 10 Black - and grades 7/8/9/9.5 with the grader read off the title
+  (grader_of: PSA CGC BGS/BECKETT SGC TAG ACE AGS PCG ...); grades under GS_MIN_GRADE 7 skipped; rows [row id, date, cents,
+  grade, grader, best offer, title70]), rec["gv"] = GRADED_VERSION 1 and rec["gdue"] = graded_due(): a full (30-row) table
+  spanning under ~10 days asks for the next read after 70% of its span (1-6 days; stale() takes min(normal refresh,
+  gdue)). file() -> keep_graded(): merges the sales with the card's file in <store>/gs/<card id % 1000>.json.gz (dedupe by
+  row id, newest first, GS_KEEP_D 400 days, GS_KEEP_N 1,500), queues the rows not seen before (_gq + pcg_queue.jsonl,
+  reloaded at start); a read without the graded parse keeps the old graded fields. pc_plan asks stale(want_graded=True):
+  every record without gv is re-read once - a full pass over the ~44,000 pages at one page every 2 s (~1 day from
+  2026-10-27). PUBLISHING: pc/<shard>.bin (the page's) is unchanged (PAGE_DROP keeps sl / gs / g / pop / gv / gdue off it);
+  the graded lines + population go out as pcgh/<shard>.bin ({m0, g, pop, t} per card with any; publish_graded_hist,
+  every PCGH_PUBLISH_S = 6 h - not with the 10-minute shard publish, which would push ~20 MB every ten minutes during the
+  pass); the new sales go out as pcg/<YYYYmmdd-HHMMSS>.bin chunks ({cols: GS_COLS, rows}) written straight into the live
+  checkout by write_graded_chunk (the next publish commits them; chunks older than PCG_KEEP_D 10 days dropped). Log:
+  "PriceCharting graded: ..." hourly (pchist.graded_summary: cards read with the graded parser, re-read early, today's
+  new graded sales by grade, queue) and on each chunk. THE ARCHIVE: data_archive.pc_graded (daily, after pc_daily):
+  pcg chunks -> data/pricecharting/graded_sales/graded_sales_<YYYY-MM>.csv.gz by sale month (card_id, date, grade, grader,
+  price, best_offer, source, row_id, title; dedupe on card_id + row_id); pcgh -> pop/pop_<YYYY-MM>.csv.gz (card_id,
+  read_date, psa_1..10, cgc_1..10; the month's file rewritten daily); full runs -> pc_graded_monthly_<year>.csv.gz
+  (card_id, month, grade_7, grade_8, grade_9, grade_9_5, psa_10). The workflow fetch step adds pcg / pcgh when the live
+  branch has them. data/README.md documents all three and the formula finding. COUNTS UNDERCOUNT BUSY GRADES (30 rows
+  per table between reads); prices are fine. NEXT (promised to Brett): once the pass is through, run the archive with
+  full = true and test the Forecast's ranking / chance table / reinvesting simulation on PSA 10 and grade 9 history
+  (data/research, round 3) - does it pick slabs that beat the graded average? Tests: ut/test_graded.py (a page built on
+  the live structure: tables, best offer, Goldin / PWCC / Heritage rows, labels, pop, series, due, merge / dedupe /
+  retention / queue / restart, stale, pcgh, chunk), ut/test_archive_graded.py.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
