@@ -56,7 +56,7 @@ SALES_KEEP = 20
 SPREAD_WINDOW_D = 90
 SPREAD_MIN_N = 6
 # graded (2026-10-26)
-GRADED_VERSION = 1                                          # records read by an older parser are re-read once
+GRADED_VERSION = 2                                          # records read by an older parser are re-read once
 GRADE_SERIES = (("cib", "g7"), ("new", "g8"), ("graded", "g9"), ("boxonly", "g95"), ("manualonly", "psa10"))
 GS_KEEP_D = 400                                             # graded sales kept on the data disk this long ...
 GS_KEEP_N = 1500                                            # ... and at most this many per card (newest)
@@ -245,7 +245,8 @@ def sales_table(html):
 def _plain(html_frag):
     t = html_mod.unescape(re.sub(r"<[^>]+>", " ", html_frag or ""))
     t = re.sub(r"\s+", " ", t).strip()
-    return re.sub(r"^\[[^\]]{1,20}\]\s*", "", t)          # "[eBay] ...", "[Goldin] ..."
+    t = re.sub(r"^\[[^\]]{1,20}\]\s*", "", t)             # "[eBay] ...", "[Goldin] ..."
+    return re.sub(r"\s*\[[^\]\[]{1,20}\]$", "", t)        # ... or "... [eBay]" at the end (2026-10-27: 18% of the rows)
 
 
 def grade_of(label):
@@ -306,9 +307,10 @@ def graded_tables(html):
                 cents = int(round(float(pm.group(1).replace(",", "")) * 100))
             except ValueError:
                 continue
-            title = _plain(r.group(4))[:70]
+            full = _plain(r.group(4))
             bo = 1 if "best offer accepted" in r.group(5).lower() else 0
-            out.append([r.group(1)[:80], r.group(2), cents, grade, grader or grader_of(title), bo, title])
+            out.append([r.group(1)[:80], r.group(2), cents, grade, grader or grader_of(full), bo, full[:70]])   # the grader from the
+                                                             # whole title (2026-10-27: read off the cut one, 11% of the rows had none)
             rows += 1
         sizes[labels[key]] = rows
     return out, sizes
@@ -594,11 +596,27 @@ def keep_graded(cid, old, new, today):
         if k not in new and k in old:
             new[k] = old[k]
     cutoff = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=GS_KEEP_D)).strftime("%Y-%m-%d")
-    olds = _gs_read(int(cid) % GS_SHARDS).get(str(cid)) or old.get("gs") or []
+    olds = [list(r) for r in (_gs_read(int(cid) % GS_SHARDS).get(str(cid)) or old.get("gs") or [])]
     seen = {r[0] for r in olds}
+    now = {r[0]: r for r in (new.get("gs") or [])}
+    mended = []                                              # rows filed without a grader that this read names one for
+    for r in olds:                                           # (2026-10-27: the first ~150 cards were read with the grader
+        n = now.get(r[0])                                    # taken off the cut title); queued again, the archive keeps
+        if n and not r[4] and n[4]:                          # the later copy
+            r[4], r[6] = n[4], n[6]
+            mended.append(r)
     fresh = [r for r in (new.get("gs") or []) if r[0] not in seen and r[1] >= cutoff]
     merged = sorted(olds + fresh, key=lambda r: r[1], reverse=True)
     new["gs"] = [r for r in merged if r[1] >= cutoff][:GS_KEEP_N]
+    if mended:
+        rows = [[int(cid)] + list(r) for r in mended]
+        _gq.extend(rows)
+        try:
+            with open(os.path.join(_store, "pcg_queue.jsonl"), "a", encoding="utf-8") as f:
+                for r in rows:
+                    f.write(json.dumps(r, separators=(",", ":")) + "\n")
+        except Exception:
+            pass
     if fresh:
         rows = [[int(cid)] + list(r) for r in fresh]
         _gq.extend(rows)
