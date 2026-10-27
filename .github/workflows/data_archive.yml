@@ -6,6 +6,8 @@ name: Data archive
 # with full = true) also rewrites the big PriceCharting panel and the eBay daily rollup. data/README.md is the dictionary.
 # 2026-10-26: also PokeViews' PSA 10 Graded Indexes and Grading Opportunity heatmap (kept day by day), and every column
 # of PriceCharting's daily download (data/pricecharting/daily: graded prices, dealer buy / sell, volume).
+# 2026-10-26 (later): the graded data the collector reads off the card pages - graded sales (pcg/ chunks on the live
+# branch -> data/pricecharting/graded_sales), the PSA / CGC population report (pop/), monthly graded prices (full runs).
 
 on:
   schedule:
@@ -55,8 +57,12 @@ jobs:
       - name: "Fetch the collector's files (the live branch: pc/ shards and the live file)"
         run: |
           git fetch --depth 1 origin live
-          rm -rf live_pc && mkdir -p live_pc && git archive FETCH_HEAD pc ebay_live.bin | tar -x -C live_pc
-          echo "$(ls live_pc/pc | wc -l) shard(s), live file $(stat -c %s live_pc/ebay_live.bin) bytes"
+          paths="pc ebay_live.bin"
+          for extra in pcg pcgh; do                          # graded-sales chunks and graded shards (2026-10-26)
+            if git cat-file -e FETCH_HEAD:$extra 2>/dev/null; then paths="$paths $extra"; fi
+          done
+          rm -rf live_pc && mkdir -p live_pc && git archive FETCH_HEAD $paths | tar -x -C live_pc
+          echo "$(ls live_pc/pc | wc -l) shard(s), $(ls live_pc/pcg 2>/dev/null | wc -l) graded chunk(s), $(ls live_pc/pcgh 2>/dev/null | wc -l) graded shard(s), live file $(stat -c %s live_pc/ebay_live.bin) bytes"
 
       - name: Export
         env:
