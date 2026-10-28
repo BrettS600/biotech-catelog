@@ -237,7 +237,13 @@ pc = pc.sort_values(["set_date", "console-name", "n_prefix", "n_num", "n_suffix"
 # TCGCSV) and to the open Pokemon TCG dataset (set name + card number), and derives the finish of the untagged
 # printing from TCGplayer's printings or the rarity. The columns ride along in the snapshot (the collector reads
 # them from there) and in the page rows (14, 15).
-pc["rarity"], pc["finish"], pc["rf-source"] = cardfacts.annotate(pc, print)
+_tcg = cardfacts.fetch_tcgcsv(print)
+pc["rarity"], pc["finish"], pc["rf-source"] = cardfacts.annotate(pc, print, tcg=_tcg)
+try:                                     # TCGplayer's own number / rarity / printings per card, for the graded view (graded_site.py)
+    with gzip.open("tcg_facts.json.gz", "wt", encoding="utf-8") as _f:
+        json.dump(cardfacts.tcg_facts(pc, _tcg), _f, separators=(",", ":"))
+except Exception as _e:
+    print(f"tcg_facts.json.gz not written ({_e})")
 
 # ---------- 4. Build the rows ----------
 today = date.today().isoformat()

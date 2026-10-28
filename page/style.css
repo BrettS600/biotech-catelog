@@ -516,6 +516,26 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .gm.on { background:var(--link); border-color:var(--link); color:#fff; }
   .gm2 { font:inherit; font-size:13px; padding:6px 14px; border:1px solid var(--line); border-radius:999px; background:var(--head); color:var(--fg); cursor:pointer; }
   .gm2:hover { border-color:var(--muted); }
+  /* the word buttons (Rarity / Finish / Special / Series / Era / Unidentified) and their lists, 2026-10-28 */
+  .gterms { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .gterms[hidden] { display:none; }
+  .gm2.gtb.on { border-color:var(--link); color:var(--link); }
+  .gtacross { font-size:12px; color:var(--muted); display:inline-flex; gap:4px; align-items:center; margin-left:4px; }
+  .gtctl { display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:var(--muted); margin-bottom:8px; }
+  .gtctl span { display:inline-flex; gap:4px; align-items:center; }
+  .gtlist { max-height:58vh; overflow:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px; }
+  .gtrow { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; padding:6px 9px; border-bottom:1px solid var(--line); }
+  .gtrow:last-child { border-bottom:0; }
+  .gtrow label { display:inline-flex; gap:6px; align-items:baseline; cursor:pointer; }
+  .gtrow .gtname { text-decoration:underline dotted; cursor:pointer; }
+  .gtrow .gtn { font-size:12px; color:var(--muted); }
+  .gtrow small { flex-basis:100%; font-size:11px; }
+  .gtrow .gtcards { flex-basis:100%; font-size:12px; padding:4px 0 2px 22px; }
+  .gtconf { font-size:11px; color:#e3b341; font-weight:700; }
+  .gtconf.bad { color:var(--down); }
+  .rvtop { display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; padding:8px 9px; margin-bottom:10px; border:1px solid var(--line); border-radius:10px; }
+  .rvtop .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .rvtop b { font-size:16px; } .rvtop small { display:block; font-size:12px; color:var(--muted); }
   #gm-note { font-size:12.5px; }
   td.ctr { text-align:center; }
   td.gmix sup { color:var(--muted); font-size:10px; margin-left:1px; }

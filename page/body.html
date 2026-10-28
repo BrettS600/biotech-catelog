@@ -20,6 +20,7 @@
   <button type="button" class="gm" id="gm-raw" aria-pressed="true" title="Only the raw (ungraded) cards; click again to show raw and graded together">Only show raw</button>
   <button type="button" class="gm" id="gm-g" aria-pressed="false" title="Only the graded rows (PSA and CGC, the grades ticked in Grading); click again to show raw and graded together">Only show graded</button>
   <button type="button" class="gm2" id="gm-grades" title="Which grades and graders the graded rows show">Grading <span id="gm-gn"></span> ▾</button>
+  <span class="gterms" id="gm-terms" hidden></span>
   <span class="dim" id="gm-note"></span>
 </div>
 <div id="pcv-raw">
@@ -89,6 +90,10 @@
     <th data-k="32">CL Set/Card No.<span class="s">⇅</span><button class="help" data-h="g_clnum">?</button></th>
     <th data-k="33">CL Rarity/Finish<span class="s">⇅</span><button class="help" data-h="g_clrf">?</button></th>
     <th data-k="34">CL Release<span class="s">⇅</span><button class="help" data-h="g_clrel">?</button></th>
+    <th data-k="51">PC Illustrator<span class="s">⇅</span><button class="help" data-h="g_pcill">?</button></th>
+    <th data-k="52">CL Illustrator<span class="s">⇅</span><button class="help" data-h="g_clill">?</button></th>
+    <th data-k="53">Series<span class="s">⇅</span><button class="help" data-h="g_series">?</button></th>
+    <th data-k="54">Era<span class="s">⇅</span><button class="help" data-h="g_era">?</button></th>
     <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="g_sales">?</button></th>
     <th data-k="6" class="num">PC Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_pcg">?</button></th>
     <th data-k="35" class="num">CL Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_clg">?</button></th>
@@ -103,7 +108,6 @@
     <th data-k="37" class="num">CL Sales (last month)<span class="s">⇅</span><button class="help" data-h="g_cls">?</button></th>
     <th data-k="38" class="num">Graded This Past Month<span class="s">⇅</span><button class="help" data-h="g_gtm">?</button></th>
     <th data-k="39" class="num">Number Graded (last month)<span class="s">⇅</span><button class="help" data-h="g_ngl">?</button></th>
-    <th data-k="40" class="num">Graded To PC Sales Ratio (last month)<span class="s">⇅</span><button class="help" data-h="g_ratio">?</button></th>
     <th data-k="18" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="g_km">?</button></th>
     <th data-k="19" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="g_kt">?</button></th>
     <th data-k="20" class="num">$eBay Anchor<span class="s">⇅</span><button class="help" data-h="g_A">?</button></th>
@@ -145,6 +149,10 @@
     <th data-k="32">CL Set/Card No.<span class="s">⇅</span><button class="help" data-h="g_clnum">?</button></th>
     <th data-k="33">CL Rarity/Finish<span class="s">⇅</span><button class="help" data-h="g_clrf">?</button></th>
     <th data-k="34">CL Release<span class="s">⇅</span><button class="help" data-h="g_clrel">?</button></th>
+    <th data-k="51">PC Illustrator<span class="s">⇅</span><button class="help" data-h="g_pcill">?</button></th>
+    <th data-k="52">CL Illustrator<span class="s">⇅</span><button class="help" data-h="g_clill">?</button></th>
+    <th data-k="53">Series<span class="s">⇅</span><button class="help" data-h="g_series">?</button></th>
+    <th data-k="54">Era<span class="s">⇅</span><button class="help" data-h="g_era">?</button></th>
     <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="g_sales">?</button></th>
     <th data-k="6" class="num">PC Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_pcg">?</button></th>
     <th data-k="35" class="num">CL Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_clg">?</button></th>
@@ -159,7 +167,6 @@
     <th data-k="37" class="num">CL Sales (last month)<span class="s">⇅</span><button class="help" data-h="g_cls">?</button></th>
     <th data-k="38" class="num">Graded This Past Month<span class="s">⇅</span><button class="help" data-h="g_gtm">?</button></th>
     <th data-k="39" class="num">Number Graded (last month)<span class="s">⇅</span><button class="help" data-h="g_ngl">?</button></th>
-    <th data-k="40" class="num">Graded To PC Sales Ratio (last month)<span class="s">⇅</span><button class="help" data-h="g_ratio">?</button></th>
     <th data-k="18" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="g_km">?</button></th>
     <th data-k="19" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="g_kt">?</button></th>
     <th data-k="20" class="num">$eBay Anchor<span class="s">⇅</span><button class="help" data-h="g_A">?</button></th>

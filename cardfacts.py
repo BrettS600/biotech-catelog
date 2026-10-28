@@ -327,6 +327,26 @@ def fetch_dataset(set_ids, log=print, workers=8):
     return cards
 
 
+def tcg_facts(pc, tcg):
+    """{PriceCharting id: [TCGplayer rarity, TCGplayer number, printings]} for the rows whose tcg-id names a TCGplayer
+    product with the same card number - TCGplayer's own words only, nothing filled in (2026-10-28, Brett: "pc data has
+    to come from pc or tcg link that embeds pc"). The graded view (graded_site.py) reads it from tcg_facts.json.gz."""
+    out = {}
+    ids = pc["id"].astype(str).tolist() if "id" in pc.columns else [""] * len(pc)
+    tcg_ids = pc["tcg-id"].astype(str).str.strip().tolist() if "tcg-id" in pc.columns else [""] * len(pc)
+    for cid, prod, tid in zip(ids, pc["product-name"].astype(str).tolist(), tcg_ids):
+        if not tid or tid == "nan" or not re.match(r"^\d+(\.0)?$", tid) or not str(cid).strip():
+            continue
+        p = tcg.get(int(float(tid)))
+        if not p:
+            continue
+        num = split_name(prod)[2]
+        if p["number"] and num and num_key(p["number"]) != num_key(num):
+            continue                                         # the tcg-id points at another card number: not this card's facts
+        out[str(cid).split(".")[0]] = [p.get("rarity") or "", p.get("number") or "", list(p.get("printings") or [])]
+    return out
+
+
 def annotate(pc, log=print, tcg=None, dataset=None, sets=None):
     """pc: the PriceCharting rows (console-name, product-name, tcg-id, release-date). Returns three lists
     aligned with pc's rows: rarity, finish, source ('tcgplayer' | 'dataset' | 'tag' | ''). The sources are
