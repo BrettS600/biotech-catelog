@@ -19,7 +19,10 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
   pricecharting/pop/pop_<YYYY-MM>.csv.gz   PriceCharting's PSA / CGC population (the newest file)
   pricecharting/graded_sales/*.csv.gz      PriceCharting's graded sold listings (grade, grader read off the title)
   pricecharting/pc_graded_monthly_*.csv.gz PriceCharting's monthly graded chart lines (optional - full archive runs)
-and pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
+  dictionary/terms.csv                     the words that sort what each side says into Rarity / Finish / Special /
+                                           Series / Era (graded_terms.py; Brett, 2026-10-28)
+and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
+PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
 
 Writes, encrypted with the page's history key (PBKDF2 of SITE_PASSWORD, salt biotech-catalog-live-v1 - the key the
 Trend shards and the eBay live file use, so the page can read them):
@@ -28,6 +31,12 @@ Trend shards and the eBay live file use, so the page can read them):
                           pd: [[date, PSA 10]]}} - 300 cards a file (cards[id].sh says which), loaded when a Trend popup opens
 
 Only Card Ladder's PSA and CGC grades are used (Brett: "I only care about CGC and PSA graded cards").
+
+Also writes into the card-data checkout (the site workflow commits them there):
+  dictionary/term_counts.csv   every term and unidentified phrase seen: category, how many graded cards carry it on
+                               each side, how often PriceCharting's whole catalog has it in a [bracket]
+  ids/field_checks.csv         per card and field (number, total, rarity, finish, special, series, era, release,
+                               illustrator): what PC says, what CL says, match / mismatch / pc_none / cl_none / both_none
 """
 import argparse
 import glob
@@ -42,6 +51,8 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
+
+import graded_terms as gt
 
 SHARD = 300
 GK = (["psa|g10", "psa|g9", "psa|g8_5", "psa|g8", "psa|g7", "psa|g6", "psa|g5", "psa|g4", "psa|g3", "psa|g2",
@@ -117,11 +128,6 @@ def load_profiles(cd):
     return out
 
 
-FIN_WORDS = re.compile(r"\b(reverse holo|holo|full art|alt(?:ernate)? art|secret|rainbow|gold|shadowless|1st edition|first edition|"
-                       r"illustration rare|special illustration|trainer gallery|galarian gallery|textured|cosmos|cracked ice|"
-                       r"stamped|staff|prerelease|promo)\b", re.I)
-
-
 def load_matches(cd):
     """{pc id: {"slabs": {gk: cert}, "cl": [Card Ladder cert lookups]}} from data/cardladder/matches (newest read wins)."""
     out = {}
@@ -147,25 +153,6 @@ def load_matches(cd):
     return out
 
 
-def finish_of(pr, ev):
-    """CL Rarity/Finish: Card Ladder's variation, else CGC's / PSA's label (the cert lookups), else finish words in the name."""
-    if pr and (pr.get("variation") or "").strip():
-        return [pr["variation"].strip(), "Card Ladder"]
-    for grader, who in (("cgc", "CGC label"), ("psa", "PSA label")):
-        for c in (ev or {}).get("cl", []):
-            if c.get("grader") == grader and (c.get("variation") or "").strip():
-                return [c["variation"].strip(), who]
-    if pr:
-        words = []
-        for m in FIN_WORDS.finditer(f"{pr.get('subject') or ''} {pr.get('label') or ''}"):
-            w = m.group(1).title()
-            if w not in words:
-                words.append(w)
-        if words:
-            return [", ".join(words), "Card Ladder name"]
-    return None
-
-
 def load_marks(cd):
     p = os.path.join(cd, "ids", "marks.csv")
     if not os.path.exists(p):
@@ -183,6 +170,8 @@ def load_pop(cd, ids):
         return {}
     d = pd.read_csv(fs[-1])
     d = d[d["card_id"].isin(ids)]
+    if "read_date" in d.columns:                             # a month's file keeps the month's first and latest read of a card
+        d = d.sort_values("read_date").drop_duplicates("card_id", keep="last")
     out = {}
     for r in d.to_dict("records"):
         m = {}
@@ -193,6 +182,50 @@ def load_pop(cd, ids):
                     m[f"{g}|g{i}"] = int(v)
         out[int(r["card_id"])] = m
     return out
+
+
+def load_pop_hist(cd, ids, last_m):
+    """{card id: {gk: [graded since the first read (None until a second read), first read date, latest read date,
+    latest population, graded last month (None until both last month's and the month before's files exist)]}} - the
+    number of new PSA / CGC slabs of a grade, from the change in the population PriceCharting's page shows."""
+    fs = sorted(glob.glob(os.path.join(cd, "pricecharting", "pop", "pop_*.csv.gz")))
+    idset, per, month_last = set(ids), {}, {}
+    for f in fs:
+        mo = re.search(r"(\d{4}-\d{2})", os.path.basename(f))
+        mo = mo.group(1) if mo else ""
+        d = pd.read_csv(f)
+        d = d[d["card_id"].isin(idset)]
+        for r in d.to_dict("records"):
+            cid, rd = int(r["card_id"]), str(r.get("read_date") or mo)
+            for g in ("psa", "cgc"):
+                for i in range(1, 11):
+                    v = r.get(f"{g}_{i}")
+                    if v is None or v != v:
+                        continue
+                    k = f"{g}|g{i}"
+                    per.setdefault(cid, {}).setdefault(k, []).append((rd, int(v)))
+                    cur = month_last.setdefault((cid, k), {}).get(mo)
+                    if cur is None or rd >= cur[0]:
+                        month_last[(cid, k)][mo] = (rd, int(v))
+    prev_m = (datetime.strptime(last_m + "-01", "%Y-%m-%d").date() - timedelta(days=1)).strftime("%Y-%m")
+    out = {}
+    for cid, m in per.items():
+        o = {}
+        for k, pts in m.items():
+            pts = sorted(set(pts))
+            first, last = pts[0], pts[-1]
+            ml = month_last.get((cid, k), {})
+            lm = ml[last_m][1] - ml[prev_m][1] if last_m in ml and prev_m in ml else None
+            o[k] = [last[1] - first[1] if last[0] != first[0] else None, first[0], last[0], last[1], lm]
+        out[cid] = o
+    return out
+
+
+def load_tcg_facts(path):
+    if not path or not os.path.exists(path):
+        return {}
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        return json.load(f)
 
 
 TITLE_GRADE = re.compile(r"\b(PSA|CGC)\s*(?:GEM\s*MI?N?T\s*|MINT\s*|NM-?MT\s*|NM\s*)?(10|9\.5|9|8\.5|8|7\.5|7)\b", re.I)
@@ -331,7 +364,7 @@ def sales_price(sales, today):
 
 
 # ---------------- build ----------------
-def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
+def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.json.gz"):
     today = today or date.today()
     last_m = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
     ids_df = load_ids(cd)
@@ -342,7 +375,16 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
     print(f"graded: {len(ids)} matched cards, {len(prof)} Card Ladder profile reads")
     pc = pd.read_csv(pc_csv, dtype=str).fillna("") if os.path.exists(pc_csv) else pd.DataFrame(columns=["id"])
     pc["id"] = pd.to_numeric(pc["id"], errors="coerce")
+    dic = gt.Dictionary.load(cd)
+    tally = gt.Tally()
+    if "product-name" in pc.columns:                        # PriceCharting's [bracket] words over the whole catalog
+        tally.catalog(pc["product-name"].tolist(), dic)
     pc = pc[pc["id"].isin(ids)].set_index("id")
+    tcgf = load_tcg_facts(tcg_path)
+    pop_hist = load_pop_hist(cd, ids, last_m)
+    checks = []
+    print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
+          f"population history for {len(pop_hist)} cards")
     pop = load_pop(cd, ids)
     psales = load_pc_sales(cd, ids, today)
     pmon = load_pc_monthly(cd, ids)
@@ -394,7 +436,26 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
                          (mk or {}).get("v"), (mk or {}).get("reason") or None])
+        pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
+        pset = str(pcrow.get("console-name", "")) if pcrow is not None else ""
+        mnum = re.search(r"#(\S+)\s*$", pname)
+        ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic)
+        cs = gt.cl_side(pr, (matches.get(str(cid)) or {}).get("cl", []), dic)
+        tally.side(cid, "pc", ps)
+        tally.side(cid, "cl", cs)
+        fc = gt.compare(ps, cs, pcrow.get("release-date", "") if pcrow is not None else "", (pr or {}).get("year"))
+        for f, (a, b, res) in fc.items():
+            checks.append([cid, f, a if a is not None else "", b if b is not None else "", res])
         cards[str(cid)] = {
+            "pn": ps.num, "pnf": ps.num_from, "pr": ps.rarity_text, "prf": ps.rarity_from, "pf": ps.finish_text,
+            "pff": ps.finish_from, "ps": ps.shown("Special"),
+            "cn": cs.num, "cnf": cs.num_from, "cr": cs.rarity_text, "cf": cs.finish_text, "cs": cs.shown("Special"),
+            "ser": [ps.shown("Series"), cs.shown("Series")], "era": [ps.shown("Era"), cs.shown("Era")],
+            "t": {"pc": {c: ps.terms(c) for c in gt.CATS},
+                  "cl": {c: cs.terms(c) for c in gt.CATS},
+                  "u": {"pc": list(ps.unid), "cl": list(cs.unid)}},
+            "fc": {f: v[2] for f, v in fc.items()},
+            "pg": pop_hist.get(cid, {}),
             "pid": r.get("cl_profile_id", ""), "spec": r.get("psa_spec", ""), "cgc": r.get("cgc_id", "") or "",
             "pcert": r.get("psa_cert", ""), "ccert": r.get("cgc_cert", ""), "st": r.get("status", ""),
             "by": r.get("confirmed_by", ""), "note": r.get("note", "")[:200],
@@ -402,7 +463,6 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
             "read": (pr or {}).get("read", ""), "tcg": r.get("tcgplayer_id", ""),
             "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
             "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
-            "fin": finish_of(pr, matches.get(str(cid))),
         }
         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
               "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items()},
@@ -418,7 +478,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
     for i, cid in enumerate(sorted(trends)):               # trend files: 300 cards each, in card id order (card ids run to
         cards[str(cid)]["sh"] = i // SHARD                  # 13 million, so id // 300 would scatter them over thousands of files)
     key = hist_key(pw) if pw else None
-    doc = {"v": 1, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
+    write_card_data(cd, tally, checks, today)
+    doc = {"v": 2, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
+           "terms": tally.lists(), "dict": {"n": dic.n},
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
                                     "d7", "d30", "pos", "vol", "ts", "mark", "reason"]}
     if key is None:
@@ -435,14 +497,36 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
     return doc, trends
 
 
+def write_card_data(cd, tally, checks, today):
+    """term_counts.csv and field_checks.csv into the card-data checkout (the site workflow commits them)."""
+    import csv
+    built = today.isoformat()
+    try:
+        os.makedirs(os.path.join(cd, "dictionary"), exist_ok=True)
+        with open(os.path.join(cd, "dictionary", "term_counts.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(["category", "term", "confidence", "graded_cards_pc", "graded_cards_cl", "catalog_pc_brackets",
+                        "seen_in", "examples", "built"])
+            w.writerows(tally.rows(built))
+        os.makedirs(os.path.join(cd, "ids"), exist_ok=True)
+        with open(os.path.join(cd, "ids", "field_checks.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(["pricecharting_id", "field", "pc", "cl", "result", "built"])
+            w.writerows(c + [built] for c in checks)
+        print(f"graded: wrote dictionary/term_counts.csv and ids/field_checks.csv ({len(checks)} checks)")
+    except OSError as e:
+        print(f"graded: term counts / field checks not written ({e})")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--card-data", default="card-data/data")
     ap.add_argument("--pc-csv", default="pricecharting.csv")
     ap.add_argument("--snapshots", default="snapshots")
     ap.add_argument("--out", default="public")
+    ap.add_argument("--tcg-facts", default="tcg_facts.json.gz")
     a = ap.parse_args()
-    build(a.card_data, a.pc_csv, a.snapshots, a.out, os.environ.get("SITE_PASSWORD", ""))
+    build(a.card_data, a.pc_csv, a.snapshots, a.out, os.environ.get("SITE_PASSWORD", ""), tcg_path=a.tcg_facts)
 
 
 if __name__ == "__main__":

@@ -1798,9 +1798,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   another card number (other digits; SWSH141 = 141) or another number and name (a sale PriceCharting filed under the
   wrong card - noted), Master Ball / Poke Ball vs Card Ladder's "Reverse", a CGC slab on a separate CGC-only profile
   (Card Ladder keeps some cards' CGC slabs apart; recorded as the CGC id), and number / set / name spelling differences
-  (SWSH141 vs 141, "_____'s Pikachu") when >= half of PriceCharting's sales are the profile's. The CL Finish column
-  comes from the CGC / PSA label words (Holo, Reverse Holo, Cosmos ...; finish_of in graded_site.py), else Card Ladder's
-  variation. THE HOURLY SCHEDULE DID NOT FIRE ON ITS FIRST NIGHT: after a reading session dispatch "Card Ladder ingest"
+  (SWSH141 vs 141, "_____'s Pikachu") when >= half of PriceCharting's sales are the profile's. The CL Rarity/Finish
+  column: see THE GRADED VIEW'S COLUMNS below. THE HOURLY SCHEDULE DID NOT FIRE ON ITS FIRST NIGHT: after a reading session dispatch "Card Ladder ingest"
   by hand (then the site workflow), since ntfy keeps attachments only 3 hours.
   THE FIRST 100 (2026-10-27/28): 98 had PSA certs in the photos, 86 CGC; 93 confirmed, 7 review (variant words: League
   Season 4, Shining Legends Pin Collection / Cosmos, Prerelease, Sea & Sky Premium Collection, a CGC copyright line, a
@@ -1810,6 +1809,40 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Reading large text out of a tab: put it in localStorage, open a same-origin static URL (e.g.
   app.cardladder.com/favicon.ico) in a second tab, write it into a <pre> and read it with get_page_text (the JavaScript
   tool returns only ~1 KB; blob: URLs cannot be opened).
+- THE GRADED VIEW'S COLUMNS, WORD BUTTONS AND DICTIONARY (2026-10-28, Brett: "pc data has to come from pc or tcg link
+  that embeds pc. cl has to come from cl. if something is not there, then it should none"). Each side shows only its own
+  source; missing = "none". Illustrator: PC "not read" (TCGplayer's product page has it; TCGCSV does not), CL "none"
+  (Card Ladder does not record it). PC Set/Card No. = TCGplayer's number (TCGCSV extendedData Number, kept only when it
+  matches PriceCharting's; cardfacts.tcg_facts -> tcg_facts.json.gz, written by build_catalog.py, read by graded_site.py)
+  else PriceCharting's; CL Set/Card No. = the profile's number + the total from Card Ladder's CGC cert lookup, else
+  "49/none". Rarity/Finish = "rarity · finish[ · special]", "none" where a side says nothing: PC rarity = TCGplayer's,
+  else the dictionary words in PriceCharting's [brackets]; PC finish = brackets, else TCGplayer's printings (only
+  Holofoil -> Holo, only Normal -> Non-Holo); CL = dictionary words in Card Ladder's variation, subject, set and its cert
+  lookups' labels. Series / Era: one column each, blank unless a side's text names one (set strings also match the
+  set-only short names EX, SM, SWSH, Base, Gym ...; "A ≠ B" when the sides disagree). The ratio column is gone. The four
+  new columns went in with makeTable cfg.inserted {v: 2, at: 14, n: 4}, so Brett's saved order / hidden / widths stay on
+  the same columns (tested on his real layout). Review popup: a top bar (Trend, Number graded last month, PC to CL %),
+  then both sides: release, set, name, card / set number, rarity · finish, illustrator, series, era, sales, price, cert
+  (PC: the slab of this grade from a PriceCharting photo; CL: the cert Card Ladder's lookup tied to the card) - certs
+  link to psacard.com/cert/<n>/psa and cgccards.com/certlookup/<n>/ (Brett signs in there); red = the sides disagree,
+  amber = one side says nothing.
+  WORD BUTTONS (#gm-terms, graded.js grOpenTerms): Rarity, Finish, Special (1st Edition, Shadowless, stamps ...),
+  Series, Era, Unidentified, each with its term count; the popup lists every term with PC x / CL x / catalog x counts
+  and where it was read, a "(none)" row, every term toggleable (untick = hide those cards), any / all inside a button,
+  side either / PC / CL / both agree, and all / any across buttons (localStorage gterms). Unidentified = bracket /
+  variation phrases the dictionary does not know (the whole phrase), for Brett to sort.
+  THE DICTIONARY: card-data/data/dictionary/terms.csv (term, same_as, category Rarity / Finish / Special / Series / Era /
+  Meaningless / Unidentified, confidence confirmed / likely / uncertain, basis, where any / set / exact, note, changed),
+  sets.csv (set -> series / era, the open card database's id, release, printed total) and README.md; seeded from
+  PokeViews' filter lists, the open Pokemon TCG card database, DexTCG and Bulbapedia; Gym and Base fold into Original
+  (Brett). graded_terms.py matches: lowercase, é -> e, ☆ -> star, & -> and, longest match wins; a "?" after a term on
+  the page = not confirmed. Each build writes card-data/data/dictionary/term_counts.csv and data/ids/field_checks.csv
+  (number, total, rarity, finish, special, series, era, release, illustrator: match / mismatch / pc_none / cl_none /
+  both_none / not_read) and the site workflow commits them back. NOT BUILT YET: sorting Unidentified terms from the
+  page into terms.csv (merge synonyms, mark meaningless).
+  NUMBER GRADED: the pop month files (data_archive.py) now keep each card's first and latest read of the month (they
+  kept only the latest), so last month's count = month-end population minus the month before; until two reads exist
+  the popup says "not yet".
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

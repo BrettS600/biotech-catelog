@@ -1,0 +1,326 @@
+"""graded_terms.py - what PriceCharting (with the TCGplayer product it links) and Card Ladder each say a card IS, read
+with the dictionary in card-data/data/dictionary/terms.csv (2026-10-28, Brett: "pc data has to come from pc or tcg link
+that embeds pc. cl has to come from cl. if something is not there, then it should none"; "we need to store them in a
+button for review ... figure out where they go, and which ones mean the same things").
+
+Each side is read only from its own source:
+  PC   rarity  = TCGplayer's rarity for the product PriceCharting's tcg-id names; else rarity words in PriceCharting's
+               [brackets]; else none
+       finish  = finish words in the [brackets]; else TCGplayer's printings (only Holofoil -> Holo, only Normal ->
+               Non-Holo); else none. No guessing from the rarity.
+       special = 1st Edition / Shadowless / stamps ... in the [brackets]
+       number  = TCGplayer's number ("001/102" -> 1/102); else PriceCharting's number + "/none"
+  CL   rarity / finish / special = dictionary words in Card Ladder's variation, the part of its card name after a
+               hyphen ("Alakazam-Holo"), its set name, and the variations its cert lookups returned
+       number  = Card Ladder's number; the total from its CGC cert lookup when the profile has none; else "/none"
+  Series / Era = only where a series / era name is written in the text (set names count) - nothing looked up yet.
+Words the dictionary does not know (the leftovers of a bracket or a variation, a TCGplayer rarity it has not seen) are
+kept as Unidentified, with where they were seen.
+"""
+import collections
+import csv
+import os
+import re
+
+CATS = ["Rarity", "Finish", "Special", "Series", "Era"]
+STOP = {"pokemon", "tcg", "the", "of", "and", "a", "an", "card", "cards", "version"}
+
+
+def norm_tokens(s):
+    s = str(s or "").lower().replace("é", "e").replace("☆", " star ").replace("&", " and ")
+    return re.findall(r"[a-z0-9]+", s)
+
+
+def meaningful(left):
+    return any(w not in STOP and not w.isdigit() for w in left)
+
+
+class Dictionary:
+    """terms.csv as a matcher: the longest known term wins, whole words only; where = any | set (only inside a set
+    name) | exact (only the whole text)."""
+
+    def __init__(self, rows):
+        self.by = {}
+        self.maxlen = 1
+        self.n = 0
+        for r in rows:
+            term, cat = (r.get("term") or "").strip(), (r.get("category") or "").strip()
+            if not term or cat not in CATS + ["Meaningless"]:
+                continue
+            toks = tuple(norm_tokens(term))
+            if not toks or toks in self.by:
+                continue
+            self.by[toks] = {"canon": (r.get("same_as") or "").strip() or term, "cat": cat,
+                             "conf": (r.get("confidence") or "likely").strip(), "where": (r.get("where") or "any").strip()}
+            self.maxlen = max(self.maxlen, len(toks))
+            self.n += 1
+
+    @classmethod
+    def load(cls, cd):
+        p = os.path.join(cd, "dictionary", "terms.csv")
+        if not os.path.exists(p):
+            return cls([])
+        with open(p, newline="", encoding="utf-8") as f:
+            return cls(list(csv.DictReader(f)))
+
+    def match(self, text, kind="any"):
+        """-> (found [{canon, cat, conf}], leftover tokens)"""
+        toks = norm_tokens(text)
+        if not toks:
+            return [], []
+        ex = self.by.get(tuple(toks))
+        if ex and ex["where"] == "exact":
+            return [ex], []
+        found, left, i = [], [], 0
+        while i < len(toks):
+            hit = None
+            for L in range(min(self.maxlen, len(toks) - i), 0, -1):
+                t = self.by.get(tuple(toks[i:i + L]))
+                if t and t["where"] != "exact" and (t["where"] == "any" or kind == "set"):
+                    hit = (t, L)
+                    break
+            if hit:
+                found.append(hit[0])
+                i += hit[1]
+            else:
+                left.append(toks[i])
+                i += 1
+        return found, left
+
+
+class Side:
+    """What one source says: terms per category (canonical name -> confidence), unidentified phrases, display values."""
+
+    def __init__(self):
+        self.t = {c: {} for c in CATS}
+        self.src = {c: {} for c in CATS}                    # canonical -> where it was read ("PC bracket", ...)
+        self.unid = {}                                      # phrase -> where
+
+    def add(self, found, where, cats=None):
+        for x in found:
+            if x["cat"] not in CATS or (cats and x["cat"] not in cats):
+                continue
+            cur = self.t[x["cat"]].get(x["canon"])
+            if cur is None or (cur != "confirmed" and x["conf"] == "confirmed"):
+                self.t[x["cat"]][x["canon"]] = x["conf"]
+            self.src[x["cat"]].setdefault(x["canon"], where)
+
+    def terms(self, cat):
+        return list(self.t[cat].keys())
+
+    def shown(self, cat):
+        """'Holo, Reverse Holo?' - a likely categorization carries a ?"""
+        return ", ".join(k + ("" if v == "confirmed" else "?") for k, v in self.t[cat].items())
+
+
+def split_brackets(name):
+    return [b.strip() for b in re.findall(r"\[([^\]]+)\]", str(name or "")) if b.strip()]
+
+
+def strip_brackets(name):
+    s = re.sub(r"\[[^\]]+\]", "", str(name or ""))
+    return re.sub(r"#\S+\s*$", "", s).strip()
+
+
+def num_key(num):
+    s = str(num or "").strip().split("/")[0].strip()
+    m = re.match(r"^([A-Za-z]*)\s?0*(\d+)([A-Za-z]?)$", s)
+    return (m.group(1) + m.group(2) + m.group(3)).lower() if m else s.lower()
+
+
+def clean_num(num):
+    """'001/102' -> '1/102'; 'TG05/TG30' -> 'TG5/TG30'; no total -> '…/none'."""
+    s = str(num or "").strip()
+    if not s:
+        return ""
+    parts = [p.strip() for p in s.split("/", 1)]
+
+    def z(p):
+        m = re.match(r"^([A-Za-z]*)0*(\d+)([A-Za-z]?)$", p)
+        return (m.group(1) + m.group(2) + m.group(3)) if m else p
+    if len(parts) == 2 and parts[1]:
+        return z(parts[0]) + "/" + z(parts[1])
+    return z(parts[0]) + "/none"
+
+
+def total_of(num):
+    s = str(num or "")
+    if "/" not in s:
+        return None
+    t = s.split("/", 1)[1].strip()
+    m = re.match(r"^[A-Za-z]*0*(\d+)", t)
+    return int(m.group(1)) if m else None
+
+
+def printing_finish(printings):
+    """TCGplayer's printings of the product -> the default printing's finish, when they say it plainly."""
+    P = [str(p).lower() for p in (printings or [])]
+    holo = any("holofoil" in p and "reverse" not in p for p in P)
+    normal = any(p.endswith("normal") for p in P)
+    if holo and not normal:
+        return "Holo"
+    if normal and not holo:
+        return "Non-Holo"
+    return None
+
+
+def pc_side(name, set_name, number, tcgf, dic):
+    s = Side()
+    for b in split_brackets(name):
+        found, left = dic.match(b, "any")
+        s.add(found, "PC bracket")
+        if meaningful(left):
+            s.unid.setdefault(b, "PC bracket")
+    s.add(dic.match(set_name, "set")[0], "PC set name", cats={"Series", "Era"})
+    s.add(dic.match(strip_brackets(name), "any")[0], "PC card name", cats={"Series", "Era"})
+    tr = (tcgf or [""])[0] if tcgf else ""
+    if tr:
+        found, left = dic.match(tr, "any")
+        rar = [x for x in found if x["cat"] == "Rarity"]
+        if rar:
+            s.t["Rarity"] = {}
+            for x in rar:
+                s.t["Rarity"][x["canon"]] = "confirmed"         # TCGplayer's rarity field: rarity by definition
+                s.src["Rarity"][x["canon"]] = "TCGplayer rarity"
+        if not rar or meaningful(left):
+            s.unid.setdefault(tr, "TCGplayer rarity")
+        s.rarity_text = tr
+    else:
+        s.rarity_text = s.shown("Rarity") or None
+    s.rarity_from = "TCGplayer" if tr else ("PriceCharting's [brackets]" if s.t["Rarity"] else None)
+    if s.t["Finish"]:
+        s.finish_text, s.finish_from = s.shown("Finish"), "PriceCharting's [brackets]"
+    else:
+        pf = printing_finish((tcgf or [None, None, []])[2] if tcgf else [])
+        if pf:
+            s.t["Finish"][pf] = "confirmed"
+            s.src["Finish"][pf] = "TCGplayer printings"
+        s.finish_text, s.finish_from = pf, ("TCGplayer's printings" if pf else None)
+    tn = (tcgf or ["", ""])[1] if tcgf else ""
+    s.num_raw = tn or str(number or "")
+    s.num = clean_num(tn) if tn else (clean_num(number) if number else "")
+    s.num_from = "TCGplayer" if tn else ("PriceCharting" if number else None)
+    return s
+
+
+def cl_side(pr, lookups, dic):
+    s = Side()
+    pr = pr or {}
+    variations = []
+    if (pr.get("variation") or "").strip():
+        variations.append((pr["variation"].strip(), "CL variation"))
+    for c in lookups or []:
+        v = (c.get("variation") or "").strip()
+        if v and v not in [x for x, _ in variations]:
+            variations.append((v, "CL cert lookup (" + str(c.get("grader") or "").upper() + " label)"))
+    for v, where in variations:
+        found, left = dic.match(v, "any")
+        s.add(found, where)
+        if meaningful(left):
+            s.unid.setdefault(v, where)
+    subj = str(pr.get("subject") or "")
+    if "-" in subj:
+        s.add(dic.match(subj.split("-", 1)[1], "any")[0], "CL card name")
+    sets = [str(pr.get("set") or "")] + [str(c.get("set") or "") for c in lookups or []]
+    for st in dict.fromkeys(x for x in sets if x):
+        s.add(dic.match(st, "set")[0], "CL set name")
+    s.rarity_text = s.shown("Rarity") or None
+    s.finish_text = s.shown("Finish") or None
+    num = str(pr.get("number") or "").strip()
+    s.num_raw, s.num_from = num, "Card Ladder" if num else None
+    if num and "/" not in num:
+        for c in lookups or []:
+            cn = str(c.get("number") or "")
+            if "/" in cn and num_key(cn) == num_key(num):
+                s.num_raw, s.num_from = cn, "Card Ladder's CGC cert lookup"
+                break
+    s.num = clean_num(s.num_raw) if s.num_raw else ""
+    return s
+
+
+def same_number(a, b):
+    """021 = 21; SWSH141 = 141 (PSA and Card Ladder drop a promo's prefix); TG23 != 23 only when both carry prefixes
+    that differ."""
+    ka, kb = num_key(a), num_key(b)
+    if ka == kb:
+        return True
+    ma, mb = re.match(r"^([a-z]*)(\d+)([a-z]?)$", ka), re.match(r"^([a-z]*)(\d+)([a-z]?)$", kb)
+    return bool(ma and mb and ma.group(2) == mb.group(2) and ma.group(3) == mb.group(3) and (not ma.group(1) or not mb.group(1)))
+
+
+def compare(pc, cl, pc_year, cl_year):
+    """{field: [pc shown, cl shown, result]}; result: match | mismatch | pc_none | cl_none | both_none | not_read"""
+    out = {}
+
+    def res(a, b, same):
+        if not a and not b:
+            return "both_none"
+        if not a:
+            return "pc_none"
+        if not b:
+            return "cl_none"
+        return "match" if same else "mismatch"
+    a, b = pc.num_raw, cl.num_raw
+    out["number"] = [pc.num, cl.num, res(a, b, same_number(a, b))]
+    ta, tb = total_of(a), total_of(b)
+    out["total"] = [ta, tb, res(ta, tb, ta == tb)]
+    for cat, key in (("Rarity", "rarity"), ("Finish", "finish"), ("Special", "special"), ("Series", "series"), ("Era", "era")):
+        A, B = set(pc.terms(cat)), set(cl.terms(cat))
+        out[key] = [", ".join(sorted(A)), ", ".join(sorted(B)), res(A, B, bool(A & B) if cat in ("Rarity", "Finish", "Series", "Era") else A == B)]
+    ya, yb = str(pc_year or "")[:4], str(cl_year or "")[:4]
+    ya = ya if ya.isdigit() else ""
+    yb = yb if yb.isdigit() else ""
+    out["release"] = [ya, yb, res(ya, yb, ya == yb)]
+    out["illustrator"] = ["not read", "", "not_read"]
+    return out
+
+
+class Tally:
+    """How often each term / unidentified phrase appears: cards in the graded view per side, and PriceCharting's whole
+    catalog for the [bracket] words."""
+
+    def __init__(self):
+        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "cat": 0, "conf": "", "where": set(), "ex": []})
+
+    def side(self, cid, side, s):
+        for cat in CATS:
+            for k, conf in s.t[cat].items():
+                e = self.n[(cat, k)]
+                e[side].add(cid)
+                e["conf"] = e["conf"] or conf
+                e["where"].add(s.src[cat].get(k, ""))
+        for ph, where in s.unid.items():
+            e = self.n[("Unidentified", ph)]
+            e[side].add(cid)
+            e["where"].add(where)
+
+    def catalog(self, names, dic):
+        for name in names:
+            for b in split_brackets(name):
+                found, left = dic.match(b, "any")
+                for x in found:
+                    if x["cat"] in CATS:
+                        e = self.n[(x["cat"], x["canon"])]
+                        e["cat"] += 1
+                        e["conf"] = e["conf"] or x["conf"]
+                        e["where"].add("PC bracket")
+                if meaningful(left):
+                    e = self.n[("Unidentified", b)]
+                    e["cat"] += 1
+                    e["where"].add("PC bracket")
+                    if len(e["ex"]) < 3:
+                        e["ex"].append(name)
+
+    def lists(self):
+        out = {c: [] for c in CATS + ["Unidentified"]}
+        for (cat, k), e in self.n.items():
+            out[cat].append([k, e["conf"] or ("" if cat == "Unidentified" else "likely"), len(e["pc"]), len(e["cl"]), e["cat"],
+                             " · ".join(sorted(x for x in e["where"] if x))])
+        for cat in out:
+            out[cat].sort(key=lambda r: (-(r[2] + r[3]), -r[4], r[0].lower()))
+        return out
+
+    def rows(self, built):
+        for (cat, k), e in sorted(self.n.items(), key=lambda kv: (kv[0][0], -(len(kv[1]["pc"]) + len(kv[1]["cl"])), -kv[1]["cat"], kv[0][1].lower())):
+            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), e["cat"], " · ".join(sorted(x for x in e["where"] if x)),
+                   " | ".join(e["ex"][:3]), built]

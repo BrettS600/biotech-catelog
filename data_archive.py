@@ -27,8 +27,9 @@ Runs on GitHub's machine (.github/workflows/data_archive.yml, daily after the si
                                   grade 7 / 8 / 9 / 9.5 with the grader read off the title), from the live branch's pcg/
                                   chunks; by sale month, deduplicated. Daily (2026-10-26, Brett: "Yes, please do").
   data/pricecharting/pop/         pop_<YYYY-MM>.csv.gz = the PSA and CGC population report each card page carries (grades
-                                  1-10), as of the page's last read; the month's file is rewritten daily, so the last one
-                                  of each month is that month's snapshot.
+                                  1-10): each card's first read of the month and its latest (one row when read once); the
+                                  month's file is rewritten daily, so the last one of each month is that month's snapshot
+                                  and the two rows' difference is the slabs graded that month (2026-10-28).
   data/pricecharting/             pc_graded_monthly_<year>.csv.gz = PriceCharting's monthly graded prices off each card's
                                   chart (grade 7, 8, 9, 9.5 - every grader blended - and PSA 10). Full runs only.
 
@@ -556,10 +557,32 @@ def pc_graded(out, live_dir, password, full):
         os.makedirs(pfolder, exist_ok=True)
         cols = ["card_id", "read_date"] + [f"psa_{i}" for i in range(1, 11)] + [f"cgc_{i}" for i in range(1, 11)]
         path = os.path.join(pfolder, f"pop_{datetime.now(timezone.utc).strftime('%Y-%m')}.csv.gz")
+        # the month's FIRST read of each card is kept beside its latest (2026-10-28): the difference is the number of new
+        # slabs graded this month (the graded view's "Number graded"); a card read once this month has one row
+        old = []
+        if os.path.exists(path):
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                rd = csv.reader(f)
+                if next(rd, None) == cols:
+                    old = [row for row in rd if row]
+        by = {}
+        for row in old + [["" if x is None else str(x) for x in pr] for pr in pop_rows]:
+            lo, hi = by.get(row[0], (None, None))
+            if lo is None or row[1] < lo[1]:
+                lo = row
+            if hi is None or row[1] >= hi[1]:
+                hi = row
+            by[row[0]] = (lo, hi)
+        out_rows = []
+        for cid in sorted(by, key=int):
+            lo, hi = by[cid]
+            out_rows.append(lo)
+            if hi[1] != lo[1]:
+                out_rows.append(hi)
         with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
             w = csv.writer(f, lineterminator="\n")
             w.writerow(cols)
-            w.writerows(sorted(pop_rows))
+            w.writerows(out_rows)
     res["pop_cards"] = len(pop_rows)
     log(f"graded: population report on {len(pop_rows):,} cards")
     if full:
