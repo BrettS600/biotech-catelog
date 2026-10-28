@@ -1,0 +1,30 @@
+diff --git a/page/graded.js b/page/graded.js
+index 888582a..7b06283 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -102,8 +102,8 @@ function grRow(r) {
+   return '<td><b>' + esc(r[25]) + '</b></td>' +
+     cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
+     (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (r[26] === 'PSA' ? 'The cert number of a PSA ' : 'The cert number of a CGC ') + esc(r[25].split(' ').slice(1).join(' ')) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its cert page">' + esc(r[27]) + '</a></td>' : gdash) +
+-    grText(r[29]) +
+-    (r[30] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[30]) + '</a></td>' : gdash) +
++    (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : gdash) +
++    grText(r[30]) +
+     grText(r[32]) + (r[33] ? '<td title="' + esc(((GR.doc.cards[String(r[0])] || {}).fin || [])[1] || 'Card Ladder') + '">' + esc(r[33]) + '</td>' : gdash) + grText(r[34]) +
+     grInt(r[5]) +
+     (r[6] == null ? gdash : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(pcSrc) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
+diff --git a/page/graded_help.js b/page/graded_help.js
+index ddb9ad8..b757aea 100644
+--- a/page/graded_help.js
++++ b/page/graded_help.js
+@@ -8,8 +8,8 @@ Object.assign(HELP, {
+   g_rf: {t: 'PC Rarity/Finish', f: 'TCGplayer’s rarity and finish for the card (through the tcg-id PriceCharting carries)', m: 'As on the raw tab.', e: 'Uncommon · 1st Edition Non-holo.'},
+   g_rel: {t: 'PC Release', f: 'PriceCharting release-date', m: 'As on the raw tab.', e: '1999-01-09.'},
+   g_id: {t: 'PSA or CGC ID', f: 'the cert number of a PSA / CGC slab of this card at this grade', m: 'Read off the barcode in one of PriceCharting’s sold-listing photos of that grade, and linked to the slab’s own PSA or CGC cert page so you can check the label against the card. A grade with no slab read yet shows -. The card’s own numbers (PSA spec, Card Ladder’s CGC number) are in Review.', e: 'Alakazam #1, PSA 7 row: PSA 147737833 opens PSA’s cert page for that slab.'},
+-  g_clname: {t: 'CL Card Name', f: 'Card Ladder’s subject (the grader’s card name)', m: 'How the graders name the card. Compare it with PC Card Name.', e: '"Raticate", "Full Art / Umbreon Vmax".'},
+-  g_clset: {t: 'CL Set Name', f: 'Card Ladder’s set name (the grader’s)', m: 'Links to the card on Card Ladder (its profile: every grade, its population and its sales).', e: '"Pokemon Game" is PSA’s name for Base Set.'},
++  g_clname: {t: 'CL Card Name', f: 'Card Ladder’s subject (the grader’s card name)', m: 'How the graders name the card; links to the card on Card Ladder (its profile: every grade, its population and its sales). Compare it with PC Card Name.', e: '"Raticate", "Full Art / Umbreon Vmax".'},
++  g_clset: {t: 'CL Set Name', f: 'Card Ladder’s set name (the grader’s)', m: 'The grader’s set name, which often differs from PriceCharting’s.', e: '"Pokemon Game" is PSA’s name for Base Set.'},
+   g_clnum: {t: 'CL Set/Card No.', f: 'Card Ladder’s card number', m: 'The grader’s card number; PSA drops promo prefixes (#050 for SWSH050).', e: '40, TG23, 050.'},
+   g_clrf: {t: 'CL Rarity/Finish', f: 'Card Ladder’s variation, else the CGC / PSA label’s finish (Card Ladder’s cert lookup), else finish words in Card Ladder’s card name', m: 'Hover the cell to see which of the three it came from. PSA labels rarely name a finish; CGC labels usually do (Holo, Reverse Holo, Trainer Gallery - Holo).', e: '"Holo" (CGC label).'},
+   g_clrel: {t: 'CL Release', f: 'Card Ladder’s year', m: 'Card Ladder gives the year only.', e: '1999.'},
