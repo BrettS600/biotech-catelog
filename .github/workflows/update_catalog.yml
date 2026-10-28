@@ -97,6 +97,7 @@ jobs:
             data/pricecharting/pop/
             data/pricecharting/graded_sales/
             data/pricecharting/pc_graded_monthly_*
+            data/dictionary/
           sparse-checkout-cone-mode: false
 
       - name: Graded view (the PriceCharting tab's PSA / CGC rows - Card Ladder beside PriceCharting)
@@ -105,7 +106,27 @@ jobs:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
         run: |
           python graded_site.py --card-data card-data/data --pc-csv pricecharting.csv --snapshots snapshots --out public
-          rm -rf card-data
+
+      - name: Save the dictionary counts and the PC / CL field checks to card-data
+        continue-on-error: true      # the site never waits on this; the next build writes them again
+        run: |
+          [ -d card-data/.git ] || { echo "no card-data checkout"; exit 0; }
+          cd card-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add -- data/dictionary/term_counts.csv data/ids/field_checks.csv 2>/dev/null || true
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -q -m "graded view: dictionary term counts and PC / CL field checks ($(date -u +%F))"
+          b=$(git rev-parse --abbrev-ref HEAD)
+          for i in 1 2 3; do
+            if git pull -q --rebase origin "$b" && git push -q origin "HEAD:$b"; then echo "pushed"; exit 0; fi
+            sleep 10
+          done
+          echo "could not push (card-data moved three times)"
+
+      - name: Remove the card data checkout
+        if: always()
+        run: rm -rf card-data
 
       - name: Forecast (the Forecast tab's model, from the collector's PriceCharting history)
         continue-on-error: true      # a model hiccup must never block the site; the tab then shows the last file
