@@ -102,8 +102,8 @@ function grRow(r) {
   return '<td><b>' + esc(r[25]) + '</b></td>' +
     cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
     (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (r[26] === 'PSA' ? 'The cert number of a PSA ' : 'The cert number of a CGC ') + esc(r[25].split(' ').slice(1).join(' ')) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its cert page">' + esc(r[27]) + '</a></td>' : gdash) +
-    grText(r[29]) +
-    (r[30] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[30]) + '</a></td>' : gdash) +
+    (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : gdash) +
+    grText(r[30]) +
     grText(r[32]) + (r[33] ? '<td title="' + esc(((GR.doc.cards[String(r[0])] || {}).fin || [])[1] || 'Card Ladder') + '">' + esc(r[33]) + '</td>' : gdash) + grText(r[34]) +
     grInt(r[5]) +
     (r[6] == null ? gdash : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(pcSrc) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
