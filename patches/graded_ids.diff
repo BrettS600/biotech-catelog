@@ -1,0 +1,173 @@
+diff --git a/graded_site.py b/graded_site.py
+index 54121a4..7fe5d8a 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -9,6 +9,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
+   ids/card_ids.csv                         which Card Ladder profile each PriceCharting card is (cardmatch / the barcode
+                                            chain): pricecharting_id, cl_profile_id, psa_spec, cgc_id, psa_cert, cgc_cert,
+                                            status (confirmed / likely / review / no_match), note
++  cardladder/matches/*.jsonl.gz            the slab evidence: one cert per grade read off PriceCharting's sold-listing
++                                           photos (slabs), Card Ladder's cert lookups (grade, label, finish)
+   cardladder/profiles/*.jsonl.gz           the Card Ladder profile reads, one JSON object per line (newest wins):
+                                            {pc, read, pid, label, year, set, number, subject, variation, image, graders:
+                                            [{g, id, pop, grades: [[key, label, pop, cl value, last sold, conf]]}],
+@@ -115,6 +117,55 @@ def load_profiles(cd):
+     return out
+ 
+ 
++FIN_WORDS = re.compile(r"\b(reverse holo|holo|full art|alt(?:ernate)? art|secret|rainbow|gold|shadowless|1st edition|first edition|"
++                       r"illustration rare|special illustration|trainer gallery|galarian gallery|textured|cosmos|cracked ice|"
++                       r"stamped|staff|prerelease|promo)\b", re.I)
++
++
++def load_matches(cd):
++    """{pc id: {"slabs": {gk: cert}, "cl": [Card Ladder cert lookups]}} from data/cardladder/matches (newest read wins)."""
++    out = {}
++    for f in sorted(glob.glob(os.path.join(cd, "cardladder", "matches", "*.jsonl.gz"))):
++        with gzip.open(f, "rt", encoding="utf-8") as fh:
++            for line in fh:
++                try:
++                    o = json.loads(line)
++                except ValueError:
++                    continue
++                e = out.setdefault(str(o.get("pc")), {"slabs": {}, "cl": []})
++                for gk, x in (o.get("slabs") or {}).items():
++                    if gk in GI and x.get("cert"):
++                        e["slabs"][gk] = x["cert"]
++                c = o.get("cl_cert")
++                if c and c.get("cert") and not c.get("err"):
++                    e["cl"].append(c)
++    for e in out.values():                                  # a slab Card Ladder looked up names its own grade
++        for c in e["cl"]:
++            gk = f"{c.get('grader')}|{c.get('grade')}"
++            if gk in GI:
++                e["slabs"].setdefault(gk, c["cert"])
++    return out
++
++
++def finish_of(pr, ev):
++    """CL Rarity/Finish: Card Ladder's variation, else CGC's / PSA's label (the cert lookups), else finish words in the name."""
++    if pr and (pr.get("variation") or "").strip():
++        return [pr["variation"].strip(), "Card Ladder"]
++    for grader, who in (("cgc", "CGC label"), ("psa", "PSA label")):
++        for c in (ev or {}).get("cl", []):
++            if c.get("grader") == grader and (c.get("variation") or "").strip():
++                return [c["variation"].strip(), who]
++    if pr:
++        words = []
++        for m in FIN_WORDS.finditer(f"{pr.get('subject') or ''} {pr.get('label') or ''}"):
++            w = m.group(1).title()
++            if w not in words:
++                words.append(w)
++        if words:
++            return [", ".join(words), "Card Ladder name"]
++    return None
++
++
+ def load_marks(cd):
+     p = os.path.join(cd, "ids", "marks.csv")
+     if not os.path.exists(p):
+@@ -286,6 +337,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
+     ids_df = load_ids(cd)
+     prof = load_profiles(cd)
+     marks = load_marks(cd)
++    matches = load_matches(cd)
+     ids = sorted({int(x) for x in ids_df["pricecharting_id"] if str(x).isdigit()})
+     print(f"graded: {len(ids)} matched cards, {len(prof)} Card Ladder profile reads")
+     pc = pd.read_csv(pc_csv, dtype=str).fillna("") if os.path.exists(pc_csv) else pd.DataFrame(columns=["id"])
+@@ -348,6 +400,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
+             "by": r.get("confirmed_by", ""), "note": r.get("note", "")[:200],
+             "cl": [pr.get(x) for x in ("label", "year", "set", "number", "subject", "variation", "image")] if pr else None,
+             "read": (pr or {}).get("read", ""), "tcg": r.get("tcgplayer_id", ""),
++            "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
++            "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
++            "fin": finish_of(pr, matches.get(str(cid))),
+         }
+         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
+               "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items()},
+diff --git a/page/graded.js b/page/graded.js
+index a3c1e0f..888582a 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -41,13 +41,15 @@ function grBuildRows() {
+     if (!base) continue;
+     const gk = d.gk[x[1]], grader = gk.split('|')[0].toUpperCase();
+     const m = GMARKS[cid + '|' + gk];
+-    const idText = grader === 'PSA' ? (c.spec ? 'PSA ' + c.spec : c.pcert ? 'PSA cert ' + c.pcert : '') : (c.cgc ? 'CGC ' + c.cgc : c.ccert ? 'CGC cert ' + c.ccert : '');
+-    const idUrl = grader === 'PSA' ? (c.pcert ? 'https://www.psacard.com/cert/' + c.pcert + '/psa' : grClUrl(c.pid))
+-                                   : (c.ccert ? 'https://www.cgccards.com/certlookup/' + c.ccert + '/' : grClUrl(c.pid));
++    // the cert number of a real slab of THIS grade (read off a PriceCharting sold-listing photo), linked to its cert page;
++    // none read for the grade -> no ID (2026-10-28, Brett: "cgc id doesnt match the card")
++    const cert = (c.certs || {})[gk] || '';
++    const idText = cert ? grader + ' ' + cert : '';
++    const idUrl = !cert ? '' : grader === 'PSA' ? 'https://www.psacard.com/cert/' + cert + '/psa' : 'https://www.cgccards.com/certlookup/' + cert + '/';
+     const pcp = x[2], clv = x[6];
+     const r = [cid, base[1], base[2], base[3], base[4], base[5], pcp, x[11], x[12], x[13], null, null, x[14], x[15], base[14], base[15],
+       x[4], d.lastm, null, null, null, null, null, null, x[1], grLabel(gk), grader, idText, idUrl,
+-      cl[4] || null, cl[2] || null, grClUrl(c.pid), cl[3] || null, cl[5] || null, cl[1] || null, clv,
++      cl[4] || null, cl[2] || null, grClUrl(c.pid), cl[3] || null, (c.fin && c.fin[0]) || cl[5] || null, cl[1] || null, clv,
+       pcp && clv ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, x[8], null, null, null,
+       m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], x[10], x[7], x[9], false, c.pid || '', gk,
+       ordOf(base) * 64 + 1 + x[1]];
+@@ -99,10 +101,10 @@ function grRow(r) {
+   const pcSrc = grSrcTitle(r), mixed = r[43] === 'mixed' || r[43] === 'formula';
+   return '<td><b>' + esc(r[25]) + '</b></td>' +
+     cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
+-    (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (r[26] === 'PSA' ? 'PSA’s spec number for the card; opens the PSA cert of a slab that proved the match' : 'CGC’s number for the card; opens the CGC cert of a slab that proved the match') + '">' + esc(r[27]) + '</a></td>' : gdash) +
++    (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (r[26] === 'PSA' ? 'The cert number of a PSA ' : 'The cert number of a CGC ') + esc(r[25].split(' ').slice(1).join(' ')) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its cert page">' + esc(r[27]) + '</a></td>' : gdash) +
+     grText(r[29]) +
+     (r[30] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[30]) + '</a></td>' : gdash) +
+-    grText(r[32]) + grText(r[33]) + grText(r[34]) +
++    grText(r[32]) + (r[33] ? '<td title="' + esc(((GR.doc.cards[String(r[0])] || {}).fin || [])[1] || 'Card Ladder') + '">' + esc(r[33]) + '</td>' : gdash) + grText(r[34]) +
+     grInt(r[5]) +
+     (r[6] == null ? gdash : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(pcSrc) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
+     grMoney(r[35]) +
+@@ -227,7 +229,7 @@ function grOpenReview(key) {
+   const c = (GR.doc.cards || {})[String(r[0])] || {}, cl = c.cl || [], base = idRow.get(r[0]) || [];
+   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
+   if (!pcu) pcAsk(r[0]);
+-  const clu = GR_CL_IMG(cl[6]), clPage = grClUrl(c.pid);
++  const clu = GR_CL_IMG((c.imgs || {})[r[50]] || cl[6]), clPage = grClUrl(c.pid);   // Card Ladder's picture of THIS grade when it has one
+   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
+   const row = (l, rr) => '<div class="rrow"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div></div>';
+   const v = r[41], mk = GMARKS[key] || {};
+@@ -244,18 +246,18 @@ function grOpenReview(key) {
+       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
+            : '<div class="rvbox"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>being fetched now — it appears here within a minute or two</small></div>') + '</div>' +
+     '<div class="rvside"><h4>Card Ladder ' + (clPage ? '<a href="' + esc(clPage) + '" target="_blank" rel="noopener">↗</a>' : '') + '</h4>' +
+-      (clu ? '<a href="' + esc(clPage || '#') + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(clu) + '" alt="Card Ladder picture: click to open the card on Card Ladder"></a>' : '<div class="rvbox"><span class="dim">no picture on file</span></div>') + '</div></div>';
++      (clu ? '<a href="' + esc(clPage || '#') + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(clu) + '" alt="Card Ladder picture: click to open the card on Card Ladder"></a>' + ((c.imgs || {})[r[50]] ? '' : '<small class="dim">Card Ladder’s main picture: it has none of a ' + esc(r[25]) + ' slab</small>') : '<div class="rvbox"><span class="dim">no picture on file</span></div>') + '</div></div>';
+   const pcFin = (pcRF(base) || ['', ''])[1];
+   h += '<div class="rvrows">' +
+     row(fact('Release year', year(base[4])), fact('Release year', year(cl[1]))) +
+     row(fact('Set name', esc(String(base[2] || '').replace(/^Pokemon /, ''))), fact('Set name', cl[2] ? esc(cl[2]) : '<span class="dim">unknown</span>')) +
+     row(fact('Card name', esc(base[1] || '')), fact('Card name', cl[4] ? esc(cl[4]) : '<span class="dim">unknown</span>')) +
+     row(fact('Card / set number', esc(base[3] || '') + (SET_TOTALS[base[2]] ? ' / ' + SET_TOTALS[base[2]] : '')), fact('Card / set number', cl[3] ? esc(cl[3]) : '<span class="dim">unknown</span>')) +
+-    row(fact('Finish', pcFin ? esc(pcFin) : '<span class="dim">unknown</span>'), fact('Finish', cl[5] ? esc(cl[5]) : '<span class="dim">not stated</span>', 'Card Ladder’s variation (from the graders’ records)')) +
++    row(fact('Finish', pcFin ? esc(pcFin) : '<span class="dim">unknown</span>'), fact('Finish', c.fin ? esc(c.fin[0]) : '<span class="dim">not stated</span>', c.fin ? 'from ' + esc(c.fin[1]) : 'no finish on Card Ladder or the graders’ labels')) +
+     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded')) +
+     row(fact('Grade and grader', esc(r[25])), fact('Grade and grader', esc(r[25]))) +
+     row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grSrcTitle(r))), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s value' + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : ''))) +
+-    row(fact('TCGplayer ID', tcg, 'the TCGplayer product PriceCharting references'), fact(r[26] === 'CGC' ? 'CGC ID' : 'PSA ID', idl, r[26] === 'PSA' ? 'PSA’s spec number; the link opens a cert that proved the match' : 'CGC’s number for the card')) +
++    row(fact('TCGplayer ID', tcg, 'the TCGplayer product PriceCharting references'), fact(r[26] === 'CGC' ? 'CGC cert' : 'PSA cert', idl, (r[27] ? 'a ' + esc(r[25]) + ' slab of this card (from a sold-listing photo) · ' : 'no ' + esc(r[25]) + ' slab read yet · ') + (r[26] === 'PSA' ? (c.spec ? 'PSA’s number for the card: spec ' + esc(c.spec) : 'no PSA spec') : (c.cgc ? 'Card Ladder’s CGC number for the card: ' + esc(c.cgc) : 'no CGC number')))) +
+     '</div>' +
+     '<div class="rvbtns"><button class="rvno" id="grv-no">Not the same card<small>recorded as a wrong match</small></button><button class="rvyes" id="grv-yes">Same card<small>a confirmed match</small></button></div>' +
+     (v != null ? '<div class="rvundo"><button class="linkbtn" id="grv-undo">Withdraw my answer</button></div>' : '') + '<div id="grv-msg" class="dim"></div>';
+diff --git a/page/graded_help.js b/page/graded_help.js
+index cbac7bb..ddb9ad8 100644
+--- a/page/graded_help.js
++++ b/page/graded_help.js
+@@ -7,11 +7,11 @@ Object.assign(HELP, {
+   g_num: {t: 'PC Set/Card No.', f: 'card number / printed set size', m: 'As on the raw tab.', e: '40/102.'},
+   g_rf: {t: 'PC Rarity/Finish', f: 'TCGplayer’s rarity and finish for the card (through the tcg-id PriceCharting carries)', m: 'As on the raw tab.', e: 'Uncommon · 1st Edition Non-holo.'},
+   g_rel: {t: 'PC Release', f: 'PriceCharting release-date', m: 'As on the raw tab.', e: '1999-01-09.'},
+-  g_id: {t: 'PSA or CGC ID', f: 'PSA: the spec number of the card; CGC: CGC’s number for the card (from Card Ladder)', m: 'The grading company’s own number for this card. The link opens the PSA or CGC cert page of a slab whose barcode proved the match (read from a sold listing’s photo on PriceCharting); where no cert was read, it opens the card on Card Ladder.', e: 'PSA 890956 = 1999 Pokemon Game #40 Raticate 1st Edition.'},
++  g_id: {t: 'PSA or CGC ID', f: 'the cert number of a PSA / CGC slab of this card at this grade', m: 'Read off the barcode in one of PriceCharting’s sold-listing photos of that grade, and linked to the slab’s own PSA or CGC cert page so you can check the label against the card. A grade with no slab read yet shows -. The card’s own numbers (PSA spec, Card Ladder’s CGC number) are in Review.', e: 'Alakazam #1, PSA 7 row: PSA 147737833 opens PSA’s cert page for that slab.'},
+   g_clname: {t: 'CL Card Name', f: 'Card Ladder’s subject (the grader’s card name)', m: 'How the graders name the card. Compare it with PC Card Name.', e: '"Raticate", "Full Art / Umbreon Vmax".'},
+   g_clset: {t: 'CL Set Name', f: 'Card Ladder’s set name (the grader’s)', m: 'Links to the card on Card Ladder (its profile: every grade, its population and its sales).', e: '"Pokemon Game" is PSA’s name for Base Set.'},
+   g_clnum: {t: 'CL Set/Card No.', f: 'Card Ladder’s card number', m: 'The grader’s card number; PSA drops promo prefixes (#050 for SWSH050).', e: '40, TG23, 050.'},
+-  g_clrf: {t: 'CL Rarity/Finish', f: 'Card Ladder’s variation (the grader’s variety field)', m: 'Only what the grader wrote, so often blank: 1st Edition, Shadowless, Special Illustration Rare ...', e: '"1st Edition".'},
++  g_clrf: {t: 'CL Rarity/Finish', f: 'Card Ladder’s variation, else the CGC / PSA label’s finish (Card Ladder’s cert lookup), else finish words in Card Ladder’s card name', m: 'Hover the cell to see which of the three it came from. PSA labels rarely name a finish; CGC labels usually do (Holo, Reverse Holo, Trainer Gallery - Holo).', e: '"Holo" (CGC label).'},
+   g_clrel: {t: 'CL Release', f: 'Card Ladder’s year', m: 'Card Ladder gives the year only.', e: '1999.'},
+   g_sales: {t: 'Sales/yr', f: 'PriceCharting sales-volume (every grade together)', m: 'The card’s, not the grade’s; as on the raw tab.', e: ''},
+   g_pcg: {t: 'PC Graded (latest)', f: 'PriceCharting’s price for this grade', m: 'PSA 10: PriceCharting’s PSA 10 price. Grades 7 / 8 / 9 / 9.5 PriceCharting prices for every grader together, and its CGC 10 is often a formula (0.40 x PSA 10) - for those the cell shows the median of the sales of THIS grade and grader that PriceCharting recorded (90 days, else a year, at least 3 sales), marked *, and PriceCharting’s own figure when there are too few. Hover for the source.', e: ''},
