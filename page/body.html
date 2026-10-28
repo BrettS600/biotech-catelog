@@ -16,6 +16,13 @@
 <!-- ============ Tab 1: PriceCharting Catalog (default) ============ -->
 <section class="panel" id="p-pc">
 <div class="meta">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD) · __HDAYS__ day(s) of history</div>
+<div class="gmode" id="gmode">
+  <button type="button" class="gm" id="gm-raw" aria-pressed="true" title="Only the raw (ungraded) cards; click again to show raw and graded together">Only show raw</button>
+  <button type="button" class="gm" id="gm-g" aria-pressed="false" title="Only the graded rows (PSA and CGC, the grades ticked in Grading); click again to show raw and graded together">Only show graded</button>
+  <button type="button" class="gm2" id="gm-grades" title="Which grades and graders the graded rows show">Grading <span id="gm-gn"></span> ▾</button>
+  <span class="dim" id="gm-note"></span>
+</div>
+<div id="pcv-raw">
 <div class="controls">
   <input type="search" id="q-pc" placeholder="Search card or set… (e.g. charizard base)">
   <select id="set-pc"><option value="">All sets (release order)</option></select>
@@ -55,6 +62,119 @@
 </table>
 </div>
 <button class="more" id="more-pc" hidden>Show more</button>
+</div>
+<div id="pcv-g" hidden>
+<div class="controls">
+  <input type="search" id="q-pcg" placeholder="Search card, set, grade or Card Ladder name… (e.g. charizard psa 10)">
+  <select id="set-pcg"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-pcg"></span>
+</div>
+<div class="ranges" id="ranges-pcg">
+  <button class="reset" id="reset-pcg">Reset filters</button>
+</div>
+<div class="wrap">
+<table class="wide gtable">
+  <thead><tr>
+    <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts the card on the Favorites tab">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="g_grade">?</button></th>
+    <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="g_card">?</button></th>
+    <th data-k="2">PC Set<span class="s">⇅</span><button class="help" data-h="g_set">?</button></th>
+    <th data-k="3" class="num">PC Set/Card No.<span class="s">⇅</span><button class="help" data-h="g_num">?</button></th>
+    <th data-k="14">PC Rarity/Finish<span class="s">⇅</span><button class="help" data-h="g_rf">?</button></th>
+    <th data-k="4">PC Release<span class="s">⇅</span><button class="help" data-h="g_rel">?</button></th>
+    <th data-k="27">PSA or CGC ID<span class="s">⇅</span><button class="help" data-h="g_id">?</button></th>
+    <th data-k="29">CL Card Name<span class="s">⇅</span><button class="help" data-h="g_clname">?</button></th>
+    <th data-k="30">CL Set Name<span class="s">⇅</span><button class="help" data-h="g_clset">?</button></th>
+    <th data-k="32">CL Set/Card No.<span class="s">⇅</span><button class="help" data-h="g_clnum">?</button></th>
+    <th data-k="33">CL Rarity/Finish<span class="s">⇅</span><button class="help" data-h="g_clrf">?</button></th>
+    <th data-k="34">CL Release<span class="s">⇅</span><button class="help" data-h="g_clrel">?</button></th>
+    <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="g_sales">?</button></th>
+    <th data-k="6" class="num">PC Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_pcg">?</button></th>
+    <th data-k="35" class="num">CL Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_clg">?</button></th>
+    <th data-k="36" class="num">PC to CL % Difference<span class="s">⇅</span><button class="help" data-h="g_pc2cl">?</button></th>
+    <th data-k="7" class="num">Δ 7d %<span class="s">⇅</span><button class="help" data-h="g_d7">?</button></th>
+    <th data-k="8" class="num">Δ 30d %<span class="s">⇅</span><button class="help" data-h="g_d30">?</button></th>
+    <th data-k="9" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="g_pos">?</button></th>
+    <th data-k="10" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="g_vd">?</button></th>
+    <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="g_vol">?</button></th>
+    <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="g_ts">?</button></th>
+    <th data-k="16" class="num">PC sales (last mo)<span class="s">⇅</span><button class="help" data-h="g_pcs">?</button></th>
+    <th data-k="37" class="num">CL Sales (last month)<span class="s">⇅</span><button class="help" data-h="g_cls">?</button></th>
+    <th data-k="38" class="num">Graded This Past Month<span class="s">⇅</span><button class="help" data-h="g_gtm">?</button></th>
+    <th data-k="39" class="num">Number Graded (last month)<span class="s">⇅</span><button class="help" data-h="g_ngl">?</button></th>
+    <th data-k="40" class="num">Graded To PC Sales Ratio (last month)<span class="s">⇅</span><button class="help" data-h="g_ratio">?</button></th>
+    <th data-k="18" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="g_km">?</button></th>
+    <th data-k="19" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="g_kt">?</button></th>
+    <th data-k="20" class="num">$eBay Anchor<span class="s">⇅</span><button class="help" data-h="g_A">?</button></th>
+    <th data-k="21" class="num">eBay to PC Difference<span class="s">⇅</span><button class="help" data-h="g_e2pc">?</button></th>
+    <th data-k="22" class="num">Hits 30d<span class="s">⇅</span><button class="help" data-h="g_hits">?</button></th>
+    <th data-k="23" class="num">Hit %<span class="s">⇅</span><button class="help" data-h="g_hitpct">?</button></th>
+    <th>PSA Trend<button class="help" data-h="g_trend">?</button></th>
+    <th>Review<button class="help" data-h="g_review">?</button></th>
+    <th data-k="42">Flag<span class="s">⇅</span><button class="help" data-h="g_flag">?</button></th>
+  </tr></thead>
+  <tbody id="rows-pcg"></tbody>
+</table>
+</div>
+<button class="more" id="more-pcg" hidden>Show more</button>
+</div>
+<div id="pcv-a" hidden>
+<div class="controls">
+  <input type="search" id="q-pca" placeholder="Search card, set, grade or Card Ladder name… (e.g. charizard psa 10)">
+  <select id="set-pca"><option value="">All sets (release order)</option></select>
+  <span class="count" id="count-pca"></span>
+</div>
+<div class="ranges" id="ranges-pca">
+  <button class="reset" id="reset-pca">Reset filters</button>
+</div>
+<div class="wrap">
+<table class="wide gtable">
+  <thead><tr>
+    <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts the card on the Favorites tab">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="g_grade">?</button></th>
+    <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="g_card">?</button></th>
+    <th data-k="2">PC Set<span class="s">⇅</span><button class="help" data-h="g_set">?</button></th>
+    <th data-k="3" class="num">PC Set/Card No.<span class="s">⇅</span><button class="help" data-h="g_num">?</button></th>
+    <th data-k="14">PC Rarity/Finish<span class="s">⇅</span><button class="help" data-h="g_rf">?</button></th>
+    <th data-k="4">PC Release<span class="s">⇅</span><button class="help" data-h="g_rel">?</button></th>
+    <th data-k="27">PSA or CGC ID<span class="s">⇅</span><button class="help" data-h="g_id">?</button></th>
+    <th data-k="29">CL Card Name<span class="s">⇅</span><button class="help" data-h="g_clname">?</button></th>
+    <th data-k="30">CL Set Name<span class="s">⇅</span><button class="help" data-h="g_clset">?</button></th>
+    <th data-k="32">CL Set/Card No.<span class="s">⇅</span><button class="help" data-h="g_clnum">?</button></th>
+    <th data-k="33">CL Rarity/Finish<span class="s">⇅</span><button class="help" data-h="g_clrf">?</button></th>
+    <th data-k="34">CL Release<span class="s">⇅</span><button class="help" data-h="g_clrel">?</button></th>
+    <th data-k="5" class="num">Sales/yr<span class="s">⇅</span><button class="help" data-h="g_sales">?</button></th>
+    <th data-k="6" class="num">PC Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_pcg">?</button></th>
+    <th data-k="35" class="num">CL Graded (latest)<span class="s">⇅</span><button class="help" data-h="g_clg">?</button></th>
+    <th data-k="36" class="num">PC to CL % Difference<span class="s">⇅</span><button class="help" data-h="g_pc2cl">?</button></th>
+    <th data-k="7" class="num">Δ 7d %<span class="s">⇅</span><button class="help" data-h="g_d7">?</button></th>
+    <th data-k="8" class="num">Δ 30d %<span class="s">⇅</span><button class="help" data-h="g_d30">?</button></th>
+    <th data-k="9" class="num">Range 90d %<span class="s">⇅</span><button class="help" data-h="g_pos">?</button></th>
+    <th data-k="10" class="num">Volume drift 30d<span class="s">⇅</span><button class="help" data-h="g_vd">?</button></th>
+    <th data-k="12" class="num">Volatility %<span class="s">⇅</span><button class="help" data-h="g_vol">?</button></th>
+    <th data-k="13" class="num">Slope 30d %/mo<span class="s">⇅</span><button class="help" data-h="g_ts">?</button></th>
+    <th data-k="16" class="num">PC sales (last mo)<span class="s">⇅</span><button class="help" data-h="g_pcs">?</button></th>
+    <th data-k="37" class="num">CL Sales (last month)<span class="s">⇅</span><button class="help" data-h="g_cls">?</button></th>
+    <th data-k="38" class="num">Graded This Past Month<span class="s">⇅</span><button class="help" data-h="g_gtm">?</button></th>
+    <th data-k="39" class="num">Number Graded (last month)<span class="s">⇅</span><button class="help" data-h="g_ngl">?</button></th>
+    <th data-k="40" class="num">Graded To PC Sales Ratio (last month)<span class="s">⇅</span><button class="help" data-h="g_ratio">?</button></th>
+    <th data-k="18" class="num">eBay sales (last mo)<span class="s">⇅</span><button class="help" data-h="g_km">?</button></th>
+    <th data-k="19" class="num">eBay sales (this mo)<span class="s">⇅</span><button class="help" data-h="g_kt">?</button></th>
+    <th data-k="20" class="num">$eBay Anchor<span class="s">⇅</span><button class="help" data-h="g_A">?</button></th>
+    <th data-k="21" class="num">eBay to PC Difference<span class="s">⇅</span><button class="help" data-h="g_e2pc">?</button></th>
+    <th data-k="22" class="num">Hits 30d<span class="s">⇅</span><button class="help" data-h="g_hits">?</button></th>
+    <th data-k="23" class="num">Hit %<span class="s">⇅</span><button class="help" data-h="g_hitpct">?</button></th>
+    <th>PSA Trend<button class="help" data-h="g_trend">?</button></th>
+    <th>Review<button class="help" data-h="g_review">?</button></th>
+    <th data-k="42">Flag<span class="s">⇅</span><button class="help" data-h="g_flag">?</button></th>
+  </tr></thead>
+  <tbody id="rows-pca"></tbody>
+</table>
+</div>
+<button class="more" id="more-pca" hidden>Show more</button>
+</div>
 <footer>Default order = set release date, then card number. Click any header to sort ascending, again for descending, a third time to reset; click a header's <b>?</b> for the formula and meaning. Card names link to the PriceCharting page. The eye on a header hides that column; Columns… brings it back (the choice is remembered in this browser). Trend columns show "—" until enough daily history exists (7 days for Δ7d, 30 for Δ30d and the slope, 60 for the 90-day range, 3+ price moves for volatility).</footer>
 </section>
 
@@ -330,6 +450,19 @@
   </div>
 </div>
 
+<!-- the PriceCharting tab's graded Trend popup (2026-10-28): PriceCharting and Card Ladder lines for up to three grades -->
+<div class="ov" id="gov">
+  <div class="modal">
+    <button class="close" id="gclose" title="Close">✕</button>
+    <h2 id="gtitle"></h2>
+    <div class="sub" id="gsub"></div>
+    <div class="bar"><span class="dim">Lines from:</span> <span id="gsrc"></span> <span class="dim">Window:</span> <span id="gzoom"><button class="zb" data-z="6">6m</button><button class="zb" data-z="12">1y</button><button class="zb" data-z="24">2y</button><button class="zb" data-z="60">5y</button><button class="zb" data-z="all">All</button></span></div>
+    <div class="gpick" id="ggrades"></div>
+    <div class="bar" id="gchips"></div>
+    <svg id="gsvg" class="gsvg" viewBox="0 0 860 340" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="pctbox" id="gtable"></div>
+  </div>
+</div>
 <div class="ov" id="hov">
   <div class="modal narrow">
     <button class="close" id="hclose" title="Close">✕</button>

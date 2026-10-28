@@ -584,7 +584,7 @@ __SCRIPT__</script>
 </html>
 """
 html = (html.replace("__STYLE__", page_part("style.css")).replace("__BODY__", page_part("body.html"))
-            .replace("__SCRIPT__", page_part("app.js") + "\n" + page_part("help.js")))   # help.js: README + column help
+            .replace("__SCRIPT__", page_part("app.js") + "\n" + page_part("help.js") + "\n" + page_part("graded_help.js") + "\n" + page_part("graded.js")))   # help.js: README + column help; graded_help.js + graded.js: the PriceCharting tab's graded view
 html = (html.replace("__UPDATED__", today)
             .replace("__HKEY__", hist_key_hex)
             .replace("__LIVE_URL__", LIVE_URL)

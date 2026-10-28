@@ -281,7 +281,7 @@ function selApply(table) {                         // after a table is rebuilt: 
 }
 
 const TABLES = {
-  pc: {rows: () => DATA, noun: 'cards', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
+  pc: {rows: () => DATA, noun: 'cards', root: '#pcv-raw', ranges: RANGE_COLS, labels: RANGE_LABEL, defaults: {},
        inserted: [{v: 3, at: 0, n: 1}, {v: 4, at: 4, n: 1}, {v: 5, at: 14, n: 3}, {v: 6, at: 14, n: 1}, {v: 7, at: 16, n: 1}, {v: 8, at: 19, n: 2}, {v: 9, at: 1, n: 1}],   // v4: PC Rarity/Finish after Set / Card; v5: eBay sales, Max buy $, vs PC % before Trend; v6-v8: PC sales, eBay this month, Hits 30d + Hit % (Anchor $ took Max buy's place); v9: the star
        fav: {s: 'pc', k: r => r[0], c: r => r[0]},             // the star column (Favorites): key = card id
        hay: r => r[1] + ' ' + r[2] + ' ' + (r[14] || '') + ' ' + (r[15] || ''),

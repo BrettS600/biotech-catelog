@@ -509,3 +509,31 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
 .fh tr.fh-detail td { white-space:normal; background:color-mix(in srgb, var(--link) 5%, transparent); }
 .fh tr.fh-detail table { margin:2px 0 8px; }
 .fh td.fh-none { white-space:normal; }
+  /* the PriceCharting tab's graded view (2026-10-28) */
+  .gmode { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 18px 8px; }
+  .gm { font:inherit; font-size:13px; font-weight:600; padding:6px 14px; border:1px solid var(--line); border-radius:999px; background:none; color:var(--muted); cursor:pointer; }
+  .gm:hover { color:var(--fg); border-color:var(--muted); }
+  .gm.on { background:var(--link); border-color:var(--link); color:#fff; }
+  .gm2 { font:inherit; font-size:13px; padding:6px 14px; border:1px solid var(--line); border-radius:999px; background:var(--head); color:var(--fg); cursor:pointer; }
+  .gm2:hover { border-color:var(--muted); }
+  #gm-note { font-size:12.5px; }
+  td.ctr { text-align:center; }
+  td.gmix sup { color:var(--muted); font-size:10px; margin-left:1px; }
+  .gpick { display:flex; gap:28px; flex-wrap:wrap; margin:6px 0 10px; }
+  .gpick > div { display:flex; flex-direction:column; gap:3px; min-width:150px; }
+  .gpick h4 { margin:0 0 4px; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+  .gpick label { font-size:13px; display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .gpick label.dim { opacity:.55; }
+  .gpick small { margin-top:4px; }
+  #ggrades.gpick { max-height:210px; overflow:auto; }
+  #ggrades.gpick > div { flex-direction:row; flex-wrap:wrap; gap:4px 12px; max-width:620px; }
+  #ggrades.gpick h4 { width:100%; }
+  .gchip { display:inline-flex; align-items:center; gap:6px; padding:3px 6px 3px 9px; border:1.5px solid var(--line); border-radius:999px; font-size:12.5px; margin-right:6px; }
+  .gchip button { border:none; background:none; color:var(--muted); cursor:pointer; font-size:12px; padding:0 3px; }
+  .gchip .sw, #gov .sw { display:inline-block; width:10px; height:10px; border-radius:2px; }
+  .gsvg { width:100%; height:auto; max-height:360px; display:block; margin:6px 0; }
+  #gzoom .zb.on, #gsrc .zb.on { background:var(--link); color:#fff; border-color:var(--link); }
+  .gflag { font:inherit; font-size:12px; border:1px solid var(--line); border-radius:6px; background:none; color:var(--muted); cursor:pointer; padding:2px 7px; white-space:nowrap; }
+  .gflag.on { color:var(--down); border-color:var(--down); }
+  .gflagbox { margin-bottom:10px; }
+  table.gtable td:first-child + td + td b { font-weight:600; }
