@@ -84,6 +84,29 @@ jobs:
           cp ../page/link.html ../public/link.html   # where eBay sends Brett back after he approves account access
           ls -la ../public
 
+      - name: Check out the card data for the graded view (the private repo card-data)
+        continue-on-error: true      # no access or a hiccup: the graded view then says no data was built; the raw view is untouched
+        uses: actions/checkout@v4
+        with:
+          repository: BrettS600/card-data
+          token: ${{ secrets.DATA_REPO_TOKEN }}
+          path: card-data
+          sparse-checkout: |
+            data/ids/
+            data/cardladder/
+            data/pricecharting/pop/
+            data/pricecharting/graded_sales/
+            data/pricecharting/pc_graded_monthly_*
+          sparse-checkout-cone-mode: false
+
+      - name: Graded view (the PriceCharting tab's PSA / CGC rows - Card Ladder beside PriceCharting)
+        continue-on-error: true      # a hiccup here must never block the site
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: |
+          python graded_site.py --card-data card-data/data --pc-csv pricecharting.csv --snapshots snapshots --out public
+          rm -rf card-data
+
       - name: Forecast (the Forecast tab's model, from the collector's PriceCharting history)
         continue-on-error: true      # a model hiccup must never block the site; the tab then shows the last file
         env:
