@@ -1,0 +1,82 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 1863cd9..9ca706c 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1739,6 +1739,77 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   means rewriting main, which would break the droplet's --ff-only pull - not done). Anything bought later (Card Hedge,
+   GemRate, PokemonPriceTracker...) goes to card-data only. PokemonPriceTracker's licensing forbids subscribing for a
+   month to bulk-download history and cancelling ("not a bulk sweep of the catalogue on your way out the door").
++- THE GRADED VIEW ON THE PRICECHARTING TAB, AND THE CARD LADDER PIPELINE (2026-10-27/28, Brett: "an option to toggle to
++  only show graded cards, and one that only shows raw cards ... If I deselect both, then price chart populates the list
++  to include both"; "read the barcode from the picture ... compare against tcg player ... then the bracketed portion of
++  the pricechart name"; "try to get cgc barcode link access a different way ... its important"). THE PAGE:
++  page/graded.js + page/graded_help.js (stitched after help.js; app.js only got `root: '#pcv-raw'` on TABLES.pc, because
++  makeTable binds `root + ' th[data-k]'` and the new tables live inside #p-pc too). body.html: the mode bar #gmode (Only
++  show raw / Only show graded, one or the other, neither = both; Grading popup = grade x grader ticks, localStorage
++  pcg-grades, default PSA 10 / PSA 9 / CGC 10 / CGC 10 Pristine), #pcv-raw (the old table), #pcv-g (graded, store pcg),
++  #pcv-a (raw + graded, store pca; a card's graded rows sort under its raw row: order key ord*64 + 1 + grade index), the
++  Trend popup #gov (PC and CL lines, three at most, gtr-sel / gtr-src / gtr-zoom). One row per card x grade; rows with
++  neither a price nor a sale on either side are dropped. Renamed headers: PC Set / PC Card Name / PC Set/Card No. / PC
++  Release, PC Graded (latest) (PriceCharting's price where it names the grader - PSA 10 - else the median of the sales
++  of that exact grade and grader it recorded, 90 days else a year, >= 3, marked *; its CGC 10 is often 0.40 x PSA 10,
++  detected and replaced), $eBay Anchor, eBay to PC Difference, PSA Trend; new CL columns from the Card Ladder profile;
++  GemRate columns (graded this month, number graded, sales : graded ratio) show - until GemRate data exists; eBay
++  columns show - (the collector follows raw listings only). A renamed header now renames its filter chip on every tab
++  (grSyncChips wraps applyNames). Review popup (PriceCharting beside Card Ladder, Same / Not the same, Flag with a
++  reason) answers go to localStorage gmarks and out through alSend as type 'gmark' - THE COLLECTOR DOES NOT FILE 'gmark'
++  YET (to do: write them to card-data/data/ids/marks.csv, which graded_site.py already reads).
++  THE DATA: graded_site.py, run by the site workflow after staticrypt (card-data checked out sparse with
++  DATA_REPO_TOKEN; continue-on-error), joins card-data/data/ids/card_ids.csv + data/cardladder/profiles/*.jsonl.gz with
++  PriceCharting's prices (pricecharting.csv), graded sold listings (data/pricecharting/graded_sales), population
++  (data/pricecharting/pop) and the daily snapshots (Δ7d etc. on the grade's PriceCharting price), and writes
++  public/graded.bin + public/gtrend/s<n>.bin (HKEY; 300 cards a trend file, cards[id].sh). PriceCharting's tables show
++  only the latest 30 sales a grade, so "PC sales (last mo)" is - when the recorded sales do not reach back to the start
++  of last month.
++  THE READS (Brett's Chrome, 8 pm - 7 am Eastern only, first ten of each stage at half speed, every stage stops itself
++  at the first warning page, non-200 answer, toast or sign-in): (1) PriceCharting tab: /game/<id> fetched same-origin,
++  the graded-sale photos (i.ebayimg.com allows CORS) scanned with Chrome's BarcodeDetector -> PSA certs (ITF 8 digits,
++  code_128 8-9, QR psacard.com/cert/<n>) and CGC certs (code_128 10 digits, or 13 starting 1401), 12 s a card. (2) PSA
++  tab: /cert/<n>/psa (server-rendered dt/dd: Item Grade, Year, Brand/Title, Subject, Card Number, Variety/Pedigree; the
++  spec from the a[href*="/spec/psa/"] link - the spec page itself needs a PSA login, so the cert page is the public
++  link), 15 s, two certs a card when they agree. PSA ANSWERED 403 TO THESE ON 2026-10-28: do not retry PSA's site; PSA
++  certs now go through Card Ladder's cert lookup (graderInput 'psa' -> profileId psa-<spec> and PSA's label, which
++  build_ids.py turns into a psa_pages entry). (1b) the slab pass: one cert per grade x grader from the PriceCharting
++  page's grade tables ("Grade 7/8/9/9.5", "PSA 10", "CGC 10" ...) -> cards[id].certs {grade key: cert} and .imgs, so the
++  ID column shows a slab OF THAT GRADE and the Review popup that slab's photo (Brett, row 14: "all of the cgc have same
++  id ... the id between psa and cgc is different" - the first version used one card-level cert).
++  (3) Card Ladder tab: CGC certs through Card Ladder's own "Enter Graded Card Cert" (the global modal
++  'collection-edit-card-modal' -> its child with addCardFromCert, graderInput 'cgc'; the callable
++  httpbuildcollectioncard returns profileId cgc-<n>, grade, CGC's set/player/number; closeModal, NEVER submit - nothing
++  is saved), and profile reads (router.push('/profiles/psa-<spec>') -> matched-<spec>; the 'profile-profile' component's
++  $data.profile: graders with population and CL value per grade, and every sale - kept as monthly [n, average, auction /
++  best offer / fixed counts] per grade plus the eBay items of the last 120 days, 60 a grade), 15 s. CGC's own site
++  (cgccards.com certlookup) sits behind a Cloudflare check: never automated.
++  THE HAND-OFF: a tab cannot write to GitHub and the sandbox reaches neither ntfy nor the tabs, so the Card Ladder tab
++  gzips + AES-GCM-encrypts each batch of records (key and channel in card-data tools/clingest/transport.json - the repo
++  is private and already holds the data) and PUTs it as an attachment to ntfy (2 MB a file, attachments kept 3 h, 250
++  messages a day per address on ntfy.sh - batch, never one message a card). card-data's "Card Ladder ingest" workflow
++  (hourly at :07 + dispatch) runs tools/clingest/cl_ingest.py (decrypt, append data/cardladder/profiles|matches/
++  cl_<day>.jsonl.gz, ack the batch ids on <channel>-ack; the browser re-sends unacknowledged batches after 3 h) and
++  tools/clingest/build_ids.py (status per card: confirmed when a PSA or CGC slab of the card - barcode -> cert -> label
++  passes cardmatch.structure against PriceCharting's name / set / number / [brackets] - names the profile's own spec /
++  CGC number, or >= 3 of PriceCharting's recent sold listings are the profile's own sales (and a quarter of them: eBay
++  item ids are unique, so this is the strongest check; Umbreon VMAX TG23 shared 81 of 86); likely / review / no_match
++  otherwise) -> data/ids/card_ids.csv. Not counted against a match: a slab whose label is in another language, carries
++  another card number (other digits; SWSH141 = 141) or another number and name (a sale PriceCharting filed under the
++  wrong card - noted), Master Ball / Poke Ball vs Card Ladder's "Reverse", a CGC slab on a separate CGC-only profile
++  (Card Ladder keeps some cards' CGC slabs apart; recorded as the CGC id), and number / set / name spelling differences
++  (SWSH141 vs 141, "_____'s Pikachu") when >= half of PriceCharting's sales are the profile's. The CL Finish column
++  comes from the CGC / PSA label words (Holo, Reverse Holo, Cosmos ...; finish_of in graded_site.py), else Card Ladder's
++  variation. THE HOURLY SCHEDULE DID NOT FIRE ON ITS FIRST NIGHT: after a reading session dispatch "Card Ladder ingest"
++  by hand (then the site workflow), since ntfy keeps attachments only 3 hours.
++  THE FIRST 100 (2026-10-27/28): 98 had PSA certs in the photos, 86 CGC; 93 confirmed, 7 review (variant words: League
++  Season 4, Shining Legends Pin Collection / Cosmos, Prerelease, Sea & Sky Premium Collection, a CGC copyright line, a
++  Topps Chrome "stamped", and Charizard #4 Celebrations matched to the Ultra-Premium Collection profile - 13 of 122
++  sales shared), 1 no_match (no slab photos). About 67 s a card over all stages; Card Ladder's cert lookup slowed from
++  ~5 s to ~40 s median through the night; profile reads 3-4 s.
++  Reading large text out of a tab: put it in localStorage, open a same-origin static URL (e.g.
++  app.cardladder.com/favicon.ico) in a second tab, write it into a <pre> and read it with get_page_text (the JavaScript
++  tool returns only ~1 KB; blob: URLs cannot be opened).
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
+   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
