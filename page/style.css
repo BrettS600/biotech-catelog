@@ -533,6 +533,13 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .gtrow .gtcards { flex-basis:100%; font-size:12px; padding:4px 0 2px 22px; }
   .gtconf { font-size:11px; color:#e3b341; font-weight:700; }
   .gtconf.bad { color:var(--down); }
+  .gtrow .gtsortb { font-size:12px; padding:0 4px; }
+  .gtdec { font-size:11.5px; color:var(--up); border:1px solid var(--line); border-radius:6px; padding:0 6px; }
+  .gtrow .gtsort { flex-basis:100%; display:flex; flex-direction:column; gap:6px; padding:8px 10px; margin:4px 0 2px 22px; border:1px solid var(--line); border-radius:8px; }
+  .gtsort[hidden] { display:none !important; }
+  .gtsrow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px; }
+  .gtsrow .lab { min-width:86px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .gtsrow input, .gtsrow select { flex:1 1 220px; min-width:0; font:inherit; padding:3px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
   .rvtop { display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; padding:8px 9px; margin-bottom:10px; border:1px solid var(--line); border-radius:10px; }
   .rvtop .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .rvtop b { font-size:16px; } .rvtop small { display:block; font-size:12px; color:var(--muted); }

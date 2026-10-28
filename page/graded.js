@@ -24,6 +24,10 @@ const GMARKS = grLS('gmarks', {});                         // 'cid|gk' -> {v: 1 
 const GT_CATS = ['Rarity', 'Finish', 'Special', 'Series', 'Era', 'Unidentified'];
 const GTS = Object.assign({off: {}, within: {}, side: {}, across: 'all'}, grLS('gterms', {}));
 const gtsSave = () => grSave('gterms', GTS);
+// words Brett sorted here (the Sort control), echoed until the data carries them (doc.dect: the newest decision filed)
+const GTDEC = grLS('gtdec', {});
+const gtdSave = () => grSave('gtdec', GTDEC);
+const GT_SORT_CATS = ['Rarity', 'Finish', 'Special', 'Series', 'Era', 'Meaningless', 'Unidentified'];
 const gdash = '<td class="ctr"><span class="dim">-</span></td>';
 const GR_CL_IMG = s => !s ? '' : s.startsWith('fb:') ? 'https://firebasestorage.googleapis.com/v0/b/cardladder-71d53.appspot.com/o/' + s.slice(3) + '?alt=media'
   : s.startsWith('eb:') ? 'https://i.ebayimg.com/images/g/' + s.slice(3) + '/s-l1600.jpg' : s.startsWith('u:') ? s.slice(2) : '';
@@ -66,7 +70,7 @@ function grBuildRows() {
       cl[4] || null, cl[2] || null, grClUrl(c.pid), c.cn || null, grRF(c.cr, c.cf, c.cs), cl[1] || null, clv,
       pcp && clv ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, x[8], null, null, null,
       m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], x[10], x[7], x[9], false, c.pid || '', gk,
-      'not read', 'none', grBoth(c.ser) || null, grBoth(c.era) || null, c.pn || null,
+      c.pi ? c.pi : c.pi === '' ? 'none' : 'not read', 'none', grBoth(c.ser) || null, grBoth(c.era) || null, c.pn || null,
       ordOf(base) * 64 + 1 + x[1]];
     out.push(r);
   }
@@ -138,7 +142,8 @@ function grRow(r) {
     '<td class="num' + (grFC(c, 'number') === 'mismatch' ? ' rfbad' : '') + '" title="' + esc(c.cnf ? 'From ' + c.cnf : 'Card Ladder gives no number') + '">' + esc(r[32] || 'none') + '</td>' +
     '<td' + (rfMis ? ' class="rfbad"' : '') + ' title="From Card Ladder’s own words (variation, card name, set name, its cert lookups), read with the dictionary; none = Card Ladder does not say. A ? marks a word the dictionary only thinks it knows.">' + esc(r[33] || 'none') + '</td>' +
     '<td' + (relMis ? ' class="rfnear" title="Card Ladder’s year (the grader’s label) differs from PriceCharting’s release date - PriceCharting dates promos and some older sets by the set, not the card"' : '') + '>' + (r[34] ? esc(r[34]) : '<span class="dim">none</span>') + '</td>' +
-    '<td><span class="dim" title="PriceCharting and TCGplayer’s daily file do not carry the illustrator; TCGplayer’s product page does, and it is not read yet">not read</span></td>' +
+    (c.pi ? '<td title="' + esc('The Artist on TCGplayer’s product page for the product PriceCharting links to') + '">' + esc(c.pi) + '</td>'
+      : '<td><span class="dim" title="' + esc(c.pi === '' ? 'TCGplayer’s product page shows no artist for this card' : c.pif || 'TCGplayer’s product page has not been read for this card yet - each site build reads the new cards') + '">' + (c.pi === '' ? 'none' : 'not read') + '</span></td>') +
     '<td><span class="dim" title="Card Ladder does not record the illustrator">none</span></td>' +
     (r[53] ? '<td' + (serMis ? ' class="rfbad"' : '') + ' title="' + esc('PC: ' + ((c.ser || [])[0] || 'none') + ' · CL: ' + ((c.ser || [])[1] || 'none') + ' - only where a series name is written in the text') + '">' + esc(r[53]) + '</td>' : '<td></td>') +
     (r[54] ? '<td' + (eraMis ? ' class="rfbad"' : '') + ' title="' + esc('PC: ' + ((c.era || [])[0] || 'none') + ' · CL: ' + ((c.era || [])[1] || 'none')) + '">' + esc(r[54]) + '</td>' : '<td></td>') +
@@ -173,7 +178,7 @@ const GR_LABELS = {5: 'Sales/yr', 6: 'PC Graded (latest)', 35: 'CL Graded (lates
 const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS, defaults: {},
   fav: {s: 'pc', k: r => r[0], c: r => r[0]},
   extra: r => r[48] ? grTermPass(r[0], true) : GSEL.has(r[50]) && grTermPass(r[0]),
-  hay: r => [r[1], r[2], r[14], r[25], r[29], r[30], r[27], r[33], r[53], r[54]].filter(Boolean).join(' '),
+  hay: r => [r[1], r[2], r[14], r[25], r[29], r[30], r[27], r[33], r[53], r[54], r[51]].filter(x => x && x !== 'not read').join(' '),
   // columns added (or removed, n < 0) since a layout was saved, so Brett's own order and eyes stay on the same columns:
   // v1 Graded To PC Sales Ratio removed; v2 PC Illustrator, CL Illustrator, Series, Era after CL Release (2026-10-28)
   inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}],
@@ -213,10 +218,21 @@ function grTermPass(cid, raw) {
   return GTS.across === 'any' ? res.some(Boolean) : res.every(Boolean);
 }
 function grTermsChanged() { gtsSave(); grPaintTerms(); if (tables.pcg) tables.pcg.apply(); if (tables.pca && PCMODE === 'all') tables.pca.apply(); }
+function grPruneDec() {
+  const d = (GR.doc && GR.doc.dect) || 0; let ch = false;
+  for (const k in GTDEC) if (GTDEC[k].t <= d) { delete GTDEC[k]; ch = true; }
+  if (ch) gtdSave();
+}
+function grDecTag(name, left) {                             // a word sorted here and not in the data yet
+  const d = GTDEC[String(name).toLowerCase()] || (left ? GTDEC[String(left).toLowerCase()] : null); if (!d) return '';
+  return '<span class="gtdec" title="Saved and sent to the collector; the site shows it after the next site build files it into card-data/data/dictionary/terms.csv">' +
+    (d.term.toLowerCase() !== String(name).toLowerCase() ? '“' + esc(d.term) + '” ' : '') + '→ ' + esc(d.cat === 'Unidentified' ? 'Unsorted' : d.cat) + (d.same ? ' (same as ' + esc(d.same) + ')' : '') + (d.sent === false ? ' · not sent yet' : ' · saved') + '</span>';
+}
 function grPaintTerms() {
   const box = $('gm-terms'); if (!box) return;
   if (PCMODE === 'raw' || !GR.doc) { box.hidden = true; return; }
   box.hidden = false;
+  grPruneDec();
   box.innerHTML = GT_CATS.map(cat => { const L = grTermList(cat), off = new Set(GTS.off[cat] || []), on = L.filter(x => !off.has(x[0])).length;
     return '<button type="button" class="gm2 gtb' + (grTermActive(cat) ? ' on' : '') + '" data-cat="' + cat + '" title="' + esc(cat + ': the words PriceCharting / TCGplayer and Card Ladder use - tick which to show') + '">' + cat + ' <span class="dim">(' + (grTermActive(cat) ? on + ' of ' : '') + L.length + ')</span> ▾</button>'; }).join('') +
     '<span class="gtacross" title="How the active buttons combine">Across buttons: <button type="button" class="zb' + (GTS.across !== 'any' ? ' on' : '') + '" data-a="all">all</button><button type="button" class="zb' + (GTS.across === 'any' ? ' on' : '') + '" data-a="any">any</button></span>';
@@ -226,20 +242,24 @@ function grOpenTerms(cat) {
   const cards = Object.entries((GR.doc && GR.doc.cards) || {});
   const noneN = cards.filter(([, c]) => !grCardTerms(c, cat, side).length).length;
   const confTag = v => v === 'likely' ? ' <span class="gtconf" title="likely: one reference, or Claude’s judgment - not confirmed yet">?</span>' : v === 'uncertain' ? ' <span class="gtconf bad" title="uncertain: the references disagree">??</span>' : '';
-  const row = (name, conf, pcN, clN, catN, where) => '<div class="gtrow"><label><input type="checkbox" data-t="' + esc(name) + '"' + (off.has(name) ? '' : ' checked') + '> <span class="gtname" data-t="' + esc(name) + '">' + esc(name) + '</span>' + confTag(conf) + '</label>' +
-    '<span class="gtn">' + (name === '(none)' ? '×' + pcN + ' cards' : 'PC ×' + pcN + ' · CL ×' + clN + (catN ? ' · catalog ×' + catN.toLocaleString('en-US') : '')) + '</span>' + (where ? '<small class="dim">' + esc(where) + '</small>' : '') + '<div class="gtcards" hidden></div></div>';
+  const row = (name, conf, pcN, clN, catN, where, left) => '<div class="gtrow"><label><input type="checkbox" data-t="' + esc(name) + '"' + (off.has(name) ? '' : ' checked') + '> <span class="gtname" data-t="' + esc(name) + '">' + esc(name) + '</span>' + confTag(conf) + '</label>' +
+    '<span class="gtn">' + (name === '(none)' ? '×' + pcN + ' cards' : 'PC ×' + pcN + ' · CL ×' + clN + (catN ? ' · catalog ×' + catN.toLocaleString('en-US') : '')) + '</span>' +
+    (name === '(none)' ? '' : '<button type="button" class="linkbtn gtsortb" data-t="' + esc(name) + '" data-l="' + esc(left || '') + '" title="Put this word under a category, say it means the same as another word, or mark it meaningless">Sort</button>' + grDecTag(name, left)) +
+    (left && left.toLowerCase() !== String(name).toLowerCase() ? '<small class="dim">unknown words: <b>' + esc(left) + '</b></small>' : '') +
+    (where ? '<small class="dim">' + esc(where) + '</small>' : '') + '<div class="gtsort" hidden></div><div class="gtcards" hidden></div></div>';
   $('btitle').textContent = cat + ' · PriceCharting tab';
   $('bsub').innerHTML = (cat === 'Unidentified' ? 'Words seen on a card that the dictionary (card-data/data/dictionary/terms.csv) does not place yet, with where they were seen. ' : 'The words sorted as ' + cat + ' by the dictionary (card-data/data/dictionary/terms.csv). ') +
-    'PC × / CL × = graded cards whose PriceCharting / Card Ladder side carries it; catalog × = PriceCharting [brackets] across every card. Tap a word to see its cards; untick to hide them.';
+    'PC × / CL × = graded cards whose PriceCharting / Card Ladder side carries it; catalog × = PriceCharting [brackets] across every card. Tap a word to see its cards; untick to hide them; Sort to file it in the dictionary (it takes effect at the next site build).';
   $('bbody').innerHTML = '<div class="gtctl"><span>Inside this button: <button type="button" class="zb' + (within === 'any' ? ' on' : '') + '" data-w="any">any</button><button type="button" class="zb' + (within === 'all' ? ' on' : '') + '" data-w="all">all</button></span>' +
     '<span>Side: ' + ['either', 'pc', 'cl', 'both'].map(x => '<button type="button" class="zb' + (side === x ? ' on' : '') + '" data-s="' + x + '">' + (x === 'pc' ? 'PC' : x === 'cl' ? 'CL' : x === 'both' ? 'both agree' : 'either') + '</button>').join('') + '</span></div>' +
     (within === 'all' ? '<p class="dim">“all”: only cards that carry every ticked word - tick just the words a card must have.</p>' : '') +
     '<div class="gtlist">' + row('(none)', '', noneN, 0, 0, 'cards whose ' + (side === 'either' ? 'two sides say' : side === 'both' ? 'sides agree on' : side.toUpperCase() + ' side says') + ' nothing here') +
-    L.map(x => row(x[0], x[1], x[2], x[3], x[4], x[5])).join('') + '</div>' +
+    L.map(x => row(x[0], x[1], x[2], x[3], x[4], x[5], x[6])).join('') + '</div>' + '<datalist id="gt-dl"></datalist>' +
     '<div class="pickbtns"><button class="reset" id="gt-all">Turn all on</button><button class="reset" id="gt-none">Turn all off</button><button class="reset" id="gt-done">Done</button></div>';
   const body = $('bbody');
   body.querySelector('.gtlist').addEventListener('input', e => { const i = e.target; if (i.dataset.t == null) return; const o = new Set(GTS.off[cat] || []); if (i.checked) o.delete(i.dataset.t); else o.add(i.dataset.t); GTS.off[cat] = [...o]; grTermsChanged(); });
   body.querySelector('.gtlist').addEventListener('click', e => {
+    const sb = e.target.closest('.gtsortb'); if (sb) { grSortEditor(sb.closest('.gtrow'), sb.dataset.t, sb.dataset.l, cat); return; }
     const n = e.target.closest('.gtname'); if (!n) return; e.preventDefault();
     const box = n.closest('.gtrow').querySelector('.gtcards'); if (!box.hidden) { box.hidden = true; return; }
     const t = n.dataset.t, hits = cards.filter(([, c]) => t === '(none)' ? !grCardTerms(c, cat, side).length : grCardTerms(c, cat, 'pc').includes(t) || grCardTerms(c, cat, 'cl').includes(t));
@@ -253,6 +273,46 @@ function grOpenTerms(cat) {
   $('gt-none').addEventListener('click', () => { GTS.off[cat] = ['(none)'].concat(L.map(x => x[0])); grTermsChanged(); grOpenTerms(cat); });
   $('gt-done').addEventListener('click', () => $('bov').classList.remove('open'));
   $('bov').classList.add('open');
+}
+/* Sort (2026-10-28, Brett: "store them in a button for review ... figure out where they go, and which ones mean the same
+   things"; "as we figure out the unidentified terms, we can update it accordingly"): the word (for an unidentified
+   phrase, its unknown words - editable, so a single word can be filed), the category, optionally the word it means the
+   same as, where it may match, and a note. Sent to the collector (type 'gterm'), which keeps it; the site workflow's
+   graded_answers.py files it into card-data/data/dictionary/terms.csv (confirmed, basis Brett) and decisions.csv, and
+   the next graded.bin is read with it. Echoed here (GTDEC) until then. */
+function grSortEditor(rowEl, name, left, cat) {
+  const box = rowEl.querySelector('.gtsort'); if (!box.hidden) { box.hidden = true; return; }
+  const d = GTDEC[String(left || name).toLowerCase()] || GTDEC[String(name).toLowerCase()] || {};
+  let pick = d.cat || (cat === 'Unidentified' ? '' : cat);
+  const canon = (GR.doc && GR.doc.canon) || {};
+  const fillDl = c => { const dl = $('gt-dl'); if (!dl) return; const names = new Set((canon[c] || []).concat(grTermList(c).map(x => x[0]))); dl.innerHTML = [...names].sort((a, b) => a.localeCompare(b)).map(x => '<option value="' + esc(x) + '">').join(''); };
+  box.innerHTML = '<div class="gtsrow"><span class="lab">Word</span><input class="gts-term" value="' + esc(d.term || (cat === 'Unidentified' && left ? left : name)) + '" title="The word to file - for a phrase, its unknown words; edit it to file just one"></div>' +
+    '<div class="gtsrow"><span class="lab">Put it under</span>' + GT_SORT_CATS.map(c => '<button type="button" class="zb' + (c === pick ? ' on' : '') + '" data-c="' + c + '">' + (c === 'Unidentified' ? 'Unsorted' : c) + '</button>').join('') + '</div>' +
+    '<div class="gtsrow"><span class="lab">Same as</span><input class="gts-same" list="gt-dl" value="' + esc(d.same || '') + '" placeholder="(empty: it is its own name)" title="Another word it means the same thing as - the dictionary then files it under that name"></div>' +
+    '<div class="gtsrow"><span class="lab">Matches</span><select class="gts-where"><option value="">as now (anywhere, for a new word)</option><option value="any">anywhere in the text</option><option value="set">only inside a set name</option><option value="exact">only as the whole bracket / variation</option></select></div>' +
+    '<div class="gtsrow"><span class="lab">Note</span><input class="gts-note" value="' + esc(d.note || '') + '" placeholder="why (optional, kept with it)"></div>' +
+    '<div class="gtsrow"><button type="button" class="tbtn gts-save">Save</button><button type="button" class="linkbtn gts-cancel">Cancel</button><span class="dim gts-msg"></span></div>';
+  if (d.where) box.querySelector('.gts-where').value = d.where;
+  fillDl(pick || cat);
+  box.hidden = false;
+  box.querySelectorAll('.zb[data-c]').forEach(b => b.addEventListener('click', () => { pick = b.dataset.c; box.querySelectorAll('.zb[data-c]').forEach(x => x.classList.toggle('on', x === b)); fillDl(pick); }));
+  box.querySelector('.gts-cancel').addEventListener('click', () => { box.hidden = true; });
+  box.querySelector('.gts-save').addEventListener('click', async () => {
+    const msgEl = box.querySelector('.gts-msg'), term = box.querySelector('.gts-term').value.replace(/\s+/g, ' ').trim();
+    if (!term) { msgEl.textContent = 'Type the word to file.'; return; }
+    if (!pick) { msgEl.textContent = 'Pick where it goes.'; return; }
+    const rec = {term: term.slice(0, 120), cat: pick, same: box.querySelector('.gts-same').value.replace(/\s+/g, ' ').trim().slice(0, 120),
+      where: box.querySelector('.gts-where').value, note: box.querySelector('.gts-note').value.trim().slice(0, 500), ph: String(name).slice(0, 200), t: Date.now()};
+    GTDEC[term.toLowerCase()] = Object.assign({}, rec, {sent: false}); gtdSave();
+    msgEl.textContent = 'Saving…';
+    let ok = true;
+    try { await alSend(Object.assign({type: 'gterm'}, rec)); } catch (e) { ok = false; }
+    GTDEC[term.toLowerCase()].sent = ok; gtdSave();
+    const old = rowEl.querySelector('.gtdec'); if (old) old.remove();
+    rowEl.querySelector('.gtsortb').insertAdjacentHTML('afterend', grDecTag(name, term));
+    msgEl.textContent = ok ? 'Saved. It is filed in the dictionary at the next site build.' : 'Kept in this browser; the collector could not be told yet - Save again later.';
+    if (ok) setTimeout(() => { box.hidden = true; }, 1200);
+  });
 }
 if ($('gm-terms')) $('gm-terms').addEventListener('click', e => {
   const b = e.target.closest('.gtb'); if (b) { grOpenTerms(b.dataset.cat); return; }
@@ -393,7 +453,9 @@ function grOpenReview(key) {
     row(factc('Card / set number', esc(c.pn || 'none'), c.pnf ? 'from ' + esc(c.pnf) : '', mk2('number') || mk2('total')), factc('Card / set number', esc(c.cn || 'none'), c.cnf ? 'from ' + esc(c.cnf) : 'Card Ladder gives no number', mk2('number') || mk2('total'))) +
     row(factc('Rarity / finish', esc(grRF(c.pr, c.pf, c.ps)), 'rarity: ' + esc(c.prf || 'none') + ' · finish: ' + esc(c.pff || 'none'), mk2('rarity') || mk2('finish') || mk2('special')),
         factc('Rarity / finish', esc(grRF(c.cr, c.cf, c.cs)), 'Card Ladder’s own words (variation, name, set, its cert lookups); a ? = a word the dictionary only thinks it knows', mk2('rarity') || mk2('finish') || mk2('special'))) +
-    row(factc('Illustrator', '<span class="dim">not read</span>', 'on TCGplayer’s product page; not read yet'), factc('Illustrator', none, 'Card Ladder does not record it')) +
+    row(factc('Illustrator', c.pi ? esc(c.pi) : '<span class="dim">' + (c.pi === '' ? 'none' : 'not read') + '</span>',
+          c.pi ? 'the Artist on TCGplayer’s product page' : c.pi === '' ? 'TCGplayer’s product page shows none' : esc(c.pif || 'TCGplayer’s product page; not read yet (each site build reads the new cards)')),
+        factc('Illustrator', none, 'Card Ladder does not record it')) +
     row(factc('Series', (c.ser || [])[0] ? esc(c.ser[0]) : none, 'only where the text names it', mk2('series')), factc('Series', (c.ser || [])[1] ? esc(c.ser[1]) : none, 'only where the text names it', mk2('series'))) +
     row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era'))) +
     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded')) +
