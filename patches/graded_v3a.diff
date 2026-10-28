@@ -1,0 +1,755 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index a81a08e..ab25870 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1756,8 +1756,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   GemRate columns (graded this month, number graded, sales : graded ratio) show - until GemRate data exists; eBay
+   columns show - (the collector follows raw listings only). A renamed header now renames its filter chip on every tab
+   (grSyncChips wraps applyNames). Review popup (PriceCharting beside Card Ladder, Same / Not the same, Flag with a
+-  reason) answers go to localStorage gmarks and out through alSend as type 'gmark' - THE COLLECTOR DOES NOT FILE 'gmark'
+-  YET (to do: write them to card-data/data/ids/marks.csv, which graded_site.py already reads).
++  reason) answers go to localStorage gmarks and out through alSend as type 'gmark'; the collector keeps them and the site
++  workflow files them into card-data/data/ids/marks.csv (see THE PAGE'S ANSWERS below).
+   THE DATA: graded_site.py, run by the site workflow after staticrypt (card-data checked out sparse with
+   DATA_REPO_TOKEN; continue-on-error), joins card-data/data/ids/card_ids.csv + data/cardladder/profiles/*.jsonl.gz with
+   PriceCharting's prices (pricecharting.csv), graded sold listings (data/pricecharting/graded_sales), population
+@@ -1811,8 +1811,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   tool returns only ~1 KB; blob: URLs cannot be opened).
+ - THE GRADED VIEW'S COLUMNS, WORD BUTTONS AND DICTIONARY (2026-10-28, Brett: "pc data has to come from pc or tcg link
+   that embeds pc. cl has to come from cl. if something is not there, then it should none"). Each side shows only its own
+-  source; missing = "none". Illustrator: PC "not read" (TCGplayer's product page has it; TCGCSV does not), CL "none"
+-  (Card Ladder does not record it). PC Set/Card No. = TCGplayer's number (TCGCSV extendedData Number, kept only when it
++  source; missing = "none". Illustrator: PC = the "Artist" on TCGplayer's product page (tcg_details.py, below; "not
++  read" until read, "none" when TCGplayer shows none), CL "none" (Card Ladder does not record it). PC Set/Card No. = TCGplayer's number (TCGCSV extendedData Number, kept only when it
+   matches PriceCharting's; cardfacts.tcg_facts -> tcg_facts.json.gz, written by build_catalog.py, read by graded_site.py)
+   else PriceCharting's; CL Set/Card No. = the profile's number + the total from Card Ladder's CGC cert lookup, else
+   "49/none". Rarity/Finish = "rarity · finish[ · special]", "none" where a side says nothing: PC rarity = TCGplayer's,
+@@ -1838,8 +1838,26 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   (Brett). graded_terms.py matches: lowercase, é -> e, ☆ -> star, & -> and, longest match wins; a "?" after a term on
+   the page = not confirmed. Each build writes card-data/data/dictionary/term_counts.csv and data/ids/field_checks.csv
+   (number, total, rarity, finish, special, series, era, release, illustrator: match / mismatch / pc_none / cl_none /
+-  both_none / not_read) and the site workflow commits them back. NOT BUILT YET: sorting Unidentified terms from the
+-  page into terms.csv (merge synonyms, mark meaningless).
++  both_none / not_read) and the site workflow commits them back.
++  THE PAGE'S ANSWERS (2026-10-28, built the same day): every word-button row has a Sort control (the word - for an
++  Unidentified phrase its unknown words, editable -, the category Rarity / Finish / Special / Series / Era /
++  Meaningless / Unsorted, "same as" another word with suggestions from doc.canon, where it may match, a note). Saved in
++  localStorage gtdec (echoed as a tag until graded.bin's dect passes it) and sent as type 'gterm'; Review answers go as
++  'gmark'. The collector (gmark_set / gterm_set) keeps the newest per card x grade / per word in v["gmarks"] /
++  v["gterms"] and publishes live/graded_marks.bin (live key) at once after an answer and every 6 h. The site workflow
++  (step "The graded view's answers ...") runs graded_answers.py before graded_site.py: marks merged into
++  ids/marks.csv (newest per card x grade), each NEW word decision applied once to dictionary/terms.csv (confirmed,
++  basis "Brett (site)") and logged in dictionary/decisions.csv - the log is the guard, so a hand edit of terms.csv is
++  never overwritten by an old decision. The save step commits marks.csv, terms.csv, decisions.csv, details.csv,
++  term_counts.csv and field_checks.csv. A sorted word takes effect at the next site build (daily 10:00 UTC, or a
++  dispatch).
++  TCGPLAYER ARTIST: TCGplayer's product page fills its details box from mp-search-api.tcgplayer.com/v1/product/<id>/
++  details (formattedAttributes.Artist; found 2026-10-28 in Brett's Chrome: Alakazam 42346 = Ken Sugimori). The site
++  workflow's step "TCGplayer product pages ..." runs tcg_details.py: the graded view's tcgplayer_ids not on file, at
++  most 400 a run, one every 1.5 s, an honest user agent, cached forever in card-data/data/tcgplayer/details.csv
++  (tcgplayer_id, status ok / gone / error, artist, number, rarity, product, set, read). Any 401 / 403 / 429 / 5xx or a
++  non-JSON answer STOPS the run - nothing retried or disguised; the rest stay "not read". graded_terms.pc_side uses
++  the artist only when that product's number matches PriceCharting's.
+   NUMBER GRADED: the pop month files (data_archive.py) now keep each card's first and latest read of the month (they
+   kept only the latest), so last month's count = month-end population minus the month before; until two reads exist
+   the popup says "not yet".
+diff --git a/collector.py b/collector.py
+index d1700ff..55360b8 100644
+--- a/collector.py
++++ b/collector.py
+@@ -1295,6 +1295,66 @@ def gap_mark(state, cid, st, note, t):
+     log(f"Flags: card {cid} verdict {st}")
+ 
+ 
++# ---------------- the graded view's answers (2026-10-28): Review marks and sorted words, for card-data ----------------
++GMARK_MAX = 20000                # Review answers kept (card x grade; the newest answer per pair)
++GTERM_MAX = 5000                 # sorted words kept (the newest decision per word)
++GMARKS_EVERY_S = 6 * 3600        # live/graded_marks.bin is republished this often, or at once after an answer
++GTERM_CATS = ("Rarity", "Finish", "Special", "Series", "Era", "Meaningless", "Unidentified")
++GK_RE = re.compile(r"^(psa|cgc)\|g[0-9]+(?:_5)?(?:perfect|pristine)?$")
++
++
++def gmark_set(state, msg, t):
++    """The graded view's Review popup: {type: 'gmark', t, c: PriceCharting id, g: grade key ('psa|g10'), p: Card Ladder
++    profile, v: 1 same card / 0 not the same / null withdrawn, reason: the Flag's reason, note}. Kept per card x grade
++    (the newest wins) in v["gmarks"]; published in live/graded_marks.bin, which the site workflow files into
++    card-data/data/ids/marks.csv (graded_answers.py) - the graded rows then carry the answer."""
++    v = state["vps"]
++    try:
++        c = int(msg.get("c"))
++    except (TypeError, ValueError):
++        return
++    g = str(msg.get("g") or "")[:20]
++    if not GK_RE.match(g):
++        return
++    val = msg.get("v")
++    val = 1 if val in (1, True, "1") else 0 if val in (0, False, "0") else None
++    gm = v.setdefault("gmarks", {})
++    gm[f"{c}|{g}"] = {"pc": c, "gk": g, "p": str(msg.get("p") or "")[:40], "v": val,
++                      "reason": str(msg.get("reason") or "")[:40] or None, "note": str(msg.get("note") or "")[:500] or None, "t": t}
++    for old in sorted(gm, key=lambda k: gm[k]["t"])[:max(0, len(gm) - GMARK_MAX)]:
++        del gm[old]
++    v["gmark_t"] = t
++    log(f"Graded view: card {c} {g} - " + ({1: "same card", 0: "not the same card"}.get(val, "answer withdrawn"))
++        + (f", flag: {gm[f'{c}|{g}']['reason']}" if gm[f"{c}|{g}"]["reason"] else ""))
++
++
++def gterm_set(state, msg, t):
++    """A word sorted in the graded view: {type: 'gterm', t, term, cat: Rarity / Finish / Special / Series / Era /
++    Meaningless / Unidentified, same: the word it means the same as (or ''), where: any / set / exact (or '' = keep),
++    note, ph: the phrase it was seen in}. The newest decision per word is kept in v["gterms"]; graded_answers.py files
++    each one into card-data/data/dictionary/terms.csv once (decisions.csv records it)."""
++    v = state["vps"]
++    term = " ".join(str(msg.get("term") or "").split())[:120]
++    cat = str(msg.get("cat") or "")
++    if not term or cat not in GTERM_CATS:
++        return
++    where = msg.get("where") if msg.get("where") in ("any", "set", "exact") else ""
++    gtm = v.setdefault("gterms", {})
++    gtm[term.lower()] = {"term": term, "cat": cat, "same": " ".join(str(msg.get("same") or "").split())[:120], "where": where,
++                         "note": str(msg.get("note") or "")[:500], "ph": str(msg.get("ph") or "")[:200], "t": t}
++    for old in sorted(gtm, key=lambda k: gtm[k]["t"])[:max(0, len(gtm) - GTERM_MAX)]:
++        del gtm[old]
++    v["gmark_t"] = t
++    log(f"Graded view: the word \"{term}\" sorted under {cat}" + (f" (same as {gtm[term.lower()]['same']})" if gtm[term.lower()]["same"] else ""))
++
++
++def graded_marks_file(state):
++    """live/graded_marks.bin: every Review answer and sorted word on file (graded_answers.py reads it)."""
++    v = state["vps"]
++    return {"t": v.get("gmark_t", 0), "marks": sorted((v.get("gmarks") or {}).values(), key=lambda m: m["t"]),
++            "terms": sorted((v.get("gterms") or {}).values(), key=lambda m: m["t"])}
++
++
+ def flags_file(state, cards):
+     """live/flags.bin: every archived entry newest first, the card verdicts, and the cards held now."""
+     v = state["vps"]
+@@ -1548,6 +1608,10 @@ def read_requests(state, cat=None, cards=None):
+             flag_mark(state, cat, cards, str(msg["i"])[:60], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
+         elif msg.get("type") == "gapmark" and msg.get("c") is not None:   # a card verdict in the Flags archive
+             gap_mark(state, str(msg["c"])[:12], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
++        elif msg.get("type") == "gmark" and msg.get("c") is not None:    # the graded view's Review: same card / not / flag (2026-10-28)
++            gmark_set(state, msg, t)
++        elif msg.get("type") == "gterm" and msg.get("term"):             # a word sorted in the graded view's word buttons (2026-10-28)
++            gterm_set(state, msg, t)
+         elif msg.get("type") == "pcimg" and msg.get("c") is not None:   # Review pressed on a card without its picture
+             try:
+                 if pc_worker() is not None:
+@@ -3696,7 +3760,7 @@ def cycle(state, cat, sched, counters):
+     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
+     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
+            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("cond_t", 0), v.get("flag_t", 0), v.get("forecast_t", 0),
+-           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
++           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0), v.get("gmark_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
+     changed = sig != v.get("pub_sig") or urgent > 0
+     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
+         sched["published"] = t
+@@ -3735,6 +3799,13 @@ def cycle(state, cat, sched, counters):
+                 v["flag_pub_t"] = v.get("flag_t", 0)
+             except Exception as e:
+                 log(f"Flags: flags.bin failed ({str(e)[:120]})")
++        if due("gmarks", GMARKS_EVERY_S) or v.get("gmark_t", 0) != v.get("gmark_pub_t", -1):   # the graded view's answers (2026-10-28)
++            try:
++                raw_gm = gzip.compress(json.dumps(graded_marks_file(state), separators=(",", ":")).encode("utf-8"))
++                files["graded_marks.bin"] = es.encrypt_live(raw_gm, es.PASSWORD) if es.PASSWORD else raw_gm
++                v["gmark_pub_t"] = v.get("gmark_t", 0)
++            except Exception as e:
++                log(f"Graded view: graded_marks.bin failed ({str(e)[:120]})")
+         if due("fcrows", FC_ROWS_EVERY_S):                   # the Forecast tab's available listings, with the Raw Data columns (the card popup)
+             try:
+                 fr = fc_rows_file(state, cards, {x[0] for x in live["live"]})
+diff --git a/graded_answers.py b/graded_answers.py
+new file mode 100644
+index 0000000..029c8f5
+--- /dev/null
++++ b/graded_answers.py
+@@ -0,0 +1,148 @@
++"""graded_answers.py - what Brett answers on the PriceCharting tab's graded view, filed into card-data (2026-10-28).
++
++Two kinds of answers travel from the page over the signed channel (alSend) to the collector, which keeps them and
++publishes them as live/graded_marks.bin (encrypted with the live key):
++  marks  the Review popup: Same card / Not the same card / the Flag with its reason and note, per card x grade
++  terms  the word buttons' Sort: a word put under Rarity / Finish / Special / Series / Era / Meaningless (or back to
++         Unidentified), optionally "the same as" another word, where it may match, and a note (Brett: "as we figure out
++         the unidentified terms, we can update it accordingly ... that data folder should be updated")
++
++The site workflow runs this before graded_site.py, with card-data checked out:
++    python graded_answers.py --live graded_marks.bin --card-data card-data/data
++and commits what changed:
++  ids/marks.csv               pc, gk, profile, v (1 same / 0 not / blank withdrawn), reason, note, t (ms), when
++                              - merged: the newest answer per card x grade wins, older files are never lost
++  dictionary/terms.csv        each NEW decision applied: the word's row updated (or added) with Brett's category,
++                              same_as, where, confidence "confirmed", basis "Brett (site)", changed = the day he sorted it
++  dictionary/decisions.csv    every decision applied, oldest first (t, when, term, category, same_as, where, note,
++                              phrase) - the history, and the guard that applies each decision once: a hand edit of
++                              terms.csv later is never overwritten by an old decision
++"""
++import argparse
++import csv
++import gzip
++import json
++import os
++import sys
++from datetime import datetime, timezone
++
++import graded_terms as gt
++
++CATS = ("Rarity", "Finish", "Special", "Series", "Era", "Meaningless", "Unidentified")
++TERM_COLS = ["term", "same_as", "category", "confidence", "basis", "where", "note", "changed"]
++DEC_COLS = ["t", "when", "term", "category", "same_as", "where", "note", "phrase"]
++MARK_COLS = ["pc", "gk", "profile", "v", "reason", "note", "t", "when"]
++
++
++def when(t):
++    return datetime.fromtimestamp(int(t) / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M")
++
++
++def read_csv(path):
++    if not os.path.exists(path):
++        return []
++    with open(path, newline="", encoding="utf-8") as f:
++        return list(csv.DictReader(f))
++
++
++def write_csv(path, cols, rows):
++    os.makedirs(os.path.dirname(path), exist_ok=True)
++    tmp = path + ".tmp"
++    with open(tmp, "w", newline="", encoding="utf-8") as f:
++        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore", lineterminator="\n")
++        w.writeheader()
++        w.writerows(rows)
++    os.replace(tmp, path)
++
++
++def file_marks(cd, marks):
++    """Merge the collector's Review answers into ids/marks.csv. -> number of rows that changed."""
++    path = os.path.join(cd, "ids", "marks.csv")
++    by = {}
++    for r in read_csv(path):
++        by[(str(r.get("pc")), str(r.get("gk")))] = r
++    changed = 0
++    for m in marks or []:
++        try:
++            pc, gk, t = str(int(m["pc"])), str(m["gk"])[:20], int(m["t"])
++        except (KeyError, TypeError, ValueError):
++            continue
++        cur = by.get((pc, gk))
++        if cur and int(float(cur.get("t") or 0)) >= t:
++            continue
++        v = m.get("v")
++        by[(pc, gk)] = {"pc": pc, "gk": gk, "profile": str(m.get("p") or "")[:40], "v": "" if v is None else str(int(v)),
++                        "reason": str(m.get("reason") or "")[:40], "note": str(m.get("note") or "")[:500], "t": str(t), "when": when(t)}
++        changed += 1
++    if changed or not os.path.exists(path):
++        write_csv(path, MARK_COLS, sorted(by.values(), key=lambda r: (int(r["pc"]), r["gk"])))
++    return changed
++
++
++def file_terms(cd, terms):
++    """Apply the decisions not applied before to dictionary/terms.csv. -> list of the decisions applied."""
++    dpath = os.path.join(cd, "dictionary", "decisions.csv")
++    tpath = os.path.join(cd, "dictionary", "terms.csv")
++    done = {(str(r.get("t")), (r.get("term") or "").lower()) for r in read_csv(dpath)}
++    new = []
++    for d in terms or []:
++        try:
++            t = int(d["t"])
++        except (KeyError, TypeError, ValueError):
++            continue
++        term = " ".join(str(d.get("term") or "").split())[:120]
++        cat = str(d.get("cat") or "")
++        if not term or cat not in CATS or (str(t), term.lower()) in done or not gt.norm_tokens(term):
++            continue
++        new.append({"t": t, "term": term, "cat": cat, "same": " ".join(str(d.get("same") or "").split())[:120],
++                    "where": d.get("where") if d.get("where") in ("any", "set", "exact") else "",
++                    "note": " ".join(str(d.get("note") or "").split())[:500], "ph": str(d.get("ph") or "")[:200]})
++    if not new:
++        return []
++    rows = read_csv(tpath)
++    index = {tuple(gt.norm_tokens(r.get("term"))): i for i, r in enumerate(rows)}
++    log = read_csv(dpath)
++    for d in sorted(new, key=lambda x: x["t"]):
++        key = tuple(gt.norm_tokens(d["term"]))
++        same = d["same"] if d["same"] and tuple(gt.norm_tokens(d["same"])) != key else ""
++        day = when(d["t"])[:10]
++        note = d["note"] or ("sorted by Brett on the site" + (f" (seen as \"{d['ph']}\")" if d["ph"] and d["ph"] != d["term"] else ""))
++        if key in index:
++            r = rows[index[key]]
++            r.update({"same_as": same, "category": d["cat"], "confidence": "confirmed", "basis": "Brett (site)",
++                      "where": d["where"] or r.get("where") or "any", "note": note, "changed": day})
++        else:
++            rows.append({"term": d["term"], "same_as": same, "category": d["cat"], "confidence": "confirmed",
++                         "basis": "Brett (site)", "where": d["where"] or "any", "note": note, "changed": day})
++            index[key] = len(rows) - 1
++        log.append({"t": str(d["t"]), "when": when(d["t"]), "term": d["term"], "category": d["cat"], "same_as": same,
++                    "where": d["where"], "note": d["note"], "phrase": d["ph"]})
++    write_csv(tpath, TERM_COLS, rows)
++    write_csv(dpath, DEC_COLS, log)
++    return new
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--live", default="graded_marks.bin", help="live/graded_marks.bin from the collector")
++    ap.add_argument("--card-data", default="card-data/data")
++    a = ap.parse_args()
++    pw = os.environ.get("SITE_PASSWORD", "")
++    if not os.path.exists(a.live):
++        print("Page answers: no graded_marks.bin on the live branch yet (no Review answer or sorted word sent so far)")
++        return
++    if not pw:
++        print("Page answers: no SITE_PASSWORD - cannot read graded_marks.bin")
++        return
++    import forecast as F                                     # the live key (the collector's scheme)
++    with open(a.live, "rb") as f:
++        doc = json.loads(gzip.decompress(F.decrypt_live(f.read(), pw)))
++    nm = file_marks(a.card_data, doc.get("marks"))
++    applied = file_terms(a.card_data, doc.get("terms"))
++    print(f"Page answers: {len(doc.get('marks') or [])} Review answers on file at the collector, {nm} new or changed -> ids/marks.csv; "
++          f"{len(doc.get('terms') or [])} sorted words, {len(applied)} new -> dictionary/terms.csv"
++          + "".join(f"\n  {d['term']} -> {d['cat']}" + (f" (same as {d['same']})" if d['same'] else "") for d in applied[:40]))
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/graded_site.py b/graded_site.py
+index 88ba562..0fb9881 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -21,6 +21,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
+   pricecharting/pc_graded_monthly_*.csv.gz PriceCharting's monthly graded chart lines (optional - full archive runs)
+   dictionary/terms.csv                     the words that sort what each side says into Rarity / Finish / Special /
+                                            Series / Era (graded_terms.py; Brett, 2026-10-28)
++  dictionary/decisions.csv                 the words Brett sorted on the page, as graded_answers.py filed them
++  tcgplayer/details.csv                    TCGplayer's product page details - the Artist (tcg_details.py)
+ and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
+ PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
+ 
+@@ -158,12 +160,38 @@ def load_marks(cd):
+     if not os.path.exists(p):
+         return {}
+     d = pd.read_csv(p, dtype=str).fillna("")
++    if d.empty:
++        return {}
++    d["tn"] = pd.to_numeric(d["t"], errors="coerce").fillna(0)
+     out = {}
+-    for r in d.sort_values("t").itertuples():
+-        out[(r.pc, r.gk)] = {"v": r.v, "reason": getattr(r, "reason", ""), "note": getattr(r, "note", ""), "t": r.t}
++    for r in d.sort_values("tn").itertuples():               # the newest answer for a card x grade wins
++        v = {"1": 1, "0": 0}.get(str(r.v).strip().split(".")[0])
++        out[(str(r.pc).split(".")[0], r.gk)] = {"v": v, "reason": getattr(r, "reason", "") or None,
++                                                "note": getattr(r, "note", ""), "t": int(r.tn)}
+     return out
+ 
+ 
++def load_tcg_details(cd):
++    """{TCGplayer product id: {"artist", "number", "status", ...}} from tcgplayer/details.csv (tcg_details.py)."""
++    import csv
++    p = os.path.join(cd, "tcgplayer", "details.csv")
++    if not os.path.exists(p):
++        return {}
++    with open(p, newline="", encoding="utf-8") as f:
++        return {str(r.get("tcgplayer_id", "")).split(".")[0]: r for r in csv.DictReader(f)}
++
++
++def decisions_t(cd):
++    """The newest page decision graded_answers.py has filed into the dictionary (ms) - the page drops its own echo of
++    anything older, since the data now carries it."""
++    import csv
++    p = os.path.join(cd, "dictionary", "decisions.csv")
++    if not os.path.exists(p):
++        return 0
++    with open(p, newline="", encoding="utf-8") as f:
++        return max((int(float(r.get("t") or 0)) for r in csv.DictReader(f)), default=0)
++
++
+ def load_pop(cd, ids):
+     fs = sorted(glob.glob(os.path.join(cd, "pricecharting", "pop", "pop_*.csv.gz")))
+     if not fs:
+@@ -381,10 +409,12 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         tally.catalog(pc["product-name"].tolist(), dic)
+     pc = pc[pc["id"].isin(ids)].set_index("id")
+     tcgf = load_tcg_facts(tcg_path)
++    tdet = load_tcg_details(cd)
+     pop_hist = load_pop_hist(cd, ids, last_m)
+     checks = []
+     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
+-          f"population history for {len(pop_hist)} cards")
++          f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
++          f"population history for {len(pop_hist)} cards, {len(marks)} Review answers")
+     pop = load_pop(cd, ids)
+     psales = load_pc_sales(cd, ids, today)
+     pmon = load_pc_monthly(cd, ids)
+@@ -439,7 +469,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
+         pset = str(pcrow.get("console-name", "")) if pcrow is not None else ""
+         mnum = re.search(r"#(\S+)\s*$", pname)
+-        ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic)
++        tid = str(r.get("tcgplayer_id", "") or "").split(".")[0]
++        ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic, tdet.get(tid) if tid else None)
+         cs = gt.cl_side(pr, (matches.get(str(cid)) or {}).get("cl", []), dic)
+         tally.side(cid, "pc", ps)
+         tally.side(cid, "cl", cs)
+@@ -448,7 +479,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             checks.append([cid, f, a if a is not None else "", b if b is not None else "", res])
+         cards[str(cid)] = {
+             "pn": ps.num, "pnf": ps.num_from, "pr": ps.rarity_text, "prf": ps.rarity_from, "pf": ps.finish_text,
+-            "pff": ps.finish_from, "ps": ps.shown("Special"),
++            "pff": ps.finish_from, "ps": ps.shown("Special"), "pi": ps.artist, "pif": ps.artist_from,
+             "cn": cs.num, "cnf": cs.num_from, "cr": cs.rarity_text, "cf": cs.finish_text, "cs": cs.shown("Special"),
+             "ser": [ps.shown("Series"), cs.shown("Series")], "era": [ps.shown("Era"), cs.shown("Era")],
+             "t": {"pc": {c: ps.terms(c) for c in gt.CATS},
+@@ -480,7 +511,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+     key = hist_key(pw) if pw else None
+     write_card_data(cd, tally, checks, today)
+     doc = {"v": 2, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
+-           "terms": tally.lists(), "dict": {"n": dic.n},
++           "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
++           "markt": max((m["t"] for m in marks.values()), default=0),
+            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
+                                     "d7", "d30", "pos", "vol", "ts", "mark", "reason"]}
+     if key is None:
+@@ -506,7 +538,7 @@ def write_card_data(cd, tally, checks, today):
+         with open(os.path.join(cd, "dictionary", "term_counts.csv"), "w", newline="", encoding="utf-8") as f:
+             w = csv.writer(f, lineterminator="\n")
+             w.writerow(["category", "term", "confidence", "graded_cards_pc", "graded_cards_cl", "catalog_pc_brackets",
+-                        "seen_in", "examples", "built"])
++                        "unknown_words", "seen_in", "examples", "built"])
+             w.writerows(tally.rows(built))
+         os.makedirs(os.path.join(cd, "ids"), exist_ok=True)
+         with open(os.path.join(cd, "ids", "field_checks.csv"), "w", newline="", encoding="utf-8") as f:
+diff --git a/graded_terms.py b/graded_terms.py
+index 3389e09..e34005c 100644
+--- a/graded_terms.py
++++ b/graded_terms.py
+@@ -14,8 +14,11 @@ Each side is read only from its own source:
+                hyphen ("Alakazam-Holo"), its set name, and the variations its cert lookups returned
+        number  = Card Ladder's number; the total from its CGC cert lookup when the profile has none; else "/none"
+   Series / Era = only where a series / era name is written in the text (set names count) - nothing looked up yet.
++  Illustrator  = PC: the "Artist" TCGplayer's product page shows for the product PriceCharting links to (tcg_details.py
++               caches it in card-data/data/tcgplayer/details.csv), only when that product carries the same card number;
++               CL: none (Card Ladder does not record it).
+ Words the dictionary does not know (the leftovers of a bracket or a variation, a TCGplayer rarity it has not seen) are
+-kept as Unidentified, with where they were seen.
++kept as Unidentified, with where they were seen and the unknown words themselves (what Brett sorts on the page).
+ """
+ import collections
+ import csv
+@@ -31,8 +34,14 @@ def norm_tokens(s):
+     return re.findall(r"[a-z0-9]+", s)
+ 
+ 
++def orig_tokens(s):
++    """The same words as norm_tokens, in their own case ("Spectra", not "spectra") - for showing the unknown words."""
++    s = str(s or "").replace("é", "e").replace("É", "E").replace("☆", " Qstar ").replace("&", " Qamp ")
++    return [{"Qstar": "☆", "Qamp": "&"}.get(w, w) for w in re.findall(r"[A-Za-z0-9]+", s)]
++
++
+ def meaningful(left):
+-    return any(w not in STOP and not w.isdigit() for w in left)
++    return any(t not in STOP and not t.isdigit() for w in left for t in norm_tokens(w))
+ 
+ 
+ class Dictionary:
+@@ -63,11 +72,22 @@ class Dictionary:
+         with open(p, newline="", encoding="utf-8") as f:
+             return cls(list(csv.DictReader(f)))
+ 
++    def canon(self):
++        """{category: the names the dictionary files words under} - the page's "same as" suggestions."""
++        out = {}
++        for t in self.by.values():
++            if t["cat"] in CATS:
++                out.setdefault(t["cat"], set()).add(t["canon"])
++        return {c: sorted(v, key=str.lower) for c, v in out.items()}
++
+     def match(self, text, kind="any"):
+-        """-> (found [{canon, cat, conf}], leftover tokens)"""
++        """-> (found [{canon, cat, conf}], leftover words in their own case)"""
+         toks = norm_tokens(text)
+         if not toks:
+             return [], []
++        orig = orig_tokens(text)
++        if len(orig) != len(toks):
++            orig = toks
+         ex = self.by.get(tuple(toks))
+         if ex and ex["where"] == "exact":
+             return [ex], []
+@@ -83,7 +103,7 @@ class Dictionary:
+                 found.append(hit[0])
+                 i += hit[1]
+             else:
+-                left.append(toks[i])
++                left.append(orig[i])
+                 i += 1
+         return found, left
+ 
+@@ -95,6 +115,9 @@ class Side:
+         self.t = {c: {} for c in CATS}
+         self.src = {c: {} for c in CATS}                    # canonical -> where it was read ("PC bracket", ...)
+         self.unid = {}                                      # phrase -> where
++        self.unid_left = {}                                 # phrase -> its unknown words ("Spectra" in "Spectra Holo")
++        self.artist = None                                  # PC: TCGplayer's Artist (None = not read, "" = read, none given)
++        self.artist_from = None
+ 
+     def add(self, found, where, cats=None):
+         for x in found:
+@@ -105,6 +128,10 @@ class Side:
+                 self.t[x["cat"]][x["canon"]] = x["conf"]
+             self.src[x["cat"]].setdefault(x["canon"], where)
+ 
++    def unknown(self, phrase, left, where):
++        self.unid.setdefault(phrase, where)
++        self.unid_left.setdefault(phrase, " ".join(left))
++
+     def terms(self, cat):
+         return list(self.t[cat].keys())
+ 
+@@ -164,13 +191,14 @@ def printing_finish(printings):
+     return None
+ 
+ 
+-def pc_side(name, set_name, number, tcgf, dic):
++def pc_side(name, set_name, number, tcgf, dic, det=None):
++    """det: TCGplayer's product details for the product PriceCharting links to (tcg_details.py), or None if not read."""
+     s = Side()
+     for b in split_brackets(name):
+         found, left = dic.match(b, "any")
+         s.add(found, "PC bracket")
+         if meaningful(left):
+-            s.unid.setdefault(b, "PC bracket")
++            s.unknown(b, left, "PC bracket")
+     s.add(dic.match(set_name, "set")[0], "PC set name", cats={"Series", "Era"})
+     s.add(dic.match(strip_brackets(name), "any")[0], "PC card name", cats={"Series", "Era"})
+     tr = (tcgf or [""])[0] if tcgf else ""
+@@ -183,7 +211,7 @@ def pc_side(name, set_name, number, tcgf, dic):
+                 s.t["Rarity"][x["canon"]] = "confirmed"         # TCGplayer's rarity field: rarity by definition
+                 s.src["Rarity"][x["canon"]] = "TCGplayer rarity"
+         if not rar or meaningful(left):
+-            s.unid.setdefault(tr, "TCGplayer rarity")
++            s.unknown(tr, left if rar else orig_tokens(tr), "TCGplayer rarity")
+         s.rarity_text = tr
+     else:
+         s.rarity_text = s.shown("Rarity") or None
+@@ -200,6 +228,12 @@ def pc_side(name, set_name, number, tcgf, dic):
+     s.num_raw = tn or str(number or "")
+     s.num = clean_num(tn) if tn else (clean_num(number) if number else "")
+     s.num_from = "TCGplayer" if tn else ("PriceCharting" if number else None)
++    if det and det.get("status") == "ok":
++        dn = str(det.get("number") or "")
++        if dn and number and not same_number(dn, number):
++            s.artist_from = "TCGplayer product with another card number (" + dn + ") - not used"
++        else:
++            s.artist, s.artist_from = str(det.get("artist") or "").strip(), "TCGplayer product page"
+     return s
+ 
+ 
+@@ -217,7 +251,7 @@ def cl_side(pr, lookups, dic):
+         found, left = dic.match(v, "any")
+         s.add(found, where)
+         if meaningful(left):
+-            s.unid.setdefault(v, where)
++            s.unknown(v, left, where)
+     subj = str(pr.get("subject") or "")
+     if "-" in subj:
+         s.add(dic.match(subj.split("-", 1)[1], "any")[0], "CL card name")
+@@ -271,7 +305,10 @@ def compare(pc, cl, pc_year, cl_year):
+     ya = ya if ya.isdigit() else ""
+     yb = yb if yb.isdigit() else ""
+     out["release"] = [ya, yb, res(ya, yb, ya == yb)]
+-    out["illustrator"] = ["not read", "", "not_read"]
++    if pc.artist is None:
++        out["illustrator"] = ["not read", "", "not_read"]
++    else:
++        out["illustrator"] = [pc.artist, "", res(pc.artist, "", False)]   # Card Ladder never says: cl_none / both_none
+     return out
+ 
+ 
+@@ -280,7 +317,7 @@ class Tally:
+     catalog for the [bracket] words."""
+ 
+     def __init__(self):
+-        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "cat": 0, "conf": "", "where": set(), "ex": []})
++        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "cat": 0, "conf": "", "where": set(), "ex": [], "left": ""})
+ 
+     def side(self, cid, side, s):
+         for cat in CATS:
+@@ -293,6 +330,7 @@ class Tally:
+             e = self.n[("Unidentified", ph)]
+             e[side].add(cid)
+             e["where"].add(where)
++            e["left"] = e["left"] or s.unid_left.get(ph, "")
+ 
+     def catalog(self, names, dic):
+         for name in names:
+@@ -308,6 +346,7 @@ class Tally:
+                     e = self.n[("Unidentified", b)]
+                     e["cat"] += 1
+                     e["where"].add("PC bracket")
++                    e["left"] = e["left"] or " ".join(left)
+                     if len(e["ex"]) < 3:
+                         e["ex"].append(name)
+ 
+@@ -315,12 +354,12 @@ class Tally:
+         out = {c: [] for c in CATS + ["Unidentified"]}
+         for (cat, k), e in self.n.items():
+             out[cat].append([k, e["conf"] or ("" if cat == "Unidentified" else "likely"), len(e["pc"]), len(e["cl"]), e["cat"],
+-                             " · ".join(sorted(x for x in e["where"] if x))])
++                             " · ".join(sorted(x for x in e["where"] if x)), e["left"]])
+         for cat in out:
+             out[cat].sort(key=lambda r: (-(r[2] + r[3]), -r[4], r[0].lower()))
+         return out
+ 
+     def rows(self, built):
+         for (cat, k), e in sorted(self.n.items(), key=lambda kv: (kv[0][0], -(len(kv[1]["pc"]) + len(kv[1]["cl"])), -kv[1]["cat"], kv[0][1].lower())):
+-            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), e["cat"], " · ".join(sorted(x for x in e["where"] if x)),
++            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), e["cat"], e["left"], " · ".join(sorted(x for x in e["where"] if x)),
+                    " | ".join(e["ex"][:3]), built]
+diff --git a/tcg_details.py b/tcg_details.py
+new file mode 100644
+index 0000000..84cd532
+--- /dev/null
++++ b/tcg_details.py
+@@ -0,0 +1,142 @@
++"""tcg_details.py - the Artist (and the card number / rarity beside it) from TCGplayer's product page, for every card in
++the graded view, cached in card-data/data/tcgplayer/details.csv (2026-10-28, Brett: "The PC illustrator can be
++retrieved from the TCGplayer ID link that embeds the pricecharting listing").
++
++TCGplayer's product page (www.tcgplayer.com/product/<id>) fills its details box - "Card Number / Rarity", "Card Type",
++"Attack 1", "Artist" ... - from TCGplayer's own product-details endpoint (mp-search-api.tcgplayer.com/v1/product/<id>/
++details, formattedAttributes.Artist), which is what this reads: the same words the page shows, one card at a time.
++TCGCSV's daily file (cardfacts.fetch_tcgcsv) has the number and rarity but not the artist.
++
++Run by the site workflow before graded_site.py, with card-data checked out:
++    python tcg_details.py --card-data card-data/data [--max 400]
++Reads ids/card_ids.csv (pricecharting_id, tcgplayer_id - the TCGplayer product PriceCharting links to); reads only the
++products not on file yet (an artist never changes), at most --max a run, one every DELAY_S seconds. Any refusal (403,
++429, a challenge page instead of JSON) stops the run at once: nothing is retried or worked around, and the cards left
++show "not read" until a later run. A product that is gone (404) is recorded as "gone" and not asked again.
++
++details.csv: tcgplayer_id, status (ok | gone | error), artist, number, rarity, product, set, read (date).
++"""
++import argparse
++import csv
++import os
++import sys
++import time
++from datetime import date, datetime, timedelta
++
++URL = "https://mp-search-api.tcgplayer.com/v1/product/{}/details"
++HEADERS = {"Accept": "application/json",            # an honest name, no browser disguise: if TCGplayer turns this away,
++           "User-Agent": "biotech-catelog-graded-view/1.0 (one product at a time, cached)"}   # the run stops
++DELAY_S = 1.5
++RETRY_ERROR_D = 7                 # an "error" row (a timeout, a bad answer) is asked again after this many days
++COLS = ["tcgplayer_id", "status", "artist", "number", "rarity", "product", "set", "read"]
++
++
++def norm_id(x):
++    s = str(x or "").strip().split(".")[0]
++    return s if s.isdigit() else ""
++
++
++def load(path):
++    if not os.path.exists(path):
++        return {}
++    with open(path, newline="", encoding="utf-8") as f:
++        return {r["tcgplayer_id"]: r for r in csv.DictReader(f) if r.get("tcgplayer_id")}
++
++
++def save(path, rows):
++    os.makedirs(os.path.dirname(path), exist_ok=True)
++    tmp = path + ".tmp"
++    with open(tmp, "w", newline="", encoding="utf-8") as f:
++        w = csv.DictWriter(f, fieldnames=COLS, extrasaction="ignore", lineterminator="\n")
++        w.writeheader()
++        for k in sorted(rows, key=int):
++            w.writerow(rows[k])
++    os.replace(tmp, path)
++
++
++def wanted(cd):
++    """The TCGplayer products of the graded view's cards, in card_ids.csv order."""
++    p = os.path.join(cd, "ids", "card_ids.csv")
++    out = []
++    with open(p, newline="", encoding="utf-8") as f:
++        for r in csv.DictReader(f):
++            t = norm_id(r.get("tcgplayer_id"))
++            if t and t not in out:
++                out.append(t)
++    return out
++
++
++def parse(j):
++    """The details JSON -> (artist, number, rarity, product, set). The artist is formattedAttributes.Artist, the line
++    the product page shows; "" when the page shows none."""
++    fa = j.get("formattedAttributes") or {}
++    ca = j.get("customAttributes") or {}
++    artist = ""
++    for k, v in fa.items():
++        if str(k).strip().lower() in ("artist", "illustrator"):
++            artist = " ".join(str(v or "").split())
++            break
++    return artist, str(ca.get("number") or ""), str(j.get("rarityName") or ""), str(j.get("productName") or ""), str(j.get("setName") or "")
++
++
++def run(cd, max_n, delay=DELAY_S, get=None, today=None):
++    today = today or date.today()
++    path = os.path.join(cd, "tcgplayer", "details.csv")
++    rows = load(path)
++    retry_before = (today - timedelta(days=RETRY_ERROR_D)).isoformat()
++    todo = [t for t in wanted(cd) if t not in rows or (rows[t].get("status") == "error" and rows[t].get("read", "") < retry_before)]
++    print(f"TCGplayer details: {len(rows):,} products on file, {len(todo):,} to read" + (f" (this run reads {max_n})" if len(todo) > max_n else ""))
++    if get is None:
++        import requests
++        sess = requests.Session()
++        get = lambda u: sess.get(u, headers=HEADERS, timeout=20)
++    n_ok = n_gone = n_err = 0
++    stopped = None
++    for i, t in enumerate(todo[:max_n]):
++        if i:
++            time.sleep(delay)
++        try:
++            r = get(URL.format(t))
++        except Exception as e:
++            rows[t] = {"tcgplayer_id": t, "status": "error", "read": today.isoformat(), "product": str(e)[:80]}
++            n_err += 1
++            continue
++        if r.status_code in (401, 403, 429) or r.status_code >= 500:
++            stopped = f"TCGplayer answered {r.status_code} on product {t}"
++            break
++        if r.status_code == 404:
++            rows[t] = {"tcgplayer_id": t, "status": "gone", "read": today.isoformat()}
++            n_gone += 1
++            continue
++        try:
++            j = r.json()
++        except ValueError:
++            stopped = f"TCGplayer sent a page that is not the product's details (product {t}) - a check page, perhaps"
++            break
++        if not isinstance(j, dict) or not (j.get("productId") or j.get("productName")):
++            rows[t] = {"tcgplayer_id": t, "status": "error", "read": today.isoformat(), "product": "no product in the answer"}
++            n_err += 1
++            continue
++        artist, number, rarity, product, set_name = parse(j)
++        rows[t] = {"tcgplayer_id": t, "status": "ok", "artist": artist, "number": number, "rarity": rarity,
++                   "product": product[:120], "set": set_name[:80], "read": today.isoformat()}
++        n_ok += 1
++    save(path, rows)
++    print(f"TCGplayer details: read {n_ok} (with an artist: {sum(1 for r in rows.values() if r.get('artist'))} on file), "
++          f"{n_gone} gone, {n_err} errors" + (f"; STOPPED - {stopped}. Nothing retried; the rest stay 'not read'." if stopped else ""))
++    return {"ok": n_ok, "gone": n_gone, "err": n_err, "stopped": stopped}
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--card-data", default="card-data/data")
++    ap.add_argument("--max", type=int, default=400)
++    a = ap.parse_args()
++    if not os.path.exists(os.path.join(a.card_data, "ids", "card_ids.csv")):
++        print("TCGplayer details: no card-data/ids/card_ids.csv - nothing to read")
++        return
++    run(a.card_data, a.max)
++
++
++if __name__ == "__main__":
++    main()
