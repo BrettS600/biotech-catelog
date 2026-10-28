@@ -41,13 +41,15 @@ function grBuildRows() {
     if (!base) continue;
     const gk = d.gk[x[1]], grader = gk.split('|')[0].toUpperCase();
     const m = GMARKS[cid + '|' + gk];
-    const idText = grader === 'PSA' ? (c.spec ? 'PSA ' + c.spec : c.pcert ? 'PSA cert ' + c.pcert : '') : (c.cgc ? 'CGC ' + c.cgc : c.ccert ? 'CGC cert ' + c.ccert : '');
-    const idUrl = grader === 'PSA' ? (c.pcert ? 'https://www.psacard.com/cert/' + c.pcert + '/psa' : grClUrl(c.pid))
-                                   : (c.ccert ? 'https://www.cgccards.com/certlookup/' + c.ccert + '/' : grClUrl(c.pid));
+    // the cert number of a real slab of THIS grade (read off a PriceCharting sold-listing photo), linked to its cert page;
+    // none read for the grade -> no ID (2026-10-28, Brett: "cgc id doesnt match the card")
+    const cert = (c.certs || {})[gk] || '';
+    const idText = cert ? grader + ' ' + cert : '';
+    const idUrl = !cert ? '' : grader === 'PSA' ? 'https://www.psacard.com/cert/' + cert + '/psa' : 'https://www.cgccards.com/certlookup/' + cert + '/';
     const pcp = x[2], clv = x[6];
     const r = [cid, base[1], base[2], base[3], base[4], base[5], pcp, x[11], x[12], x[13], null, null, x[14], x[15], base[14], base[15],
       x[4], d.lastm, null, null, null, null, null, null, x[1], grLabel(gk), grader, idText, idUrl,
-      cl[4] || null, cl[2] || null, grClUrl(c.pid), cl[3] || null, cl[5] || null, cl[1] || null, clv,
+      cl[4] || null, cl[2] || null, grClUrl(c.pid), cl[3] || null, (c.fin && c.fin[0]) || cl[5] || null, cl[1] || null, clv,
       pcp && clv ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, x[8], null, null, null,
       m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], x[10], x[7], x[9], false, c.pid || '', gk,
       ordOf(base) * 64 + 1 + x[1]];
@@ -99,10 +101,10 @@ function grRow(r) {
   const pcSrc = grSrcTitle(r), mixed = r[43] === 'mixed' || r[43] === 'formula';
   return '<td><b>' + esc(r[25]) + '</b></td>' +
     cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
-    (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (r[26] === 'PSA' ? 'PSA’s spec number for the card; opens the PSA cert of a slab that proved the match' : 'CGC’s number for the card; opens the CGC cert of a slab that proved the match') + '">' + esc(r[27]) + '</a></td>' : gdash) +
+    (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (r[26] === 'PSA' ? 'The cert number of a PSA ' : 'The cert number of a CGC ') + esc(r[25].split(' ').slice(1).join(' ')) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its cert page">' + esc(r[27]) + '</a></td>' : gdash) +
     grText(r[29]) +
     (r[30] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[30]) + '</a></td>' : gdash) +
-    grText(r[32]) + grText(r[33]) + grText(r[34]) +
+    grText(r[32]) + (r[33] ? '<td title="' + esc(((GR.doc.cards[String(r[0])] || {}).fin || [])[1] || 'Card Ladder') + '">' + esc(r[33]) + '</td>' : gdash) + grText(r[34]) +
     grInt(r[5]) +
     (r[6] == null ? gdash : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(pcSrc) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
     grMoney(r[35]) +
@@ -227,7 +229,7 @@ function grOpenReview(key) {
   const c = (GR.doc.cards || {})[String(r[0])] || {}, cl = c.cl || [], base = idRow.get(r[0]) || [];
   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
   if (!pcu) pcAsk(r[0]);
-  const clu = GR_CL_IMG(cl[6]), clPage = grClUrl(c.pid);
+  const clu = GR_CL_IMG((c.imgs || {})[r[50]] || cl[6]), clPage = grClUrl(c.pid);   // Card Ladder's picture of THIS grade when it has one
   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
   const row = (l, rr) => '<div class="rrow"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div></div>';
   const v = r[41], mk = GMARKS[key] || {};
@@ -244,18 +246,18 @@ function grOpenReview(key) {
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
            : '<div class="rvbox"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>being fetched now — it appears here within a minute or two</small></div>') + '</div>' +
     '<div class="rvside"><h4>Card Ladder ' + (clPage ? '<a href="' + esc(clPage) + '" target="_blank" rel="noopener">↗</a>' : '') + '</h4>' +
-      (clu ? '<a href="' + esc(clPage || '#') + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(clu) + '" alt="Card Ladder picture: click to open the card on Card Ladder"></a>' : '<div class="rvbox"><span class="dim">no picture on file</span></div>') + '</div></div>';
+      (clu ? '<a href="' + esc(clPage || '#') + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(clu) + '" alt="Card Ladder picture: click to open the card on Card Ladder"></a>' + ((c.imgs || {})[r[50]] ? '' : '<small class="dim">Card Ladder’s main picture: it has none of a ' + esc(r[25]) + ' slab</small>') : '<div class="rvbox"><span class="dim">no picture on file</span></div>') + '</div></div>';
   const pcFin = (pcRF(base) || ['', ''])[1];
   h += '<div class="rvrows">' +
     row(fact('Release year', year(base[4])), fact('Release year', year(cl[1]))) +
     row(fact('Set name', esc(String(base[2] || '').replace(/^Pokemon /, ''))), fact('Set name', cl[2] ? esc(cl[2]) : '<span class="dim">unknown</span>')) +
     row(fact('Card name', esc(base[1] || '')), fact('Card name', cl[4] ? esc(cl[4]) : '<span class="dim">unknown</span>')) +
     row(fact('Card / set number', esc(base[3] || '') + (SET_TOTALS[base[2]] ? ' / ' + SET_TOTALS[base[2]] : '')), fact('Card / set number', cl[3] ? esc(cl[3]) : '<span class="dim">unknown</span>')) +
-    row(fact('Finish', pcFin ? esc(pcFin) : '<span class="dim">unknown</span>'), fact('Finish', cl[5] ? esc(cl[5]) : '<span class="dim">not stated</span>', 'Card Ladder’s variation (from the graders’ records)')) +
+    row(fact('Finish', pcFin ? esc(pcFin) : '<span class="dim">unknown</span>'), fact('Finish', c.fin ? esc(c.fin[0]) : '<span class="dim">not stated</span>', c.fin ? 'from ' + esc(c.fin[1]) : 'no finish on Card Ladder or the graders’ labels')) +
     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded')) +
     row(fact('Grade and grader', esc(r[25])), fact('Grade and grader', esc(r[25]))) +
     row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grSrcTitle(r))), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s value' + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : ''))) +
-    row(fact('TCGplayer ID', tcg, 'the TCGplayer product PriceCharting references'), fact(r[26] === 'CGC' ? 'CGC ID' : 'PSA ID', idl, r[26] === 'PSA' ? 'PSA’s spec number; the link opens a cert that proved the match' : 'CGC’s number for the card')) +
+    row(fact('TCGplayer ID', tcg, 'the TCGplayer product PriceCharting references'), fact(r[26] === 'CGC' ? 'CGC cert' : 'PSA cert', idl, (r[27] ? 'a ' + esc(r[25]) + ' slab of this card (from a sold-listing photo) · ' : 'no ' + esc(r[25]) + ' slab read yet · ') + (r[26] === 'PSA' ? (c.spec ? 'PSA’s number for the card: spec ' + esc(c.spec) : 'no PSA spec') : (c.cgc ? 'Card Ladder’s CGC number for the card: ' + esc(c.cgc) : 'no CGC number')))) +
     '</div>' +
     '<div class="rvbtns"><button class="rvno" id="grv-no">Not the same card<small>recorded as a wrong match</small></button><button class="rvyes" id="grv-yes">Same card<small>a confirmed match</small></button></div>' +
     (v != null ? '<div class="rvundo"><button class="linkbtn" id="grv-undo">Withdraw my answer</button></div>' : '') + '<div id="grv-msg" class="dim"></div>';

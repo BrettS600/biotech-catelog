@@ -9,6 +9,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
   ids/card_ids.csv                         which Card Ladder profile each PriceCharting card is (cardmatch / the barcode
                                            chain): pricecharting_id, cl_profile_id, psa_spec, cgc_id, psa_cert, cgc_cert,
                                            status (confirmed / likely / review / no_match), note
+  cardladder/matches/*.jsonl.gz            the slab evidence: one cert per grade read off PriceCharting's sold-listing
+                                           photos (slabs), Card Ladder's cert lookups (grade, label, finish)
   cardladder/profiles/*.jsonl.gz           the Card Ladder profile reads, one JSON object per line (newest wins):
                                            {pc, read, pid, label, year, set, number, subject, variation, image, graders:
                                            [{g, id, pop, grades: [[key, label, pop, cl value, last sold, conf]]}],
@@ -113,6 +115,55 @@ def load_profiles(cd):
                 if k and (k not in out or str(o.get("read", "")) >= str(out[k].get("read", ""))):
                     out[k] = o
     return out
+
+
+FIN_WORDS = re.compile(r"\b(reverse holo|holo|full art|alt(?:ernate)? art|secret|rainbow|gold|shadowless|1st edition|first edition|"
+                       r"illustration rare|special illustration|trainer gallery|galarian gallery|textured|cosmos|cracked ice|"
+                       r"stamped|staff|prerelease|promo)\b", re.I)
+
+
+def load_matches(cd):
+    """{pc id: {"slabs": {gk: cert}, "cl": [Card Ladder cert lookups]}} from data/cardladder/matches (newest read wins)."""
+    out = {}
+    for f in sorted(glob.glob(os.path.join(cd, "cardladder", "matches", "*.jsonl.gz"))):
+        with gzip.open(f, "rt", encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                e = out.setdefault(str(o.get("pc")), {"slabs": {}, "cl": []})
+                for gk, x in (o.get("slabs") or {}).items():
+                    if gk in GI and x.get("cert"):
+                        e["slabs"][gk] = x["cert"]
+                c = o.get("cl_cert")
+                if c and c.get("cert") and not c.get("err"):
+                    e["cl"].append(c)
+    for e in out.values():                                  # a slab Card Ladder looked up names its own grade
+        for c in e["cl"]:
+            gk = f"{c.get('grader')}|{c.get('grade')}"
+            if gk in GI:
+                e["slabs"].setdefault(gk, c["cert"])
+    return out
+
+
+def finish_of(pr, ev):
+    """CL Rarity/Finish: Card Ladder's variation, else CGC's / PSA's label (the cert lookups), else finish words in the name."""
+    if pr and (pr.get("variation") or "").strip():
+        return [pr["variation"].strip(), "Card Ladder"]
+    for grader, who in (("cgc", "CGC label"), ("psa", "PSA label")):
+        for c in (ev or {}).get("cl", []):
+            if c.get("grader") == grader and (c.get("variation") or "").strip():
+                return [c["variation"].strip(), who]
+    if pr:
+        words = []
+        for m in FIN_WORDS.finditer(f"{pr.get('subject') or ''} {pr.get('label') or ''}"):
+            w = m.group(1).title()
+            if w not in words:
+                words.append(w)
+        if words:
+            return [", ".join(words), "Card Ladder name"]
+    return None
 
 
 def load_marks(cd):
@@ -286,6 +337,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
     ids_df = load_ids(cd)
     prof = load_profiles(cd)
     marks = load_marks(cd)
+    matches = load_matches(cd)
     ids = sorted({int(x) for x in ids_df["pricecharting_id"] if str(x).isdigit()})
     print(f"graded: {len(ids)} matched cards, {len(prof)} Card Ladder profile reads")
     pc = pd.read_csv(pc_csv, dtype=str).fillna("") if os.path.exists(pc_csv) else pd.DataFrame(columns=["id"])
@@ -348,6 +400,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None):
             "by": r.get("confirmed_by", ""), "note": r.get("note", "")[:200],
             "cl": [pr.get(x) for x in ("label", "year", "set", "number", "subject", "variation", "image")] if pr else None,
             "read": (pr or {}).get("read", ""), "tcg": r.get("tcgplayer_id", ""),
+            "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
+            "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
+            "fin": finish_of(pr, matches.get(str(cid))),
         }
         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
               "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items()},
