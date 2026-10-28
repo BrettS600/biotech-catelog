@@ -14,8 +14,11 @@ Each side is read only from its own source:
                hyphen ("Alakazam-Holo"), its set name, and the variations its cert lookups returned
        number  = Card Ladder's number; the total from its CGC cert lookup when the profile has none; else "/none"
   Series / Era = only where a series / era name is written in the text (set names count) - nothing looked up yet.
+  Illustrator  = PC: the "Artist" TCGplayer's product page shows for the product PriceCharting links to (tcg_details.py
+               caches it in card-data/data/tcgplayer/details.csv), only when that product carries the same card number;
+               CL: none (Card Ladder does not record it).
 Words the dictionary does not know (the leftovers of a bracket or a variation, a TCGplayer rarity it has not seen) are
-kept as Unidentified, with where they were seen.
+kept as Unidentified, with where they were seen and the unknown words themselves (what Brett sorts on the page).
 """
 import collections
 import csv
@@ -31,8 +34,14 @@ def norm_tokens(s):
     return re.findall(r"[a-z0-9]+", s)
 
 
+def orig_tokens(s):
+    """The same words as norm_tokens, in their own case ("Spectra", not "spectra") - for showing the unknown words."""
+    s = str(s or "").replace("é", "e").replace("É", "E").replace("☆", " Qstar ").replace("&", " Qamp ")
+    return [{"Qstar": "☆", "Qamp": "&"}.get(w, w) for w in re.findall(r"[A-Za-z0-9]+", s)]
+
+
 def meaningful(left):
-    return any(w not in STOP and not w.isdigit() for w in left)
+    return any(t not in STOP and not t.isdigit() for w in left for t in norm_tokens(w))
 
 
 class Dictionary:
@@ -63,11 +72,22 @@ class Dictionary:
         with open(p, newline="", encoding="utf-8") as f:
             return cls(list(csv.DictReader(f)))
 
+    def canon(self):
+        """{category: the names the dictionary files words under} - the page's "same as" suggestions."""
+        out = {}
+        for t in self.by.values():
+            if t["cat"] in CATS:
+                out.setdefault(t["cat"], set()).add(t["canon"])
+        return {c: sorted(v, key=str.lower) for c, v in out.items()}
+
     def match(self, text, kind="any"):
-        """-> (found [{canon, cat, conf}], leftover tokens)"""
+        """-> (found [{canon, cat, conf}], leftover words in their own case)"""
         toks = norm_tokens(text)
         if not toks:
             return [], []
+        orig = orig_tokens(text)
+        if len(orig) != len(toks):
+            orig = toks
         ex = self.by.get(tuple(toks))
         if ex and ex["where"] == "exact":
             return [ex], []
@@ -83,7 +103,7 @@ class Dictionary:
                 found.append(hit[0])
                 i += hit[1]
             else:
-                left.append(toks[i])
+                left.append(orig[i])
                 i += 1
         return found, left
 
@@ -95,6 +115,9 @@ class Side:
         self.t = {c: {} for c in CATS}
         self.src = {c: {} for c in CATS}                    # canonical -> where it was read ("PC bracket", ...)
         self.unid = {}                                      # phrase -> where
+        self.unid_left = {}                                 # phrase -> its unknown words ("Spectra" in "Spectra Holo")
+        self.artist = None                                  # PC: TCGplayer's Artist (None = not read, "" = read, none given)
+        self.artist_from = None
 
     def add(self, found, where, cats=None):
         for x in found:
@@ -104,6 +127,10 @@ class Side:
             if cur is None or (cur != "confirmed" and x["conf"] == "confirmed"):
                 self.t[x["cat"]][x["canon"]] = x["conf"]
             self.src[x["cat"]].setdefault(x["canon"], where)
+
+    def unknown(self, phrase, left, where):
+        self.unid.setdefault(phrase, where)
+        self.unid_left.setdefault(phrase, " ".join(left))
 
     def terms(self, cat):
         return list(self.t[cat].keys())
@@ -164,13 +191,14 @@ def printing_finish(printings):
     return None
 
 
-def pc_side(name, set_name, number, tcgf, dic):
+def pc_side(name, set_name, number, tcgf, dic, det=None):
+    """det: TCGplayer's product details for the product PriceCharting links to (tcg_details.py), or None if not read."""
     s = Side()
     for b in split_brackets(name):
         found, left = dic.match(b, "any")
         s.add(found, "PC bracket")
         if meaningful(left):
-            s.unid.setdefault(b, "PC bracket")
+            s.unknown(b, left, "PC bracket")
     s.add(dic.match(set_name, "set")[0], "PC set name", cats={"Series", "Era"})
     s.add(dic.match(strip_brackets(name), "any")[0], "PC card name", cats={"Series", "Era"})
     tr = (tcgf or [""])[0] if tcgf else ""
@@ -183,7 +211,7 @@ def pc_side(name, set_name, number, tcgf, dic):
                 s.t["Rarity"][x["canon"]] = "confirmed"         # TCGplayer's rarity field: rarity by definition
                 s.src["Rarity"][x["canon"]] = "TCGplayer rarity"
         if not rar or meaningful(left):
-            s.unid.setdefault(tr, "TCGplayer rarity")
+            s.unknown(tr, left if rar else orig_tokens(tr), "TCGplayer rarity")
         s.rarity_text = tr
     else:
         s.rarity_text = s.shown("Rarity") or None
@@ -200,6 +228,12 @@ def pc_side(name, set_name, number, tcgf, dic):
     s.num_raw = tn or str(number or "")
     s.num = clean_num(tn) if tn else (clean_num(number) if number else "")
     s.num_from = "TCGplayer" if tn else ("PriceCharting" if number else None)
+    if det and det.get("status") == "ok":
+        dn = str(det.get("number") or "")
+        if dn and number and not same_number(dn, number):
+            s.artist_from = "TCGplayer product with another card number (" + dn + ") - not used"
+        else:
+            s.artist, s.artist_from = str(det.get("artist") or "").strip(), "TCGplayer product page"
     return s
 
 
@@ -217,7 +251,7 @@ def cl_side(pr, lookups, dic):
         found, left = dic.match(v, "any")
         s.add(found, where)
         if meaningful(left):
-            s.unid.setdefault(v, where)
+            s.unknown(v, left, where)
     subj = str(pr.get("subject") or "")
     if "-" in subj:
         s.add(dic.match(subj.split("-", 1)[1], "any")[0], "CL card name")
@@ -271,7 +305,10 @@ def compare(pc, cl, pc_year, cl_year):
     ya = ya if ya.isdigit() else ""
     yb = yb if yb.isdigit() else ""
     out["release"] = [ya, yb, res(ya, yb, ya == yb)]
-    out["illustrator"] = ["not read", "", "not_read"]
+    if pc.artist is None:
+        out["illustrator"] = ["not read", "", "not_read"]
+    else:
+        out["illustrator"] = [pc.artist, "", res(pc.artist, "", False)]   # Card Ladder never says: cl_none / both_none
     return out
 
 
@@ -280,7 +317,7 @@ class Tally:
     catalog for the [bracket] words."""
 
     def __init__(self):
-        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "cat": 0, "conf": "", "where": set(), "ex": []})
+        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "cat": 0, "conf": "", "where": set(), "ex": [], "left": ""})
 
     def side(self, cid, side, s):
         for cat in CATS:
@@ -293,6 +330,7 @@ class Tally:
             e = self.n[("Unidentified", ph)]
             e[side].add(cid)
             e["where"].add(where)
+            e["left"] = e["left"] or s.unid_left.get(ph, "")
 
     def catalog(self, names, dic):
         for name in names:
@@ -308,6 +346,7 @@ class Tally:
                     e = self.n[("Unidentified", b)]
                     e["cat"] += 1
                     e["where"].add("PC bracket")
+                    e["left"] = e["left"] or " ".join(left)
                     if len(e["ex"]) < 3:
                         e["ex"].append(name)
 
@@ -315,12 +354,12 @@ class Tally:
         out = {c: [] for c in CATS + ["Unidentified"]}
         for (cat, k), e in self.n.items():
             out[cat].append([k, e["conf"] or ("" if cat == "Unidentified" else "likely"), len(e["pc"]), len(e["cl"]), e["cat"],
-                             " · ".join(sorted(x for x in e["where"] if x))])
+                             " · ".join(sorted(x for x in e["where"] if x)), e["left"]])
         for cat in out:
             out[cat].sort(key=lambda r: (-(r[2] + r[3]), -r[4], r[0].lower()))
         return out
 
     def rows(self, built):
         for (cat, k), e in sorted(self.n.items(), key=lambda kv: (kv[0][0], -(len(kv[1]["pc"]) + len(kv[1]["cl"])), -kv[1]["cat"], kv[0][1].lower())):
-            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), e["cat"], " · ".join(sorted(x for x in e["where"] if x)),
+            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), e["cat"], e["left"], " · ".join(sorted(x for x in e["where"] if x)),
                    " | ".join(e["ex"][:3]), built]

@@ -21,6 +21,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
   pricecharting/pc_graded_monthly_*.csv.gz PriceCharting's monthly graded chart lines (optional - full archive runs)
   dictionary/terms.csv                     the words that sort what each side says into Rarity / Finish / Special /
                                            Series / Era (graded_terms.py; Brett, 2026-10-28)
+  dictionary/decisions.csv                 the words Brett sorted on the page, as graded_answers.py filed them
+  tcgplayer/details.csv                    TCGplayer's product page details - the Artist (tcg_details.py)
 and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
 PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
 
@@ -158,10 +160,36 @@ def load_marks(cd):
     if not os.path.exists(p):
         return {}
     d = pd.read_csv(p, dtype=str).fillna("")
+    if d.empty:
+        return {}
+    d["tn"] = pd.to_numeric(d["t"], errors="coerce").fillna(0)
     out = {}
-    for r in d.sort_values("t").itertuples():
-        out[(r.pc, r.gk)] = {"v": r.v, "reason": getattr(r, "reason", ""), "note": getattr(r, "note", ""), "t": r.t}
+    for r in d.sort_values("tn").itertuples():               # the newest answer for a card x grade wins
+        v = {"1": 1, "0": 0}.get(str(r.v).strip().split(".")[0])
+        out[(str(r.pc).split(".")[0], r.gk)] = {"v": v, "reason": getattr(r, "reason", "") or None,
+                                                "note": getattr(r, "note", ""), "t": int(r.tn)}
     return out
+
+
+def load_tcg_details(cd):
+    """{TCGplayer product id: {"artist", "number", "status", ...}} from tcgplayer/details.csv (tcg_details.py)."""
+    import csv
+    p = os.path.join(cd, "tcgplayer", "details.csv")
+    if not os.path.exists(p):
+        return {}
+    with open(p, newline="", encoding="utf-8") as f:
+        return {str(r.get("tcgplayer_id", "")).split(".")[0]: r for r in csv.DictReader(f)}
+
+
+def decisions_t(cd):
+    """The newest page decision graded_answers.py has filed into the dictionary (ms) - the page drops its own echo of
+    anything older, since the data now carries it."""
+    import csv
+    p = os.path.join(cd, "dictionary", "decisions.csv")
+    if not os.path.exists(p):
+        return 0
+    with open(p, newline="", encoding="utf-8") as f:
+        return max((int(float(r.get("t") or 0)) for r in csv.DictReader(f)), default=0)
 
 
 def load_pop(cd, ids):
@@ -381,10 +409,12 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         tally.catalog(pc["product-name"].tolist(), dic)
     pc = pc[pc["id"].isin(ids)].set_index("id")
     tcgf = load_tcg_facts(tcg_path)
+    tdet = load_tcg_details(cd)
     pop_hist = load_pop_hist(cd, ids, last_m)
     checks = []
     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
-          f"population history for {len(pop_hist)} cards")
+          f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
+          f"population history for {len(pop_hist)} cards, {len(marks)} Review answers")
     pop = load_pop(cd, ids)
     psales = load_pc_sales(cd, ids, today)
     pmon = load_pc_monthly(cd, ids)
@@ -439,7 +469,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
         pset = str(pcrow.get("console-name", "")) if pcrow is not None else ""
         mnum = re.search(r"#(\S+)\s*$", pname)
-        ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic)
+        tid = str(r.get("tcgplayer_id", "") or "").split(".")[0]
+        ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic, tdet.get(tid) if tid else None)
         cs = gt.cl_side(pr, (matches.get(str(cid)) or {}).get("cl", []), dic)
         tally.side(cid, "pc", ps)
         tally.side(cid, "cl", cs)
@@ -448,7 +479,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             checks.append([cid, f, a if a is not None else "", b if b is not None else "", res])
         cards[str(cid)] = {
             "pn": ps.num, "pnf": ps.num_from, "pr": ps.rarity_text, "prf": ps.rarity_from, "pf": ps.finish_text,
-            "pff": ps.finish_from, "ps": ps.shown("Special"),
+            "pff": ps.finish_from, "ps": ps.shown("Special"), "pi": ps.artist, "pif": ps.artist_from,
             "cn": cs.num, "cnf": cs.num_from, "cr": cs.rarity_text, "cf": cs.finish_text, "cs": cs.shown("Special"),
             "ser": [ps.shown("Series"), cs.shown("Series")], "era": [ps.shown("Era"), cs.shown("Era")],
             "t": {"pc": {c: ps.terms(c) for c in gt.CATS},
@@ -480,7 +511,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     key = hist_key(pw) if pw else None
     write_card_data(cd, tally, checks, today)
     doc = {"v": 2, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
-           "terms": tally.lists(), "dict": {"n": dic.n},
+           "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
+           "markt": max((m["t"] for m in marks.values()), default=0),
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
                                     "d7", "d30", "pos", "vol", "ts", "mark", "reason"]}
     if key is None:
@@ -506,7 +538,7 @@ def write_card_data(cd, tally, checks, today):
         with open(os.path.join(cd, "dictionary", "term_counts.csv"), "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, lineterminator="\n")
             w.writerow(["category", "term", "confidence", "graded_cards_pc", "graded_cards_cl", "catalog_pc_brackets",
-                        "seen_in", "examples", "built"])
+                        "unknown_words", "seen_in", "examples", "built"])
             w.writerows(tally.rows(built))
         os.makedirs(os.path.join(cd, "ids"), exist_ok=True)
         with open(os.path.join(cd, "ids", "field_checks.csv"), "w", newline="", encoding="utf-8") as f:

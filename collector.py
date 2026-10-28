@@ -1295,6 +1295,66 @@ def gap_mark(state, cid, st, note, t):
     log(f"Flags: card {cid} verdict {st}")
 
 
+# ---------------- the graded view's answers (2026-10-28): Review marks and sorted words, for card-data ----------------
+GMARK_MAX = 20000                # Review answers kept (card x grade; the newest answer per pair)
+GTERM_MAX = 5000                 # sorted words kept (the newest decision per word)
+GMARKS_EVERY_S = 6 * 3600        # live/graded_marks.bin is republished this often, or at once after an answer
+GTERM_CATS = ("Rarity", "Finish", "Special", "Series", "Era", "Meaningless", "Unidentified")
+GK_RE = re.compile(r"^(psa|cgc)\|g[0-9]+(?:_5)?(?:perfect|pristine)?$")
+
+
+def gmark_set(state, msg, t):
+    """The graded view's Review popup: {type: 'gmark', t, c: PriceCharting id, g: grade key ('psa|g10'), p: Card Ladder
+    profile, v: 1 same card / 0 not the same / null withdrawn, reason: the Flag's reason, note}. Kept per card x grade
+    (the newest wins) in v["gmarks"]; published in live/graded_marks.bin, which the site workflow files into
+    card-data/data/ids/marks.csv (graded_answers.py) - the graded rows then carry the answer."""
+    v = state["vps"]
+    try:
+        c = int(msg.get("c"))
+    except (TypeError, ValueError):
+        return
+    g = str(msg.get("g") or "")[:20]
+    if not GK_RE.match(g):
+        return
+    val = msg.get("v")
+    val = 1 if val in (1, True, "1") else 0 if val in (0, False, "0") else None
+    gm = v.setdefault("gmarks", {})
+    gm[f"{c}|{g}"] = {"pc": c, "gk": g, "p": str(msg.get("p") or "")[:40], "v": val,
+                      "reason": str(msg.get("reason") or "")[:40] or None, "note": str(msg.get("note") or "")[:500] or None, "t": t}
+    for old in sorted(gm, key=lambda k: gm[k]["t"])[:max(0, len(gm) - GMARK_MAX)]:
+        del gm[old]
+    v["gmark_t"] = t
+    log(f"Graded view: card {c} {g} - " + ({1: "same card", 0: "not the same card"}.get(val, "answer withdrawn"))
+        + (f", flag: {gm[f'{c}|{g}']['reason']}" if gm[f"{c}|{g}"]["reason"] else ""))
+
+
+def gterm_set(state, msg, t):
+    """A word sorted in the graded view: {type: 'gterm', t, term, cat: Rarity / Finish / Special / Series / Era /
+    Meaningless / Unidentified, same: the word it means the same as (or ''), where: any / set / exact (or '' = keep),
+    note, ph: the phrase it was seen in}. The newest decision per word is kept in v["gterms"]; graded_answers.py files
+    each one into card-data/data/dictionary/terms.csv once (decisions.csv records it)."""
+    v = state["vps"]
+    term = " ".join(str(msg.get("term") or "").split())[:120]
+    cat = str(msg.get("cat") or "")
+    if not term or cat not in GTERM_CATS:
+        return
+    where = msg.get("where") if msg.get("where") in ("any", "set", "exact") else ""
+    gtm = v.setdefault("gterms", {})
+    gtm[term.lower()] = {"term": term, "cat": cat, "same": " ".join(str(msg.get("same") or "").split())[:120], "where": where,
+                         "note": str(msg.get("note") or "")[:500], "ph": str(msg.get("ph") or "")[:200], "t": t}
+    for old in sorted(gtm, key=lambda k: gtm[k]["t"])[:max(0, len(gtm) - GTERM_MAX)]:
+        del gtm[old]
+    v["gmark_t"] = t
+    log(f"Graded view: the word \"{term}\" sorted under {cat}" + (f" (same as {gtm[term.lower()]['same']})" if gtm[term.lower()]["same"] else ""))
+
+
+def graded_marks_file(state):
+    """live/graded_marks.bin: every Review answer and sorted word on file (graded_answers.py reads it)."""
+    v = state["vps"]
+    return {"t": v.get("gmark_t", 0), "marks": sorted((v.get("gmarks") or {}).values(), key=lambda m: m["t"]),
+            "terms": sorted((v.get("gterms") or {}).values(), key=lambda m: m["t"])}
+
+
 def flags_file(state, cards):
     """live/flags.bin: every archived entry newest first, the card verdicts, and the cards held now."""
     v = state["vps"]
@@ -1548,6 +1608,10 @@ def read_requests(state, cat=None, cards=None):
             flag_mark(state, cat, cards, str(msg["i"])[:60], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
         elif msg.get("type") == "gapmark" and msg.get("c") is not None:   # a card verdict in the Flags archive
             gap_mark(state, str(msg["c"])[:12], str(msg.get("state") or "")[:20], msg.get("note") or "", t)
+        elif msg.get("type") == "gmark" and msg.get("c") is not None:    # the graded view's Review: same card / not / flag (2026-10-28)
+            gmark_set(state, msg, t)
+        elif msg.get("type") == "gterm" and msg.get("term"):             # a word sorted in the graded view's word buttons (2026-10-28)
+            gterm_set(state, msg, t)
         elif msg.get("type") == "pcimg" and msg.get("c") is not None:   # Review pressed on a card without its picture
             try:
                 if pc_worker() is not None:
@@ -3696,7 +3760,7 @@ def cycle(state, cat, sched, counters):
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("cond_t", 0), v.get("flag_t", 0), v.get("forecast_t", 0),
-           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
+           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0), v.get("gmark_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t
@@ -3735,6 +3799,13 @@ def cycle(state, cat, sched, counters):
                 v["flag_pub_t"] = v.get("flag_t", 0)
             except Exception as e:
                 log(f"Flags: flags.bin failed ({str(e)[:120]})")
+        if due("gmarks", GMARKS_EVERY_S) or v.get("gmark_t", 0) != v.get("gmark_pub_t", -1):   # the graded view's answers (2026-10-28)
+            try:
+                raw_gm = gzip.compress(json.dumps(graded_marks_file(state), separators=(",", ":")).encode("utf-8"))
+                files["graded_marks.bin"] = es.encrypt_live(raw_gm, es.PASSWORD) if es.PASSWORD else raw_gm
+                v["gmark_pub_t"] = v.get("gmark_t", 0)
+            except Exception as e:
+                log(f"Graded view: graded_marks.bin failed ({str(e)[:120]})")
         if due("fcrows", FC_ROWS_EVERY_S):                   # the Forecast tab's available listings, with the Raw Data columns (the card popup)
             try:
                 fr = fc_rows_file(state, cards, {x[0] for x in live["live"]})

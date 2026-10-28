@@ -1756,8 +1756,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   GemRate columns (graded this month, number graded, sales : graded ratio) show - until GemRate data exists; eBay
   columns show - (the collector follows raw listings only). A renamed header now renames its filter chip on every tab
   (grSyncChips wraps applyNames). Review popup (PriceCharting beside Card Ladder, Same / Not the same, Flag with a
-  reason) answers go to localStorage gmarks and out through alSend as type 'gmark' - THE COLLECTOR DOES NOT FILE 'gmark'
-  YET (to do: write them to card-data/data/ids/marks.csv, which graded_site.py already reads).
+  reason) answers go to localStorage gmarks and out through alSend as type 'gmark'; the collector keeps them and the site
+  workflow files them into card-data/data/ids/marks.csv (see THE PAGE'S ANSWERS below).
   THE DATA: graded_site.py, run by the site workflow after staticrypt (card-data checked out sparse with
   DATA_REPO_TOKEN; continue-on-error), joins card-data/data/ids/card_ids.csv + data/cardladder/profiles/*.jsonl.gz with
   PriceCharting's prices (pricecharting.csv), graded sold listings (data/pricecharting/graded_sales), population
@@ -1811,8 +1811,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   tool returns only ~1 KB; blob: URLs cannot be opened).
 - THE GRADED VIEW'S COLUMNS, WORD BUTTONS AND DICTIONARY (2026-10-28, Brett: "pc data has to come from pc or tcg link
   that embeds pc. cl has to come from cl. if something is not there, then it should none"). Each side shows only its own
-  source; missing = "none". Illustrator: PC "not read" (TCGplayer's product page has it; TCGCSV does not), CL "none"
-  (Card Ladder does not record it). PC Set/Card No. = TCGplayer's number (TCGCSV extendedData Number, kept only when it
+  source; missing = "none". Illustrator: PC = the "Artist" on TCGplayer's product page (tcg_details.py, below; "not
+  read" until read, "none" when TCGplayer shows none), CL "none" (Card Ladder does not record it). PC Set/Card No. = TCGplayer's number (TCGCSV extendedData Number, kept only when it
   matches PriceCharting's; cardfacts.tcg_facts -> tcg_facts.json.gz, written by build_catalog.py, read by graded_site.py)
   else PriceCharting's; CL Set/Card No. = the profile's number + the total from Card Ladder's CGC cert lookup, else
   "49/none". Rarity/Finish = "rarity · finish[ · special]", "none" where a side says nothing: PC rarity = TCGplayer's,
@@ -1838,8 +1838,26 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (Brett). graded_terms.py matches: lowercase, é -> e, ☆ -> star, & -> and, longest match wins; a "?" after a term on
   the page = not confirmed. Each build writes card-data/data/dictionary/term_counts.csv and data/ids/field_checks.csv
   (number, total, rarity, finish, special, series, era, release, illustrator: match / mismatch / pc_none / cl_none /
-  both_none / not_read) and the site workflow commits them back. NOT BUILT YET: sorting Unidentified terms from the
-  page into terms.csv (merge synonyms, mark meaningless).
+  both_none / not_read) and the site workflow commits them back.
+  THE PAGE'S ANSWERS (2026-10-28, built the same day): every word-button row has a Sort control (the word - for an
+  Unidentified phrase its unknown words, editable -, the category Rarity / Finish / Special / Series / Era /
+  Meaningless / Unsorted, "same as" another word with suggestions from doc.canon, where it may match, a note). Saved in
+  localStorage gtdec (echoed as a tag until graded.bin's dect passes it) and sent as type 'gterm'; Review answers go as
+  'gmark'. The collector (gmark_set / gterm_set) keeps the newest per card x grade / per word in v["gmarks"] /
+  v["gterms"] and publishes live/graded_marks.bin (live key) at once after an answer and every 6 h. The site workflow
+  (step "The graded view's answers ...") runs graded_answers.py before graded_site.py: marks merged into
+  ids/marks.csv (newest per card x grade), each NEW word decision applied once to dictionary/terms.csv (confirmed,
+  basis "Brett (site)") and logged in dictionary/decisions.csv - the log is the guard, so a hand edit of terms.csv is
+  never overwritten by an old decision. The save step commits marks.csv, terms.csv, decisions.csv, details.csv,
+  term_counts.csv and field_checks.csv. A sorted word takes effect at the next site build (daily 10:00 UTC, or a
+  dispatch).
+  TCGPLAYER ARTIST: TCGplayer's product page fills its details box from mp-search-api.tcgplayer.com/v1/product/<id>/
+  details (formattedAttributes.Artist; found 2026-10-28 in Brett's Chrome: Alakazam 42346 = Ken Sugimori). The site
+  workflow's step "TCGplayer product pages ..." runs tcg_details.py: the graded view's tcgplayer_ids not on file, at
+  most 400 a run, one every 1.5 s, an honest user agent, cached forever in card-data/data/tcgplayer/details.csv
+  (tcgplayer_id, status ok / gone / error, artist, number, rarity, product, set, read). Any 401 / 403 / 429 / 5xx or a
+  non-JSON answer STOPS the run - nothing retried or disguised; the rest stay "not read". graded_terms.pc_side uses
+  the artist only when that product's number matches PriceCharting's.
   NUMBER GRADED: the pop month files (data_archive.py) now keep each card's first and latest read of the month (they
   kept only the latest), so last month's count = month-end population minus the month before; until two reads exist
   the popup says "not yet".
