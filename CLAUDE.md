@@ -1901,6 +1901,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   its monthly chart value ("chart" for PSA 10, "chart_mixed" for 9 / 9.5 / 8 / 7, which blend graders - marked *).
   PC to CL % compares the two. Today's figures (PriceCharting's price, Card Ladder's value) are in the hovers (r[67],
   r[68]) and in Review.
+  SPECIAL: SILENCE COUNTS (2026-10-29, Brett: "u can do #8"; found on Charizard #4 Celebrations PSA 10, PC $500 vs CL
+  $17,682: Card Ladder's profile is the Celebrations Ultra-Premium Collection metal Charizard). graded_terms.compare
+  marks a Special word that only one side names as a MISMATCH (not pc_none / cl_none) - the silent side is the regular
+  printing; DEFAULT_SPECIAL (Unlimited) counts as silence. The PC set name now contributes Special words too (CL's set
+  names always did). graded.js reds the CL Rarity/Finish cell on it. On the 100 matched cards it flagged 4 rows
+  (Charizard UPC, Latias SWSH171 Prerelease, Pichu League, Rapidash Pokemon Center), 3 already "review"; the 7 other
+  former pc_none were Unlimited only. "Ultra Premium Collection" and "Metal" are Special in terms.csv (Brett).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

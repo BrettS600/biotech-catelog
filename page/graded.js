@@ -184,7 +184,7 @@ function grRow(r) {
   const c = (GR.doc.cards || {})[String(r[0])] || {};
   const aFC = (((c.a || {})[String(r[26]).toLowerCase()] || {}).fc) || {};
   const relMis = grFC(c, 'release') === 'mismatch', serMis = grFC(c, 'series') === 'mismatch' || aFC.series === 'mismatch', eraMis = grFC(c, 'era') === 'mismatch' || aFC.era === 'mismatch';
-  const rfMis = grFC(c, 'rarity') === 'mismatch' || grFC(c, 'finish') === 'mismatch';
+  const rfMis = grFC(c, 'rarity') === 'mismatch' || grFC(c, 'finish') === 'mismatch' || grFC(c, 'special') === 'mismatch';   // a Special word only one side names counts (2026-10-29)
   const setTip = /^pokemon game( promo)?$/i.test(String(r[30] || '')) ? ' title="PSA’s own name: Pokemon Game = 1999 Base Set, Pokemon Game Promo = the Wizards promos (Card Ladder uses PSA’s names)"' : '';
   return '<td><b>' + esc(r[25]) + '</b></td>' +
     grPcCells(r, c) +
@@ -192,7 +192,7 @@ function grRow(r) {
     (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : '<td><span class="dim">none</span></td>') +
     (r[30] ? '<td' + setTip + '>' + esc(r[30]) + '</td>' : '<td><span class="dim">none</span></td>') +
     '<td class="num' + (grFC(c, 'number') === 'mismatch' ? ' rfbad' : '') + '" title="' + esc(c.cnf ? 'From ' + c.cnf : 'Card Ladder gives no number') + '">' + esc(r[32] || 'none') + '</td>' +
-    '<td' + (rfMis ? ' class="rfbad"' : '') + ' title="From Card Ladder’s own words (variation, card name, set name, its cert lookups), read with the dictionary; none = Card Ladder does not say. A ? marks a word the dictionary only thinks it knows.">' + esc(r[33] || 'none') + '</td>' +
+    '<td' + (rfMis ? ' class="rfbad"' : '') + ' title="' + esc('From Card Ladder’s own words (variation, card name, set name, its cert lookups), read with the dictionary; none = Card Ladder does not say. A ? marks a word the dictionary only thinks it knows.' + (rfMis ? ' RED: PC and CL disagree' + (grFC(c, 'special') === 'mismatch' ? ' - a Special word (1st Edition, a stamp, Ultra Premium Collection …) that only one side names: the other side is the regular printing, so they may be different cards. Check with Review.' : '.') : '')) + '">' + esc(r[33] || 'none') + '</td>' +
     '<td' + (relMis ? ' class="rfnear" title="Card Ladder’s year (the grader’s label) differs from PriceCharting’s release date - PriceCharting dates promos and some older sets by the set, not the card"' : '') + '>' + (r[34] ? esc(r[34]) : '<span class="dim">none</span>') + '</td>' +
     grAuthCells(r, c) +
     (c.pi ? '<td title="' + esc('The Artist on TCGplayer’s product page for the product PriceCharting links to') + '">' + esc(c.pi) + '</td>'

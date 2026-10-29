@@ -29,6 +29,9 @@ import os
 import re
 
 CATS = ["Rarity", "Finish", "Special", "Series", "Era"]
+# the regular printing's own word: a source that leaves it out is saying the same thing (PriceCharting brackets
+# [1st Edition] / [Shadowless] and never writes "Unlimited")
+DEFAULT_SPECIAL = {"Unlimited"}
 STOP = {"pokemon", "tcg", "the", "of", "and", "a", "an", "card", "cards", "version"}
 
 
@@ -205,7 +208,7 @@ def pc_side(name, set_name, number, tcgf, dic, det=None):
         s.add(found, "PC bracket")
         if meaningful(left):
             s.unknown(b, left, "PC bracket")
-    s.add(dic.match(set_name, "set")[0], "PC set name", cats={"Series", "Era"})
+    s.add(dic.match(set_name, "set")[0], "PC set name", cats={"Series", "Era", "Special"})   # Special too: CL's set names count
     s.add(dic.match(strip_brackets(name), "any")[0], "PC card name", cats={"Series", "Era"})
     tr = (tcgf or [""])[0] if tcgf else ""
     if tr:
@@ -368,8 +371,9 @@ def compare_auth(au, pc, cl, pc_year, cl_year):
         P, C = set(pc.terms(cat)), set(cl.terms(cat))
         if cat in ("Rarity", "Finish", "Series", "Era"):
             out[key] = [", ".join(sorted(A)), res(A, [P, C], lambda a, o: bool(a & o))]
-        else:                                                  # Special: 1st Edition / Shadowless ... must be the same set
-            out[key] = [", ".join(sorted(A)), "auth_none" if not A and not (P or C) else ("match" if (A == P or not P) and (A == C or not C) else "mismatch")]
+        else:                                                  # Special: the same words on every side; silence counts (compare())
+            A2, P2, C2 = A - DEFAULT_SPECIAL, P - DEFAULT_SPECIAL, C - DEFAULT_SPECIAL
+            out[key] = [", ".join(sorted(A)), "auth_none" if not (A2 or P2 or C2) else ("match" if A2 == P2 == C2 else "mismatch")]
     ya = str(au.year or "")[:4]
     ya = ya if ya.isdigit() else ""
     py, cy = str(pc_year or "")[:4], str(cl_year or "")[:4]
@@ -405,7 +409,14 @@ def compare(pc, cl, pc_year, cl_year):
     out["total"] = [ta, tb, res(ta, tb, ta == tb)]
     for cat, key in (("Rarity", "rarity"), ("Finish", "finish"), ("Special", "special"), ("Series", "series"), ("Era", "era")):
         A, B = set(pc.terms(cat)), set(cl.terms(cat))
-        out[key] = [", ".join(sorted(A)), ", ".join(sorted(B)), res(A, B, bool(A & B) if cat in ("Rarity", "Finish", "Series", "Era") else A == B)]
+        if cat == "Special":
+            # silence counts (2026-10-29, Brett: "u can do #8"): a Special word (1st Edition, a stamp, Ultra Premium
+            # Collection ...) that one side names and the other does not means two different printings - the other
+            # side is the regular card. So it is a mismatch, not "one side says nothing". Unlimited = the regular card.
+            A2, B2 = A - DEFAULT_SPECIAL, B - DEFAULT_SPECIAL
+            out[key] = [", ".join(sorted(A)), ", ".join(sorted(B)), "both_none" if not A2 and not B2 else ("match" if A2 == B2 else "mismatch")]
+            continue
+        out[key] = [", ".join(sorted(A)), ", ".join(sorted(B)), res(A, B, bool(A & B))]
     ya, yb = str(pc_year or "")[:4], str(cl_year or "")[:4]
     ya = ya if ya.isdigit() else ""
     yb = yb if yb.isdigit() else ""
