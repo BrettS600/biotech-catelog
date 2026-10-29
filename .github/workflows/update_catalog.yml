@@ -142,7 +142,7 @@ jobs:
           cd card-data
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          for f in data/dictionary/term_counts.csv data/ids/field_checks.csv data/ids/marks.csv data/dictionary/terms.csv \
+          for f in data/dictionary/term_counts.csv data/ids/field_checks.csv data/ids/match_checks.csv data/ids/marks.csv data/dictionary/terms.csv \
                    data/dictionary/decisions.csv data/tcgplayer/details.csv data/psa data/cardhedge; do
             if [ -e "$f" ]; then git add -- "$f"; fi
           done
