@@ -73,30 +73,41 @@ function grBuildRows() {
       : spec ? 'https://www.psacard.com/spec/psa/' + spec : '';
     const pcp = (x[18] || [])[0] != null ? x[18][0] : null, clv = x[9];   // last month: PriceCharting's average / chart value, Card Ladder's average
     const g = grader.toLowerCase(), A = (c.a || {})[g], S = x[19] || null;
+    // each side's own grade (graded_site.pc_grade / cl_grade): prices are compared only where the two are the same grade
+    const GD = x[20] || [], same = grSameGrade(GD[0], GD[2]);
     const aSt = A ? 'ok' : (c.aw || []).includes(g) ? 'not read' : 'none';       // card level: read / cert known, not looked up yet / no slab
     const sOk = S && S[0] === 'ok', sSt = sOk ? 'ok' : S ? (S[0] === 'nf' ? 'not found' : 'not read') : 'none';
     const r = [cid, base[1], base[2], base[3], base[4], base[5], pcp, x[11], x[12], x[13], null, null, x[14], x[15], grRF(c.pr, c.pf, c.ps), c.pf || null,
       x[4], d.lastm, null, null, null, null, null, null, x[1], grLabel(gk), grader, idText, idUrl,
       cl[4] || null, cl[2] || null, grClUrl(c.pid), c.cn || null, grRF(c.cr, c.cf, c.cs), cl[1] || null, clv,
-      pcp && clv ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, x[8], null, null, null,
+      pcp && clv && same ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, x[8], null, null, null,
       m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], x[10], x[7], x[9], false, c.pid || '', gk,
       c.pi ? c.pi : c.pi === '' ? 'none' : 'not read', 'none', grBoth(c.ser) || null, grBoth(c.era) || null, c.pn || null,
       A ? A.name || 'none' : aSt, A ? A.set || 'none' : aSt, A ? A.num || 'none' : aSt, A ? grRF(A.rar, A.fin, A.sp) : aSt, A ? A.year || 'none' : aSt, A ? A.lang || 'none' : aSt,
       sOk ? S[1] || 'none' : sSt, sOk ? (S[5] === 'psa' ? S[2] || 'none' : 'not given') : sSt, sOk && S[3] != null ? S[3] : null, sOk && S[4] != null ? S[4] : null,
       A ? 'none' : aSt === 'not read' ? 'not read' : 'none',
       x[2], x[6], x[18] || null, S,
+      GD[0] || null, GD[2] || null, GD[1] || null, GD[3] || null,           // 71 PC Grade, 72 CL Grade, 73 / 74 where each came from
       ordOf(base) * 64 + 1 + x[1]];
     out.push(r);
   }
   return out;
 }
+// the two sides' grades are the same grade ('CGC 10 PRISTINE' = 'CGC 10 Pristine'); 'Grade 9 (any grader)' is not 'PSA 9'
+function grSameGrade(a, b) { const n = v => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase(); return !!a && !!b && n(a) === n(b); }
+const GR_PCG_FROM = {sales: 'the sales of this grade and grader PriceCharting recorded', chart: 'PriceCharting’s PSA 10 chart line',
+  chart_mixed: 'PriceCharting’s chart line for this grade number, which blends every grader (PSA, CGC, BGS, SGC …): it has no price of this grader’s own',
+  mixed: 'PriceCharting’s price for this grade number, which blends every grader: it has no price of this grader’s own',
+  price: 'PriceCharting’s own price column for this grade and grader', formula: 'PriceCharting’s CGC 10 price here is a formula (0.40 x PSA 10), not sales',
+  population: 'PriceCharting’s population report lists this grade (no price of it)'};
+const GR_CLG_FROM = {page: 'the grade as Card Ladder lists it on the card’s page', sales: 'Card Ladder recorded sales of this grade'};
 // the matcher's own doubt (ids/card_ids.csv status "review"), until Brett answers Review (2026-10-29: highlighted)
 function grUnsure(r) { const c = ((GR.doc && GR.doc.cards) || {})[String(r[0])]; return !!c && c.st === 'review' && r[41] !== 1 && r[41] !== 0; }
 function grRawRow(base) {                                   // a raw card in the both-view: the graded layout, Grade "Raw"
   return [base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], base[8], base[9], base[10], base[11], base[12], base[13], base[14], base[15],
     base[16], base[17], base[18], base[19], base[20], base[21], base[22], base[23], -1, 'Raw', '', '', '', null, null, '', null, null, null, null, null, null,
     null, null, null, null, null, null, null, null, null, null, true, '', 'raw', null, null, null, null, null,
-    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, ordOf(base) * 64];
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, ordOf(base) * 64];
 }
 async function grLoad() {
   if (GR.doc) return GR.doc;
@@ -188,7 +199,10 @@ function grRow(r) {
   const relMis = grFC(c, 'release') === 'mismatch', serMis = grFC(c, 'series') === 'mismatch' || aFC.series === 'mismatch', eraMis = grFC(c, 'era') === 'mismatch' || aFC.era === 'mismatch';
   const rfMis = grFC(c, 'rarity') === 'mismatch' || grFC(c, 'finish') === 'mismatch' || grFC(c, 'special') === 'mismatch';   // a Special word only one side names counts (2026-10-29)
   const setTip = /^pokemon game( promo)?$/i.test(String(r[30] || '')) ? ' title="PSA’s own name: Pokemon Game = 1999 Base Set, Pokemon Game Promo = the Wizards promos (Card Ladder uses PSA’s names)"' : '';
-  return '<td><b>' + esc(r[25]) + '</b>' + (grUnsure(r) ? ' <span class="gunsure" title="Unsure match: the automatic matcher was not sure Card Ladder’s card is the same card as PriceCharting’s (its status is “review”, which only means a person should check it - nothing was sent anywhere). Open Review and answer Same card / Not the same card; the highlight goes away once you answer.">unsure match</span>' : '') + '</td>' +
+  const gSame = grSameGrade(r[71], r[72]), gDiff = !!r[71] && !!r[72] && !gSame;
+  const gTip = (side, v, from) => esc(v ? side + ' grade: ' + v + ' - from ' + from + (gDiff ? '. RED: PriceCharting’s grade and Card Ladder’s are not the same, so their prices are not compared' : '') : side + ' has no ' + r[25] + ' (none)');
+  return '<td' + (gDiff ? ' class="rfbad"' : '') + ' title="' + gTip('PriceCharting', r[71], GR_PCG_FROM[r[73]] || 'PriceCharting') + '"><b>' + (r[71] ? esc(r[71]) : '<span class="dim">none</span>') + '</b>' + (grUnsure(r) ? ' <span class="gunsure" title="Unsure match: the automatic matcher was not sure Card Ladder’s card is the same card as PriceCharting’s (its status is “review”, which only means a person should check it - nothing was sent anywhere). Open Review and answer Same card / Not the same card; the highlight goes away once you answer.">unsure match</span>' : '') + '</td>' +
+    '<td' + (gDiff ? ' class="rfbad"' : '') + ' title="' + gTip('Card Ladder', r[72], GR_CLG_FROM[r[74]] || 'Card Ladder') + '"><b>' + (r[72] ? esc(r[72]) : '<span class="dim">none</span>') + '</b></td>' +
     grPcCells(r, c) +
     (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (/spec/.test(r[27]) ? 'No ' + esc(r[25]) + ' slab read yet: PSA’s page for the card itself (spec ' + esc(c.spec) + '; PSA asks you to sign in)' : 'The cert number of a ' + esc(r[25]) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its ' + esc(r[26]) + ' cert page') + '">' + esc(r[27]) + '</a></td>' : '<td><span class="dim" title="No ' + esc(r[25]) + ' slab read yet, and no PSA spec for a CGC row">none</span></td>') +
     (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : '<td><span class="dim">none</span></td>') +
@@ -208,7 +222,8 @@ function grRow(r) {
       : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
     (r[35] == null ? '<td class="num"><span class="dim" title="' + esc('Card Ladder recorded no ' + r[25] + ' sale last month. Its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">-</span></td>'
       : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' (an average: Card Ladder gives only its monthly average, so Hodges–Lehmann waits until its single sales are saved) · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
-    (r[36] == null ? gdash : '<td class="num" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month') + '">' + fmtPct(r[36], true, 1) + '</td>') +
+    (r[36] != null ? '<td class="num" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month (both ' + r[71] + ')') + '">' + fmtPct(r[36], true, 1) + '</td>'
+      : r[6] != null && r[35] != null ? '<td class="num rfbad" title="' + esc('Not compared: PriceCharting’s price is for ' + (r[71] || 'another grade') + ', Card Ladder’s for ' + (r[72] || 'another grade') + ' - not the same grade') + '">≠ grade</td>' : gdash) +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) + gdash + grPct(r[12], false, 2) + grPct(r[13]) +
     grInt(r[16]) + grInt(r[37]) + gdash + gdash +
     gdash + gdash + gdash + gdash + gdash + gdash +
@@ -217,7 +232,7 @@ function grRow(r) {
     '<td class="gflc">' + (r[42] ? '<button class="gflag on" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + esc('Your flag: ' + r[42] + ((GMARKS[r[0] + '|' + r[50]] || {}).note ? ' - ' + GMARKS[r[0] + '|' + r[50]].note : '') + '. Click to change it or take it off.') + '">⚑ ' + esc(r[42]) + '</button>' : '<button class="gflag" data-k="' + r[0] + '|' + esc(r[50]) + '" title="Flag this row with a reason - this view’s own flags, kept apart from the eBay tabs’ Flags">⚐</button>') + '</td>';
 }
 function grRawCells(r) {                                    // a raw card in the both-view (the raw tab's figures, the CL columns empty)
-  return '<td><span class="dim">Raw</span></td>' + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
+  return '<td><span class="dim">Raw</span></td>' + gdash + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
     gdash.repeat(6) + gdash.repeat(8) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) +
     '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
@@ -237,12 +252,12 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
   fav: {s: 'pc', k: r => r[0], c: r => r[0]},
   extra: r => r[48] ? !GFLAGONLY && grTermPass(r[0], true) : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]),
   rowClass: r => !r[48] && grUnsure(r) ? 'grunsure' : '',
-  hay: r => [r[1], r[2], r[14], r[25], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63]].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
+  hay: r => [r[1], r[2], r[14], r[25], r[71], r[72], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63]].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
   // columns added (or removed, n < 0) since a layout was saved, so Brett's own order and eyes stay on the same columns:
   // v1 Graded To PC Sales Ratio removed; v2 PC Illustrator, CL Illustrator, Series, Era after CL Release (2026-10-28);
   // v3 the ten Auth columns after CL Release, v4 Auth Illustrator after CL Illustrator; v5 / v6 Auth Pop and Auth Pop
-  // Higher removed again (2026-10-29)
-  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}],
+  // Higher removed again (2026-10-29); v7 CL Grade after the grade column, which became PC Grade (2026-10-29)
+  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}],
   row: grRow, root: null});
 const GR_TABLES = {pcg: Object.assign(grCfg(() => GR.rows, 'graded rows'), {root: '#pcv-g', name: 'PriceCharting · graded'}),
                    pca: Object.assign(grCfg(grAll, 'rows'), {root: '#pcv-a', name: 'PriceCharting · raw + graded'})};
@@ -552,7 +567,9 @@ function grOpenReview(key) {
   const c = (GR.doc.cards || {})[String(r[0])] || {}, cl = c.cl || [], base = idRow.get(r[0]) || [];
   const pcu = pcPicture(r[0]), pcPage = 'https://www.pricecharting.com/game/' + r[0];
   if (!pcu) pcAsk(r[0]);
-  const clu = GR_CL_IMG((c.imgs || {})[r[50]] || cl[6]), clPage = grClUrl(c.pid);   // Card Ladder's picture of THIS grade when it has one
+  // Card Ladder's picture of a slab of THIS grade only (2026-10-29, Brett: the picture, its cert and its link must not
+  // be another grade's): none of this grade -> no picture, never the page's main picture of some other slab
+  const clu = GR_CL_IMG((c.imgs || {})[r[50]]), clPage = grClUrl(c.pid);
   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
   const row = (l, rr, a) => '<div class="rrow r3"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div><div>' + (a || '') + '</div></div>';
   const v = r[41], mk = GMARKS[key] || {};
@@ -578,7 +595,8 @@ function grOpenReview(key) {
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
            : '<div class="rvbox"><a href="' + pcPage + '" target="_blank" rel="noopener">See the picture on PriceCharting</a><small>being fetched now — it appears here within a minute or two</small></div>') + '</div>' +
     '<div class="rvside"><h4>Card Ladder ' + (clPage ? '<a href="' + esc(clPage) + '" target="_blank" rel="noopener">↗</a>' : '') + '</h4>' +
-      (clu ? '<a href="' + esc(clPage || '#') + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(clu) + '" alt="Card Ladder picture: click to open the card on Card Ladder"></a>' + ((c.imgs || {})[r[50]] ? '' : '<small class="dim">Card Ladder’s main picture: it has none of a ' + esc(r[25]) + ' slab</small>') : '<div class="rvbox"><span class="dim">no picture on file</span></div>') + '</div>' +
+      (clu ? '<a href="' + esc(clu) + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(clu) + '" alt="Card Ladder’s picture of a ' + esc(r[25]) + ' slab: click to open it full size"></a><small class="dim">a ' + esc(r[25]) + ' slab from a sale Card Ladder recorded - another copy of the same grade, so its cert is its own</small>'
+        : '<div class="rvbox"><span class="dim">none</span><small>Card Ladder has no picture of a ' + esc(r[25]) + ' slab of this card</small></div>') + '</div>' +
     '<div class="rvside"><h4>' + esc(r[26]) + ' (Auth) ' + (certUrl ? '<a href="' + esc(certUrl) + '" target="_blank" rel="noopener">↗</a>' : '') + '</h4>' +
       (A && A.ch && A.ch.image ? '<a href="' + esc(certUrl || A.ch.image) + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(A.ch.image) + '" alt="Card Hedge’s picture of the card it matched to the cert"></a><small class="dim">Card Hedge’s picture of the card it matched to ' + esc(r[26] + ' ' + A.cert) + '</small>'
         : '<div class="rvbox">' + (certUrl ? '<a href="' + esc(certUrl) + '" target="_blank" rel="noopener">Open the cert on ' + esc(r[26]) + '’s site</a>' : '') + '<small>' + esc(A ? 'no picture from the cert lookups' : GR_AST_TIP[r[56]] || 'no slab read') + '</small></div>') + '</div></div>';
@@ -587,6 +605,7 @@ function grOpenReview(key) {
   const factc = (lab, val, sub, cls) => '<span class="lab">' + lab + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
   const none = '<span class="dim">none</span>';
   const pg = (c.pg || {})[r[50]], gl = r[25];
+  const gDiffR = !!r[71] && !!r[72] && !grSameGrade(r[71], r[72]);
   let ngB = 'not read', ngS = /\./.test(gl) || /Pristine|Perfect/.test(gl) ? 'PriceCharting’s population has no ' + esc(gl) + ' line' : 'no population read for this card yet';
   if (pg) {
     if (pg[4] != null) { ngB = (pg[4] >= 0 ? '' : '−') + Math.abs(pg[4]).toLocaleString('en-US'); ngS = 'last month: ' + esc(gl) + ' population at month end vs the month before (PriceCharting’s page)'; }
@@ -595,7 +614,7 @@ function grOpenReview(key) {
   }
   const top = '<div class="rvtop"><button type="button" class="tbtn" id="grv-trend">Trend</button>' +
     '<div>' + factc('Number graded', ngB, ngS) + '</div>' +
-    '<div>' + factc('PC to CL % difference (last month)', r[36] == null ? '-' : fmtPct(r[36], true, 1), 'PC ' + fmtMoneyPlain(r[6]) + ' · CL ' + fmtMoneyPlain(r[35]) + ' (' + esc(grMonthName(r[17])) + '’s sales: PC Hodges–Lehmann, CL average)') + '</div></div>';
+    '<div>' + factc('PC to CL % difference (last month)', r[36] == null ? (gDiffR && r[6] != null && r[35] != null ? '<span class="down">not compared: PC is ' + esc(r[71]) + ', CL is ' + esc(r[72]) + '</span>' : '-') : fmtPct(r[36], true, 1), 'PC ' + fmtMoneyPlain(r[6]) + ' · CL ' + fmtMoneyPlain(r[35]) + ' (' + esc(grMonthName(r[17])) + '’s sales: PC Hodges–Lehmann, CL average)') + '</div></div>';
   h = h.replace('<div class="rvpair">', top + '<div class="rvpair">');
   const idSub = r[27] ? (/spec/.test(r[27]) ? 'no ' + esc(gl) + ' slab read yet: PSA’s page for the card (PSA asks you to sign in)' : 'a ' + esc(gl) + ' slab of this card, read off a PriceCharting sold-listing photo') : 'no ' + esc(gl) + ' slab read yet';
   const isGame = /^pokemon game( promo)?$/i.test(String(cl[2] || ''));
@@ -629,7 +648,8 @@ function grOpenReview(key) {
         factc('Series', (c.ser || [])[2] ? esc(c.ser[2]) : A ? none : aw(r[56]), A ? 'only where the text names it' : '', amk('series'))) +
     row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era')), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era'))) +
     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded'), '') +
-    row(fact('Grade and grader', esc(r[25])), fact('Grade and grader', esc(r[25])), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && S[5] === 'psa' ? 'label type: ' + esc(S[2] || 'none') : sOk ? 'from Card Hedge (GemRate); no label type' : '')) +
+    row(factc('Grade and grader', r[71] ? esc(r[71]) : none, r[71] ? 'from ' + esc(GR_PCG_FROM[r[73]] || 'PriceCharting') : 'PriceCharting has no ' + esc(r[25]), gDiffR ? 'bad' : ''),
+        factc('Grade and grader', r[72] ? esc(r[72]) : none, r[72] ? 'from ' + esc(GR_CLG_FROM[r[74]] || 'Card Ladder') : 'Card Ladder has no ' + esc(r[25]), gDiffR ? 'bad' : ''), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && S[5] === 'psa' ? 'label type: ' + esc(S[2] || 'none') : sOk ? 'from Card Hedge (GemRate); no label type' : '')) +
     row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of its ' + esc(gl) + ' sales in ' + esc(grMonthName(r[17])) + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
         fact('Card Hedge’s card', A && A.ch ? esc([A.ch.player, A.ch.set, A.ch.number ? '#' + A.ch.number : '', A.ch.variant].filter(Boolean).join(' · ')) : aw(A ? 'none' : r[56]),
           A && A.ch ? (A.ch.source === 'gemrate_id' ? 'found by a direct ID link from the cert' : A.ch.source === 'card_match' ? 'an AI guess from the description' + (A.ch.conf ? ' (confidence ' + esc(A.ch.conf) + ')' : '') + ' - check it' : esc(A.ch.source || '')) : 'the card Card Hedge matched to the cert')) +

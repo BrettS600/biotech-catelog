@@ -1940,6 +1940,22 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   grade). The CL cert now shows only on its own grade's row; other rows say "no <grade> slab looked up" and name the
   slab the page was found with. Looking up every grade's slab on Card Ladder (~1,000 lookups for 100 cards) waits for
   the next Card Ladder run.
+  (10) PC GRADE AND CL GRADE (2026-10-29, Brett: "we should have two grade columns ... CL grade and PC grade"; "the
+  grade for CL is derived from the CL website"; "The grade of a PSA 7 should not match the grade of a PSA 10, nor should
+  the price ... This problem must be avoided in the future"; the picture, its cert and its link too). Each row's doc
+  entry x[20] = [PC grade, where from, CL grade, where from] (graded_site.pc_grade / cl_grade): CL = Card Ladder's own
+  label on the card's page ("CGC 10 Pristine"), or a grade it recorded sales of, else none; PC = the grade PriceCharting's
+  price is for: its recorded sales of the grade + grader, its PSA 10 line, its own column, its population - BUT its
+  Grade 9 / 8 / 7 / 9.5 chart lines blend every grader, so a row priced from one says "Grade 9 (any grader)", which is
+  not "PSA 9" (on the live data 410 rows' PC Graded (last month) came from a blended line; 97 of them were being
+  compared with Card Ladder's PSA / CGC price). The old Grade column is now PC Grade (data-k 24, still sorts by grade);
+  CL Grade (data-k 72) follows it (cfg.inserted v7 at 3). Page row r[71] PC grade, r[72] CL grade, r[73] / r[74] their
+  sources. PC to CL % (r[36]) only when the two grades are the same (grSameGrade); otherwise the cell says "≠ grade"
+  (red) and both grade cells are red. Review: each side's own grade, red when they differ; the CL picture is ONLY Card
+  Ladder's picture of a slab of this grade (c.imgs[gk]) - no fallback to the page's main picture (it was a CGC
+  Authentic slab on Alakazam) - and clicking it opens it full size. Two slabs of the same grade carry different certs
+  (each slab has its own), so Card Ladder's picture shows another copy's cert: same grade is what must match. The build
+  log counts the rows whose grades differ.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

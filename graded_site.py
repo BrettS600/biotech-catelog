@@ -121,6 +121,62 @@ def write_enc(path, obj, key):
     return len(payload)
 
 
+def grade_label(k):
+    """'psa|g9_5' -> 'PSA 9.5', 'cgc|g10pristine' -> 'CGC 10 Pristine' (the page's grLabel)."""
+    g, x = k.split("|", 1)
+    x, sfx = x[1:], ""
+    for w in ("pristine", "perfect"):
+        if x.endswith(w):
+            x, sfx = x[:-len(w)], " " + w.title()
+    return f"{g.upper()} {x.replace('_', '.')}{sfx}"
+
+
+def grade_norm(label):
+    """A grade label reduced for comparing: 'CGC 10 PRISTINE' == 'cgc 10 pristine'; 'Grade 9 (any grader)' stays apart."""
+    return re.sub(r"\s+", " ", str(label or "")).strip().lower()
+
+
+def cl_grade(pr, k, mon):
+    """Card Ladder's own label for grade k on the card's page ('PSA 10', 'CGC 10 Pristine'), and where it was seen:
+    'page' = the page's grade list, 'sales' = only its sales record. (None, None) when Card Ladder has no such grade."""
+    g, x = k.split("|", 1)
+    for gr in (pr or {}).get("graders") or []:
+        if gr.get("g") != g:
+            continue
+        for e in gr.get("grades") or []:
+            if e and e[0] == x:
+                return f"{g.upper()} {str(e[1]).strip().title()}", "page"
+    if mon.get(k):
+        return grade_label(k), "sales"
+    return None, None
+
+
+def pc_grade(k, pc1, ps_list, pc_price, src, popk):
+    """PriceCharting's own grade for row k, and where it comes from. A blended chart line ('Grade 9' over every grader)
+    is NOT the row's grade: it is labelled 'Grade 9 (any grader)' so the page can see the two sides differ."""
+    num = grade_label(k).split(" ", 1)[1]
+    kind = (pc1 or [None, None, None])[2]
+    if kind == "hl":
+        return grade_label(k), "sales"
+    if kind == "chart":
+        return grade_label(k), "chart"
+    if kind == "chart_mixed":
+        return f"Grade {num} (any grader)", "chart_mixed"
+    if ps_list:
+        return grade_label(k), "sales"
+    if pc_price and src == "pc":
+        return grade_label(k), "price"
+    if pc_price and src and str(src).startswith("sales"):
+        return grade_label(k), "sales"
+    if pc_price and src == "mixed":
+        return f"Grade {num} (any grader)", "mixed"
+    if pc_price and src == "formula":
+        return f"{grade_label(k)} (PriceCharting formula: 0.40 x PSA 10)", "formula"
+    if popk:
+        return grade_label(k), "population"
+    return None, None
+
+
 def r2(v):
     return None if v is None or (isinstance(v, float) and (v != v or v in (float("inf"), float("-inf")))) else round(float(v), 2)
 
@@ -507,6 +563,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     pop_hist = load_pop_hist(cd, ids, last_m)
     psa_c, ch_c = load_psa_certs(cd), load_ch_certs(cd)
     checks = []
+    grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
@@ -582,12 +639,19 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                 pts = dict((x[0], x[1]) for x in (pmon.get(cid) or {}).get(line, [])) if line else {}
                 if last_m in pts:
                     pc1 = [r2(pts[last_m]), None, "chart" if k == "psa|g10" else "chart_mixed"]
+            # each side's own grade for this row (2026-10-29, Brett: "we should have two grade columns ... CL grade and PC
+            # grade"; "the grade for CL is derived from the CL website"): a side that has no such grade says none, and a
+            # price is compared only where the two grades are the same
+            pgl, pgf = pc_grade(k, pc1, ps_list, pc_price, src, pop.get(cid, {}).get(k))
+            cgl, cgf = cl_grade(pr, k, mon)
+            if pgl and cgl and grade_norm(pgl) != grade_norm(cgl):
+                grade_diff += 1
             ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c)
             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
                                         ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None]
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
-                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth])
+                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf]])
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
         pset = str(pcrow.get("console-name", "")) if pcrow is not None else ""
         mnum = re.search(r"#(\S+)\s*$", pname)
@@ -656,7 +720,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
            "markt": max((m["t"] for m in marks.values()), default=0),
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
-                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth"],
+                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades"],
            "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
     if key is None:
         print("graded: no SITE_PASSWORD - nothing written")
@@ -668,7 +732,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     for s, obj in shards.items():
         write_enc(os.path.join(out_dir, "gtrend", f"s{s}.bin"), obj, key)
     print(f"graded: {len(rows)} rows over {len(cards)} cards -> {out_dir}/graded.bin ({n / 1e3:.0f} KB gzip), "
-          f"{len(shards)} trend file(s)")
+          f"{len(shards)} trend file(s); {grade_diff} rows where PriceCharting's grade is not Card Ladder's (not compared)")
     return doc, trends
 
 
