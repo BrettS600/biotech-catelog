@@ -1,0 +1,297 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 075688f..9f9951e 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1958,2 +1958,18 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   log counts the rows whose grades differ.
++  (11) ONLY GRADER-SPECIFIC PRICECHARTING FIGURES (2026-10-29, Brett: keep LAST MONTH - "if we dont have last month data
++  then blank it or not read it"; no "today" comparison; "for data analysis in /data we should make a note to not
++  analyze the data for pc grade 9.5 or below"). PriceCharting's Grade 1 - 9.5 prices blend every grader (live: 410 rows'
++  PC Graded (last month) came from those blended chart lines, 97 compared with Card Ladder). graded_site: a row's PC
++  price is its recorded sales of the exact grade + grader (else PSA 10's own line / column); blended "mixed" and the CGC
++  10 "formula" prices are dropped (pc_price None), the Δ7d / Δ30d / range / volatility / slope stats only for PSA 10 and
++  CGC 10 columns (col_ok), the Trend's PC chart line only PSA 10; pc1 kinds now hl / chart (PSA 10) / "none" (our sales
++  record covers last month, no such sale) / "not_read" (it does not reach back to the start of last month yet). Rows
++  that had nothing but a blended price are gone (1291 -> 1187 on the test data). Page: PC Graded (last month) shows "not
++  read" / "none". pc_grade lost its "Grade 9 (any grader)" branch, so ≠ grade should not occur any more. THE FULL PRICE
++  GUIDE: pchist.price_guide reads PriceCharting's "Full Price Guide" table (div#full-prices: Ungraded, Grade 1 ... 9.5,
++  TAG / ACE / SGC / CGC / PSA / BGS 10, BGS 10 Black, CGC 10 Pristine) on every page read -> rec["guide"] {column: cents
++  | None} + rec["guide_t"] (its read day; a page that lost the table keeps the old one and its day), off the page's pc/
++  files (PAGE_DROP), out in pcgh/ -> data_archive.pc_guide -> card-data/data/pricecharting/guide/guide_<YYYY-MM>.csv.gz
++  (one row per card per read day, dollars, "other" = JSON of unknown rows). No GRADED_VERSION bump: it fills in as the
++  pages are re-read (monthly, busy cards sooner). Not shown on the page. card-data's data/README.md carries the warning.
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/data_archive.py b/data_archive.py
+index 3f3d46c..d2a36f8 100644
+--- a/data_archive.py
++++ b/data_archive.py
+@@ -34,2 +34,6 @@ Runs on GitHub's machine (.github/workflows/data_archive.yml, daily after the si
+                                   chart (grade 7, 8, 9, 9.5 - every grader blended - and PSA 10). Full runs only.
++  data/pricecharting/guide/       guide_<YYYY-MM>.csv.gz = PriceCharting's "Full Price Guide" table on each card page, every
++                                  row as the page labels it (ungraded, grade_1 ... grade_9_5, tag_10, ace_10, sgc_10, cgc_10,
++                                  psa_10, bgs_10, bgs_10_black, cgc_10_pristine), one row per card per read day (2026-10-29,
++                                  Brett). GRADES 1 - 9.5 BLEND EVERY GRADER: never analyse them as PSA / CGC prices.
+ 
+@@ -500,2 +504,48 @@ GS_OUT = ["card_id", "date", "grade", "grader", "price", "best_offer", "source",
+ 
++GUIDE_COLS = ["ungraded"] + [f"grade_{g}" for g in ("1", "2", "3", "4", "5", "6", "7", "8", "9", "9_5")] + \
++    ["tag_10", "ace_10", "sgc_10", "cgc_10", "psa_10", "bgs_10", "bgs_10_black", "cgc_10_pristine"]
++
++
++def pc_guide(folder, hist):
++    """PriceCharting's Full Price Guide on each card page (the collector's pcgh/ records carry the latest read: guide
++    {column: cents or null}, guide_t its day) -> pricecharting/guide/guide_<read month>.csv.gz: card_id, read_date, the
++    GUIDE_COLS in dollars (empty where the page prints "-"), other = any row label not in GUIDE_COLS (JSON). One row per
++    card per read day; a day already on file is not written again. Returns the rows added."""
++    new = {}
++    for cid, r in hist.items():
++        g, t = r.get("guide"), r.get("guide_t") or r.get("t")
++        if not g or not t:
++            continue
++        other = {k: v for k, v in g.items() if k not in GUIDE_COLS}
++        row = [str(int(cid)), str(t)] + ["" if g.get(c) is None else f"{g[c] / 100:.2f}" for c in GUIDE_COLS] + \
++              [json.dumps({k: (None if v is None else v / 100) for k, v in other.items()}, separators=(",", ":")) if other else ""]
++        new.setdefault(str(t)[:7], []).append(row)
++    if not new:
++        return 0
++    gfolder = os.path.join(folder, "guide")
++    os.makedirs(gfolder, exist_ok=True)
++    cols = ["card_id", "read_date"] + GUIDE_COLS + ["other"]
++    added = 0
++    for month, rows in sorted(new.items()):
++        path = os.path.join(gfolder, f"guide_{month}.csv.gz")
++        old = []
++        if os.path.exists(path):
++            with gzip.open(path, "rt", encoding="utf-8") as f:
++                rd = csv.reader(f)
++                if next(rd, None) == cols:
++                    old = [row for row in rd if row]
++        have = {(row[0], row[1]) for row in old}
++        fresh = [row for row in rows if (row[0], row[1]) not in have]
++        if not fresh:
++            continue
++        added += len(fresh)
++        out_rows = sorted(old + fresh, key=lambda row: (int(row[0]), row[1]))
++        with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
++            w = csv.writer(f, lineterminator="\n")
++            w.writerow(cols)
++            w.writerows(out_rows)
++    log(f"guide: PriceCharting's Full Price Guide - {added:,} new card reads filed")
++    return added
++
++
+ def pc_graded(out, live_dir, password, full):
+@@ -542,3 +592,3 @@ def pc_graded(out, live_dir, password, full):
+     try:
+-        hist = F.read_shards(os.path.join(live_dir, "pcgh"), password)   # the collector's graded shards: {m0, g, pop, t} per card
++        hist = F.read_shards(os.path.join(live_dir, "pcgh"), password)   # the collector's graded shards: {m0, g, pop, guide, guide_t, t} per card
+     except Exception as e:
+@@ -587,2 +637,3 @@ def pc_graded(out, live_dir, password, full):
+     log(f"graded: population report on {len(pop_rows):,} cards")
++    res["guide_rows_added"] = pc_guide(folder, hist)
+     if full:
+diff --git a/graded_site.py b/graded_site.py
+index 67d3742..c366377 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -50,2 +50,9 @@ the mean's precision. Card Ladder gives only its monthly average (no single sale
+ until its sales are saved and timed (later).
++ONLY GRADER-SPECIFIC PRICECHARTING FIGURES (2026-10-29, Brett: keep last month; "if we dont have last month data then
++blank it or not read it"; "not analyze the data for pc grade 9.5 or below"): PriceCharting's Grade 7 / 8 / 9 / 9.5
++prices (cib / new / graded / box-only columns, the chart's grade lines, the page's "Full Price Guide" Grade 1 - 9.5
++rows) blend every grader, and its CGC 10 can be a 0.40 x PSA 10 formula. None of them is used for a row: its price is
++the recorded sales of the exact grade and grader (else PSA 10's own line / column), its daily moves (Δ7d ...) only for
++PSA 10 and CGC 10, and last month's price is "none" (our sales record covers last month, no such sale) or "not_read"
++(it does not reach back that far yet) when there is none. The Trend's PC chart line is PSA 10's only.
+ 
+@@ -154,7 +161,7 @@ def cl_grade(pr, k, mon):
+ def pc_grade(k, pc1, ps_list, pc_price, src, popk):
+-    """PriceCharting's own grade for row k, and where it comes from. A blended chart line ('Grade 9' over every grader)
+-    is NOT the row's grade: it is labelled 'Grade 9 (any grader)' so the page can see the two sides differ."""
+-    num = grade_label(k).split(" ", 1)[1]
++    """PriceCharting's own grade for row k, and where it comes from: its recorded sales of this grade and grader, its
++    PSA 10 line or own column, its population report. (None, None) when PriceCharting has nothing of this grade of its
++    own - its blended Grade 7 / 8 / 9 / 9.5 figures are not this grade and are no longer used (2026-10-29)."""
+     kind = (pc1 or [None, None, None])[2]
+-    if kind == "hl":
++    if kind == "hl" or ps_list or (pc_price and src and str(src).startswith("sales")):
+         return grade_label(k), "sales"
+@@ -162,14 +169,4 @@ def pc_grade(k, pc1, ps_list, pc_price, src, popk):
+         return grade_label(k), "chart"
+-    if kind == "chart_mixed":
+-        return f"Grade {num} (any grader)", "chart_mixed"
+-    if ps_list:
+-        return grade_label(k), "sales"
+     if pc_price and src == "pc":
+         return grade_label(k), "price"
+-    if pc_price and src and str(src).startswith("sales"):
+-        return grade_label(k), "sales"
+-    if pc_price and src == "mixed":
+-        return f"Grade {num} (any grader)", "mixed"
+-    if pc_price and src == "formula":
+-        return f"{grade_label(k)} (PriceCharting formula: 0.40 x PSA 10)", "formula"
+     if popk:
+@@ -614,4 +611,10 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                     src = "formula"                         # PriceCharting's CGC 10 = 0.40 x PSA 10: not a market price
++            # only grader-specific PriceCharting figures (2026-10-29, Brett): its 7 / 8 / 9 / 9.5 columns blend every grader
++            # and its CGC 10 can be a 0.40 x PSA 10 formula - neither is this row's grade, so neither is shown; the
++            # sales PriceCharting recorded of this exact grade and grader stand in, else nothing
++            col_ok = kind == "pc" and src != "formula"
+             if sp is not None and src in (None, "mixed", "formula"):
+                 pc_price, src = sp, f"sales:{sn}:{sd}"
++            elif src in ("mixed", "formula"):
++                pc_price, src = None, None
+             ps_list = (psales.get(cid) or {}).get(k, [])
+@@ -627,3 +630,3 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             cl_avg1 = m[last_m][2] if last_m in m else None
+-            st = stats_by_col.get(col, {}) if col else {}
++            st = stats_by_col.get(col, {}) if col and col_ok else {}    # the daily moves of a blended column are not this grade's
+             mk = marks.get((str(cid), k))
+@@ -632,11 +635,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             # last month's PriceCharting price of this grade and grader: the Hodges-Lehmann estimate of the sales it
+-            # recorded, else its monthly chart value (PSA 10 its own line; 9 / 9.5 / 8 / 7 blend every grader)
++            # recorded of it, else (PSA 10 only) its monthly PSA 10 chart value. Its 9 / 9.5 / 8 / 7 chart lines blend
++            # every grader, so they are not used (2026-10-29, Brett: "if we dont have last month data then blank it or
++            # not read it"): "none" = our record reaches back past the start of last month and holds no such sale,
++            # "not_read" = it does not reach back that far yet
+             m1 = [p for d, p in ps_list if d[:7] == last_m]
+             pc1 = [r2(hodges_lehmann(m1)), len(m1), "hl"] if m1 else None
+-            if pc1 is None:
+-                gnum = k.split("|g", 1)[1]
+-                line = "psa_10" if k == "psa|g10" else ({"9": "grade_9", "9_5": "grade_9_5", "8": "grade_8", "7": "grade_7"}.get(gnum))
+-                pts = dict((x[0], x[1]) for x in (pmon.get(cid) or {}).get(line, [])) if line else {}
++            if pc1 is None and k == "psa|g10":
++                pts = dict((x[0], x[1]) for x in (pmon.get(cid) or {}).get("psa_10", []))
+                 if last_m in pts:
+-                    pc1 = [r2(pts[last_m]), None, "chart" if k == "psa|g10" else "chart_mixed"]
++                    pc1 = [r2(pts[last_m]), None, "chart"]
++            if pc1 is None:
++                pc1 = [None, 0, "none"] if pc_n1 is not None else [None, None, "not_read"]
+             # each side's own grade for this row (2026-10-29, Brett: "we should have two grade columns ... CL grade and PC
+@@ -704,3 +710,3 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
+-              "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items()},
++              "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"},   # the 9 / 9.5 / 8 / 7 lines blend every grader
+               "ps": {}}
+diff --git a/page/graded.js b/page/graded.js
+index aa44e01..6ef0f76 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -143,2 +143,5 @@ function grPc1Title(r) {                                    // last month's Pric
+   if (p[2] === 'chart_mixed') return 'PriceCharting’s monthly grade ' + r[25].split(' ')[1] + ' chart value for ' + mo + ': it blends every grader (no ' + r[25] + ' sale recorded that month)';
++  // only this grade and grader's own figures are used (2026-10-29): PriceCharting's 9 / 9.5 / 8 / 7 lines blend graders
++  if (p[2] === 'none') return 'none: our record of PriceCharting’s ' + r[25] + ' sales covers all of ' + mo + ' and holds no ' + r[25] + ' sale';
++  if (p[2] === 'not_read') return 'not read: our record of PriceCharting’s ' + r[25] + ' sales does not reach back to the start of ' + mo + ' yet (it fills in as the card pages are re-read; PriceCharting’s own grade ' + r[25].split(' ')[1] + ' price blends every grader, so it is not used)';
+   return '';
+@@ -220,3 +223,3 @@ function grRow(r) {
+     grInt(r[5]) +
+-    (r[6] == null ? '<td class="num"><span class="dim" title="' + esc('No ' + r[25] + ' sale recorded by PriceCharting last month and no chart value for it. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">-</span></td>'
++    (r[6] == null ? '<td class="num"><span class="dim" title="' + esc((grPc1Title(r) || 'No ' + r[25] + ' sale recorded by PriceCharting last month') + '. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + ((r[69] || [])[2] === 'not_read' ? 'not read' : (r[69] || [])[2] === 'none' ? 'none' : '-') + '</span></td>'
+       : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
+@@ -652,3 +655,3 @@ function grOpenReview(key) {
+         factc('Grade and grader', r[72] ? esc(r[72]) : none, r[72] ? 'from ' + esc(GR_CLG_FROM[r[74]] || 'Card Ladder') : 'Card Ladder has no ' + esc(r[25]), gDiffR ? 'bad' : ''), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && S[5] === 'psa' ? 'label type: ' + esc(S[2] || 'none') : sOk ? 'from Card Hedge (GemRate); no label type' : '')) +
+-    row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of its ' + esc(gl) + ' sales in ' + esc(grMonthName(r[17])) + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
++    row(fact('Grade price', r[6] != null ? fmtMoneyPlain(r[6]) : (r[69] || [])[2] === 'not_read' ? '<span class="dim">not read</span>' : '<span class="dim">none</span>', esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of its ' + esc(gl) + ' sales in ' + esc(grMonthName(r[17])) + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
+         fact('Card Hedge’s card', A && A.ch ? esc([A.ch.player, A.ch.set, A.ch.number ? '#' + A.ch.number : '', A.ch.variant].filter(Boolean).join(' · ')) : aw(A ? 'none' : r[56]),
+diff --git a/page/graded_help.js b/page/graded_help.js
+index 2a0a7f8..4e37760 100644
+--- a/page/graded_help.js
++++ b/page/graded_help.js
+@@ -3,3 +3,3 @@
+ Object.assign(HELP, {
+-  g_grade: {t: 'PC Grade', f: 'the grade PriceCharting’s figures on this row are for, from PriceCharting itself', m: 'One row per card per grade (which grades show is set in the Grading button). PSA 9 = PriceCharting recorded sales of PSA 9 slabs, or names the grade itself (its PSA 10 line, its population report). “Grade 9 (any grader)” = PriceCharting has only its Grade 9 line, which blends PSA, CGC, BGS, SGC … - not a PSA 9 price, so it is not compared with Card Ladder’s. none = PriceCharting has nothing of this grade. RED = PC Grade and CL Grade are not the same grade (the PC to CL % then says ≠ grade). “Raw” marks an ungraded card in the raw + graded view. An amber “unsure match” tag (and a tinted row) = the automatic matcher was not sure Card Ladder’s card is PriceCharting’s card (its status “review” only means a person should check it; nothing is sent anywhere) - answer it in Review and the tint goes away.', e: 'PSA 10; Grade 9 (any grader); none.'},
++  g_grade: {t: 'PC Grade', f: 'the grade PriceCharting’s figures on this row are for, from PriceCharting itself', m: 'One row per card per grade (which grades show is set in the Grading button). PSA 9 = PriceCharting recorded sales of PSA 9 slabs, or names the grade itself (its PSA 10 line, its population report). PriceCharting’s Grade 1 - 9.5 prices blend every grader (PSA, CGC, BGS, SGC …), so they are never used as a PSA or CGC price. none = PriceCharting has nothing of this grade and grader of its own. RED = PC Grade and CL Grade are not the same grade (the PC to CL % then says ≠ grade). “Raw” marks an ungraded card in the raw + graded view. An amber “unsure match” tag (and a tinted row) = the automatic matcher was not sure Card Ladder’s card is PriceCharting’s card (its status “review” only means a person should check it; nothing is sent anywhere) - answer it in Review and the tint goes away.', e: 'PSA 10; CGC 9.5; none.'},
+   g_clgrade: {t: 'CL Grade', f: 'the grade Card Ladder’s figures on this row are for, from Card Ladder itself', m: 'Card Ladder’s own label for the grade on the card’s page (PSA 10, CGC 10 Pristine …), or a grade it recorded sales of. none = Card Ladder has no such grade for the card, so its columns on this row stay empty. The CL prices, sales and picture on a row are always Card Ladder’s own of this grade. RED = not the same grade as PC Grade (prices not compared).', e: 'CGC 10 Pristine.'},
+@@ -30,6 +30,6 @@ Object.assign(HELP, {
+   g_sales: {t: 'Sales/yr', f: 'PriceCharting sales-volume (every grade together)', m: 'The card’s, not the grade’s; as on the raw tab.', e: ''},
+-  g_pcg: {t: 'PC Graded (last month)', f: 'the Hodges–Lehmann estimate of last month’s sales of this grade and grader that PriceCharting recorded', m: 'Hodges–Lehmann = the median of every pairwise average of the sales: as steady against one odd sale (a mislabeled slab, a shill bid) as the median, and closer to the average’s precision. No sale recorded last month: PriceCharting’s monthly chart value for the month (its PSA 10 line; its grade 9 / 9.5 / 8 / 7 lines blend every grader - marked *). PriceCharting lists only the latest 30 sales of a grade; busy cards are read again before their 30 roll over. Hover: how many sales, and today’s PriceCharting price.', e: '5 sales $140, $145, $146, $150, $400 → about $146 (the average would be $196).'},
++  g_pcg: {t: 'PC Graded (last month)', f: 'the Hodges–Lehmann estimate of last month’s sales of this grade and grader that PriceCharting recorded', m: 'Hodges–Lehmann = the median of every pairwise average of the sales: as steady against one odd sale (a mislabeled slab, a shill bid) as the median, and closer to the average’s precision. Only this grade and grader’s own sales count: PriceCharting’s Grade 9 / 9.5 / 8 / 7 prices blend every grader (PSA, CGC, BGS, SGC …), so they are not used. PSA 10 with no sale recorded: PriceCharting’s monthly PSA 10 chart value. not read = our record of PriceCharting’s sales of this grade does not reach back to the start of last month yet (PriceCharting lists only the latest 30 sales of a grade; it fills in as the card pages are re-read, busy grades sooner); none = the record covers last month and holds no such sale. Hover: how many sales, and today’s PriceCharting price.', e: '5 sales $140, $145, $146, $150, $400 → about $146 (the average would be $196).'},
+   g_clg: {t: 'CL Graded (last month)', f: 'Card Ladder’s average of last month’s sales of this grade', m: 'From the card’s Card Ladder profile (its monthly record: the count and the average of every sale it matched - auctions, Best Offers, Buy It Now). An average, not Hodges–Lehmann: Card Ladder gives only the monthly average, and its single sales are not saved yet (that waits for a test of how long reading them takes). - when it recorded no sale last month. Hover: the number of sales and Card Ladder’s value today.', e: ''},
+-  g_pc2cl: {t: 'PC to CL % Difference', f: '(CL Graded − PC Graded) / PC Graded × 100, last month', m: 'PC’s Hodges–Lehmann estimate (or chart value) against Card Ladder’s average - only where PC Grade and CL Grade are the same grade; otherwise it says ≠ grade (for example PriceCharting’s Grade 9 line blends every grader, so it is not a PSA 9 price). A large gap can be a real price difference, few sales, or a wrong match - check with Review.', e: 'PC $600, CL $660 -> +10%.'},
+-  g_d7: {t: 'Δ 7d %', f: 'PriceCharting’s price for this grade, today vs 7 days ago (this site’s daily snapshots)', m: 'The raw tab’s formula on the grade’s PriceCharting price (PSA 10, grade 9 ...). A grade PriceCharting does not price shows -.', e: ''},
++  g_pc2cl: {t: 'PC to CL % Difference', f: '(CL Graded − PC Graded) / PC Graded × 100, last month', m: 'PC’s Hodges–Lehmann estimate (or chart value) against Card Ladder’s average - only where PC Grade and CL Grade are the same grade; otherwise it says ≠ grade. A large gap can be a real price difference, few sales, or a wrong match - check with Review.', e: 'PC $600, CL $660 -> +10%.'},
++  g_d7: {t: 'Δ 7d %', f: 'PriceCharting’s price for this grade, today vs 7 days ago (this site’s daily snapshots)', m: 'The raw tab’s formula on the grade’s own PriceCharting price - PSA 10 and CGC 10 only. Its Grade 9 / 9.5 / 8 / 7 prices blend every grader, so those rows show -.', e: ''},
+   g_d30: {t: 'Δ 30d %', f: 'PriceCharting’s price for this grade, today vs 30 days ago', m: 'As Δ 7d, over 30 days.', e: ''},
+diff --git a/pchist.py b/pchist.py
+index 359df55..28200ba 100644
+--- a/pchist.py
++++ b/pchist.py
+@@ -69,3 +69,3 @@ GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..29 days)
+ GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
+-PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue")         # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
++PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue", "guide", "guide_t")   # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
+ GS_SHARDS = 1000                                            # the graded sales live in their own files (<store>/gs/<card id % 1000>.json.gz),
+@@ -338,2 +338,32 @@ def pop_report(html):
+ 
++def guide_key(label):
++    """A row label of PriceCharting's Full Price Guide -> a column name: 'Grade 9.5' -> grade_9_5, 'BGS 10 Black' ->
++    bgs_10_black, 'CGC 10 Pristine' -> cgc_10_pristine, 'Ungraded' -> ungraded."""
++    return re.sub(r"[^a-z0-9]+", "_", str(label).lower()).strip("_")
++
++
++def price_guide(html):
++    """PriceCharting's "Full Price Guide" table on the card page (div#full-prices): {column: cents, or None where it
++    prints "-"} - every row as the page labels it (Ungraded, Grade 1 ... 9.5, TAG 10, ACE 10, SGC 10, CGC 10, PSA 10,
++    BGS 10, BGS 10 Black, CGC 10 Pristine). Grades 1 - 9.5 BLEND every grader; only the "<grader> 10" rows name one.
++    Kept for the record (2026-10-29, at Brett's go-ahead); the graded view does not show it."""
++    m = re.search(r'id=["\']full-prices["\']', html)
++    if not m:
++        return None
++    end = html.find("</table>", m.end())
++    if end < 0:
++        return None
++    out = {}
++    for lab, val in re.findall(r"<tr[^>]*>\s*<td[^>]*>(.*?)</td>\s*<td[^>]*>(.*?)</td>", html[m.end():end], re.S):
++        k = guide_key(_plain(lab))
++        v = _plain(val).replace("$", "").replace(",", "").strip()
++        if not k:
++            continue
++        try:
++            out[k] = int(round(float(v) * 100))
++        except ValueError:
++            out[k] = None                                    # "-": PriceCharting has no price for that row
++    return out or None
++
++
+ def graded_series(series, m0, length):
+@@ -419,2 +449,5 @@ def extract(html):
+                 rec["pop"] = pop
++            guide = price_guide(html)
++            if guide:
++                rec["guide"] = guide
+             gs, sizes = graded_tables(html)
+@@ -425,3 +458,3 @@ def extract(html):
+             rec["gv"] = GRADED_VERSION
+-            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables" + (", pop" if pop else "") + (f", due {gd} d" if gd else "")
++            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables" + (", pop" if pop else "") + (", guide" if guide else "") + (f", due {gd} d" if gd else "")
+         except Exception as e:                               # never lose the ungraded record over the graded part
+@@ -569,3 +602,3 @@ def file(cid, rec, today=None):
+         _dirty.add(sh)
+-        if rec.get("g") or rec.get("pop"):
++        if rec.get("g") or rec.get("pop") or rec.get("guide"):
+             _gdirty.add(sh)
+@@ -590,4 +623,8 @@ def keep_graded(cid, old, new, today):
+     old = old or {}
++    if new.get("guide"):                                     # the day the guide table was read (a kept one keeps its own)
++        new["guide_t"] = today
++    elif old.get("guide_t"):
++        new["guide_t"] = old["guide_t"]
+     if not new.get("gv"):
+-        for k in ("g", "pop", "gv", "gdue"):
++        for k in ("g", "pop", "guide", "gv", "gdue"):
+             if k in old and k not in new:
+@@ -596,3 +633,3 @@ def keep_graded(cid, old, new, today):
+         return new
+-    for k in ("g", "pop"):                                   # a page that lost a line or the report keeps the last one
++    for k in ("g", "pop", "guide"):                          # a page that lost a line or the report keeps the last one
+         if k not in new and k in old:
+@@ -772,3 +809,3 @@ def graded_dirty_count():
+ def publish_graded_hist(encrypt):
+-    """The shards whose graded lines or population report changed, as {"pcgh/<shard>.bin": bytes}: per card {m0, g, pop,
++    """The shards whose graded lines or population report changed, as {"pcgh/<shard>.bin": bytes}: per card {m0, g, pop, guide,
+     t} only (the page never reads them - they are for the Data archive, published every few hours so the live branch is
+@@ -782,3 +819,3 @@ def publish_graded_hist(encrypt):
+             d = _load(sh)
+-        pub = {cid: {k: rec[k] for k in ("m0", "g", "pop", "t") if k in rec} for cid, rec in d.items() if rec.get("g") or rec.get("pop")}
++        pub = {cid: {k: rec[k] for k in ("m0", "g", "pop", "guide", "guide_t", "t") if k in rec} for cid, rec in d.items() if rec.get("g") or rec.get("pop") or rec.get("guide")}
+         raw = gzip.compress(json.dumps(pub, separators=(",", ":")).encode("utf-8"))
