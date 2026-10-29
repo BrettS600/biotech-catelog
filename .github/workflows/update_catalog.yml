@@ -99,6 +99,8 @@ jobs:
             data/pricecharting/pc_graded_monthly_*
             data/dictionary/
             data/tcgplayer/
+            data/psa/
+            data/cardhedge/
           sparse-checkout-cone-mode: false
 
       - name: The graded view's answers from the page (Review marks, sorted words) into card-data
@@ -117,6 +119,15 @@ jobs:
           [ -d card-data/data ] || { echo "no card-data checkout"; exit 0; }
           python tcg_details.py --card-data card-data/data --max 400
 
+      - name: Cert lookups (PSA's Public API, Card Hedge) for the graded view's slabs - the Auth columns
+        continue-on-error: true      # no key yet, a refusal or a hiccup: the Auth cells say "not read"; nothing else waits on it
+        env:
+          PSA_API_TOKEN: ${{ secrets.PSA_API_TOKEN }}
+          CARDHEDGE_API_KEY: ${{ secrets.CARDHEDGE_API_KEY }}
+        run: |
+          [ -d card-data/data ] || { echo "no card-data checkout"; exit 0; }
+          python cert_lookups.py --card-data card-data/data
+
       - name: Graded view (the PriceCharting tab's PSA / CGC rows - Card Ladder beside PriceCharting)
         continue-on-error: true      # a hiccup here must never block the site
         env:
@@ -124,7 +135,7 @@ jobs:
         run: |
           python graded_site.py --card-data card-data/data --pc-csv pricecharting.csv --snapshots snapshots --out public
 
-      - name: Save the dictionary, the page's answers, TCGplayer details and the PC / CL field checks to card-data
+      - name: Save the dictionary, the page's answers, TCGplayer details, the cert lookups and the field checks to card-data
         continue-on-error: true      # the site never waits on this; the next build writes them again
         run: |
           [ -d card-data/.git ] || { echo "no card-data checkout"; exit 0; }
@@ -132,12 +143,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           for f in data/dictionary/term_counts.csv data/ids/field_checks.csv data/ids/marks.csv data/dictionary/terms.csv \
-                   data/dictionary/decisions.csv data/tcgplayer/details.csv; do
+                   data/dictionary/decisions.csv data/tcgplayer/details.csv data/psa data/cardhedge; do
             if [ -e "$f" ]; then git add -- "$f"; fi
           done
           if git diff --cached --quiet; then echo "no change"; exit 0; fi
           git diff --cached --stat
-          git commit -q -m "graded view: dictionary, page answers, TCGplayer details, field checks ($(date -u +%F))"
+          git commit -q -m "graded view: dictionary, page answers, TCGplayer details, cert lookups, field checks ($(date -u +%F))"
           b=$(git rev-parse --abbrev-ref HEAD)
           for i in 1 2 3; do
             if git pull -q --rebase origin "$b" && git push -q origin "HEAD:$b"; then echo "pushed"; exit 0; fi
