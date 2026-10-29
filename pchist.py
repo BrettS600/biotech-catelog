@@ -67,7 +67,7 @@ GS_MIN_GRADE = 7                                            # the "Grade N" tabl
 GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card with a full graded table spanning under GDUE_MAX_D / 0.7 days
 GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..29 days)
 GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
-PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue")         # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
+PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue", "guide", "guide_t")   # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
 GS_SHARDS = 1000                                            # the graded sales live in their own files (<store>/gs/<card id % 1000>.json.gz),
                                                             # so the hourly reads of every history shard stay light
 OPTION = re.compile(r'<option value="completed-auctions-([a-z0-9-]+)"\s*>\s*([^<(]+?)\s*\((\d+)\)\s*</option>')
@@ -336,6 +336,36 @@ def pop_report(html):
     return out or None
 
 
+def guide_key(label):
+    """A row label of PriceCharting's Full Price Guide -> a column name: 'Grade 9.5' -> grade_9_5, 'BGS 10 Black' ->
+    bgs_10_black, 'CGC 10 Pristine' -> cgc_10_pristine, 'Ungraded' -> ungraded."""
+    return re.sub(r"[^a-z0-9]+", "_", str(label).lower()).strip("_")
+
+
+def price_guide(html):
+    """PriceCharting's "Full Price Guide" table on the card page (div#full-prices): {column: cents, or None where it
+    prints "-"} - every row as the page labels it (Ungraded, Grade 1 ... 9.5, TAG 10, ACE 10, SGC 10, CGC 10, PSA 10,
+    BGS 10, BGS 10 Black, CGC 10 Pristine). Grades 1 - 9.5 BLEND every grader; only the "<grader> 10" rows name one.
+    Kept for the record (2026-10-29, at Brett's go-ahead); the graded view does not show it."""
+    m = re.search(r'id=["\']full-prices["\']', html)
+    if not m:
+        return None
+    end = html.find("</table>", m.end())
+    if end < 0:
+        return None
+    out = {}
+    for lab, val in re.findall(r"<tr[^>]*>\s*<td[^>]*>(.*?)</td>\s*<td[^>]*>(.*?)</td>", html[m.end():end], re.S):
+        k = guide_key(_plain(lab))
+        v = _plain(val).replace("$", "").replace(",", "").strip()
+        if not k:
+            continue
+        try:
+            out[k] = int(round(float(v) * 100))
+        except ValueError:
+            out[k] = None                                    # "-": PriceCharting has no price for that row
+    return out or None
+
+
 def graded_series(series, m0, length):
     """chart_data's graded lines -> {"g7": [cents|None per month], ...} on the record's months (m0, length); a line
     with no price at all is left out."""
@@ -417,13 +447,16 @@ def extract(html):
             pop = pop_report(html)
             if pop:
                 rec["pop"] = pop
+            guide = price_guide(html)
+            if guide:
+                rec["guide"] = guide
             gs, sizes = graded_tables(html)
             rec["gs"] = gs
             gd = graded_due(gs, sizes)
             if gd:
                 rec["gdue"] = gd
             rec["gv"] = GRADED_VERSION
-            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables" + (", pop" if pop else "") + (f", due {gd} d" if gd else "")
+            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables" + (", pop" if pop else "") + (", guide" if guide else "") + (f", due {gd} d" if gd else "")
         except Exception as e:                               # never lose the ungraded record over the graded part
             how += f"; graded parse failed: {str(e)[:80]}"
     if rec is not None and sales is not None:
@@ -567,7 +600,7 @@ def file(cid, rec, today=None):
         _index[int(cid)] = (day_index(), bool(rec.get("s")), rec.get("gv") or 0, rec.get("gdue"))
         _miss.pop(int(cid), None)
         _dirty.add(sh)
-        if rec.get("g") or rec.get("pop"):
+        if rec.get("g") or rec.get("pop") or rec.get("guide"):
             _gdirty.add(sh)
 
 
@@ -588,13 +621,17 @@ def keep_graded(cid, old, new, today):
     GS_KEEP_N rows at most) and queue the rows not seen before. A read that carried no graded parse keeps the old
     graded fields. Called under _lock."""
     old = old or {}
+    if new.get("guide"):                                     # the day the guide table was read (a kept one keeps its own)
+        new["guide_t"] = today
+    elif old.get("guide_t"):
+        new["guide_t"] = old["guide_t"]
     if not new.get("gv"):
-        for k in ("g", "pop", "gv", "gdue"):
+        for k in ("g", "pop", "guide", "gv", "gdue"):
             if k in old and k not in new:
                 new[k] = old[k]
         new.pop("gs", None)
         return new
-    for k in ("g", "pop"):                                   # a page that lost a line or the report keeps the last one
+    for k in ("g", "pop", "guide"):                          # a page that lost a line or the report keeps the last one
         if k not in new and k in old:
             new[k] = old[k]
     cutoff = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=GS_KEEP_D)).strftime("%Y-%m-%d")
@@ -770,7 +807,7 @@ def graded_dirty_count():
 
 
 def publish_graded_hist(encrypt):
-    """The shards whose graded lines or population report changed, as {"pcgh/<shard>.bin": bytes}: per card {m0, g, pop,
+    """The shards whose graded lines or population report changed, as {"pcgh/<shard>.bin": bytes}: per card {m0, g, pop, guide,
     t} only (the page never reads them - they are for the Data archive, published every few hours so the live branch is
     not pushed 20 MB every ten minutes during a full pass)."""
     with _lock:
@@ -780,7 +817,7 @@ def publish_graded_hist(encrypt):
     for sh in todo:
         with _lock:
             d = _load(sh)
-        pub = {cid: {k: rec[k] for k in ("m0", "g", "pop", "t") if k in rec} for cid, rec in d.items() if rec.get("g") or rec.get("pop")}
+        pub = {cid: {k: rec[k] for k in ("m0", "g", "pop", "guide", "guide_t", "t") if k in rec} for cid, rec in d.items() if rec.get("g") or rec.get("pop") or rec.get("guide")}
         raw = gzip.compress(json.dumps(pub, separators=(",", ":")).encode("utf-8"))
         out[f"pcgh/{sh}.bin"] = encrypt(raw)
     return out

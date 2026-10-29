@@ -32,6 +32,10 @@ Runs on GitHub's machine (.github/workflows/data_archive.yml, daily after the si
                                   and the two rows' difference is the slabs graded that month (2026-10-28).
   data/pricecharting/             pc_graded_monthly_<year>.csv.gz = PriceCharting's monthly graded prices off each card's
                                   chart (grade 7, 8, 9, 9.5 - every grader blended - and PSA 10). Full runs only.
+  data/pricecharting/guide/       guide_<YYYY-MM>.csv.gz = PriceCharting's "Full Price Guide" table on each card page, every
+                                  row as the page labels it (ungraded, grade_1 ... grade_9_5, tag_10, ace_10, sgc_10, cgc_10,
+                                  psa_10, bgs_10, bgs_10_black, cgc_10_pristine), one row per card per read day (2026-10-29,
+                                  Brett). GRADES 1 - 9.5 BLEND EVERY GRADER: never analyse them as PSA / CGC prices.
 
 Keys: SITE_PASSWORD (env) decrypts the shards, the live file and the snapshot - nothing written here is encrypted,
 the repository is private. Nothing here changes the site or the collector.
@@ -498,6 +502,52 @@ GRADED_SERIES = (("g7", "grade_7"), ("g8", "grade_8"), ("g9", "grade_9"), ("g95"
 GS_OUT = ["card_id", "date", "grade", "grader", "price", "best_offer", "source", "row_id", "title"]
 
 
+GUIDE_COLS = ["ungraded"] + [f"grade_{g}" for g in ("1", "2", "3", "4", "5", "6", "7", "8", "9", "9_5")] + \
+    ["tag_10", "ace_10", "sgc_10", "cgc_10", "psa_10", "bgs_10", "bgs_10_black", "cgc_10_pristine"]
+
+
+def pc_guide(folder, hist):
+    """PriceCharting's Full Price Guide on each card page (the collector's pcgh/ records carry the latest read: guide
+    {column: cents or null}, guide_t its day) -> pricecharting/guide/guide_<read month>.csv.gz: card_id, read_date, the
+    GUIDE_COLS in dollars (empty where the page prints "-"), other = any row label not in GUIDE_COLS (JSON). One row per
+    card per read day; a day already on file is not written again. Returns the rows added."""
+    new = {}
+    for cid, r in hist.items():
+        g, t = r.get("guide"), r.get("guide_t") or r.get("t")
+        if not g or not t:
+            continue
+        other = {k: v for k, v in g.items() if k not in GUIDE_COLS}
+        row = [str(int(cid)), str(t)] + ["" if g.get(c) is None else f"{g[c] / 100:.2f}" for c in GUIDE_COLS] + \
+              [json.dumps({k: (None if v is None else v / 100) for k, v in other.items()}, separators=(",", ":")) if other else ""]
+        new.setdefault(str(t)[:7], []).append(row)
+    if not new:
+        return 0
+    gfolder = os.path.join(folder, "guide")
+    os.makedirs(gfolder, exist_ok=True)
+    cols = ["card_id", "read_date"] + GUIDE_COLS + ["other"]
+    added = 0
+    for month, rows in sorted(new.items()):
+        path = os.path.join(gfolder, f"guide_{month}.csv.gz")
+        old = []
+        if os.path.exists(path):
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                rd = csv.reader(f)
+                if next(rd, None) == cols:
+                    old = [row for row in rd if row]
+        have = {(row[0], row[1]) for row in old}
+        fresh = [row for row in rows if (row[0], row[1]) not in have]
+        if not fresh:
+            continue
+        added += len(fresh)
+        out_rows = sorted(old + fresh, key=lambda row: (int(row[0]), row[1]))
+        with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(cols)
+            w.writerows(out_rows)
+    log(f"guide: PriceCharting's Full Price Guide - {added:,} new card reads filed")
+    return added
+
+
 def pc_graded(out, live_dir, password, full):
     """(1) The collector's pcg/<stamp>.bin chunks (graded sales first seen on the card pages) -> graded_sales/
     graded_sales_<YYYY-MM>.csv.gz by sale month, merged with what is there and deduplicated on (card_id, row_id);
@@ -540,7 +590,7 @@ def pc_graded(out, live_dir, password, full):
     res["graded_sales"] = {"chunks": len(chunks), "rows_read": len(rows), "rows_added": added}
     log(f"graded: {len(chunks)} chunk(s), {len(rows):,} rows read, {added:,} new graded sales filed")
     try:
-        hist = F.read_shards(os.path.join(live_dir, "pcgh"), password)   # the collector's graded shards: {m0, g, pop, t} per card
+        hist = F.read_shards(os.path.join(live_dir, "pcgh"), password)   # the collector's graded shards: {m0, g, pop, guide, guide_t, t} per card
     except Exception as e:
         log(f"graded: shards unreadable ({str(e)[:80]})")
         return res
@@ -585,6 +635,7 @@ def pc_graded(out, live_dir, password, full):
             w.writerows(out_rows)
     res["pop_cards"] = len(pop_rows)
     log(f"graded: population report on {len(pop_rows):,} cards")
+    res["guide_rows_added"] = pc_guide(folder, hist)
     if full:
         by_year = {}
         for cid in sorted(hist, key=int):

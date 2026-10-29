@@ -1956,6 +1956,22 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Authentic slab on Alakazam) - and clicking it opens it full size. Two slabs of the same grade carry different certs
   (each slab has its own), so Card Ladder's picture shows another copy's cert: same grade is what must match. The build
   log counts the rows whose grades differ.
+  (11) ONLY GRADER-SPECIFIC PRICECHARTING FIGURES (2026-10-29, Brett: keep LAST MONTH - "if we dont have last month data
+  then blank it or not read it"; no "today" comparison; "for data analysis in /data we should make a note to not
+  analyze the data for pc grade 9.5 or below"). PriceCharting's Grade 1 - 9.5 prices blend every grader (live: 410 rows'
+  PC Graded (last month) came from those blended chart lines, 97 compared with Card Ladder). graded_site: a row's PC
+  price is its recorded sales of the exact grade + grader (else PSA 10's own line / column); blended "mixed" and the CGC
+  10 "formula" prices are dropped (pc_price None), the Δ7d / Δ30d / range / volatility / slope stats only for PSA 10 and
+  CGC 10 columns (col_ok), the Trend's PC chart line only PSA 10; pc1 kinds now hl / chart (PSA 10) / "none" (our sales
+  record covers last month, no such sale) / "not_read" (it does not reach back to the start of last month yet). Rows
+  that had nothing but a blended price are gone (1291 -> 1187 on the test data). Page: PC Graded (last month) shows "not
+  read" / "none". pc_grade lost its "Grade 9 (any grader)" branch, so ≠ grade should not occur any more. THE FULL PRICE
+  GUIDE: pchist.price_guide reads PriceCharting's "Full Price Guide" table (div#full-prices: Ungraded, Grade 1 ... 9.5,
+  TAG / ACE / SGC / CGC / PSA / BGS 10, BGS 10 Black, CGC 10 Pristine) on every page read -> rec["guide"] {column: cents
+  | None} + rec["guide_t"] (its read day; a page that lost the table keeps the old one and its day), off the page's pc/
+  files (PAGE_DROP), out in pcgh/ -> data_archive.pc_guide -> card-data/data/pricecharting/guide/guide_<YYYY-MM>.csv.gz
+  (one row per card per read day, dollars, "other" = JSON of unknown rows). No GRADED_VERSION bump: it fills in as the
+  pages are re-read (monthly, busy cards sooner). Not shown on the page. card-data's data/README.md carries the warning.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

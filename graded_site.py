@@ -48,6 +48,13 @@ month's sales of the grade and grader it recorded (else its monthly chart value)
 Hodges-Lehmann" - the median of every pairwise average of the sales: as robust to an odd sale as the median, closer to
 the mean's precision. Card Ladder gives only its monthly average (no single sales on file yet), so CL stays an average
 until its sales are saved and timed (later).
+ONLY GRADER-SPECIFIC PRICECHARTING FIGURES (2026-10-29, Brett: keep last month; "if we dont have last month data then
+blank it or not read it"; "not analyze the data for pc grade 9.5 or below"): PriceCharting's Grade 7 / 8 / 9 / 9.5
+prices (cib / new / graded / box-only columns, the chart's grade lines, the page's "Full Price Guide" Grade 1 - 9.5
+rows) blend every grader, and its CGC 10 can be a 0.40 x PSA 10 formula. None of them is used for a row: its price is
+the recorded sales of the exact grade and grader (else PSA 10's own line / column), its daily moves (Δ7d ...) only for
+PSA 10 and CGC 10, and last month's price is "none" (our sales record covers last month, no such sale) or "not_read"
+(it does not reach back that far yet) when there is none. The Trend's PC chart line is PSA 10's only.
 
 Also writes into the card-data checkout (the site workflow commits them there):
   dictionary/term_counts.csv   every term and unidentified phrase seen: category, how many graded cards carry it on
@@ -152,26 +159,16 @@ def cl_grade(pr, k, mon):
 
 
 def pc_grade(k, pc1, ps_list, pc_price, src, popk):
-    """PriceCharting's own grade for row k, and where it comes from. A blended chart line ('Grade 9' over every grader)
-    is NOT the row's grade: it is labelled 'Grade 9 (any grader)' so the page can see the two sides differ."""
-    num = grade_label(k).split(" ", 1)[1]
+    """PriceCharting's own grade for row k, and where it comes from: its recorded sales of this grade and grader, its
+    PSA 10 line or own column, its population report. (None, None) when PriceCharting has nothing of this grade of its
+    own - its blended Grade 7 / 8 / 9 / 9.5 figures are not this grade and are no longer used (2026-10-29)."""
     kind = (pc1 or [None, None, None])[2]
-    if kind == "hl":
+    if kind == "hl" or ps_list or (pc_price and src and str(src).startswith("sales")):
         return grade_label(k), "sales"
     if kind == "chart":
         return grade_label(k), "chart"
-    if kind == "chart_mixed":
-        return f"Grade {num} (any grader)", "chart_mixed"
-    if ps_list:
-        return grade_label(k), "sales"
     if pc_price and src == "pc":
         return grade_label(k), "price"
-    if pc_price and src and str(src).startswith("sales"):
-        return grade_label(k), "sales"
-    if pc_price and src == "mixed":
-        return f"Grade {num} (any grader)", "mixed"
-    if pc_price and src == "formula":
-        return f"{grade_label(k)} (PriceCharting formula: 0.40 x PSA 10)", "formula"
     if popk:
         return grade_label(k), "population"
     return None, None
@@ -612,8 +609,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                 p10 = money(pcrow.get("manual-only-price", ""))
                 if p10 and abs(pc_price - round(p10 * 0.4, 2)) < 0.02:
                     src = "formula"                         # PriceCharting's CGC 10 = 0.40 x PSA 10: not a market price
+            # only grader-specific PriceCharting figures (2026-10-29, Brett): its 7 / 8 / 9 / 9.5 columns blend every grader
+            # and its CGC 10 can be a 0.40 x PSA 10 formula - neither is this row's grade, so neither is shown; the
+            # sales PriceCharting recorded of this exact grade and grader stand in, else nothing
+            col_ok = kind == "pc" and src != "formula"
             if sp is not None and src in (None, "mixed", "formula"):
                 pc_price, src = sp, f"sales:{sn}:{sd}"
+            elif src in ("mixed", "formula"):
+                pc_price, src = None, None
             ps_list = (psales.get(cid) or {}).get(k, [])
             pc_n1 = sum(1 for d, _ in ps_list if d[:7] == last_m)
             # PriceCharting lists only the latest 30 sales of a grade: when this grade's recorded sales (or, for a quiet
@@ -625,20 +628,23 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             m = {x[0]: x for x in mon.get(k, [])}
             cl_n1 = m[last_m][1] if last_m in m else (0 if mon.get(k) else None)
             cl_avg1 = m[last_m][2] if last_m in m else None
-            st = stats_by_col.get(col, {}) if col else {}
+            st = stats_by_col.get(col, {}) if col and col_ok else {}    # the daily moves of a blended column are not this grade's
             mk = marks.get((str(cid), k))
             if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list):
                 continue                                    # a grade with a population and no price or sale anywhere: no row
             # last month's PriceCharting price of this grade and grader: the Hodges-Lehmann estimate of the sales it
-            # recorded, else its monthly chart value (PSA 10 its own line; 9 / 9.5 / 8 / 7 blend every grader)
+            # recorded of it, else (PSA 10 only) its monthly PSA 10 chart value. Its 9 / 9.5 / 8 / 7 chart lines blend
+            # every grader, so they are not used (2026-10-29, Brett: "if we dont have last month data then blank it or
+            # not read it"): "none" = our record reaches back past the start of last month and holds no such sale,
+            # "not_read" = it does not reach back that far yet
             m1 = [p for d, p in ps_list if d[:7] == last_m]
             pc1 = [r2(hodges_lehmann(m1)), len(m1), "hl"] if m1 else None
-            if pc1 is None:
-                gnum = k.split("|g", 1)[1]
-                line = "psa_10" if k == "psa|g10" else ({"9": "grade_9", "9_5": "grade_9_5", "8": "grade_8", "7": "grade_7"}.get(gnum))
-                pts = dict((x[0], x[1]) for x in (pmon.get(cid) or {}).get(line, [])) if line else {}
+            if pc1 is None and k == "psa|g10":
+                pts = dict((x[0], x[1]) for x in (pmon.get(cid) or {}).get("psa_10", []))
                 if last_m in pts:
-                    pc1 = [r2(pts[last_m]), None, "chart" if k == "psa|g10" else "chart_mixed"]
+                    pc1 = [r2(pts[last_m]), None, "chart"]
+            if pc1 is None:
+                pc1 = [None, 0, "none"] if pc_n1 is not None else [None, None, "not_read"]
             # each side's own grade for this row (2026-10-29, Brett: "we should have two grade columns ... CL grade and PC
             # grade"; "the grade for CL is derived from the CL website"): a side that has no such grade says none, and a
             # price is compared only where the two grades are the same
@@ -702,7 +708,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
         }
         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
-              "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items()},
+              "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"},   # the 9 / 9.5 / 8 / 7 lines blend every grader
               "ps": {}}
         for k, sl in (psales.get(cid) or {}).items():
             by = {}
