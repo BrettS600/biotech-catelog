@@ -14,6 +14,9 @@ Each side is read only from its own source:
                hyphen ("Alakazam-Holo"), its set name, and the variations its cert lookups returned
        number  = Card Ladder's number; the total from its CGC cert lookup when the profile has none; else "/none"
   Series / Era = only where a series / era name is written in the text (set names count) - nothing looked up yet.
+  Auth         = what the grader says, per slab (2026-10-29): PSA's own cert record from PSA's Public API (subject, brand,
+               variety, label type), else the one-line description Card Hedge relays from GemRate; CGC slabs only the
+               latter. auth_side() reads it with the same dictionary; compare_auth() checks it against PC and CL.
   Illustrator  = PC: the "Artist" TCGplayer's product page shows for the product PriceCharting links to (tcg_details.py
                caches it in card-data/data/tcgplayer/details.csv), only when that product carries the same card number;
                CL: none (Card Ladder does not record it).
@@ -118,6 +121,9 @@ class Side:
         self.unid_left = {}                                 # phrase -> its unknown words ("Spectra" in "Spectra Holo")
         self.artist = None                                  # PC: TCGplayer's Artist (None = not read, "" = read, none given)
         self.artist_from = None
+        self.name = self.set_name = self.year = self.num_raw = self.num = ""
+        self.rarity_text = self.finish_text = None
+        self.lang, self.lang_said, self.source = None, False, None   # Auth: the card's language, whether the grader wrote it, the source
 
     def add(self, found, where, cats=None):
         for x in found:
@@ -272,6 +278,105 @@ def cl_side(pr, lookups, dic):
     return s
 
 
+LANGS = {"japanese": "Japanese", "japan": "Japanese", "korean": "Korean", "chinese": "Chinese", "french": "French",
+         "german": "German", "italian": "Italian", "spanish": "Spanish", "portuguese": "Portuguese", "dutch": "Dutch",
+         "polish": "Polish", "russian": "Russian", "thai": "Thai", "indonesian": "Indonesian"}
+
+
+def language_of(*texts):
+    """The grader names a card's language only when it is not English ("POKEMON JAPANESE ...")."""
+    for t in texts:
+        for w in norm_tokens(t):
+            if w in LANGS:
+                return LANGS[w], True
+    return "English", False
+
+
+def parse_description(d):
+    """GemRate's one-line description of a slab ("1999 Pokemon Game #1 Alakazam-Holo") -> year, set, number, name."""
+    d = " ".join(str(d or "").split())
+    out = {"year": "", "set": "", "num": "", "name": ""}
+    m = re.match(r"^(\d{4})(?:-\d{2,4})?\s+(.*)$", d)
+    rest = d
+    if m:
+        out["year"], rest = m.group(1), m.group(2)
+    m = re.search(r"\s#\s*([A-Za-z0-9-]+)\s*", " " + rest)
+    if m:
+        pre, post = (" " + rest)[:m.start()].strip(), (" " + rest)[m.end():].strip()
+        out["set"], out["num"], out["name"] = pre, m.group(1), post
+    else:
+        out["set"] = rest
+    return out
+
+
+def auth_side(rec, dic):
+    """What the grader says the card is, read with the dictionary - from PSA's own cert record (src 'psa') or from the
+    one-line description Card Hedge relays from GemRate (src 'ch'). rec: {"src", "subject", "brand", "variety",
+    "label", "desc"}. Sets name / set_name / num / year / lang on the Side."""
+    s = Side()
+    if not rec:
+        return s
+    if rec.get("src") == "psa":
+        subj, brand = str(rec.get("subject") or ""), str(rec.get("brand") or "")
+        parts = [(subj.split("-", 1)[1], "PSA card name (after the hyphen)")] if "-" in subj else []
+        parts += [(rec.get("variety"), "PSA variety"), (rec.get("label"), "PSA label type")]
+        for txt, where in parts:
+            if not str(txt or "").strip():
+                continue
+            found, left = dic.match(txt, "any")
+            s.add(found, where)
+            if meaningful(left):
+                s.unknown(str(txt).strip(), left, where)
+        s.add(dic.match(brand, "set")[0], "PSA set (brand)")
+        s.name, s.set_name, s.year = subj, brand, str(rec.get("year") or "")[:4]
+        s.num_raw = str(rec.get("number") or "")
+        s.lang, s.lang_said = language_of(brand, rec.get("category"), rec.get("variety"))
+        s.source = "PSA's cert record (PSA's Public API)"
+    else:
+        p = parse_description(rec.get("desc"))
+        name = p["name"]
+        if "-" in name:
+            found, left = dic.match(name.split("-", 1)[1], "any")
+            s.add(found, "GemRate description (after the hyphen)")
+            if meaningful(left):
+                s.unknown(name.split("-", 1)[1].strip(), left, "GemRate description")
+        s.add(dic.match(p["set"], "set")[0], "GemRate description (set)")
+        s.name, s.set_name, s.year, s.num_raw = name, p["set"], p["year"], p["num"]
+        s.lang, s.lang_said = language_of(rec.get("desc"))
+        s.source = "the cert's description as Card Hedge relays it from GemRate"
+    s.num = clean_num(s.num_raw) if s.num_raw else ""             # graders print no set size: "1/none"
+    s.rarity_text = s.shown("Rarity") or None
+    s.finish_text = s.shown("Finish") or None
+    return s
+
+
+def compare_auth(au, pc, cl, pc_year, cl_year):
+    """{field: [auth shown, result]}: match = agrees with every side that says something, mismatch = disagrees with
+    PC or CL, auth_none = the grader's record does not say, others_none = neither PC nor CL says."""
+    out = {}
+
+    def res(a, others, same):
+        if not a:
+            return "auth_none"
+        said = [o for o in others if o]
+        if not said:
+            return "others_none"
+        return "match" if all(same(a, o) for o in said) else "mismatch"
+    out["number"] = [au.num, res(au.num_raw, [pc.num_raw, cl.num_raw], same_number)]
+    for cat, key in (("Rarity", "rarity"), ("Finish", "finish"), ("Special", "special"), ("Series", "series"), ("Era", "era")):
+        A = set(au.terms(cat))
+        P, C = set(pc.terms(cat)), set(cl.terms(cat))
+        if cat in ("Rarity", "Finish", "Series", "Era"):
+            out[key] = [", ".join(sorted(A)), res(A, [P, C], lambda a, o: bool(a & o))]
+        else:                                                  # Special: 1st Edition / Shadowless ... must be the same set
+            out[key] = [", ".join(sorted(A)), "auth_none" if not A and not (P or C) else ("match" if (A == P or not P) and (A == C or not C) else "mismatch")]
+    ya = str(au.year or "")[:4]
+    ya = ya if ya.isdigit() else ""
+    py, cy = str(pc_year or "")[:4], str(cl_year or "")[:4]
+    out["release"] = [ya, res(ya, [y for y in (py, cy) if y.isdigit()], lambda a, o: a == o)]
+    return out
+
+
 def same_number(a, b):
     """021 = 21; SWSH141 = 141 (PSA and Card Ladder drop a promo's prefix); TG23 != 23 only when both carry prefixes
     that differ."""
@@ -317,7 +422,7 @@ class Tally:
     catalog for the [bracket] words."""
 
     def __init__(self):
-        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "cat": 0, "conf": "", "where": set(), "ex": [], "left": ""})
+        self.n = collections.defaultdict(lambda: {"pc": set(), "cl": set(), "auth": set(), "cat": 0, "conf": "", "where": set(), "ex": [], "left": ""})
 
     def side(self, cid, side, s):
         for cat in CATS:
@@ -354,12 +459,12 @@ class Tally:
         out = {c: [] for c in CATS + ["Unidentified"]}
         for (cat, k), e in self.n.items():
             out[cat].append([k, e["conf"] or ("" if cat == "Unidentified" else "likely"), len(e["pc"]), len(e["cl"]), e["cat"],
-                             " · ".join(sorted(x for x in e["where"] if x)), e["left"]])
+                             " · ".join(sorted(x for x in e["where"] if x)), e["left"], len(e["auth"])])
         for cat in out:
-            out[cat].sort(key=lambda r: (-(r[2] + r[3]), -r[4], r[0].lower()))
+            out[cat].sort(key=lambda r: (-(r[2] + r[3] + r[7]), -r[4], r[0].lower()))
         return out
 
     def rows(self, built):
-        for (cat, k), e in sorted(self.n.items(), key=lambda kv: (kv[0][0], -(len(kv[1]["pc"]) + len(kv[1]["cl"])), -kv[1]["cat"], kv[0][1].lower())):
-            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), e["cat"], e["left"], " · ".join(sorted(x for x in e["where"] if x)),
+        for (cat, k), e in sorted(self.n.items(), key=lambda kv: (kv[0][0], -(len(kv[1]["pc"]) + len(kv[1]["cl"]) + len(kv[1]["auth"])), -kv[1]["cat"], kv[0][1].lower())):
+            yield [cat, k, e["conf"], len(e["pc"]), len(e["cl"]), len(e["auth"]), e["cat"], e["left"], " · ".join(sorted(x for x in e["where"] if x)),
                    " | ".join(e["ex"][:3]), built]

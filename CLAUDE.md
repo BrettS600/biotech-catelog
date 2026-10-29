@@ -1861,6 +1861,46 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   NUMBER GRADED: the pop month files (data_archive.py) now keep each card's first and latest read of the month (they
   kept only the latest), so last month's count = month-end population minus the month before; until two reads exist
   the popup says "not yet".
+  THE AUTH COLUMNS AND THE CERT LOOKUPS (2026-10-29, Brett: "the cgc and psa should be one column but of course, the
+  rows will be specific to either psa or cgc ... "Auth Set" or "Auth Name""; "we should add that data to /data folder
+  for safe keeping. in fact we might as well add all of the psa data to /data"). A third side beside PC and CL: what
+  the GRADER says. Columns (graded.js row 56-66, after CL Release; Auth Illustrator after CL Illustrator; layout
+  versions v3 / v4 keep Brett's saved order): Auth Name, Set, Set/Card No. (graders print no set size: "1/none"),
+  Rarity/Finish, Release, Language (graders write it only for non-English cards, so none written = English), Grade,
+  Label, Pop, Pop Higher, Illustrator (always none - PSA and CGC do not record it); "PSA or CGC ID" was renamed Auth
+  Cert (same cert, the slab the lookups read). Cell words: not read (cert known, not looked up yet), none (no slab of
+  this card for this grader), not found, not given (the source does not carry it). Series / Era take Auth as a third
+  source ("Original ≠ Neo"); the word buttons' Side has Auth and "all agree" (key 'both'); Review has a third panel.
+  SOURCES, each kept in its own card-data folder by cert_lookups.py (site workflow step "Cert lookups", before the
+  graded view; a source without its secret is skipped): PSA's Public API (secret PSA_API_TOKEN, Brett's PSA login,
+  GET api.psacard.com/publicapi/cert/GetByCertNumber/<cert>, "Authorization: bearer") -> data/psa/raw/<YYYY-MM>.jsonl.gz
+  (every response as sent), certs.csv (PSA's record per cert: spec_id, year, brand, card_number, subject, variety,
+  label_type, grade_description, total_population, population_higher ...), pop_history.csv (a row whenever a cert's
+  population numbers change - the growth history); Card Hedge (secret CARDHEDGE_API_KEY, POST
+  api.cardhedger.com/v1/cards/details-by-certs {certs, grader}, X-API-Key) -> data/cardhedge/raw, certs.csv (the cert
+  as GemRate records it: grade + ONE description line; Card Hedge's own matched card: player, set, number, variant,
+  image; card_source gemrate_id = direct ID link, card_match = AI guess from the description with match_confidence),
+  check.csv (Card Hedge's card vs our PC <-> CL match and vs the description: the accuracy check Brett asked for before
+  scanning slabs with his phone). WHAT CARD HEDGE DOES NOT GIVE (its API docs, read 2026-10-29): no PSA label type, no
+  population - population-by-cert needs an Enterprise key AND the customer's own GemRate contract (403 otherwise). So
+  a PSA row's Auth comes from PSA's record when there is one (graded_site.auth_rec), else from GemRate's description
+  (graded_terms.parse_description: "1999 Pokemon Game #1 Alakazam-Holo" -> year, set, number, name); CGC rows only
+  from Card Hedge. PSA's spec number (in PSA's record, not in Card Hedge's) is the exact link for Brett's
+  scan-a-slab plan: Card Ladder profiles are psa-<spec> / matched-<spec>, and ids/card_ids.csv maps 99 of 101 specs to
+  PC cards. LIMITS: Card Hedge base tier 10 requests/min and 5,000/day, ONE UNIT PER CERT even in a batch, 1,000
+  first-time cert lookups/day (cached certs are free of that), a batch that does not fit is refused whole - so batches
+  of 10, one per UTC minute, at most CH_MINUTES (15) a run, stop on 401/403/5xx/quota; failures re-read after a week.
+  PSA's API: a daily cap for free use, PSA_MAX (100) a run, stop on 401/403/429/500 (500 = bad token per PSA's docs);
+  PSA records re-read after 30 days for the population. GemRate's own API (api.gemrate.com, key on request, price not
+  published) has cert lookups for PSA/CGC/BGS/SGC WITH population and population history - the option for CGC Pop and
+  the "Graded This Past Month" columns if Brett buys it.
+  PC GRADED / CL GRADED ARE LAST MONTH'S PRICE (2026-10-29, Brett: "i thought those were suppose to be grade for last
+  month. not most recent sale"; "is cl the median as well" - no: Card Ladder gives the monthly AVERAGE and count, not
+  each sale). So both are averages: CL = Card Ladder's average of last month's sales of the grade (row x[9]); PC = the
+  average of last month's sales of that grade AND grader PriceCharting recorded (row x[18] = [avg, n, "sales"]), else
+  its monthly chart value ("chart" for PSA 10, "chart_mixed" for 9 / 9.5 / 8 / 7, which blend graders - marked *).
+  PC to CL % compares the two. Today's figures (PriceCharting's price, Card Ladder's value) are in the hovers (r[67],
+  r[68]) and in Review.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

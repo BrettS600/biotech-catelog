@@ -23,6 +23,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
                                            Series / Era (graded_terms.py; Brett, 2026-10-28)
   dictionary/decisions.csv                 the words Brett sorted on the page, as graded_answers.py filed them
   tcgplayer/details.csv                    TCGplayer's product page details - the Artist (tcg_details.py)
+  psa/certs.csv                            PSA's own record of each slab, from PSA's Public API (cert_lookups.py)
+  cardhedge/certs.csv                      each slab as Card Hedge relays it from GemRate, and Card Hedge's matched card
 and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
 PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
 
@@ -33,6 +35,16 @@ Trend shards and the eBay live file use, so the page can read them):
                           pd: [[date, PSA 10]]}} - 300 cards a file (cards[id].sh says which), loaded when a Trend popup opens
 
 Only Card Ladder's PSA and CGC grades are used (Brett: "I only care about CGC and PSA graded cards").
+
+The Auth side (2026-10-29, Brett: "auth set ... the rows that are psa are to be filled out by set name data derived from
+psa, where as cgc text is derived from cgc"): what the grader says, from the slab certs - a PSA row from PSA's own cert
+record (PSA's Public API), else the description Card Hedge relays from GemRate; a CGC row from Card Hedge. Card-level
+facts (name, set, number, release, language, rarity / finish words) per grader in cards[id].a; the slab's own facts
+(grade, label, population, population higher, cert) per row in the "auth" column.
+
+PC Graded / CL Graded are LAST MONTH's prices (2026-10-29, Brett: "i thought those were suppose to be grade for last
+month"): Card Ladder's average of last month's sales of the grade, and the average of last month's sales of the grade
+and grader PriceCharting recorded (else its monthly chart value) - both averages, so PC to CL % compares like with like.
 
 Also writes into the card-data checkout (the site workflow commits them there):
   dictionary/term_counts.csv   every term and unidentified phrase seen: category, how many graded cards carry it on
@@ -190,6 +202,74 @@ def decisions_t(cd):
         return 0
     with open(p, newline="", encoding="utf-8") as f:
         return max((int(float(r.get("t") or 0)) for r in csv.DictReader(f)), default=0)
+
+
+def load_psa_certs(cd):
+    """{cert: PSA's record} from psa/certs.csv (cert_lookups.py)."""
+    import csv
+    p = os.path.join(cd, "psa", "certs.csv")
+    if not os.path.exists(p):
+        return {}
+    with open(p, newline="", encoding="utf-8") as f:
+        return {r["cert"]: r for r in csv.DictReader(f) if r.get("cert")}
+
+
+def load_ch_certs(cd):
+    """{(grader, cert): Card Hedge's row} from cardhedge/certs.csv (cert_lookups.py)."""
+    import csv
+    p = os.path.join(cd, "cardhedge", "certs.csv")
+    if not os.path.exists(p):
+        return {}
+    with open(p, newline="", encoding="utf-8") as f:
+        return {(r["grader"], r["cert"]): r for r in csv.DictReader(f) if r.get("cert")}
+
+
+def toint(v):
+    try:
+        return int(float(str(v).replace(",", "")))
+    except (TypeError, ValueError):
+        return None
+
+
+def auth_rec(g, cert, psa, ch):
+    """One slab, as the grader says: {"src": "psa" | "ch" | None, "st": "ok" | "nf" (looked up, not found) | "wait"
+    (not looked up yet), ...}. PSA slabs: PSA's own record first; Card Hedge's (from GemRate) otherwise."""
+    cert = re.sub(r"\D", "", str(cert or ""))
+    if not cert:
+        return None
+    h = ch.get((g, cert))
+    chc = None
+    if h and h.get("status") == "ok":
+        chc = {"player": h.get("player", ""), "set": h.get("set", ""), "number": h.get("number", ""), "variant": h.get("variant", ""),
+               "image": h.get("image", ""), "source": h.get("card_source", ""), "conf": h.get("match_confidence", "")}
+    p = psa.get(cert) if g == "psa" else None
+    if p and p.get("status") == "ok":
+        return {"src": "psa", "st": "ok", "cert": cert, "subject": p.get("subject", ""), "brand": p.get("brand", ""),
+                "category": p.get("category", ""), "variety": p.get("variety", ""), "label": p.get("label_type", ""),
+                "year": p.get("year", ""), "number": p.get("card_number", ""),
+                "grade": p.get("grade_description") or p.get("card_grade") or "", "pop": toint(p.get("total_population")),
+                "popq": toint(p.get("population_with_qualifier")), "poph": toint(p.get("population_higher")),
+                "spec": p.get("spec_id", ""), "read": str(p.get("read", ""))[:10], "ch": chc,
+                "desc": (h or {}).get("description", "")}
+    if h and h.get("status") in ("ok", "no_card") and (h.get("grade") or h.get("description")):
+        return {"src": "ch", "st": "ok", "cert": cert, "desc": h.get("description", ""), "grade": h.get("grade", ""),
+                "pop": None, "popq": None, "poph": None, "label": None, "read": str(h.get("read", ""))[:10], "ch": chc}
+    nf = (p is not None and p.get("status") == "not_found") or (h is not None and h.get("status") == "not_found")
+    return {"src": None, "st": "nf" if nf else "wait", "cert": cert}
+
+
+def merge_sides(sides):
+    m = gt.Side()
+    for s in sides:
+        for c in gt.CATS:
+            for k, v in s.t[c].items():
+                if k not in m.t[c] or v == "confirmed":
+                    m.t[c][k] = v
+                m.src[c].setdefault(k, s.src[c].get(k, ""))
+        for ph, w in s.unid.items():
+            m.unid.setdefault(ph, w)
+            m.unid_left.setdefault(ph, s.unid_left.get(ph, ""))
+    return m
 
 
 def load_pop(cd, ids):
@@ -411,10 +491,12 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     tcgf = load_tcg_facts(tcg_path)
     tdet = load_tcg_details(cd)
     pop_hist = load_pop_hist(cd, ids, last_m)
+    psa_c, ch_c = load_psa_certs(cd), load_ch_certs(cd)
     checks = []
     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
-          f"population history for {len(pop_hist)} cards, {len(marks)} Review answers")
+          f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
+          f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}")
     pop = load_pop(cd, ids)
     psales = load_pc_sales(cd, ids, today)
     pmon = load_pc_monthly(cd, ids)
@@ -433,6 +515,19 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                     if k in GI:
                         clg[k] = [x[2], x[3], x[4]]
         mon = (pr or {}).get("monthly") or {}
+        slabs = (matches.get(str(cid)) or {}).get("slabs", {})
+        recs = {}                                           # (grader, cert) -> the slab as the grader says
+        for g, card_cert in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
+            for cert in [card_cert] + [v for k, v in slabs.items() if k.startswith(g + "|")]:
+                a = auth_rec(g, cert, psa_c, ch_c)
+                if a:
+                    recs.setdefault((g, a["cert"]), a)
+        best = {}                                           # grader -> the record the card-level Auth facts come from
+        for (g, _), a in recs.items():
+            if a["st"] != "ok":
+                continue
+            if g not in best or (best[g]["src"] != "psa" and a["src"] == "psa"):
+                best[g] = a
         stats_by_col = {col: series_stats(pts, today) for col, pts in (snaps.get(cid) or {}).items()}
         pcrow = pc.loc[cid] if cid in pc.index else None
         keys = set(clg) | {k for k in mon if k in GI} | set((psales.get(cid) or {}).keys()) | set(pop.get(cid, {}).keys())
@@ -463,28 +558,61 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             mk = marks.get((str(cid), k))
             if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list):
                 continue                                    # a grade with a population and no price or sale anywhere: no row
+            # last month's PriceCharting price of this grade and grader: the average of the sales it recorded, else its
+            # monthly chart value (PSA 10 its own line; 9 / 9.5 / 8 / 7 blend every grader)
+            m1 = [p for d, p in ps_list if d[:7] == last_m]
+            pc1 = [r2(sum(m1) / len(m1)), len(m1), "sales"] if m1 else None
+            if pc1 is None:
+                gnum = k.split("|g", 1)[1]
+                line = "psa_10" if k == "psa|g10" else ({"9": "grade_9", "9_5": "grade_9_5", "8": "grade_8", "7": "grade_7"}.get(gnum))
+                pts = dict((x[0], x[1]) for x in (pmon.get(cid) or {}).get(line, [])) if line else {}
+                if last_m in pts:
+                    pc1 = [r2(pts[last_m]), None, "chart" if k == "psa|g10" else "chart_mixed"]
+            ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c)
+            auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
+                                        ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None]
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
-                         (mk or {}).get("v"), (mk or {}).get("reason") or None])
+                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth])
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
         pset = str(pcrow.get("console-name", "")) if pcrow is not None else ""
         mnum = re.search(r"#(\S+)\s*$", pname)
         tid = str(r.get("tcgplayer_id", "") or "").split(".")[0]
         ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic, tdet.get(tid) if tid else None)
         cs = gt.cl_side(pr, (matches.get(str(cid)) or {}).get("cl", []), dic)
+        pc_year = pcrow.get("release-date", "") if pcrow is not None else ""
+        aside = {}
+        for g, a in best.items():
+            aside[g] = gt.auth_side({"src": a["src"], "subject": a.get("subject"), "brand": a.get("brand"), "category": a.get("category"),
+                                     "variety": a.get("variety"), "label": a.get("label"), "year": a.get("year"),
+                                     "number": a.get("number"), "desc": a.get("desc")}, dic)
+        au = merge_sides(aside.values()) if aside else None
         tally.side(cid, "pc", ps)
         tally.side(cid, "cl", cs)
-        fc = gt.compare(ps, cs, pcrow.get("release-date", "") if pcrow is not None else "", (pr or {}).get("year"))
+        if au:
+            tally.side(cid, "auth", au)
+        fc = gt.compare(ps, cs, pc_year, (pr or {}).get("year"))
+        afc = {g: gt.compare_auth(s_, ps, cs, pc_year, (pr or {}).get("year")) for g, s_ in aside.items()}
+        a1 = afc.get("psa") or afc.get("cgc") or {}
         for f, (a, b, res) in fc.items():
-            checks.append([cid, f, a if a is not None else "", b if b is not None else "", res])
+            checks.append([cid, f, a if a is not None else "", b if b is not None else "", res,
+                           (a1.get(f) or ["", ""])[0], (a1.get(f) or ["", ""])[1]])
         cards[str(cid)] = {
             "pn": ps.num, "pnf": ps.num_from, "pr": ps.rarity_text, "prf": ps.rarity_from, "pf": ps.finish_text,
             "pff": ps.finish_from, "ps": ps.shown("Special"), "pi": ps.artist, "pif": ps.artist_from,
             "cn": cs.num, "cnf": cs.num_from, "cr": cs.rarity_text, "cf": cs.finish_text, "cs": cs.shown("Special"),
-            "ser": [ps.shown("Series"), cs.shown("Series")], "era": [ps.shown("Era"), cs.shown("Era")],
+            "ser": [ps.shown("Series"), cs.shown("Series"), au.shown("Series") if au else ""],
+            "era": [ps.shown("Era"), cs.shown("Era"), au.shown("Era") if au else ""],
             "t": {"pc": {c: ps.terms(c) for c in gt.CATS},
                   "cl": {c: cs.terms(c) for c in gt.CATS},
-                  "u": {"pc": list(ps.unid), "cl": list(cs.unid)}},
+                  "auth": {c: au.terms(c) for c in gt.CATS} if au else {},
+                  "u": {"pc": list(ps.unid), "cl": list(cs.unid), "auth": list(au.unid) if au else []}},
+            "a": {g: {"cert": best[g]["cert"], "src": best[g]["src"], "name": s_.name, "set": s_.set_name, "num": s_.num,
+                      "year": s_.year, "lang": s_.lang, "ls": s_.lang_said, "rar": s_.shown("Rarity"), "fin": s_.shown("Finish"),
+                      "sp": s_.shown("Special"), "from": s_.source, "spec": best[g].get("spec", ""), "desc": best[g].get("desc", ""),
+                      "ch": best[g].get("ch"), "fc": {f: v[1] for f, v in afc[g].items()}, "read": best[g].get("read", "")}
+                  for g, s_ in aside.items()},
+            "aw": sorted({g for (g, _), x in recs.items() if x["st"] == "wait"}),   # graders with a cert not looked up yet
             "fc": {f: v[2] for f, v in fc.items()},
             "pg": pop_hist.get(cid, {}),
             "pid": r.get("cl_profile_id", ""), "spec": r.get("psa_spec", ""), "cgc": r.get("cgc_id", "") or "",
@@ -514,7 +642,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
            "markt": max((m["t"] for m in marks.values()), default=0),
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
-                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason"]}
+                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth"],
+           "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
     if key is None:
         print("graded: no SITE_PASSWORD - nothing written")
         return doc, trends
@@ -537,13 +666,13 @@ def write_card_data(cd, tally, checks, today):
         os.makedirs(os.path.join(cd, "dictionary"), exist_ok=True)
         with open(os.path.join(cd, "dictionary", "term_counts.csv"), "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, lineterminator="\n")
-            w.writerow(["category", "term", "confidence", "graded_cards_pc", "graded_cards_cl", "catalog_pc_brackets",
+            w.writerow(["category", "term", "confidence", "graded_cards_pc", "graded_cards_cl", "graded_cards_auth", "catalog_pc_brackets",
                         "unknown_words", "seen_in", "examples", "built"])
             w.writerows(tally.rows(built))
         os.makedirs(os.path.join(cd, "ids"), exist_ok=True)
         with open(os.path.join(cd, "ids", "field_checks.csv"), "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, lineterminator="\n")
-            w.writerow(["pricecharting_id", "field", "pc", "cl", "result", "built"])
+            w.writerow(["pricecharting_id", "field", "pc", "cl", "result", "auth", "auth_result", "built"])
             w.writerows(c + [built] for c in checks)
         print(f"graded: wrote dictionary/term_counts.csv and ids/field_checks.csv ({len(checks)} checks)")
     except OSError as e:
