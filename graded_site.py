@@ -68,6 +68,7 @@ import gzip
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import statistics
@@ -174,6 +175,71 @@ def pc_grade(k, pc1, ps_list, pc_price, src, popk):
     return None, None
 
 
+# THE MATCH CHECK (2026-10-29, Brett: "maybe we can somehow set a threshold for trend chart differences ... if the card is
+# sold for 20 years and there is only one month shows a big difference, then the unsure match is not applied ... if the
+# supply is too low ... calibrate it when I reveal mismatches"). Per card, every month x grade where both sides recorded
+# sales: Card Ladder's monthly average / PriceCharting's (its Hodges-Lehmann of the recorded sales of the exact grade
+# and grader, PSA 10 also its own monthly line). CGC 10 Pristine / Perfect are left out (Brett: "the match check label
+# should not be applied to pristine"). Fewer than MC_MIN_PAIRS months -> "thin" (no verdict from prices); a typical
+# gap of MC_RATIO x or more in MC_FAR of the months -> "wrong" ("likely wrong match"); within 1.25 x in most months ->
+# "agree" (it never removes the matcher's "unsure match": Brett, "dont hide the unsure match warning label"). The
+# thresholds are fitted to Brett's card answers once there are MC_FIT_MIN of them (MC_FIT_EACH of each kind).
+MC_MIN_PAIRS, MC_RATIO, MC_FAR = 6, 2.0, 0.8
+MC_FIT_MIN, MC_FIT_EACH = 20, 3
+
+
+def match_pairs(mon, ps_by_k, pc10_line):
+    """[log(CL / PC)] over the month x grade pairs both sides priced (Pristine / Perfect left out)."""
+    out = []
+    for k, ml in (mon or {}).items():
+        if k not in GI or k.endswith("pristine") or k.endswith("perfect"):
+            continue
+        by = {}
+        for d, p in ps_by_k.get(k, []):
+            by.setdefault(d[:7], []).append(p)
+        pcm = {ym: hodges_lehmann(v) for ym, v in by.items()}
+        if k == "psa|g10":
+            for ym, price in pc10_line or []:
+                pcm.setdefault(ym, price)
+        for x in ml:
+            ym, n, avg = x[0], x[1], x[2]
+            p = pcm.get(ym)
+            if n and avg and p and avg > 0 and p > 0:
+                out.append(math.log(avg / p))
+    return out
+
+
+def match_level(mc, ratio_t, far_t):
+    if mc["n"] < MC_MIN_PAIRS:
+        return "thin"
+    if (mc["r"] >= ratio_t or mc["r"] <= 1 / ratio_t) and mc["far"] >= far_t:
+        return "wrong"
+    if 1 / 1.25 <= mc["r"] <= 1.25 and mc["far"] <= 0.34:
+        return "agree"
+    return "mixed"
+
+
+def fit_match(cards):
+    """The thresholds from Brett's card answers (Same card = 1 / Not the same = 0) once there are enough of them: the
+    grid point with the best balanced accuracy, the most conservative one on a tie. -> {ratio, far, n, acc, fitted}."""
+    ans = [(c["mc"], c["ma"]["v"]) for c in cards.values() if c.get("ma") and c["ma"].get("v") in (0, 1) and c["mc"]["n"] >= MC_MIN_PAIRS]
+    n0, n1 = sum(1 for _, v in ans if v == 0), sum(1 for _, v in ans if v == 1)
+    out = {"ratio": MC_RATIO, "far": MC_FAR, "n": len(ans), "not_same": n0, "same": n1, "fitted": False, "acc": None}
+    if len(ans) < MC_FIT_MIN or n0 < MC_FIT_EACH or n1 < MC_FIT_EACH:
+        return out
+    best = None
+    for rt in (1.5, 1.75, 2.0, 2.5, 3.0, 4.0):
+        for ft in (0.5, 0.6, 0.7, 0.8, 0.9):
+            tp = sum(1 for mc, v in ans if v == 0 and match_level(mc, rt, ft) == "wrong")
+            tn = sum(1 for mc, v in ans if v == 1 and match_level(mc, rt, ft) != "wrong")
+            acc = (tp / n0 + tn / n1) / 2
+            key = (round(acc, 6), rt, ft)
+            if best is None or key > best:
+                best = key
+    out.update(ratio=best[1], far=best[2], acc=round(best[0], 3), fitted=True)
+    return out
+
+
 def r2(v):
     return None if v is None or (isinstance(v, float) and (v != v or v in (float("inf"), float("-inf")))) else round(float(v), 2)
 
@@ -242,7 +308,7 @@ def load_marks(cd):
     if d.empty:
         return {}
     d["tn"] = pd.to_numeric(d["t"], errors="coerce").fillna(0)
-    out = {}
+    out = {}                                                 # gk "card" = the answer for the whole card (2026-10-29)
     for r in d.sort_values("tn").itertuples():               # the newest answer for a card x grade wins
         v = {"1": 1, "0": 0}.get(str(r.v).strip().split(".")[0])
         out[(str(r.pc).split(".")[0], r.gk)] = {"v": v, "reason": getattr(r, "reason", "") or None,
@@ -406,6 +472,14 @@ def load_tcg_facts(path):
 TITLE_GRADE = re.compile(r"\b(PSA|CGC)\s*(?:GEM\s*MI?N?T\s*|MINT\s*|NM-?MT\s*|NM\s*)?(10|9\.5|9|8\.5|8|7\.5|7)\b", re.I)
 
 
+# A sale in PriceCharting's "CGC 10" table whose title names the label (2026-10-29, Brett agreed): Pristine / Gold Label
+# -> CGC 10 Pristine; "Perfect 10" / "10 Perfect" / Black Label -> CGC 10 Perfect. Never the 2026 set "Perfect Order"
+# (199 of 205 "perfect" titles in Aug-Oct). Not the other way: 41% of PriceCharting's own Pristine-table sales do not say
+# Pristine (titles are cut at 70 characters), so its table stands there. Card Ladder keeps the three apart.
+TITLE_PRISTINE = re.compile(r"(?<!not )(?<!non-)(?<!non )\b(prist\w*|gold\s*label)\b", re.I)   # "Pristin" = a cut title
+TITLE_PERFECT = re.compile(r"\bperfect\s*10\b|\b10\s*perfect\b|\bblack\s*label\b", re.I)
+
+
 def gk_of_sale(grade, grader, title):
     g = str(grader or "").upper()
     if g not in ("PSA", "CGC"):
@@ -415,6 +489,11 @@ def gk_of_sale(grade, grader, title):
         return "cgc|g10pristine" if g == "CGC" else None
     if grade == "10B":
         return None
+    if grade == "10" and g == "CGC" and title:
+        if TITLE_PERFECT.search(title):
+            return "cgc|g10perfect"
+        if TITLE_PRISTINE.search(title):
+            return "cgc|g10pristine"
     m = TITLE_GRADE.search(title or "")
     if m and m.group(1).upper() == g and m.group(2) != grade and m.group(2).split(".")[0] == grade.split(".")[0]:
         grade = m.group(2)                                  # "8" table, title "CGC 8.5" -> 8.5
@@ -707,6 +786,12 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
             "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
         }
+        lr = sorted(match_pairs(mon, psales.get(cid) or {}, (pmon.get(cid) or {}).get("psa_10", [])))
+        cards[str(cid)]["mc"] = {"n": len(lr), "r": round(math.exp(lr[len(lr) // 2]), 2) if lr else None,
+                                 "far": round(sum(1 for v in lr if abs(v) > math.log(1.5)) / len(lr), 2) if lr else None}
+        ma = marks.get((str(cid), "card"))                  # the answer for the whole card (Review: Same card / Not the same card)
+        if ma and ma.get("v") in (0, 1):
+            cards[str(cid)]["ma"] = {"v": ma["v"], "t": ma["t"], "note": (ma.get("note") or "")[:300]}
         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
               "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"},   # the 9 / 9.5 / 8 / 7 lines blend every grader
               "ps": {}}
@@ -720,11 +805,17 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         trends[cid] = tr
     for i, cid in enumerate(sorted(trends)):               # trend files: 300 cards each, in card id order (card ids run to
         cards[str(cid)]["sh"] = i // SHARD                  # 13 million, so id // 300 would scatter them over thousands of files)
+    mcfit = fit_match(cards)
+    for c in cards.values():
+        c["mc"]["lv"] = match_level(c["mc"], mcfit["ratio"], mcfit["far"]) if c["mc"]["n"] else "thin"
+    print(f"graded: match check - " + ", ".join(f"{lv} {sum(1 for c in cards.values() if c['mc']['lv'] == lv)}" for lv in ("wrong", "mixed", "agree", "thin"))
+          + f"; thresholds {mcfit['ratio']} x in {mcfit['far']:.0%} of months (" + (f"fitted to {mcfit['n']} answers, balanced accuracy {mcfit['acc']}" if mcfit["fitted"]
+          else f"fixed: {mcfit['n']} card answers so far, {MC_FIT_MIN} needed with {MC_FIT_EACH}+ of each") + ")")
     key = hist_key(pw) if pw else None
-    write_card_data(cd, tally, checks, today)
+    write_card_data(cd, tally, checks, today, cards)
     doc = {"v": 2, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
-           "markt": max((m["t"] for m in marks.values()), default=0),
+           "markt": max((m["t"] for m in marks.values()), default=0), "mcfit": mcfit,
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
                                     "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades"],
            "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
@@ -742,8 +833,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     return doc, trends
 
 
-def write_card_data(cd, tally, checks, today):
-    """term_counts.csv and field_checks.csv into the card-data checkout (the site workflow commits them)."""
+def write_card_data(cd, tally, checks, today, cards=None):
+    """term_counts.csv, field_checks.csv and match_checks.csv into the card-data checkout (the site workflow commits
+    them). match_checks.csv: each card's price-history check and Brett's answer, the material the thresholds learn from."""
     import csv
     built = today.isoformat()
     try:
@@ -758,7 +850,18 @@ def write_card_data(cd, tally, checks, today):
             w = csv.writer(f, lineterminator="\n")
             w.writerow(["pricecharting_id", "field", "pc", "cl", "result", "auth", "auth_result", "built"])
             w.writerows(c + [built] for c in checks)
-        print(f"graded: wrote dictionary/term_counts.csv and ids/field_checks.csv ({len(checks)} checks)")
+        if cards is not None:
+            with open(os.path.join(cd, "ids", "match_checks.csv"), "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f, lineterminator="\n")
+                w.writerow(["pricecharting_id", "cl_profile_id", "matcher_status", "months_compared", "cl_over_pc_typical",
+                            "share_over_1_5x_apart", "level", "brett_answer", "built"])
+                for cid in sorted(cards, key=int):
+                    c = cards[cid]
+                    mc, ma = c.get("mc") or {}, c.get("ma") or {}
+                    w.writerow([cid, c.get("pid", ""), c.get("st", ""), mc.get("n", 0), "" if mc.get("r") is None else mc["r"],
+                                "" if mc.get("far") is None else mc["far"], mc.get("lv", ""),
+                                {1: "same", 0: "not the same"}.get(ma.get("v"), ""), built])
+        print(f"graded: wrote dictionary/term_counts.csv, ids/field_checks.csv ({len(checks)} checks)" + (", ids/match_checks.csv" if cards is not None else ""))
     except OSError as e:
         print(f"graded: term counts / field checks not written ({e})")
 

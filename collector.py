@@ -1300,12 +1300,13 @@ GMARK_MAX = 20000                # Review answers kept (card x grade; the newest
 GTERM_MAX = 5000                 # sorted words kept (the newest decision per word)
 GMARKS_EVERY_S = 6 * 3600        # live/graded_marks.bin is republished this often, or at once after an answer
 GTERM_CATS = ("Rarity", "Finish", "Special", "Series", "Era", "Meaningless", "Unidentified")
-GK_RE = re.compile(r"^(psa|cgc)\|g[0-9]+(?:_5)?(?:perfect|pristine)?$")
+GK_RE = re.compile(r"^(?:(psa|cgc)\|g[0-9]+(?:_5)?(?:perfect|pristine)?|card)$")   # "card" = the answer for the whole card (2026-10-29)
 
 
 def gmark_set(state, msg, t):
-    """The graded view's Review popup: {type: 'gmark', t, c: PriceCharting id, g: grade key ('psa|g10'), p: Card Ladder
-    profile, v: 1 same card / 0 not the same / null withdrawn, reason: the Flag's reason, note}. Kept per card x grade
+    """The graded view's Review popup: {type: 'gmark', t, c: PriceCharting id, g: grade key ('psa|g10'; 'card' = Same card /
+    Not the same card for the whole card, 2026-10-29), p: Card Ladder profile, v: 1 same card / 0 not the same / null
+    withdrawn, reason: the Flag's reason, note}. Kept per card x grade
     (the newest wins) in v["gmarks"]; published in live/graded_marks.bin, which the site workflow files into
     card-data/data/ids/marks.csv (graded_answers.py) - the graded rows then carry the answer."""
     v = state["vps"]

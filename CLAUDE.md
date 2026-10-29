@@ -1972,6 +1972,36 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   files (PAGE_DROP), out in pcgh/ -> data_archive.pc_guide -> card-data/data/pricecharting/guide/guide_<YYYY-MM>.csv.gz
   (one row per card per read day, dollars, "other" = JSON of unknown rows). No GRADED_VERSION bump: it fills in as the
   pages are re-read (monthly, busy cards sooner). Not shown on the page. card-data's data/README.md carries the warning.
+  (12) ROUND 6 (2026-10-29, Brett: "u may build code now"). CARD ANSWERS: Review's Same card / Not the same card is now
+  about the WHOLE card - sent as gmark g "card" (collector GK_RE accepts it), filed as gk "card" in ids/marks.csv,
+  carried as cards[id].ma {v, t, note}; grMatchV(cid) = the newer of that and this browser's GMARKS[cid|card]. Not the
+  same card HIDES all the card's rows (grNot; nothing deleted - Brett: "dont delete them ... but they should not be
+  shown"); the "Not the same (n)" button shows them greyed so an answer can be changed. Only a card answer hides; an
+  older per-grade answer still only colours its Review button. Charizard #4 Celebrations (2618172, Card Ladder's
+  matched-5973485 = the Ultra-Premium Collection metal Charizard) was recorded as Not the same card by hand in
+  card-data ids/marks.csv (Brett asked). THE NEXT CARD LADDER RUN must treat a card-level v = 0 as "this profile is
+  rejected - find the card's real page" (not built yet: Card Ladder runs are on hold). LABELS: amber "unsure match" =
+  matcher status review and no answer (never hidden by the price check - Brett: "dont hide the unsure match warning
+  label"); red "likely wrong match" = the MATCH CHECK (graded_site.match_pairs / match_level / fit_match): every month x
+  grade both sides priced (PC = Hodges-Lehmann of its recorded sales of the exact grade + grader, PSA 10 also its
+  monthly line; CL = its monthly average; CGC 10 Pristine / Perfect left out - Brett: "the match check label should
+  not be applied to pristine", and Pristine rows never show the red label), log(CL / PC) -> cards[id].mc {n, r =
+  typical ratio, far = share of months > 1.5x apart, lv wrong / mixed / agree / thin}; wrong = r >= 2 (or <= 0.5) and
+  far >= 0.8 over >= 6 months; thin under 6. fit_match refits the two thresholds to Brett's card answers once there are
+  20 (3+ of each kind), best balanced accuracy, the most conservative on a tie; doc.mcfit says which. Every card's
+  check and answer go to card-data ids/match_checks.csv (the learning record; the site workflow's save step must list
+  it). On the live data Charizard's PSA 10 ran ~14x PriceCharting's in 55 of 55 months; the other 5 "review" cards
+  ~1.0x. The label sits in the PC Grade cell and in a box at the top of Review (with the reasons and a ? = g_match);
+  the PC to CL % is greyed (td.gdoubt) while a match is in doubt; the "Unsure (n cards)" button shows only those rows.
+  PRISTINE FILING: gk_of_sale moves a CGC "10" sale whose title says Pristine / Prist... (a cut title) / Gold Label to CGC
+  10 Pristine, and "Perfect 10" / "10 Perfect" / Black Label to CGC 10 Perfect - never "Perfect Order" (a 2026 set: 199 of
+  205 "perfect" titles); not the reverse (41% of PriceCharting's own Pristine-table sales do not say Pristine). Aug-Oct:
+  196 of 16,059 CGC 10 sales moved to Pristine, 7 to Perfect; they sold at ~2x the card's other CGC 10s. The saved
+  sales are untouched (card-data README notes the rule). HELP: ? popups for Inside this button (g_within), Side
+  (g_side), Across buttons (g_across) and the answers / labels (g_match), drawn into #bbody / #gm-terms and opened by
+  delegated handlers (help.js binds only the static ones). TREND: the PC lines are PSA 10's monthly line and each
+  grade's own recorded sales (PSA and CGC; the blended grade 9 / 8 / 7 lines are gone); a dashed vertical line follows
+  the cursor with every line's value and sales that month (gtHover, #gt-hover / #gt-hit).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

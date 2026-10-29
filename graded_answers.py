@@ -10,7 +10,8 @@ publishes them as live/graded_marks.bin (encrypted with the live key):
 The site workflow runs this before graded_site.py, with card-data checked out:
     python graded_answers.py --live graded_marks.bin --card-data card-data/data
 and commits what changed:
-  ids/marks.csv               pc, gk, profile, v (1 same / 0 not / blank withdrawn), reason, note, t (ms), when
+  ids/marks.csv               pc, gk (a grade key, or "card" = the answer for the whole card), profile, v (1 same / 0 not /
+                              blank withdrawn), reason, note, t (ms), when
                               - merged: the newest answer per card x grade wins, older files are never lost
   dictionary/terms.csv        each NEW decision applied: the word's row updated (or added) with Brett's category,
                               same_as, where, confidence "confirmed", basis "Brett (site)", changed = the day he sorted it
