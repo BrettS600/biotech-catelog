@@ -1933,6 +1933,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   localStorage gm-order, gmOrder() slots in buttons a saved order lacks); the live #gm-grades node is lifted out before
   #gm-terms is redrawn and put back into its slot, so its click listener survives; the click that ends a drag opens
   nothing.
+  (9) Review's CL cert (2026-10-29, Brett: "the cl cert id often times doesnt match the pc cert id with respect to the
+  grade ... its confusing"): Card Ladder needed ONE slab to find a card's page (card_ids.csv psa_cert / cgc_cert, always
+  one of PriceCharting's photo slabs, of one grade), so on the 100 cards it matched the row's PC cert on 152 rows and
+  differed on 570. Prices were never affected (all 503 CL last-month prices = Card Ladder's own sales of the row's
+  grade). The CL cert now shows only on its own grade's row; other rows say "no <grade> slab looked up" and name the
+  slab the page was found with. Looking up every grade's slab on Card Ladder (~1,000 lookups for 100 cards) waits for
+  the next Card Ladder run.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

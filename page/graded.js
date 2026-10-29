@@ -599,10 +599,19 @@ function grOpenReview(key) {
   h = h.replace('<div class="rvpair">', top + '<div class="rvpair">');
   const idSub = r[27] ? (/spec/.test(r[27]) ? 'no ' + esc(gl) + ' slab read yet: PSA’s page for the card (PSA asks you to sign in)' : 'a ' + esc(gl) + ' slab of this card, read off a PriceCharting sold-listing photo') : 'no ' + esc(gl) + ' slab read yet';
   const isGame = /^pokemon game( promo)?$/i.test(String(cl[2] || ''));
-  // CL side: the slab Card Ladder's own cert lookup tied to this card (from build_ids; its grade can differ from this row's)
+  // CL side: the slab Card Ladder's own cert lookup tied to this card (build_ids). Card Ladder needed ONE slab to find the
+  // card's page, so that slab is one grade's; its prices are still per grade (Card Ladder's own sales of this row's grade).
+  // Shown as this row's cert only when it IS this grade's slab (2026-10-29, Brett: "the cl cert id often times doesnt
+  // match the pc cert id with respect to the grade ... its confusing")
   const clc = r[26] === 'CGC' ? c.ccert : c.pcert;
-  const clCert = clc ? '<a href="' + (r[26] === 'CGC' ? 'https://www.cgccards.com/certlookup/' + encodeURIComponent(clc) + '/' : 'https://www.psacard.com/cert/' + encodeURIComponent(clc) + '/psa') + '" target="_blank" rel="noopener">' + esc(r[26] + ' ' + clc) + '</a>' : none;
-  const clCertSub = (clc ? 'the slab Card Ladder’s cert lookup tied to this card (any grade)' : 'Card Ladder has no ' + esc(r[26]) + ' cert on file for this card') +
+  const clCertUrl = n => (r[26] === 'CGC' ? 'https://www.cgccards.com/certlookup/' + encodeURIComponent(n) + '/' : 'https://www.psacard.com/cert/' + encodeURIComponent(n) + '/psa');
+  const clcGk = clc ? Object.keys(c.certs || {}).find(k => k.startsWith(r[26].toLowerCase() + '|') && c.certs[k] === clc) : null;
+  const clSame = !!clc && clcGk === r[50];
+  const clCert = clSame ? '<a href="' + clCertUrl(clc) + '" target="_blank" rel="noopener">' + esc(r[26] + ' ' + clc) + '</a>'
+    : clc ? '<span class="dim">no ' + esc(gl) + ' slab looked up</span>' : none;
+  const clCertSub = (clSame ? 'the same ' + esc(gl) + ' slab as PriceCharting’s - Card Ladder’s cert lookup tied it to this card'
+    : clc ? 'Card Ladder’s page for the card was found with ' + (clcGk ? 'a ' + esc(grLabel(clcGk)) : 'another') + ' slab (<a href="' + clCertUrl(clc) + '" target="_blank" rel="noopener">' + esc(clc) + '</a>); the price above is still Card Ladder’s own ' + esc(gl) + ' sales'
+    : 'Card Ladder has no ' + esc(r[26]) + ' cert on file for this card') +
     (r[26] === 'PSA' ? (c.spec ? ' · PSA spec ' + esc(c.spec) : '') : (c.cgc ? ' · CGC number ' + esc(c.cgc) : ''));
   h += '<div class="rvrows">' +
     row(factc('Release year', year(base[4]), '', mk2('release')), factc('Release year', year(cl[1]), '', mk2('release')), factc('Release year', A ? year(A.year) : aw(r[56]), aSub, amk('release'))) +
@@ -621,7 +630,7 @@ function grOpenReview(key) {
     row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era')), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era'))) +
     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded'), '') +
     row(fact('Grade and grader', esc(r[25])), fact('Grade and grader', esc(r[25])), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && S[5] === 'psa' ? 'label type: ' + esc(S[2] || 'none') : sOk ? 'from Card Hedge (GemRate); no label type' : '')) +
-    row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of ' + esc(grMonthName(r[17])) + '’s sales' + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
+    row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of its ' + esc(gl) + ' sales in ' + esc(grMonthName(r[17])) + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
         fact('Card Hedge’s card', A && A.ch ? esc([A.ch.player, A.ch.set, A.ch.number ? '#' + A.ch.number : '', A.ch.variant].filter(Boolean).join(' · ')) : aw(A ? 'none' : r[56]),
           A && A.ch ? (A.ch.source === 'gemrate_id' ? 'found by a direct ID link from the cert' : A.ch.source === 'card_match' ? 'an AI guess from the description' + (A.ch.conf ? ' (confidence ' + esc(A.ch.conf) + ')' : '') + ' - check it' : esc(A.ch.source || '')) : 'the card Card Hedge matched to the cert')) +
     row(fact(r[26] === 'CGC' ? 'CGC cert' : 'PSA cert', idl, idSub), fact(r[26] === 'CGC' ? 'CGC cert' : 'PSA cert', clCert, clCertSub),
