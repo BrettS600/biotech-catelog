@@ -298,6 +298,8 @@ sup.dim { font-size:9px; margin-left:1px; }
 .rvrows { margin-top:10px; border-top:1px solid var(--line); }
 .rrow { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px 9px; border-bottom:1px solid var(--line); }
 .rrow > div { min-width:0; }
+.rrow.r3 { grid-template-columns:1fr 1fr 1fr; }            /* the graded Review: PriceCharting · Card Ladder · the grader (Auth) */
+@media (max-width:640px) { .rrow.r3 b { font-size:14px; } .rrow.r3 small { font-size:11px; } }
 .rrow .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:1px; }
 .rrow b { font-size:16px; }
 .rrow small { display:block; font-size:12px; color:var(--muted); margin-top:1px; }
