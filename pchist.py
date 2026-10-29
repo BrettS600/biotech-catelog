@@ -23,7 +23,9 @@ of every graded table on the page ("gs": [[row id, date, cents, grade, grader, b
 first, merged across reads, on the data disk only; grade "10" with the grader from the table's own label - PSA / CGC /
 BGS / SGC / TAG / ACE 10, "10P" = CGC 10 Pristine, "10B" = BGS 10 Black - or 7 / 8 / 9 / 9.5 with the grader read off
 the title), kept in their own files (<store>/gs/<card id % 1000>.json.gz). A grade's table shows its last 30 sales
-only, so a card whose full table spans less than about ten days is re-read sooner ("gdue" days). Rows first seen go to
+only, so a card with a full table is re-read before its rows scroll off: after 70% of the table's span ("gdue" days,
+1..29), when that comes before the normal refresh (2026-10-29, Brett: "re-read busy grades before their 30 listed
+sales roll over" - a table spanning 10-40 days on a card without eBay data used to wait the full month). Rows first seen go to
 a queue (pcg_queue.jsonl) that the collector writes out as pcg/<stamp>.bin chunks on the live branch; the graded lines
 and the population report go out as pcgh/<shard>.bin; the Data archive workflow turns both into data/pricecharting/.
 
@@ -62,8 +64,8 @@ GS_KEEP_D = 400                                             # graded sales kept 
 GS_KEEP_N = 1500                                            # ... and at most this many per card (newest)
 GS_FULL = 30                                                # a grade's table shows at most this many sales
 GS_MIN_GRADE = 7                                            # the "Grade N" tables under this are not kept
-GDUE_MIN_D, GDUE_MAX_D = 1, 7                               # a card with a full graded table spanning under GDUE_MAX_D / 0.7 days
-GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..6 days)
+GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card with a full graded table spanning under GDUE_MAX_D / 0.7 days
+GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..29 days)
 GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
 PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue")         # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
 GS_SHARDS = 1000                                            # the graded sales live in their own files (<store>/gs/<card id % 1000>.json.gz),
@@ -358,8 +360,8 @@ def graded_series(series, m0, length):
 
 def graded_due(rows, sizes, today=None):
     """Days until the card's page should be read again for its graded sales: when a grade's table is full (GS_FULL
-    rows) and its rows span under ~10 days, the next read should come before they scroll off - 70% of the span, 1 to 6
-    days. None when no table is that busy (the normal refresh is enough)."""
+    rows), the next read should come before they scroll off - 70% of the span, 1 to 29 days (stale() takes the sooner
+    of this and the card's normal refresh). None when no table is full or the busiest spans 43+ days."""
     best = None
     by = {}
     for r in rows:
@@ -371,7 +373,7 @@ def graded_due(rows, sizes, today=None):
         if len(days) < GS_FULL:
             continue
         due = int((max(days) - min(days)) * GDUE_SHARE)
-        if due >= GDUE_MAX_D:                                # the table spans 10+ days: the normal refresh keeps up
+        if due >= GDUE_MAX_D:                                # the table spans 43+ days: the monthly refresh keeps up
             continue
         due = max(GDUE_MIN_D, due)
         best = due if best is None else min(best, due)

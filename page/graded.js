@@ -23,6 +23,7 @@ const GMARKS = grLS('gmarks', {});                         // 'cid|gk' -> {v: 1 
 // the word buttons' state (see grOpenTerms below): which words are off, any/all inside a button, the side, across buttons
 const GT_CATS = ['Rarity', 'Finish', 'Special', 'Series', 'Era', 'Unidentified'];
 const GTS = Object.assign({off: {}, within: {}, side: {}, across: 'all'}, grLS('gterms', {}));
+let GFLAGONLY = grLS('gflagonly', false);                  // the Flags button: only this view's flagged rows
 const gtsSave = () => grSave('gterms', GTS);
 // words Brett sorted here (the Sort control), echoed until the data carries them (doc.dect: the newest decision filed)
 const GTDEC = grLS('gtdec', {});
@@ -89,6 +90,8 @@ function grBuildRows() {
   }
   return out;
 }
+// the matcher's own doubt (ids/card_ids.csv status "review"), until Brett answers Review (2026-10-29: highlighted)
+function grUnsure(r) { const c = ((GR.doc && GR.doc.cards) || {})[String(r[0])]; return !!c && c.st === 'review' && r[41] !== 1 && r[41] !== 0; }
 function grRawRow(base) {                                   // a raw card in the both-view: the graded layout, Grade "Raw"
   return [base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], base[8], base[9], base[10], base[11], base[12], base[13], base[14], base[15],
     base[16], base[17], base[18], base[19], base[20], base[21], base[22], base[23], -1, 'Raw', '', '', '', null, null, '', null, null, null, null, null, null,
@@ -123,7 +126,8 @@ const grText = v => v == null || v === '' ? gdash : '<td>' + esc(v) + '</td>';
 const grMonthName = ym => { if (!ym) return 'last month'; const [y, m] = String(ym).split('-'); return MONTHS_S[+m - 1] + ' ' + y; };
 function grPc1Title(r) {                                    // last month's PriceCharting price: where it came from
   const p = r[69] || [], mo = grMonthName(r[17]);
-  if (p[2] === 'sales') return 'Average of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo + ' (it shows only the latest 30 sales of a grade, so a busy grade’s average rests on the ones still listed)';
+  if (p[2] === 'hl') return 'Hodges–Lehmann estimate (the median of every pairwise average: steady against an odd sale) of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo;
+  if (p[2] === 'sales') return 'Average of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo;
   if (p[2] === 'chart') return 'PriceCharting’s monthly PSA 10 chart value for ' + mo + ' (no PSA 10 sale of it recorded that month)';
   if (p[2] === 'chart_mixed') return 'PriceCharting’s monthly grade ' + r[25].split(' ')[1] + ' chart value for ' + mo + ': it blends every grader (no ' + r[25] + ' sale recorded that month)';
   return '';
@@ -154,7 +158,7 @@ function grPcCells(r, c) {                                  // PC Card Name, PC 
    the source does not carry it (Card Hedge: no label type, no population). */
 const GR_AST_TIP = {'not read': 'The cert is known but not looked up yet: the site build looks certs up with PSA’s Public API (PSA rows) and Card Hedge (PSA and CGC rows) once their keys are in, a batch a day.',
   'none': 'No slab of this card read for this grader yet, so nothing to look up.', 'not found': 'Looked up: the grader has no record of this cert.',
-  'not given': 'Card Hedge does not give PSA’s label type or the population; PSA’s Public API does.'};
+  'not given': 'Card Hedge does not give PSA’s label type; PSA’s Public API does (a free token Brett can add later).'};
 function grAuthSrc(r, c) {
   const g = String(r[26]).toLowerCase(), A = (c.a || {})[g]; if (!A) return '';
   return A.src === 'psa' ? 'PSA’s cert record of ' + r[26] + ' ' + A.cert + ' (PSA’s Public API' + (A.read ? ', read ' + A.read : '') + ')'
@@ -174,9 +178,7 @@ function grAuthCells(r, c) {
     cell(r[60], src + (fc.release === 'mismatch' ? ' · AMBER: a different year from PC’s or CL’s (PriceCharting dates promos and some old sets by the set)' : ''), fc.release === 'mismatch' ? 'rfnear' : '') +
     cell(r[61], A && A.ls ? 'Written by the grader. ' + src : 'The grader names no language - PSA and CGC write it only for a non-English card, so this is English. ' + src) +
     cell(r[62], 'The grade on the slab: ' + slab) +
-    cell(r[63], 'PSA’s label type: ' + slab) +
-    (r[64] != null ? cell(r[64], 'Graded at this grade, PSA’s population report as of the read' + (S && S[7] ? ' (plus ' + S[7] + ' with a qualifier)' : '') + ': ' + slab, '', true) : cell(r[62] === 'ok' || !word(r[62]) ? 'not given' : r[62], '', '', true)) +
-    (r[65] != null ? cell(r[65], 'Graded higher than this grade, PSA’s population report: ' + slab, '', true) : cell(r[62] === 'ok' || !word(r[62]) ? 'not given' : r[62], '', '', true));
+    cell(r[63], 'PSA’s label type: ' + slab);                // Auth Pop / Pop Higher were removed (2026-10-29, Brett: Card Hedge cannot give them)
 }
 function grRow(r) {
   if (r[48]) return grRawCells(r);
@@ -186,7 +188,7 @@ function grRow(r) {
   const relMis = grFC(c, 'release') === 'mismatch', serMis = grFC(c, 'series') === 'mismatch' || aFC.series === 'mismatch', eraMis = grFC(c, 'era') === 'mismatch' || aFC.era === 'mismatch';
   const rfMis = grFC(c, 'rarity') === 'mismatch' || grFC(c, 'finish') === 'mismatch' || grFC(c, 'special') === 'mismatch';   // a Special word only one side names counts (2026-10-29)
   const setTip = /^pokemon game( promo)?$/i.test(String(r[30] || '')) ? ' title="PSA’s own name: Pokemon Game = 1999 Base Set, Pokemon Game Promo = the Wizards promos (Card Ladder uses PSA’s names)"' : '';
-  return '<td><b>' + esc(r[25]) + '</b></td>' +
+  return '<td><b>' + esc(r[25]) + '</b>' + (grUnsure(r) ? ' <span class="gunsure" title="Unsure match: the automatic matcher was not sure Card Ladder’s card is the same card as PriceCharting’s (its status is “review”, which only means a person should check it - nothing was sent anywhere). Open Review and answer Same card / Not the same card; the highlight goes away once you answer.">unsure match</span>' : '') + '</td>' +
     grPcCells(r, c) +
     (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (/spec/.test(r[27]) ? 'No ' + esc(r[25]) + ' slab read yet: PSA’s page for the card itself (spec ' + esc(c.spec) + '; PSA asks you to sign in)' : 'The cert number of a ' + esc(r[25]) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its ' + esc(r[26]) + ' cert page') + '">' + esc(r[27]) + '</a></td>' : '<td><span class="dim" title="No ' + esc(r[25]) + ' slab read yet, and no PSA spec for a CGC row">none</span></td>') +
     (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : '<td><span class="dim">none</span></td>') +
@@ -205,18 +207,18 @@ function grRow(r) {
     (r[6] == null ? '<td class="num"><span class="dim" title="' + esc('No ' + r[25] + ' sale recorded by PriceCharting last month and no chart value for it. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">-</span></td>'
       : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
     (r[35] == null ? '<td class="num"><span class="dim" title="' + esc('Card Ladder recorded no ' + r[25] + ' sale last month. Its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">-</span></td>'
-      : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
-    (r[36] == null ? gdash : '<td class="num">' + fmtPct(r[36], true, 1) + '</td>') +
+      : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' (an average: Card Ladder gives only its monthly average, so Hodges–Lehmann waits until its single sales are saved) · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
+    (r[36] == null ? gdash : '<td class="num" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month') + '">' + fmtPct(r[36], true, 1) + '</td>') +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) + gdash + grPct(r[12], false, 2) + grPct(r[13]) +
     grInt(r[16]) + grInt(r[37]) + gdash + gdash +
     gdash + gdash + gdash + gdash + gdash + gdash +
     '<td><button class="tbtn gtbtn" data-k="' + r[0] + '|' + esc(r[50]) + '">Trend</button></td>' +
     '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + (r[41] === 1 ? 'You said: same card' : r[41] === 0 ? 'You said: not the same card' : 'Compare PriceCharting’s card with Card Ladder’s') + '">Review</button></td>' +
-    '<td class="gflc">' + (r[42] ? '<button class="gflag on" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + esc('Flagged: ' + r[42]) + '">⚑ ' + esc(r[42]) + '</button>' : '<button class="gflag" data-k="' + r[0] + '|' + esc(r[50]) + '" title="Record a wrong PriceCharting-to-Card Ladder match">⚐</button>') + '</td>';
+    '<td class="gflc">' + (r[42] ? '<button class="gflag on" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + esc('Your flag: ' + r[42] + ((GMARKS[r[0] + '|' + r[50]] || {}).note ? ' - ' + GMARKS[r[0] + '|' + r[50]].note : '') + '. Click to change it or take it off.') + '">⚑ ' + esc(r[42]) + '</button>' : '<button class="gflag" data-k="' + r[0] + '|' + esc(r[50]) + '" title="Flag this row with a reason - this view’s own flags, kept apart from the eBay tabs’ Flags">⚐</button>') + '</td>';
 }
 function grRawCells(r) {                                    // a raw card in the both-view (the raw tab's figures, the CL columns empty)
   return '<td><span class="dim">Raw</span></td>' + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
-    gdash.repeat(6) + gdash.repeat(10) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
+    gdash.repeat(6) + gdash.repeat(8) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) +
     '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
     grPct(r[12], false, 2) + grPct(r[13]) +
@@ -228,17 +230,19 @@ function grRawCells(r) {                                    // a raw card in the
 }
 
 /* ---- the two tables (graded / both) ---- */
-const GR_RANGES = [5, 6, 35, 36, 64, 65, 7, 8, 9, 12, 13, 16, 37, 38, 39, 18, 19, 20, 21, 22, 23];
-const GR_LABELS = {5: 'Sales/yr', 6: 'PC Graded (last month)', 35: 'CL Graded (last month)', 36: 'PC to CL %', 64: 'Auth Pop', 65: 'Auth Pop Higher', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 12: 'Volatility %', 13: 'Slope %/mo',
+const GR_RANGES = [5, 6, 35, 36, 7, 8, 9, 12, 13, 16, 37, 38, 39, 18, 19, 20, 21, 22, 23];
+const GR_LABELS = {5: 'Sales/yr', 6: 'PC Graded (last month)', 35: 'CL Graded (last month)', 36: 'PC to CL %', 7: 'Δ7d %', 8: 'Δ30d %', 9: 'Range 90d %', 12: 'Volatility %', 13: 'Slope %/mo',
   16: 'PC sales', 37: 'CL sales', 38: 'Graded this mo', 39: 'Graded last mo', 18: 'eBay last mo', 19: 'eBay this mo', 20: '$eBay Anchor', 21: 'eBay to PC %', 22: 'Hits 30d', 23: 'Hit %'};
 const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS, defaults: {},
   fav: {s: 'pc', k: r => r[0], c: r => r[0]},
-  extra: r => r[48] ? grTermPass(r[0], true) : GSEL.has(r[50]) && grTermPass(r[0]),
+  extra: r => r[48] ? !GFLAGONLY && grTermPass(r[0], true) : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]),
+  rowClass: r => !r[48] && grUnsure(r) ? 'grunsure' : '',
   hay: r => [r[1], r[2], r[14], r[25], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63]].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
   // columns added (or removed, n < 0) since a layout was saved, so Brett's own order and eyes stay on the same columns:
   // v1 Graded To PC Sales Ratio removed; v2 PC Illustrator, CL Illustrator, Series, Era after CL Release (2026-10-28);
-  // v3 the ten Auth columns after CL Release, v4 Auth Illustrator after CL Illustrator (2026-10-29)
-  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}],
+  // v3 the ten Auth columns after CL Release, v4 Auth Illustrator after CL Illustrator; v5 / v6 Auth Pop and Auth Pop
+  // Higher removed again (2026-10-29)
+  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}],
   row: grRow, root: null});
 const GR_TABLES = {pcg: Object.assign(grCfg(() => GR.rows, 'graded rows'), {root: '#pcv-g', name: 'PriceCharting · graded'}),
                    pca: Object.assign(grCfg(grAll, 'rows'), {root: '#pcv-a', name: 'PriceCharting · raw + graded'})};
@@ -284,15 +288,72 @@ function grDecTag(name, left) {                             // a word sorted her
   return '<span class="gtdec" title="Saved and sent to the collector; the site shows it after the next site build files it into card-data/data/dictionary/terms.csv">' +
     (d.term.toLowerCase() !== String(name).toLowerCase() ? '“' + esc(d.term) + '” ' : '') + '→ ' + esc(d.cat === 'Unidentified' ? 'Unsorted' : d.cat) + (d.same ? ' (same as ' + esc(d.same) + ')' : '') + (d.sent === false ? ' · not sent yet' : ' · saved') + '</span>';
 }
+/* The filter buttons' order (2026-10-29, Brett: "i want the filter button in the only graded page to be draggable and
+   rearrangable like the other tabs"): Grading, the word buttons and Flags move with the same hold-and-drag as the
+   filter chips - press one, hold it still a moment (it lifts), drag it along the row, let go. Remembered in this
+   browser (gm-order); a button that arrives later takes its natural place. */
+const GM_KEYS = ['grading'].concat(GT_CATS, ['flags']);
+let GM_ORDER = grLS('gm-order', null);
+function gmOrder() {
+  const sv = Array.isArray(GM_ORDER) ? GM_ORDER.filter(k => GM_KEYS.includes(k)) : [];
+  GM_KEYS.forEach((k, i) => { if (!sv.includes(k)) sv.splice(i ? sv.indexOf(GM_KEYS[i - 1]) + 1 : 0, 0, k); });
+  return sv;
+}
 function grPaintTerms() {
   const box = $('gm-terms'); if (!box) return;
+  const gb = $('gm-grades');
+  if (gb && box.contains(gb)) box.parentNode.insertBefore(gb, box);   // the live Grading button stays out of the redraw
   if (PCMODE === 'raw' || !GR.doc) { box.hidden = true; return; }
   box.hidden = false;
   grPruneDec();
-  box.innerHTML = GT_CATS.map(cat => { const L = grTermList(cat), off = new Set(GTS.off[cat] || []), on = L.filter(x => !off.has(x[0])).length;
-    return '<button type="button" class="gm2 gtb' + (grTermActive(cat) ? ' on' : '') + '" data-cat="' + cat + '" title="' + esc(cat + ': the words PriceCharting / TCGplayer and Card Ladder use - tick which to show') + '">' + cat + ' <span class="dim">(' + (grTermActive(cat) ? on + ' of ' : '') + L.length + ')</span> ▾</button>'; }).join('') +
+  const part = {grading: '<span id="gm-grades-slot"></span>',
+    flags: '<button type="button" class="gm2 gtb gflb' + (GFLAGONLY ? ' on' : '') + '" id="gfl-only" data-mv="flags" title="This view’s own flags (the Flag column), kept apart from the eBay tabs’ Flags: on = show only the flagged rows. Hold and drag to move it.">⚑ Flags <span class="dim">(' + GR.rows.filter(r => r[42]).length + ')</span></button>'};
+  GT_CATS.forEach(cat => { const L = grTermList(cat), off = new Set(GTS.off[cat] || []), on = L.filter(x => !off.has(x[0])).length;
+    part[cat] = '<button type="button" class="gm2 gtb' + (grTermActive(cat) ? ' on' : '') + '" data-cat="' + cat + '" data-mv="' + cat + '" title="' + esc(cat + ': the words PriceCharting / TCGplayer, Card Ladder and the grader use - tick which to show. Hold and drag to move it.') + '">' + cat + ' <span class="dim">(' + (grTermActive(cat) ? on + ' of ' : '') + L.length + ')</span> ▾</button>'; });
+  box.innerHTML = gmOrder().map(k => part[k]).join('') +
     '<span class="gtacross" title="How the active buttons combine">Across buttons: <button type="button" class="zb' + (GTS.across !== 'any' ? ' on' : '') + '" data-a="all">all</button><button type="button" class="zb' + (GTS.across === 'any' ? ' on' : '') + '" data-a="any">any</button></span>';
+  const slot = $('gm-grades-slot'); if (slot && gb) { gb.dataset.mv = 'grading'; slot.replaceWith(gb); }
 }
+{ // hold-and-drag for the buttons above (the filter chips' gesture, app.js)
+  let lift = null, justDragged = 0;
+  const host = $('gmode');
+  const items = () => [...host.querySelectorAll('[data-mv]')];
+  const end = () => { if (!lift) return; clearTimeout(lift.timer); if (lift.ghost) lift.ghost.remove(); lift.el.classList.remove('lifted'); items().forEach(d => d.classList.remove('drop-l', 'drop-r')); document.body.classList.remove('chip-drag'); lift = null; };
+  if (host) {
+    host.addEventListener('pointerdown', e => {
+      const el = e.target.closest('[data-mv]'); if (!el || e.button !== 0 || PCMODE === 'raw') return;
+      end(); lift = {el, x: e.clientX, y: e.clientY, id: e.pointerId, on: false};
+      lift.timer = setTimeout(() => {
+        if (!lift) return; lift.on = true; el.classList.add('lifted'); document.body.classList.add('chip-drag');
+        const r = el.getBoundingClientRect(); lift.dx = lift.x - r.left; lift.dy = lift.y - r.top;
+        const g = el.cloneNode(true); g.removeAttribute('id'); g.classList.add('ghost'); g.style.left = r.left + 'px'; g.style.top = r.top + 'px'; g.style.width = r.width + 'px'; document.body.appendChild(g); lift.ghost = g;
+      }, 300);
+    });
+    document.addEventListener('pointermove', e => {
+      if (!lift || e.pointerId !== lift.id) return;
+      if (!lift.on) { if (Math.hypot(e.clientX - lift.x, e.clientY - lift.y) > 8) end(); return; }   // moved before it lifted: a click or a scroll
+      e.preventDefault();
+      lift.ghost.style.left = (e.clientX - lift.dx) + 'px'; lift.ghost.style.top = (e.clientY - lift.dy) + 'px';
+      items().forEach(d => d.classList.remove('drop-l', 'drop-r'));
+      let best = null;
+      items().filter(d => d !== lift.el).forEach(d => { const r = d.getBoundingClientRect(), cx = (r.left + r.right) / 2, dist = Math.hypot(e.clientX - cx, e.clientY - (r.top + r.bottom) / 2); if (!best || dist < best.dist) best = {d, dist, before: e.clientX < cx}; });
+      lift.to = best; if (best) best.d.classList.add(best.before ? 'drop-l' : 'drop-r');
+    }, {passive: false});
+    const drop = e => {
+      if (!lift || (e && e.pointerId !== lift.id)) return;
+      let moved = false;
+      if (lift.on) {
+        justDragged = Date.now();
+        if (lift.to) { const k = lift.el.dataset.mv, ord = gmOrder().filter(x => x !== k), at = ord.indexOf(lift.to.d.dataset.mv); ord.splice(lift.to.before ? at : at + 1, 0, k); GM_ORDER = ord; grSave('gm-order', ord); moved = true; }
+      }
+      end();
+      if (moved) grPaintTerms();
+    };
+    document.addEventListener('pointerup', drop); document.addEventListener('pointercancel', drop);
+    host.addEventListener('click', e => { if (Date.now() - justDragged < 400 && e.target.closest('[data-mv]')) { e.stopPropagation(); e.preventDefault(); } }, true);   // the click that ends a drag opens nothing
+  }
+}
+const GT_Q = {};                                           // the search typed in each word button's list (kept while it is redrawn)
 function grOpenTerms(cat) {
   const L = grTermList(cat), off = new Set(GTS.off[cat] || []), side = GTS.side[cat] || 'either', within = GTS.within[cat] || 'any';
   const cards = Object.entries((GR.doc && GR.doc.cards) || {});
@@ -306,12 +367,15 @@ function grOpenTerms(cat) {
   $('btitle').textContent = cat + ' · PriceCharting tab';
   $('bsub').innerHTML = (cat === 'Unidentified' ? 'Words seen on a card that the dictionary (card-data/data/dictionary/terms.csv) does not place yet, with where they were seen. ' : 'The words sorted as ' + cat + ' by the dictionary (card-data/data/dictionary/terms.csv). ') +
     'PC × / CL × / Auth × = graded cards whose PriceCharting / Card Ladder / grader side carries it; catalog × = PriceCharting [brackets] across every card. Tap a word to see its cards; untick to hide them; Sort to file it in the dictionary (it takes effect at the next site build).';
-  $('bbody').innerHTML = '<div class="gtctl"><span>Inside this button: <button type="button" class="zb' + (within === 'any' ? ' on' : '') + '" data-w="any">any</button><button type="button" class="zb' + (within === 'all' ? ' on' : '') + '" data-w="all">all</button></span>' +
+  // Select all / Deselect all / search (2026-10-29, Brett: "after clicking on any button ... there should be a select
+  // all option, a deselect all option, and a search feature"): with a search typed, the two act on the words shown
+  $('bbody').innerHTML = '<div class="gtsearch"><input type="search" id="gt-q" placeholder="Search these ' + L.length.toLocaleString('en-US') + ' words…" value="' + esc(GT_Q[cat] || '') + '"><button type="button" class="reset" id="gt-all">Select all</button><button type="button" class="reset" id="gt-none">Deselect all</button><span class="dim" id="gt-qn"></span></div>' +
+    '<div class="gtctl"><span>Inside this button: <button type="button" class="zb' + (within === 'any' ? ' on' : '') + '" data-w="any">any</button><button type="button" class="zb' + (within === 'all' ? ' on' : '') + '" data-w="all">all</button></span>' +
     '<span>Side: ' + ['either', 'pc', 'cl', 'auth', 'both'].map(x => '<button type="button" class="zb' + (side === x ? ' on' : '') + '" data-s="' + x + '" title="' + ({either: 'a card any side carries it on', pc: 'PriceCharting / TCGplayer', cl: 'Card Ladder', auth: 'the grader (PSA’s cert record, or the description Card Hedge relays)', both: 'every side that has read the card carries it'})[x] + '">' + (x === 'pc' ? 'PC' : x === 'cl' ? 'CL' : x === 'auth' ? 'Auth' : x === 'both' ? 'all agree' : 'either') + '</button>').join('') + '</span></div>' +
     (within === 'all' ? '<p class="dim">“all”: only cards that carry every ticked word - tick just the words a card must have.</p>' : '') +
     '<div class="gtlist">' + row('(none)', '', noneN, 0, 0, 'cards whose ' + (side === 'either' ? 'sides say' : side === 'both' ? 'sides agree on' : (side === 'auth' ? 'Auth' : side.toUpperCase()) + ' side says') + ' nothing here') +
     L.map(x => row(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7])).join('') + '</div>' + '<datalist id="gt-dl"></datalist>' +
-    '<div class="pickbtns"><button class="reset" id="gt-all">Turn all on</button><button class="reset" id="gt-none">Turn all off</button><button class="reset" id="gt-done">Done</button></div>';
+    '<div class="pickbtns"><button class="reset" id="gt-done">Done</button></div>';
   const body = $('bbody');
   body.querySelector('.gtlist').addEventListener('input', e => { const i = e.target; if (i.dataset.t == null) return; const o = new Set(GTS.off[cat] || []); if (i.checked) o.delete(i.dataset.t); else o.add(i.dataset.t); GTS.off[cat] = [...o]; grTermsChanged(); });
   body.querySelector('.gtlist').addEventListener('click', e => {
@@ -325,8 +389,17 @@ function grOpenTerms(cat) {
     box.hidden = false;
   });
   body.querySelector('.gtctl').addEventListener('click', e => { const b = e.target.closest('.zb'); if (!b) return; if (b.dataset.w) GTS.within[cat] = b.dataset.w; if (b.dataset.s) GTS.side[cat] = b.dataset.s; grTermsChanged(); grOpenTerms(cat); });
-  $('gt-all').addEventListener('click', () => { GTS.off[cat] = []; grTermsChanged(); grOpenTerms(cat); });
-  $('gt-none').addEventListener('click', () => { GTS.off[cat] = ['(none)'].concat(L.map(x => x[0])); grTermsChanged(); grOpenTerms(cat); });
+  const shown = () => [...body.querySelectorAll('.gtrow')].filter(el => !el.hidden).map(el => el.querySelector('input[data-t]').dataset.t);
+  const filter = () => {
+    const q = (GT_Q[cat] = $('gt-q').value.trim()).toLowerCase(); let n = 0;
+    body.querySelectorAll('.gtrow').forEach(el => { const t = el.querySelector('input[data-t]').dataset.t, left = (el.querySelector('.gtsortb') || {dataset: {}}).dataset.l || '';
+      el.hidden = !!q && !(t.toLowerCase().includes(q) || left.toLowerCase().includes(q)); if (!el.hidden) n++; });
+    $('gt-qn').textContent = q ? n.toLocaleString('en-US') + ' shown' : '';
+  };
+  $('gt-q').addEventListener('input', filter);
+  filter();
+  $('gt-all').addEventListener('click', () => { const s2 = new Set(shown()), o = (GTS.off[cat] || []).filter(x => !s2.has(x)); GTS.off[cat] = o; grTermsChanged(); grOpenTerms(cat); });
+  $('gt-none').addEventListener('click', () => { const o = new Set(GTS.off[cat] || []); shown().forEach(x => o.add(x)); GTS.off[cat] = [...o]; grTermsChanged(); grOpenTerms(cat); });
   $('gt-done').addEventListener('click', () => $('bov').classList.remove('open'));
   $('bov').classList.add('open');
 }
@@ -371,6 +444,7 @@ function grSortEditor(rowEl, name, left, cat) {
   });
 }
 if ($('gm-terms')) $('gm-terms').addEventListener('click', e => {
+  if (e.target.closest('#gfl-only')) { GFLAGONLY = !GFLAGONLY; grSave('gflagonly', GFLAGONLY); grTermsChanged(); return; }
   const b = e.target.closest('.gtb'); if (b) { grOpenTerms(b.dataset.cat); return; }
   const a = e.target.closest('.zb[data-a]'); if (a) { GTS.across = a.dataset.a; grTermsChanged(); }
 });
@@ -378,10 +452,21 @@ if ($('gm-terms')) $('gm-terms').addEventListener('click', e => {
 /* ---- Only show raw / Only show graded (one or the other, or neither = both) ---- */
 function grNote() {
   const n = $('gm-note'); if (!n) return;
+  grMeta();
   if (PCMODE === 'raw') { n.textContent = ''; return; }
-  n.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>'
-    : !GR.doc ? 'Loading the graded data…'
-    : GR.rows.length.toLocaleString('en-US') + ' graded rows over ' + Object.keys(GR.doc.cards).length.toLocaleString('en-US') + ' cards matched to Card Ladder (built ' + esc(GR.doc.built) + ')';
+  n.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>' : !GR.doc ? 'Loading the graded data…' : '';
+}
+/* The line under the tabs (2026-10-29, Brett: "this part should change in the price chart only graded page ... it says 43
+   thousand cards but only see 1000 graded so far"): in the graded and the both views it describes the graded data -
+   graded rows exist only for cards matched to Card Ladder. */
+function grMeta() {
+  const m = $('meta-pc'); if (!m) return;
+  if (m.dataset.orig == null) m.dataset.orig = m.textContent;
+  if (PCMODE === 'raw' || !GR.doc) { m.textContent = m.dataset.orig; return; }
+  const nc = Object.keys(GR.doc.cards).length, nr = GR.rows.length, raw = (typeof DATA !== 'undefined' ? DATA.length : 0);
+  m.textContent = 'Graded data built ' + GR.doc.built + ' · ' + nr.toLocaleString('en-US') + ' graded rows (one per card per PSA / CGC grade) on ' + nc.toLocaleString('en-US') + ' cards matched to Card Ladder' +
+    (PCMODE === 'all' ? ', with all ' + raw.toLocaleString('en-US') + ' raw cards' : ' — only matched cards have graded rows (' + raw.toLocaleString('en-US') + ' PriceCharting cards in all; more get matched as Card Ladder is read)') +
+    ' · prices from PriceCharting and Card Ladder (USD)';
 }
 function grPaintGrades() { const b = $('gm-gn'); if (b) b.textContent = '(' + GSEL.size + ')'; }
 function grShowMode() {
@@ -402,13 +487,18 @@ function grOpenGrades() {
   const box = k => '<label><input type="checkbox" data-gk="' + k + '"' + (GSEL.has(k) ? ' checked' : '') + '> ' + esc(grLabel(k)) + '</label>';
   $('btitle').textContent = 'Grading · PriceCharting';
   $('bsub').textContent = 'Tick the grades to show as graded rows (one row per card per grade). Remembered in this browser; the graded and both views use the same ticks.';
-  $('bbody').innerHTML = '<div class="gpick"><div><h4>PSA</h4>' + col('psa').map(box).join('') + '</div><div><h4>CGC</h4>' + col('cgc').map(box).join('') + '</div></div>' +
-    '<div class="pickbtns"><button class="reset" id="gp-all">Turn all on</button><button class="reset" id="gp-none">Turn all off</button><button class="reset" id="gp-done">Done</button></div>';
+  $('bbody').innerHTML = '<div class="gtsearch"><input type="search" id="gp-q" placeholder="Search grades… (e.g. psa 10, 9.5, pristine)"><button type="button" class="reset" id="gp-all">Select all</button><button type="button" class="reset" id="gp-none">Deselect all</button><span class="dim" id="gp-qn"></span></div>' +
+    '<div class="gpick"><div><h4>PSA</h4>' + col('psa').map(box).join('') + '</div><div><h4>CGC</h4>' + col('cgc').map(box).join('') + '</div></div>' +
+    '<div class="pickbtns"><button class="reset" id="gp-done">Done</button></div>';
   const sync = () => $('bbody').querySelectorAll('.gpick input').forEach(i => { i.checked = GSEL.has(i.dataset.gk); });
   const changed = () => { grSave('pcg-grades', [...GSEL]); grPaintGrades(); if (tables.pcg) tables.pcg.apply(); if (tables.pca && PCMODE === 'all') tables.pca.apply(); };
   $('bbody').querySelector('.gpick').addEventListener('input', e => { const i = e.target; if (!i.dataset.gk) return; if (i.checked) GSEL.add(i.dataset.gk); else GSEL.delete(i.dataset.gk); changed(); });
-  $('gp-all').addEventListener('click', () => { GSEL = new Set(gk); sync(); changed(); });
-  $('gp-none').addEventListener('click', () => { GSEL = new Set(); sync(); changed(); });
+  const shownG = () => [...$('bbody').querySelectorAll('.gpick label')].filter(l => !l.hidden).map(l => l.querySelector('input').dataset.gk);
+  $('gp-q').addEventListener('input', () => { const q = $('gp-q').value.trim().toLowerCase(); let n = 0;
+    $('bbody').querySelectorAll('.gpick label').forEach(l => { l.hidden = !!q && !l.textContent.toLowerCase().includes(q); if (!l.hidden) n++; });
+    $('gp-qn').textContent = q ? n + ' shown' : ''; });
+  $('gp-all').addEventListener('click', () => { shownG().forEach(k => GSEL.add(k)); sync(); changed(); });
+  $('gp-none').addEventListener('click', () => { shownG().forEach(k => GSEL.delete(k)); sync(); changed(); });
   $('gp-done').addEventListener('click', () => $('bov').classList.remove('open'));
   $('bov').classList.add('open');
 }
@@ -480,8 +570,9 @@ function grOpenReview(key) {
   $('btitle').textContent = r[1] + ' — ' + String(r[2] || '').replace('Pokemon ', '') + ' · ' + r[25];
   $('bsub').innerHTML = 'Is Card Ladder’s card the same card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 ? '<b class="down">You said: not the same.</b>' : '') +
     (c.st ? ' <span class="dim">Matched: ' + esc(c.st) + (c.by ? ' (' + esc(c.by) + ')' : '') + '</span>' : '');
-  let h = '<div class="rvflag gflagbox"><span class="lab">Flag a wrong match</span><span class="fbtns">' + GR_REASONS.map(s => '<button type="button" class="fbtn' + (mk.reason === s || r[42] === s ? ' on' : '') + '" data-s="' + esc(s) + '">' + esc(s) + '</button>').join('') + '</span>' +
-    '<input type="text" id="grf-note" placeholder="why (kept with the flag)" value="' + esc(mk.note || '') + '"><div class="fsave"><button type="button" class="tbtn" id="grf-save">Flag it</button>' + (r[42] ? '<button type="button" class="linkbtn" id="grf-off">Take the flag off</button>' : '') + '<span id="grf-msg" class="dim"></span></div></div>';
+  // the Flag is its own thing now (2026-10-29, Brett: "should have its own flag button that is separate"): set in the
+  // Flag column; Review only says whether the row carries one
+  let h = r[42] ? '<div class="gflagnote">⚑ Your flag on this row: <b>' + esc(r[42]) + '</b>' + (mk.note ? ' - ' + esc(mk.note) : '') + ' <span class="dim">(change it in the Flag column)</span></div>' : '';
   h += '<div class="rvpair">' +
     '<div class="rvside"><h4>PriceCharting <a href="' + pcPage + '" target="_blank" rel="noopener">↗</a></h4>' +
       (pcu ? '<a href="' + pcPage + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(pcu) + '" alt="PriceCharting picture: click to open their page"></a>'
@@ -504,7 +595,7 @@ function grOpenReview(key) {
   }
   const top = '<div class="rvtop"><button type="button" class="tbtn" id="grv-trend">Trend</button>' +
     '<div>' + factc('Number graded', ngB, ngS) + '</div>' +
-    '<div>' + factc('PC to CL % difference (last month)', r[36] == null ? '-' : fmtPct(r[36], true, 1), 'PC ' + fmtMoneyPlain(r[6]) + ' · CL ' + fmtMoneyPlain(r[35]) + ' (averages of ' + esc(grMonthName(r[17])) + '’s sales)') + '</div></div>';
+    '<div>' + factc('PC to CL % difference (last month)', r[36] == null ? '-' : fmtPct(r[36], true, 1), 'PC ' + fmtMoneyPlain(r[6]) + ' · CL ' + fmtMoneyPlain(r[35]) + ' (' + esc(grMonthName(r[17])) + '’s sales: PC Hodges–Lehmann, CL average)') + '</div></div>';
   h = h.replace('<div class="rvpair">', top + '<div class="rvpair">');
   const idSub = r[27] ? (/spec/.test(r[27]) ? 'no ' + esc(gl) + ' slab read yet: PSA’s page for the card (PSA asks you to sign in)' : 'a ' + esc(gl) + ' slab of this card, read off a PriceCharting sold-listing photo') : 'no ' + esc(gl) + ' slab read yet';
   const isGame = /^pokemon game( promo)?$/i.test(String(cl[2] || ''));
@@ -528,8 +619,7 @@ function grOpenReview(key) {
     row(factc('Series', (c.ser || [])[0] ? esc(c.ser[0]) : none, 'only where the text names it', mk2('series')), factc('Series', (c.ser || [])[1] ? esc(c.ser[1]) : none, 'only where the text names it', mk2('series')),
         factc('Series', (c.ser || [])[2] ? esc(c.ser[2]) : A ? none : aw(r[56]), A ? 'only where the text names it' : '', amk('series'))) +
     row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era')), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era'))) +
-    row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded'),
-        fact('Population', sOk && r[64] != null ? fmtInt(r[64]) : aw(sOk ? 'not given' : sWord), sOk && r[64] != null ? 'graded ' + esc(r[25]) + (r[65] != null ? ' · ' + fmtInt(r[65]) + ' graded higher' : '') + ' (PSA’s population report)' : sOk ? 'Card Hedge gives no population' : '')) +
+    row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded'), '') +
     row(fact('Grade and grader', esc(r[25])), fact('Grade and grader', esc(r[25])), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && S[5] === 'psa' ? 'label type: ' + esc(S[2] || 'none') : sOk ? 'from Card Hedge (GemRate); no label type' : '')) +
     row(fact('Grade price', fmtMoneyPlain(r[6]), esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of ' + esc(grMonthName(r[17])) + '’s sales' + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
         fact('Card Hedge’s card', A && A.ch ? esc([A.ch.player, A.ch.set, A.ch.number ? '#' + A.ch.number : '', A.ch.variant].filter(Boolean).join(' · ')) : aw(A ? 'none' : r[56]),
@@ -549,19 +639,36 @@ function grOpenReview(key) {
   $('grv-no').addEventListener('click', () => answer(0));
   $('grv-yes').addEventListener('click', () => answer(1));
   const u = $('grv-undo'); if (u) u.addEventListener('click', () => answer(null));
-  let fst = r[42] || mk.reason || null;
-  $('bbody').querySelectorAll('.gflagbox .fbtn').forEach(b => b.addEventListener('click', () => { fst = b.dataset.s; $('bbody').querySelectorAll('.gflagbox .fbtn').forEach(x => x.classList.toggle('on', x === b)); }));
-  $('grf-save').addEventListener('click', async () => {
-    const msg = $('grf-msg'); if (!fst) { msg.innerHTML = '<span class="down">Pick a reason first.</span>'; return; }
-    msg.textContent = 'Saving…'; const ok = await grMark(r, {reason: fst, note: $('grf-note').value.trim(), v: 0});
-    msg.innerHTML = 'Flagged: <b>' + esc(fst) + '</b>' + (ok ? '' : ' (kept in this browser; the collector could not be told yet)');
-  });
-  const off = $('grf-off'); if (off) off.addEventListener('click', async () => { await grMark(r, {reason: null, note: ''}); $('grf-msg').textContent = 'The flag is off.'; });
 }
+/* The Flag column's menu (2026-10-29, Brett: "price charting only show graded page should have its own flag button that
+   is separate from the other tabs. i dont want it to combine its flags with the other flags"): a reason and a note
+   for this card x grade, saved on its own - it does not answer Review (Same / Not the same card stays your separate
+   answer) and never joins the eBay tabs' Flags archive. Saved in this browser at once and sent over the signed channel;
+   the next site build files it into card-data/data/ids/marks.csv (reason, note). The Flags button above the table
+   shows only the flagged rows. */
+function grFlagPop(btn) {
+  const r = grRowOfKey(btn.dataset.k); if (!r) return;
+  const key = r[0] + '|' + r[50], mk = GMARKS[key] || {};
+  let pop = $('gflpop'); if (!pop) { pop = document.createElement('div'); pop.id = 'gflpop'; document.body.appendChild(pop); }
+  pop.innerHTML = '<div class="lab">Flag ' + esc(r[1] + ' · ' + r[25]) + '</div><div class="fbtns">' + GR_REASONS.map(s => '<button type="button" class="fbtn' + (r[42] === s ? ' on' : '') + '" data-s="' + esc(s) + '">' + esc(s) + '</button>').join('') + '</div>' +
+    '<input type="text" id="gflpop-note" placeholder="why (optional - kept with the flag)" value="' + esc(mk.note || '') + '">' +
+    '<div class="fsave">' + (r[42] ? '<button type="button" class="linkbtn" id="gflpop-off">Take the flag off</button>' : '') + '<button type="button" class="linkbtn" id="gflpop-x">Cancel</button><span class="dim" id="gflpop-msg">pick a reason to flag the row</span></div>';
+  pop.dataset.k = key;
+  const rect = btn.getBoundingClientRect(), w = Math.min(440, window.innerWidth - 16);
+  pop.style.width = w + 'px'; pop.style.left = Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8)) + 'px';
+  pop.style.top = (rect.bottom + 6 + 230 > window.innerHeight ? Math.max(8, rect.top - 236) : rect.bottom + 6) + 'px';
+  pop.classList.add('open');
+  const done = async patch => { $('gflpop-msg').textContent = 'Saving…'; const ok = await grMark(r, patch); if (ok) pop.classList.remove('open'); else $('gflpop-msg').innerHTML = '<span class="down">Kept in this browser; the collector could not be told yet - it is sent again with your next answer.</span>'; grPaintTerms(); };
+  pop.querySelectorAll('.fbtn').forEach(b => b.addEventListener('click', () => done({reason: b.dataset.s, note: $('gflpop-note').value.trim()})));
+  const off = $('gflpop-off'); if (off) off.addEventListener('click', () => done({reason: null, note: ''}));
+  $('gflpop-x').addEventListener('click', () => pop.classList.remove('open'));
+}
+document.addEventListener('mousedown', e => { const pop = $('gflpop'); if (pop && pop.classList.contains('open') && !pop.contains(e.target) && !e.target.closest('.gflag')) pop.classList.remove('open'); });
 for (const id of ['pcg', 'pca']) {
   const tb = $('rows-' + id); if (!tb) continue;
   tb.addEventListener('click', e => {
-    const rv = e.target.closest('.grvb, .gflag'); if (rv) { grOpenReview(rv.dataset.k); return; }
+    const fl = e.target.closest('.gflag'); if (fl) { grFlagPop(fl); return; }
+    const rv = e.target.closest('.grvb'); if (rv) { grOpenReview(rv.dataset.k); return; }
     const gt = e.target.closest('.gtbtn'); if (gt) { grOpenTrend(gt.dataset.k); return; }
     const tb2 = e.target.closest('.tbtn'); if (tb2 && tb2.dataset.i != null) openTrend(+tb2.dataset.i);
   });

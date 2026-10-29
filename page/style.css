@@ -522,6 +522,10 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .gterms { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .gterms[hidden] { display:none; }
   .gm2.gtb.on { border-color:var(--link); color:var(--link); }
+  .gm2.lifted { opacity:.4; }
+  .gm2.ghost { position:fixed; z-index:50; margin:0; pointer-events:none; opacity:.95; box-shadow:0 6px 18px rgba(0,0,0,.35); transform:scale(1.04); }
+  .gm2.drop-l { box-shadow:-5px 0 0 -2px var(--link); }
+  .gm2.drop-r { box-shadow:5px 0 0 -2px var(--link); }
   .gtacross { font-size:12px; color:var(--muted); display:inline-flex; gap:4px; align-items:center; margin-left:4px; }
   .gtctl { display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:var(--muted); margin-bottom:8px; }
   .gtctl span { display:inline-flex; gap:4px; align-items:center; }
@@ -565,4 +569,19 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .gflag { font:inherit; font-size:12px; border:1px solid var(--line); border-radius:6px; background:none; color:var(--muted); cursor:pointer; padding:2px 7px; white-space:nowrap; }
   .gflag.on { color:var(--down); border-color:var(--down); }
   .gflagbox { margin-bottom:10px; }
+  .gflagnote { margin:0 0 10px; padding:6px 10px; border:1px solid var(--down); border-radius:8px; font-size:13px; }
+  #gflpop { position:fixed; z-index:70; display:none; background:var(--bg); color:var(--fg); border:1px solid var(--down); border-radius:10px; padding:8px 10px; box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:13px; }
+  #gflpop.open { display:block; }
+  #gflpop .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+  #gflpop .fbtns { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0; }
+  #gflpop .fbtn { font:inherit; font-size:12px; font-weight:600; padding:5px 10px; border:1px solid var(--line); border-radius:8px; background:var(--head); color:var(--fg); cursor:pointer; }
+  #gflpop .fbtn:hover, #gflpop .fbtn.on { background:var(--down); border-color:var(--down); color:#fff; }
+  #gflpop input[type=text] { width:100%; box-sizing:border-box; font:inherit; font-size:13px; border:1px solid var(--line); border-radius:8px; padding:5px 8px; background:var(--bg); color:var(--fg); margin:4px 0; }
+  #gflpop .fsave { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .gflb.on { border-color:var(--down); color:var(--down); }
+  tr.grunsure > td { background:rgba(227,179,65,.09); }
+  .gunsure { display:inline-block; font-size:10px; font-weight:600; color:#e3b341; border:1px solid #e3b341; border-radius:5px; padding:0 4px; margin-left:4px; white-space:nowrap; cursor:help; }
+  .gtrow[hidden], .gpick label[hidden] { display:none !important; }   /* the search hides rows that do not match */
+  .gtsearch { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .gtsearch input[type=search] { flex:1 1 220px; min-width:0; font:inherit; font-size:14px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
   table.gtable td:first-child + td + td b { font-weight:600; }

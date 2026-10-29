@@ -31,7 +31,7 @@ PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) a
 Writes, encrypted with the page's history key (PBKDF2 of SITE_PASSWORD, salt biotech-catalog-live-v1 - the key the
 Trend shards and the eBay live file use, so the page can read them):
   <out>/graded.bin        {v, built, gk: [grade keys], cards: {pc id: card meta}, rows: [[...]]} - the table
-  <out>/gtrend/s<n>.bin   {pc id: {cl: {gk: [[YYYY-MM, n, avg]]}, pc: {gk: [[YYYY-MM, price]]}, ps: {gk: [[YYYY-MM, n, median]]},
+  <out>/gtrend/s<n>.bin   {pc id: {cl: {gk: [[YYYY-MM, n, avg]]}, pc: {gk: [[YYYY-MM, price]]}, ps: {gk: [[YYYY-MM, n, Hodges-Lehmann]]},
                           pd: [[date, PSA 10]]}} - 300 cards a file (cards[id].sh says which), loaded when a Trend popup opens
 
 Only Card Ladder's PSA and CGC grades are used (Brett: "I only care about CGC and PSA graded cards").
@@ -43,8 +43,11 @@ facts (name, set, number, release, language, rarity / finish words) per grader i
 (grade, label, population, population higher, cert) per row in the "auth" column.
 
 PC Graded / CL Graded are LAST MONTH's prices (2026-10-29, Brett: "i thought those were suppose to be grade for last
-month"): Card Ladder's average of last month's sales of the grade, and the average of last month's sales of the grade
-and grader PriceCharting recorded (else its monthly chart value) - both averages, so PC to CL % compares like with like.
+month"): Card Ladder's average of last month's sales of the grade, and PriceCharting's Hodges-Lehmann estimate of last
+month's sales of the grade and grader it recorded (else its monthly chart value). 2026-10-29, Brett: "we switch pc to
+Hodges-Lehmann" - the median of every pairwise average of the sales: as robust to an odd sale as the median, closer to
+the mean's precision. Card Ladder gives only its monthly average (no single sales on file yet), so CL stays an average
+until its sales are saved and timed (later).
 
 Also writes into the card-data checkout (the site workflow commits them there):
   dictionary/term_counts.csv   every term and unidentified phrase seen: category, how many graded cards carry it on
@@ -84,6 +87,17 @@ PC_COL = {"psa|g10": ("manual-only-price", "pc"), "cgc|g10": ("condition-17-pric
 PC_LINES = {"psa_10": "psa|g10", "grade_9_5": "cgc|g9_5", "grade_9": "psa|g9", "grade_8": "psa|g8", "grade_7": "psa|g7"}
 SNAP_COLS = ["manual-only-price", "condition-17-price", "graded-price", "box-only-price", "new-price", "cib-price"]
 STATS_WINDOW, SLOPE_WINDOW = 90, 30
+
+
+def hodges_lehmann(xs):
+    """The Hodges-Lehmann estimate: the median of the Walsh averages (x_i + x_j) / 2 over every pair i <= j."""
+    xs = sorted(float(x) for x in xs)
+    n = len(xs)
+    if n == 0:
+        return None
+    if n == 1:
+        return xs[0]
+    return statistics.median((xs[i] + xs[j]) / 2 for i in range(n) for j in range(i, n))
 
 
 def money(v):
@@ -558,10 +572,10 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             mk = marks.get((str(cid), k))
             if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list):
                 continue                                    # a grade with a population and no price or sale anywhere: no row
-            # last month's PriceCharting price of this grade and grader: the average of the sales it recorded, else its
-            # monthly chart value (PSA 10 its own line; 9 / 9.5 / 8 / 7 blend every grader)
+            # last month's PriceCharting price of this grade and grader: the Hodges-Lehmann estimate of the sales it
+            # recorded, else its monthly chart value (PSA 10 its own line; 9 / 9.5 / 8 / 7 blend every grader)
             m1 = [p for d, p in ps_list if d[:7] == last_m]
-            pc1 = [r2(sum(m1) / len(m1)), len(m1), "sales"] if m1 else None
+            pc1 = [r2(hodges_lehmann(m1)), len(m1), "hl"] if m1 else None
             if pc1 is None:
                 gnum = k.split("|g", 1)[1]
                 line = "psa_10" if k == "psa|g10" else ({"9": "grade_9", "9_5": "grade_9_5", "8": "grade_8", "7": "grade_7"}.get(gnum))
@@ -630,7 +644,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             by = {}
             for d, p in sl:
                 by.setdefault(d[:7], []).append(p)
-            tr["ps"][k] = [[ym, len(v), round(statistics.median(v), 2)] for ym, v in sorted(by.items())]
+            tr["ps"][k] = [[ym, len(v), round(hodges_lehmann(v), 2)] for ym, v in sorted(by.items())]
         if snaps.get(cid, {}).get("manual-only-price"):    # this month's PSA 10 from the daily history, when the chart line has not caught up
             tr["pd"] = [[d, p] for d, p in snaps[cid]["manual-only-price"]][-120:]
         trends[cid] = tr

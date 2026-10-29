@@ -1908,6 +1908,31 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   names always did). graded.js reds the CL Rarity/Finish cell on it. On the 100 matched cards it flagged 4 rows
   (Charizard UPC, Latias SWSH171 Prerelease, Pichu League, Rapidash Pokemon Center), 3 already "review"; the 7 other
   former pc_none were Unlimited only. "Ultra Premium Collection" and "Metal" are Special in terms.csv (Brett).
+  ROUND 5 (2026-10-29, Brett: "why havent u done this yet"): (1) Auth Pop / Auth Pop Higher REMOVED (Card Hedge needs
+  Enterprise + a GemRate contract for population; layout versions v5 / v6 drop them from saved orders; the data fields
+  stay null in the row). (2) PC Graded (last month) = the HODGES-LEHMANN estimate (graded_site.hodges_lehmann: median
+  of the Walsh averages) of last month's recorded sales of the grade + grader (pc1 source "hl"), else the chart value;
+  the Trend's PC-sales points (tr["ps"]) use it too. CL stays Card Ladder's monthly AVERAGE - switching CL waits until
+  Card Ladder's single sales are saved and the read is timed (Brett: "it will have to be tested in the future but not
+  now"). (3) pchist.graded_due: a full graded table (30 rows) is re-read after 70% of its span whenever that beats the
+  normal refresh (GDUE_MAX_D = REFRESH_OTHER_D = 30; it was 7, so tables spanning 10-43 days on cards without eBay data
+  waited a month and lost sales - Charizard #4 Celebrations had only October's 30 PSA 10 sales). The new due dates
+  take effect as cards are re-read (within a month); the reader's pace (30 pages a minute) has room. (4) Unsure matches:
+  a row whose card_ids.csv status is "review" and that Brett has not answered is tinted (rowClass grunsure) with an
+  "unsure match" tag - "review" only means a person should check it (Brett did not know what it meant). (5) The graded
+  Flag is its OWN thing (Brett: "should have its own flag button that is separate from the other tabs. i dont want it
+  to combine its flags with the other flags"): the Flag column opens a reason menu (grFlagPop, #gflpop); it no longer
+  opens Review, no longer sets v = 0, and Review has no flag box (only a note when the row is flagged); the "⚑ Flags (n)"
+  button beside the word buttons shows only flagged rows (GFLAGONLY, localStorage gflagonly). Still sent as 'gmark'
+  (reason, note; v unchanged) and filed in ids/marks.csv - never in the eBay Flags archive. (6) Every word button's list
+  and the Grading list have a search box and Select all / Deselect all at the top (acting on the rows shown). (7) The
+  line under the tabs (#meta-pc) describes the graded data in the graded and both views (grMeta: built date, graded
+  rows, cards matched to Card Ladder, the raw total) and goes back to the PriceCharting line in the raw view (Brett: "it
+  says 43 thousand cards but only see 1000 graded so far" - graded rows exist only for cards matched to Card Ladder).
+  (8) Grading, the word buttons and Flags are hold-and-drag reorderable like the filter chips (data-mv keys, order in
+  localStorage gm-order, gmOrder() slots in buttons a saved order lacks); the live #gm-grades node is lifted out before
+  #gm-terms is redrawn and put back into its slot, so its click listener survives; the click that ends a drag opens
+  nothing.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
