@@ -94,6 +94,7 @@ jobs:
           sparse-checkout: |
             data/ids/
             data/cardladder/
+            !data/cardladder/sales/
             data/pricecharting/pop/
             data/pricecharting/graded_sales/
             data/pricecharting/pc_graded_monthly_*
