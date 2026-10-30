@@ -26,6 +26,9 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
    everywhere; each table supplies its own rows, extra cells and numeric range filters.
    Every row's last element is its default-order index. */
 const ordOf = r => r[r.length - 1];
+// the text sort's collation, built once: the same order as localeCompare(…, {numeric: true}), many times faster on the
+// graded view's 150,000 rows (2026-10-30)
+const SORT_COLL = new Intl.Collator(undefined, {numeric: true});
 // card numbers print as number/size ("36/123"): the size comes from the Pokemon TCG dataset (SET_TOTALS, matched at
 // build time); a set that did not match uses the size the collector learned from eBay titles, which arrives with the
 // live data; prefixed numbers (TG05, SV001) are shown as printed
@@ -922,7 +925,7 @@ function makeTable(id, cfg) {
         if (x == null && y == null) return ordOf(a) - ordOf(b);
         if (x == null) return 1; if (y == null) return -1;
         if (typeof x === 'number') return (x - y) * d || ordOf(a) - ordOf(b);
-        return String(x).localeCompare(String(y), undefined, {numeric: true}) * d || ordOf(a) - ordOf(b);
+        return SORT_COLL.compare(String(x), String(y)) * d || ordOf(a) - ordOf(b);
       });
     }
     el('rows').innerHTML = ''; t.shown = 0; t.renderMore(want);

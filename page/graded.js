@@ -46,7 +46,12 @@ const grClUrl = pid => pid ? 'https://app.cardladder.com/profiles/' + encodeURIC
    46 CL last sold, 47 CL average last month, 48 raw row?, 49 profile id, 50 grade key, 51 PC Illustrator, 52 CL
    Illustrator, 53 Series, 54 Era, 55 PC number (TCGplayer's), 56-66 Auth Name / Set / Set/Card No. / Rarity/Finish /
    Release / Language / Grade / Label / Pop / Pop Higher / Illustrator, 67 PC price today, 68 CL value today, 69 last
-   month's PC price [average, sales, source], last: the order key.
+   month's PC price [average, sales, source], 70 the slab's Auth record, 71-74 PC / CL Grade and where each came from,
+   75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), last: the order key.
+   2026-10-30 (Brett: "fill out the rest of the website to get all of the PC graded data ... the CL rows will be blank
+   until we get the data"): every PriceCharting card with a PSA / CGC price or sale has rows, in the Card Ladder run's
+   order; a card Card Ladder has not been read for yet says "pending" in the CL columns (not "none", which means Card
+   Ladder has been read and has nothing), and has no Review (nothing to compare it with yet).
    2026-10-29 (Brett: "the cgc and psa should be one column but of course, the rows will be specific to either psa or
    cgc ... "Auth Set" or "Auth Name""): the Auth columns are what the grader says - PSA's own cert record (PSA's Public
    API) on a PSA row, else the description Card Hedge relays from GemRate; a CGC row from Card Hedge. 6 and 35 are LAST
@@ -77,11 +82,13 @@ function grBuildRows() {
     const g = grader.toLowerCase(), A = (c.a || {})[g], S = x[19] || null;
     // each side's own grade (graded_site.pc_grade / cl_grade): prices are compared only where the two are the same grade
     const GD = x[20] || [], same = grSameGrade(GD[0], GD[2]);
+    const cls = c.cls || (c.read ? 'read' : 'pending'), pend = cls === 'pending';   // an older graded.bin: matched cards only
+    const n1 = x[4] != null ? x[4] : x[21] != null ? x[21] : null, n1e = x[4] == null && x[21] != null;
     const aSt = A ? 'ok' : (c.aw || []).includes(g) ? 'not read' : 'none';       // card level: read / cert known, not looked up yet / no slab
     const sOk = S && S[0] === 'ok', sSt = sOk ? 'ok' : S ? (S[0] === 'nf' ? 'not found' : 'not read') : 'none';
     const r = [cid, base[1], base[2], base[3], base[4], base[5], pcp, x[11], x[12], x[13], null, null, x[14], x[15], grRF(c.pr, c.pf, c.ps), c.pf || null,
-      x[4], d.lastm, null, null, null, null, null, null, x[1], grLabel(gk), grader, idText, idUrl,
-      cl[4] || null, cl[2] || null, grClUrl(c.pid), c.cn || null, grRF(c.cr, c.cf, c.cs), cl[1] || null, clv,
+      n1, d.lastm, null, null, null, null, null, null, x[1], grLabel(gk), grader, idText, idUrl,
+      cl[4] || null, cl[2] || null, grClUrl(c.pid), c.cn || null, pend ? null : grRF(c.cr, c.cf, c.cs), cl[1] || null, clv,
       pcp && clv && same ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, x[8], null, null, null,
       grMatchV(cid) !== undefined ? grMatchV(cid) : m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], x[10], x[7], x[9], false, c.pid || '', gk,
       c.pi ? c.pi : c.pi === '' ? 'none' : 'not read', 'none', grBoth(c.ser) || null, grBoth(c.era) || null, c.pn || null,
@@ -90,10 +97,19 @@ function grBuildRows() {
       A ? 'none' : aSt === 'not read' ? 'not read' : 'none',
       x[2], x[6], x[18] || null, S,
       GD[0] || null, GD[2] || null, GD[1] || null, GD[3] || null,           // 71 PC Grade, 72 CL Grade, 73 / 74 where each came from
+      GR_CLS_WORD[cls] || cls, n1e,                                         // 75 CL Status, 76 PC sales is an estimate
       ordOf(base) * 64 + 1 + x[1]];
     out.push(r);
   }
   return out;
+}
+const GR_CLS_WORD = {read: 'read', pending: 'pending', nomatch: 'no match'};
+// where the Card Ladder run is with the card (graded_site.py cards[id].cls / .qr): the CL Status cell and the CL cells' word
+function grClsTip(c, w) {
+  const q = c && c.qr ? '#' + c.qr.toLocaleString('en-US') + ' in the Card Ladder run’s line' : 'not in the Card Ladder run’s line';
+  if (w === 'pending') return 'Card Ladder not read for this card yet: ' + q + ' (it reads about 1,300 cards a night, 8 pm–7 am Eastern, the $50–$2,000 PSA / CGC cards first, the most sales last month first). Its CL columns fill in after that night’s run.';
+  if (w === 'no match') return 'The Card Ladder run looked and found no Card Ladder page for this card: no PSA / CGC cert in PriceCharting’s sold-listing photos, or no cert led to a page (other than one you answered Not the same card). Its CL columns say none.';
+  return 'Card Ladder’s page for this card has been read' + (c && c.read ? ' (' + c.read + ')' : '') + (c && c.qr ? ' · ' + q : '') + '.';
 }
 // the two sides' grades are the same grade ('CGC 10 PRISTINE' = 'CGC 10 Pristine'); 'Grade 9 (any grader)' is not 'PSA 9'
 function grSameGrade(a, b) { const n = v => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase(); return !!a && !!b && n(a) === n(b); }
@@ -141,7 +157,7 @@ function grRawRow(base) {                                   // a raw card in the
   return [base[0], base[1], base[2], base[3], base[4], base[5], base[6], base[7], base[8], base[9], base[10], base[11], base[12], base[13], base[14], base[15],
     base[16], base[17], base[18], base[19], base[20], base[21], base[22], base[23], -1, 'Raw', '', '', '', null, null, '', null, null, null, null, null, null,
     null, null, null, null, null, null, null, null, null, null, true, '', 'raw', null, null, null, null, null,
-    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, ordOf(base) * 64];
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, ordOf(base) * 64];
 }
 async function grLoad() {
   if (GR.doc) return GR.doc;
@@ -238,15 +254,19 @@ function grRow(r) {
   const setTip = /^pokemon game( promo)?$/i.test(String(r[30] || '')) ? ' title="PSA’s own name: Pokemon Game = 1999 Base Set, Pokemon Game Promo = the Wizards promos (Card Ladder uses PSA’s names)"' : '';
   const gSame = grSameGrade(r[71], r[72]), gDiff = !!r[71] && !!r[72] && !gSame;
   const gTip = (side, v, from) => esc(v ? side + ' grade: ' + v + ' - from ' + from + (gDiff ? '. RED: PriceCharting’s grade and Card Ladder’s are not the same, so their prices are not compared' : '') : side + ' has no ' + r[25] + ' (none)');
+  // a card Card Ladder has not been read for yet: its CL cells say pending (none = read, and Card Ladder has nothing)
+  const pend = r[75] === 'pending', clsTip = grClsTip(c, r[75]);
+  const clNone = pend ? '<span class="dim" title="' + esc(clsTip) + '">pending</span>' : '<span class="dim">none</span>';
   return '<td' + (gDiff ? ' class="rfbad"' : '') + ' title="' + gTip('PriceCharting', r[71], GR_PCG_FROM[r[73]] || 'PriceCharting') + '"><b>' + (r[71] ? esc(r[71]) : '<span class="dim">none</span>') + '</b>' + grMatchTag(r) + '</td>' +
-    '<td' + (gDiff ? ' class="rfbad"' : '') + ' title="' + gTip('Card Ladder', r[72], GR_CLG_FROM[r[74]] || 'Card Ladder') + '"><b>' + (r[72] ? esc(r[72]) : '<span class="dim">none</span>') + '</b></td>' +
+    (pend ? '<td>' + clNone + '</td>' : '<td' + (gDiff ? ' class="rfbad"' : '') + ' title="' + gTip('Card Ladder', r[72], GR_CLG_FROM[r[74]] || 'Card Ladder') + '"><b>' + (r[72] ? esc(r[72]) : '<span class="dim">none</span>') + '</b></td>') +
+    '<td class="gcls ' + (r[75] === 'read' ? 'read' : r[75] === 'no match' ? 'nom' : 'pend') + '" title="' + esc(clsTip) + '">' + esc(r[75] || '') + '</td>' +
     grPcCells(r, c) +
     (r[27] ? '<td><a href="' + esc(r[28]) + '" target="_blank" rel="noopener" title="' + (/spec/.test(r[27]) ? 'No ' + esc(r[25]) + ' slab read yet: PSA’s page for the card itself (spec ' + esc(c.spec) + '; PSA asks you to sign in)' : 'The cert number of a ' + esc(r[25]) + ' slab of this card, read off a PriceCharting sold-listing photo; opens its ' + esc(r[26]) + ' cert page') + '">' + esc(r[27]) + '</a></td>' : '<td><span class="dim" title="No ' + esc(r[25]) + ' slab read yet, and no PSA spec for a CGC row">none</span></td>') +
-    (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : '<td><span class="dim">none</span></td>') +
-    (r[30] ? '<td' + setTip + '>' + esc(r[30]) + '</td>' : '<td><span class="dim">none</span></td>') +
-    '<td class="num' + (grFC(c, 'number') === 'mismatch' ? ' rfbad' : '') + '" title="' + esc(c.cnf ? 'From ' + c.cnf : 'Card Ladder gives no number') + '">' + esc(r[32] || 'none') + '</td>' +
-    '<td' + (rfMis ? ' class="rfbad"' : '') + ' title="' + esc('From Card Ladder’s own words (variation, card name, set name, its cert lookups), read with the dictionary; none = Card Ladder does not say. A ? marks a word the dictionary only thinks it knows.' + (rfMis ? ' RED: PC and CL disagree' + (grFC(c, 'special') === 'mismatch' ? ' - a Special word (1st Edition, a stamp, Ultra Premium Collection …) that only one side names: the other side is the regular printing, so they may be different cards. Check with Review.' : '.') : '')) + '">' + esc(r[33] || 'none') + '</td>' +
-    '<td' + (relMis ? ' class="rfnear" title="Card Ladder’s year (the grader’s label) differs from PriceCharting’s release date - PriceCharting dates promos and some older sets by the set, not the card"' : '') + '>' + (r[34] ? esc(r[34]) : '<span class="dim">none</span>') + '</td>' +
+    (r[29] ? '<td><a href="' + esc(r[31]) + '" target="_blank" rel="noopener" title="Open the card on Card Ladder">' + esc(r[29]) + '</a></td>' : '<td>' + clNone + '</td>') +
+    (r[30] ? '<td' + setTip + '>' + esc(r[30]) + '</td>' : '<td>' + clNone + '</td>') +
+    (pend ? '<td class="num">' + clNone + '</td>' : '<td class="num' + (grFC(c, 'number') === 'mismatch' ? ' rfbad' : '') + '" title="' + esc(c.cnf ? 'From ' + c.cnf : 'Card Ladder gives no number') + '">' + esc(r[32] || 'none') + '</td>') +
+    (pend ? '<td>' + clNone + '</td>' : '<td' + (rfMis ? ' class="rfbad"' : '') + ' title="' + esc('From Card Ladder’s own words (variation, card name, set name, its cert lookups), read with the dictionary; none = Card Ladder does not say. A ? marks a word the dictionary only thinks it knows.' + (rfMis ? ' RED: PC and CL disagree' + (grFC(c, 'special') === 'mismatch' ? ' - a Special word (1st Edition, a stamp, Ultra Premium Collection …) that only one side names: the other side is the regular printing, so they may be different cards. Check with Review.' : '.') : '')) + '">' + esc(r[33] || 'none') + '</td>') +
+    '<td' + (relMis ? ' class="rfnear" title="Card Ladder’s year (the grader’s label) differs from PriceCharting’s release date - PriceCharting dates promos and some older sets by the set, not the card"' : '') + '>' + (r[34] ? esc(r[34]) : clNone) + '</td>' +
     grAuthCells(r, c) +
     (c.pi ? '<td title="' + esc('The Artist on TCGplayer’s product page for the product PriceCharting links to') + '">' + esc(c.pi) + '</td>'
       : '<td><span class="dim" title="' + esc(c.pi === '' ? 'TCGplayer’s product page shows no artist for this card' : c.pif || 'TCGplayer’s product page has not been read for this card yet - each site build reads the new cards') + '">' + (c.pi === '' ? 'none' : 'not read') + '</span></td>') +
@@ -257,19 +277,21 @@ function grRow(r) {
     grInt(r[5]) +
     (r[6] == null ? '<td class="num"><span class="dim" title="' + esc((grPc1Title(r) || 'No ' + r[25] + ' sale recorded by PriceCharting last month') + '. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + ((r[69] || [])[2] === 'not_read' ? 'not read' : (r[69] || [])[2] === 'none' ? 'none' : '-') + '</span></td>'
       : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
-    (r[35] == null ? '<td class="num"><span class="dim" title="' + esc('Card Ladder recorded no ' + r[25] + ' sale last month. Its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">-</span></td>'
+    (r[35] == null ? (pend ? '<td class="num">' + clNone + '</td>' : '<td class="num"><span class="dim" title="' + esc('Card Ladder recorded no ' + r[25] + ' sale last month. Its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">-</span></td>')
       : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' (an average: Card Ladder gives only its monthly average, so Hodges–Lehmann waits until its single sales are saved) · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
     (r[36] != null ? '<td class="num' + (grUnsure(r) || grWrong(r) ? ' gdoubt' : '') + '" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month (both ' + r[71] + ')' + (grUnsure(r) || grWrong(r) ? '. Greyed: the match is in doubt - answer Review first' : '')) + '">' + fmtPct(r[36], true, 1) + '</td>'
       : r[6] != null && r[35] != null ? '<td class="num rfbad" title="' + esc('Not compared: PriceCharting’s price is for ' + (r[71] || 'another grade') + ', Card Ladder’s for ' + (r[72] || 'another grade') + ' - not the same grade') + '">≠ grade</td>' : gdash) +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) + gdash + grPct(r[12], false, 2) + grPct(r[13]) +
-    grInt(r[16]) + grInt(r[37]) + gdash + gdash +
+    (r[76] && r[16] != null ? '<td class="num" title="' + esc('Estimate: PriceCharting lists only its latest 30 sales of a grade, and the ' + r[25] + ' sales we recorded do not reach back to the start of ' + grMonthName(r[17]) + ' - this is how many that month at the pace they came (the Card Ladder queue ranks cards the same way)') + '">~' + fmtInt(r[16]) + '</td>' : grInt(r[16])) +
+    (r[37] == null && pend ? '<td class="num">' + clNone + '</td>' : grInt(r[37])) + gdash + gdash +
     gdash + gdash + gdash + gdash + gdash + gdash +
     '<td><button class="tbtn gtbtn" data-k="' + r[0] + '|' + esc(r[50]) + '">Trend</button></td>' +
-    '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + (r[41] === 1 ? 'You said: same card' : r[41] === 0 ? 'You said: not the same card' : 'Compare PriceCharting’s card with Card Ladder’s') + '">Review</button></td>' +
+    (!c.pid ? '<td><span class="dim" title="' + esc('Review puts PriceCharting’s card beside Card Ladder’s - this card has no Card Ladder card yet. ' + clsTip) + '">-</span></td>'
+      : '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + (r[41] === 1 ? 'You said: same card' : r[41] === 0 ? 'You said: not the same card' : 'Compare PriceCharting’s card with Card Ladder’s') + '">Review</button></td>') +
     '<td class="gflc">' + (r[42] ? '<button class="gflag on" data-k="' + r[0] + '|' + esc(r[50]) + '" title="' + esc('Your flag: ' + r[42] + ((GMARKS[r[0] + '|' + r[50]] || {}).note ? ' - ' + GMARKS[r[0] + '|' + r[50]].note : '') + '. Click to change it or take it off.') + '">⚑ ' + esc(r[42]) + '</button>' : '<button class="gflag" data-k="' + r[0] + '|' + esc(r[50]) + '" title="Flag this row with a reason - this view’s own flags, kept apart from the eBay tabs’ Flags">⚐</button>') + '</td>';
 }
 function grRawCells(r) {                                    // a raw card in the both-view (the raw tab's figures, the CL columns empty)
-  return '<td><span class="dim">Raw</span></td>' + gdash + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
+  return '<td><span class="dim">Raw</span></td>' + gdash + gdash + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
     gdash.repeat(6) + gdash.repeat(8) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) +
     '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
@@ -290,12 +312,13 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
   extra: r => r[48] ? !GFLAGONLY && !GUNSURE && grTermPass(r[0], true)
     : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]) && (!GUNSURE || grUnsure(r) || grWrong(r)) && (GSHOWNOT || !grNot(r)),
   rowClass: r => r[48] ? '' : grNot(r) ? 'grnot' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
-  hay: r => [r[1], r[2], r[14], r[25], r[71], r[72], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63]].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
+  hay: r => [r[1], r[2], r[14], r[25], r[71], r[72], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63], r[75]].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
   // columns added (or removed, n < 0) since a layout was saved, so Brett's own order and eyes stay on the same columns:
   // v1 Graded To PC Sales Ratio removed; v2 PC Illustrator, CL Illustrator, Series, Era after CL Release (2026-10-28);
   // v3 the ten Auth columns after CL Release, v4 Auth Illustrator after CL Illustrator; v5 / v6 Auth Pop and Auth Pop
-  // Higher removed again (2026-10-29); v7 CL Grade after the grade column, which became PC Grade (2026-10-29)
-  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}],
+  // Higher removed again (2026-10-29); v7 CL Grade after the grade column, which became PC Grade (2026-10-29); v8 CL Status
+  // after CL Grade (2026-10-30: every PriceCharting graded card, read / pending / no match)
+  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}, {v: 8, at: 4, n: 1}],
   row: grRow, root: null});
 const GR_TABLES = {pcg: Object.assign(grCfg(() => GR.rows, 'graded rows'), {root: '#pcv-g', name: 'PriceCharting · graded'}),
                    pca: Object.assign(grCfg(grAll, 'rows'), {root: '#pcv-a', name: 'PriceCharting · raw + graded'})};
@@ -515,16 +538,16 @@ function grNote() {
   n.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>' : !GR.doc ? 'Loading the graded data…' : '';
 }
 /* The line under the tabs (2026-10-29, Brett: "this part should change in the price chart only graded page ... it says 43
-   thousand cards but only see 1000 graded so far"): in the graded and the both views it describes the graded data -
-   graded rows exist only for cards matched to Card Ladder. */
+   thousand cards but only see 1000 graded so far"): in the graded and the both views it describes the graded data.
+   Since 2026-10-30 every PriceCharting card with graded data has rows; the line says how far Card Ladder has got. */
 function grMeta() {
   const m = $('meta-pc'); if (!m) return;
   if (m.dataset.orig == null) m.dataset.orig = m.textContent;
   if (PCMODE === 'raw' || !GR.doc) { m.textContent = m.dataset.orig; return; }
-  const nc = Object.keys(GR.doc.cards).length, nr = GR.rows.length, raw = (typeof DATA !== 'undefined' ? DATA.length : 0);
-  m.textContent = 'Graded data built ' + GR.doc.built + ' · ' + nr.toLocaleString('en-US') + ' graded rows (one per card per PSA / CGC grade) on ' + nc.toLocaleString('en-US') + ' cards matched to Card Ladder' +
-    (PCMODE === 'all' ? ', with all ' + raw.toLocaleString('en-US') + ' raw cards' : ' — only matched cards have graded rows (' + raw.toLocaleString('en-US') + ' PriceCharting cards in all; more get matched as Card Ladder is read)') +
-    ' · prices from PriceCharting and Card Ladder (USD)';
+  const nc = Object.keys(GR.doc.cards).length, nr = GR.rows.length, raw = (typeof DATA !== 'undefined' ? DATA.length : 0), k = GR.doc.cls, f = n => (n || 0).toLocaleString('en-US');
+  m.textContent = 'Graded data built ' + GR.doc.built + ' · ' + f(nr) + ' graded rows (one per card per PSA / CGC grade) on ' + f(nc) + ' cards' +
+    (k ? ' · Card Ladder read for ' + f(k.read) + ', pending ' + f(k.pending) + (k.nomatch ? ', no match ' + f(k.nomatch) : '') : ' matched to Card Ladder') +
+    (PCMODE === 'all' ? ', with all ' + f(raw) + ' raw cards' : '') + ' · prices from PriceCharting and Card Ladder (USD)';
 }
 function grPaintGrades() { const b = $('gm-gn'); if (b) b.textContent = '(' + GSEL.size + ')'; }
 function grShowMode() {

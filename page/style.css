@@ -591,6 +591,7 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .rvmatch.wrong { border-color:var(--down); }
   .rvmatch.not { border-color:var(--muted); }
   .rvmatch .gunsure, .rvmatch .gwrong { font-size:12px; padding:1px 6px; margin:0 6px 0 0; }
+  .gcls { white-space:nowrap; cursor:help; } .gcls.read { color:var(--up); } .gcls.pend { color:var(--muted); } .gcls.nom { color:#e3b341; }   /* CL Status (2026-10-30) */
   .rvmatch small { display:block; margin-top:6px; color:var(--muted); line-height:1.45; }
   .rvbtns .help { align-self:center; }
   #gt-hit { cursor:crosshair; }
