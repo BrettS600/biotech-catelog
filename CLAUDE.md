@@ -2027,6 +2027,40 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   another, and graded_site applies a card answer only while the card's page is the one it was given for (graded.js keeps
   the page with its own answer, GMARKS[cid|card].p) - Charizard #4 Celebrations' CGC cert led to cgc-634819, not the
   rejected Ultra-Premium page, so it may come back as a new match for Brett to answer.
+  THE HAND-OFF SINCE 2026-10-30 EVENING (Brett weighed a paid ntfy plan, then chose the free GitHub inbox): the Card
+  Ladder tab PUTs each encrypted batch into the private repo BrettS600/card-inbox (batches/<id>.bin) with a fine-grained
+  key that can write only there (Contents read/write; Brett made it and pasted it into the tab's key box, localStorage
+  clr-inbox-key; the same key is card-data's Actions secret INBOX_TOKEN); ntfy only when that fails. card-data's ingest
+  reads card-inbox, writes, pushes, and only then empties card-inbox (one fresh empty commit, so the blobs drop out of
+  history) and acknowledges. No 3-hour expiry and no 20 MB cap: ~1,300 cards a night instead of ~300. Tested end to end
+  2026-10-30 18:30 UTC (an empty test batch, then a real 10-card batch from night 1 that ntfy had let expire). The
+  card-data checkouts must leave data/cardladder/sales/ out (it grows ~350 MB a night).
+  (14) EVERY PRICECHARTING GRADED CARD IN THE GRADED VIEW (2026-10-30, Brett: "As we wait to get the CL data ... fill out
+  the rest of the website to get all of the PC graded data ... the CL rows will be blank until we get the data"; he
+  agreed to: all ~44,000 cards in the Card Ladder queue's order, "pending" + a CL Status column, ~ estimates for busy
+  cards). graded_site.py now starts from card-data cardladder/queue.csv (every PriceCharting card, rank order) instead
+  of ids/card_ids.csv; matched cards are built exactly as before (checked: rows, card meta and trends identical to the
+  old build for all 366), the others get rows wherever PriceCharting has a PSA / CGC price or sale (on 2026-10-30 data:
+  156,228 rows over 39,903 cards; graded.bin 3.3 MB gzip, ~31 MB JSON; 134 trend files, 13 MB; build ~100 s, ~2 GB)
+  and a slim card entry (the PC side, the slab certs the PriceCharting tab read, cls, qr - no CL fields, no field checks,
+  no match check, no population history). cards[id].cls: read (profile read) / pending / nomatch (load_cl_runs: the
+  newest cardladder/timing row for the card says no page from the certs / only the rejected page, or the PriceCharting
+  step found no PSA / CGC cert); cards[id].qr = queue rank; doc.cls = the counts. Row column 21 pcn1e (est_last_month):
+  when 30+ sales of the grade are recorded and they do not reach back to the start of last month, last month's count at
+  the pace they came (over the part of last month they cover, else since they start) - the page shows it as ~N in PC
+  sales (last mo) and sorts on it. Daily snapshots: only the PSA 10 / CGC 10 columns are read (SNAP_COLS; the other
+  columns blend graders and were never shown), column-wise; series_stats' slope is numpy (same numbers, checked on 3,000
+  random series). The PC words are tallied for every card with rows (the word buttons cover the whole view); CL / Auth
+  words, field_checks.csv and match_checks.csv stay matched-only. PAGE: row 75 = CL Status word (read / pending / no
+  match; an older graded.bin without cls: read when the card has a profile), 76 = the PC sales figure is an estimate; a
+  pending card's CL cells say "pending" (a hover gives its place in the queue) where a read card says none, and it has
+  no Review button (nothing to compare yet); CL Status column after CL Grade (cfg.inserted v8 at 4; tested on a saved
+  layout); the meta line gives Card Ladder read / pending / no match counts; the graded view's unsorted order is the
+  queue's (graded_site emits rows in rank order). app.js's text sort uses one Intl.Collator (SORT_COLL, the same order
+  as localeCompare(..., {numeric: true})): sorting 88,000 rows by a text column took 6.5 s, now ~1 s. Page tests
+  (Playwright on the built page, test key): ready in ~2.6 s, ~200 MB heap, search ~0.7 s, no errors, header and cell
+  counts equal in both views. TCGplayer's Artist (tcg_details.py, 400 a build, card_ids.csv order) still covers only the
+  scanned cards: the rest say "not read".
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

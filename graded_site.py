@@ -36,6 +36,18 @@ Trend shards and the eBay live file use, so the page can read them):
 
 Only Card Ladder's PSA and CGC grades are used (Brett: "I only care about CGC and PSA graded cards").
 
+EVERY PRICECHARTING CARD WITH GRADED DATA (2026-10-30, Brett: "fill out the rest of the website to get all of the PC
+graded data ... the CL rows will be blank until we get the data"): the cards come from cardladder/queue.csv (every
+PriceCharting card, in the Card Ladder run's order - the $50-$2,000 PSA / CGC group first, the most sales last month
+first), not only the ones matched to Card Ladder; a card gets rows wherever PriceCharting has a price or a sale of the
+grade. cards[id].cls says where the Card Ladder run is with the card: "read" (its page read), "pending" (not reached
+yet - the CL cells say pending, not none) or "nomatch" (looked: no PSA / CGC cert in PriceCharting's photos, or no cert
+led to a page but the one Brett rejected); cards[id].qr = its place in the queue. The rows come in queue order. The
+Card Ladder side's work (field checks, match checks, Card Ladder's words, population history for Review) is done only
+for matched cards; the PriceCharting words are tallied for every card with rows. PC sales (last mo) of a busy grade -
+PriceCharting lists only its latest 30 sales, so the record may not reach back to the start of last month - is estimated
+from how fast the recorded sales came (row column pcn1e, shown with a ~; make_queue.py ranks the cards the same way).
+
 The Auth side (2026-10-29, Brett: "auth set ... the rows that are psa are to be filled out by set name data derived from
 psa, where as cgc text is derived from cgc"): what the grader says, from the slab certs - a PSA row from PSA's own cert
 record (PSA's Public API), else the description Card Hedge relays from GemRate; a CGC row from Card Hedge. Card-level
@@ -93,7 +105,7 @@ PC_COL = {"psa|g10": ("manual-only-price", "pc"), "cgc|g10": ("condition-17-pric
           "psa|g8": ("new-price", "mixed"), "cgc|g8": ("new-price", "mixed"),
           "psa|g7": ("cib-price", "mixed"), "cgc|g7": ("cib-price", "mixed")}
 PC_LINES = {"psa_10": "psa|g10", "grade_9_5": "cgc|g9_5", "grade_9": "psa|g9", "grade_8": "psa|g8", "grade_7": "psa|g7"}
-SNAP_COLS = ["manual-only-price", "condition-17-price", "graded-price", "box-only-price", "new-price", "cib-price"]
+SNAP_COLS = ["manual-only-price", "condition-17-price"]     # PSA 10 / CGC 10: the only grader-specific columns (the rest blend graders)
 STATS_WINDOW, SLOPE_WINDOW = 90, 30
 
 
@@ -253,6 +265,69 @@ def load_ids(cd):
     d = d[d["cl_profile_id"] != ""]
     d = d[d["status"].isin(["confirmed", "likely", "review"])] if "status" in d.columns else d
     return d
+
+
+def load_queue(cd):
+    """[(pc id, rank)] in the Card Ladder run's order (cardladder/queue.csv, make_queue.py) - every PriceCharting card."""
+    p = os.path.join(cd, "cardladder", "queue.csv")
+    if not os.path.exists(p):
+        return []
+    q = pd.read_csv(p, dtype=str, usecols=["rank", "pricecharting_id"]).dropna()
+    q = q[q["pricecharting_id"].str.isdigit() & q["rank"].str.isdigit()].copy()
+    q["r"] = q["rank"].astype(int)
+    q = q.sort_values("r").drop_duplicates("pricecharting_id")
+    return list(zip(q["pricecharting_id"].astype(int), q["r"]))
+
+
+NOMATCH_RESULTS = ("no page from the certs", "only the rejected page", "rejected page")
+
+
+def load_cl_runs(cd):
+    """{pc id: "nomatch"}: the cards the Card Ladder run looked at and found no page for (cardladder/timing): its newest
+    Card Ladder step found none, or the PriceCharting step read the sold-listing photos and found no PSA / CGC cert."""
+    out = {}
+    for f in sorted(glob.glob(os.path.join(cd, "cardladder", "timing", "timing_*.csv"))):
+        try:
+            d = pd.read_csv(f, dtype=str).fillna("")
+        except Exception:
+            continue
+        if not {"t", "stage", "pricecharting_id", "result"} <= set(d.columns):
+            continue
+        for r in d.sort_values("t").to_dict("records"):
+            pc = str(r["pricecharting_id"]).split(".")[0]
+            if not pc.isdigit():
+                continue
+            pc, res = int(pc), str(r["result"])
+            if r["stage"] == "cl":
+                if res.startswith(NOMATCH_RESULTS):
+                    out[pc] = "nomatch"
+                elif res == "read":
+                    out.pop(pc, None)
+            elif r["stage"] == "pc" and not res:
+                certs = sum(int(float(r.get(c) or 0)) for c in ("psa_certs", "cgc_certs"))
+                if certs:
+                    out.pop(pc, None)                       # (re)scanned with certs: handed to the Card Ladder tab
+                else:
+                    out[pc] = "nomatch"
+    return out
+
+
+def est_last_month(ps_list, last_m):
+    """A busy grade whose recorded sales do not reach back to the start of last month (PriceCharting lists only the
+    latest 30): last month's count from how fast the recorded ones came - their pace over the part of last month they
+    cover, else since they start. None when fewer than 30 are recorded (a quiet grade: simply not read that far)."""
+    ds = sorted(str(d)[:10] for d, _ in ps_list)
+    if len(ds) < 30:
+        return None
+    m0 = date.fromisoformat(last_m + "-01")
+    m1 = (m0.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    ndays = (m1 - m0).days + 1
+    first, last = date.fromisoformat(ds[0]), date.fromisoformat(ds[-1])
+    if first <= m1 and (m1 - first).days + 1 >= 5:
+        n, span = sum(1 for d in ds if d <= m1.isoformat()), (m1 - first).days + 1
+    else:
+        n, span = len(ds), max((last - first).days + 1, 1)
+    return int(round(n * ndays / span))
 
 
 def load_profiles(cd):
@@ -555,17 +630,18 @@ def load_snap_history(snap_dir, ids, pw):
                 blob = AESGCM(key).decrypt(blob[16:28], blob[28:], None)
             except Exception:
                 continue
-        df = pd.read_csv(io.BytesIO(gzip.decompress(blob)), dtype=str).fillna("")
+        df = pd.read_csv(io.BytesIO(gzip.decompress(blob)), dtype=str, usecols=lambda c: c == "id" or c in SNAP_COLS).fillna("")
         if "id" not in df.columns:
             continue
         df["id"] = pd.to_numeric(df["id"], errors="coerce")
         df = df[df["id"].isin(idset)]
-        for r in df.to_dict("records"):
-            c = out.setdefault(int(r["id"]), {})
-            for col in SNAP_COLS:
-                v = money(r.get(col, ""))
-                if v and v > 0:
-                    c.setdefault(col, []).append((m.group(1), v))
+        for col in SNAP_COLS:                               # column-wise (every PriceCharting card now, 2026-10-30)
+            if col not in df.columns:
+                continue
+            v = pd.to_numeric(df[col].str.replace("$", "", regex=False).str.replace(",", "", regex=False).str.strip(), errors="coerce")
+            ok = v > 0
+            for cid, p in zip(df["id"][ok].astype(int), v[ok]):
+                out.setdefault(int(cid), {}).setdefault(col, []).append((m.group(1), float(p)))
     return out
 
 
@@ -574,7 +650,7 @@ def series_stats(pts, today):
     """pts: [(YYYY-MM-DD, price)] ascending. -> {d7, d30, pos, vol, ts} (percent), None where history is too short."""
     if len(pts) < 2:
         return {}
-    dts = [datetime.strptime(d, "%Y-%m-%d").date() for d, _ in pts]
+    dts = [date.fromisoformat(d) for d, _ in pts]
     P = np.array([p for _, p in pts], dtype=float)
     last = dts[-1]
     out = {}
@@ -599,11 +675,13 @@ def series_stats(pts, today):
     if len(ch) >= 3:
         out["vol"] = r2(statistics.median([abs(L[k] - L[k - 1]) for k in ch]) * 100)
     W = [k for k in range(len(dts)) if (last - dts[k]).days < SLOPE_WINDOW]
-    if len(W) >= 10:
-        sl = [(L[W[j]] - L[W[i]]) / (dts[W[j]] - dts[W[i]]).days for i in range(len(W)) for j in range(i + 1, len(W))
-              if (dts[W[j]] - dts[W[i]]).days > 0]
-        if sl:
-            out["ts"] = r2((np.exp(statistics.median(sl) * 30) - 1) * 100)
+    if len(W) >= 10:                                        # the median of every pairwise slope (numpy: every card now)
+        t = np.array([dts[k].toordinal() for k in W], dtype=float)
+        iu = np.triu_indices(len(W), 1)
+        dt, dl = (t[None, :] - t[:, None])[iu], (L[W][None, :] - L[W][:, None])[iu]
+        sl = dl[dt > 0] / dt[dt > 0]
+        if sl.size:
+            out["ts"] = r2((np.exp(float(np.median(sl)) * 30) - 1) * 100)
     return out
 
 
@@ -625,8 +703,16 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     prof = load_profiles(cd)
     marks = load_marks(cd)
     matches = load_matches(cd)
-    ids = sorted({int(x) for x in ids_df["pricecharting_id"] if str(x).isdigit()})
-    print(f"graded: {len(ids)} matched cards, {len(prof)} Card Ladder profile reads")
+    matched = {int(r["pricecharting_id"]): r for r in ids_df.to_dict("records") if str(r["pricecharting_id"]).isdigit()}
+    # every PriceCharting card, in the Card Ladder run's order (2026-10-30); a matched card the queue lacks goes last.
+    # No queue (an older card-data): the matched cards only, as before
+    base = load_queue(cd)
+    inq = {c for c, _ in base}
+    base += [(c, None) for c in matched if c not in inq]
+    cl_runs = load_cl_runs(cd)
+    ids = sorted({c for c, _ in base})
+    print(f"graded: {len(ids):,} PriceCharting cards (" + (f"the Card Ladder queue, " if inq else "no queue: the matched cards only, ")
+          + f"{len(matched)} matched to Card Ladder), {len(prof)} Card Ladder profile reads, {len(cl_runs)} cards the run found no page for")
     pc = pd.read_csv(pc_csv, dtype=str).fillna("") if os.path.exists(pc_csv) else pd.DataFrame(columns=["id"])
     pc["id"] = pd.to_numeric(pc["id"], errors="coerce")
     dic = gt.Dictionary.load(cd)
@@ -636,7 +722,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     pc = pc[pc["id"].isin(ids)].set_index("id")
     tcgf = load_tcg_facts(tcg_path)
     tdet = load_tcg_details(cd)
-    pop_hist = load_pop_hist(cd, ids, last_m)
+    pop_hist = load_pop_hist(cd, sorted(matched), last_m)   # for Review's Number graded: matched cards only
     psa_c, ch_c = load_psa_certs(cd), load_ch_certs(cd)
     checks = []
     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
@@ -651,9 +737,10 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     snaps = load_snap_history(snap_dir, ids, pw) if snap_dir and os.path.isdir(snap_dir) else {}
     print(f"graded: PriceCharting pop {len(pop)}, graded sales {len(psales)}, monthly {len(pmon)}, daily history {len(snaps)} cards")
     cards, rows, trends = {}, [], {}
-    for r in ids_df.to_dict("records"):
-        cid = int(r["pricecharting_id"])
-        pr = prof.get(str(cid))
+    for cid, rank in base:
+        r = matched.get(cid) or {}                          # {} = not matched to Card Ladder (yet)
+        pr = prof.get(str(cid)) if r else None
+        nrow0 = len(rows)
         clg = {}                                            # gk -> [pop, cl value, last sold]
         if pr:
             for g in pr.get("graders") or []:
@@ -703,6 +790,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             cover = min((d for d, _ in ps_list), default=None) if len(ps_list) >= 30 else first_seen.get(cid)
             if cover is None or cover > last_m + "-03":
                 pc_n1 = None
+            pc_n1e = est_last_month(ps_list, last_m) if pc_n1 is None else None
             cl = clg.get(k, [None, None, None])
             m = {x[0]: x for x in mon.get(k, [])}
             cl_n1 = m[last_m][1] if last_m in m else (0 if mon.get(k) else None)
@@ -736,11 +824,13 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                                         ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None]
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
-                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf]])
+                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e])
+        if not r and len(rows) == nrow0:
+            continue                                        # no PriceCharting price or sale of any PSA / CGC grade: no rows
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
         pset = str(pcrow.get("console-name", "")) if pcrow is not None else ""
         mnum = re.search(r"#(\S+)\s*$", pname)
-        tid = str(r.get("tcgplayer_id", "") or "").split(".")[0]
+        tid = str(r.get("tcgplayer_id", "") or (pcrow.get("tcg-id", "") if pcrow is not None else "") or "").split(".")[0]
         ps = gt.pc_side(pname, pset, mnum.group(1) if mnum else "", tcgf.get(str(cid)), dic, tdet.get(tid) if tid else None)
         cs = gt.cl_side(pr, (matches.get(str(cid)) or {}).get("cl", []), dic)
         pc_year = pcrow.get("release-date", "") if pcrow is not None else ""
@@ -751,16 +841,48 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                                      "number": a.get("number"), "desc": a.get("desc")}, dic)
         au = merge_sides(aside.values()) if aside else None
         tally.side(cid, "pc", ps)
-        tally.side(cid, "cl", cs)
+        if r:
+            tally.side(cid, "cl", cs)
         if au:
             tally.side(cid, "auth", au)
-        fc = gt.compare(ps, cs, pc_year, (pr or {}).get("year"))
+        fc = gt.compare(ps, cs, pc_year, (pr or {}).get("year")) if r else {}   # PC vs CL: only with a Card Ladder card
         afc = {g: gt.compare_auth(s_, ps, cs, pc_year, (pr or {}).get("year")) for g, s_ in aside.items()}
         a1 = afc.get("psa") or afc.get("cgc") or {}
         for f, (a, b, res) in fc.items():
             checks.append([cid, f, a if a is not None else "", b if b is not None else "", res,
                            (a1.get(f) or ["", ""])[0], (a1.get(f) or ["", ""])[1]])
+        cls = "read" if pr else "nomatch" if (not r and cl_runs.get(cid) == "nomatch") else "pending"
+        if not r:                                           # not matched (yet): the PriceCharting side and the slabs only
+            tp = {c: v for c in gt.CATS for v in [ps.terms(c)] if v}
+            ta = {c: v for c in gt.CATS for v in [au.terms(c)] if v} if au else {}
+            u = {k: v for k, v in (("pc", list(ps.unid)), ("auth", list(au.unid) if au else [])) if v}
+            c0 = {"pn": ps.num, "pnf": ps.num_from, "pr": ps.rarity_text, "prf": ps.rarity_from, "pf": ps.finish_text,
+                  "pff": ps.finish_from, "ps": ps.shown("Special"), "pif": ps.artist_from,
+                  "ser": [ps.shown("Series"), "", au.shown("Series") if au else ""], "era": [ps.shown("Era"), "", au.shown("Era") if au else ""],
+                  "t": {k: v for k, v in (("pc", tp), ("auth", ta), ("u", u)) if v},
+                  "a": {g: {"cert": best[g]["cert"], "src": best[g]["src"], "name": s_.name, "set": s_.set_name, "num": s_.num,
+                            "year": s_.year, "lang": s_.lang, "ls": s_.lang_said, "rar": s_.shown("Rarity"), "fin": s_.shown("Finish"),
+                            "sp": s_.shown("Special"), "from": s_.source, "spec": best[g].get("spec", ""), "desc": best[g].get("desc", ""),
+                            "ch": best[g].get("ch"), "fc": {f: v[1] for f, v in afc[g].items()}, "read": best[g].get("read", "")}
+                        for g, s_ in aside.items()},
+                  "aw": sorted({g for (g, _), x in recs.items() if x["st"] == "wait"}), "tcg": tid,
+                  "certs": (matches.get(str(cid)) or {}).get("slabs", {})}
+            c0 = {k: v for k, v in c0.items() if v not in ("", None, [], {}) and v != ["", "", ""]}
+            c0["pi"] = ps.artist                            # '' = TCGplayer shows none, None = not read: both mean something
+            c0["cls"], c0["qr"] = cls, rank
+            cards[str(cid)] = c0
+            tr = {"pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"}, "ps": {}}
+            for k, sl in (psales.get(cid) or {}).items():
+                by = {}
+                for d, p in sl:
+                    by.setdefault(d[:7], []).append(p)
+                tr["ps"][k] = [[ym, len(v), round(hodges_lehmann(v), 2)] for ym, v in sorted(by.items())]
+            if snaps.get(cid, {}).get("manual-only-price"):
+                tr["pd"] = [[d, p] for d, p in snaps[cid]["manual-only-price"]][-120:]
+            trends[cid] = tr
+            continue
         cards[str(cid)] = {
+            "cls": cls, "qr": rank,
             "pn": ps.num, "pnf": ps.num_from, "pr": ps.rarity_text, "prf": ps.rarity_from, "pf": ps.finish_text,
             "pff": ps.finish_from, "ps": ps.shown("Special"), "pi": ps.artist, "pif": ps.artist_from,
             "cn": cs.num, "cnf": cs.num_from, "cr": cs.rarity_text, "cf": cs.finish_text, "cs": cs.shown("Special"),
@@ -812,8 +934,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         cards[str(cid)]["sh"] = i // SHARD                  # 13 million, so id // 300 would scatter them over thousands of files)
     mcfit = fit_match(cards)
     for c in cards.values():
-        c["mc"]["lv"] = match_level(c["mc"], mcfit["ratio"], mcfit["far"]) if c["mc"]["n"] else "thin"
-    print(f"graded: match check - " + ", ".join(f"{lv} {sum(1 for c in cards.values() if c['mc']['lv'] == lv)}" for lv in ("wrong", "mixed", "agree", "thin"))
+        if "mc" in c:
+            c["mc"]["lv"] = match_level(c["mc"], mcfit["ratio"], mcfit["far"]) if c["mc"]["n"] else "thin"
+    print(f"graded: match check - " + ", ".join(f"{lv} {sum(1 for c in cards.values() if c.get('mc', {}).get('lv') == lv)}" for lv in ("wrong", "mixed", "agree", "thin"))
           + f"; thresholds {mcfit['ratio']} x in {mcfit['far']:.0%} of months (" + (f"fitted to {mcfit['n']} answers, balanced accuracy {mcfit['acc']}" if mcfit["fitted"]
           else f"fixed: {mcfit['n']} card answers so far, {MC_FIT_MIN} needed with {MC_FIT_EACH}+ of each") + ")")
     key = hist_key(pw) if pw else None
@@ -822,7 +945,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
            "markt": max((m["t"] for m in marks.values()), default=0), "mcfit": mcfit,
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
-                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades"],
+                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e"],
+           "cls": {k: sum(1 for c in cards.values() if c.get("cls") == k) for k in ("read", "pending", "nomatch")},
            "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
     if key is None:
         print("graded: no SITE_PASSWORD - nothing written")
@@ -833,7 +957,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         shards.setdefault(cards[str(cid)]["sh"], {})[str(cid)] = tr
     for s, obj in shards.items():
         write_enc(os.path.join(out_dir, "gtrend", f"s{s}.bin"), obj, key)
-    print(f"graded: {len(rows)} rows over {len(cards)} cards -> {out_dir}/graded.bin ({n / 1e3:.0f} KB gzip), "
+    print(f"graded: {len(rows):,} rows over {len(cards):,} cards (Card Ladder: " + ", ".join(f"{v:,} {k}" for k, v in doc["cls"].items())
+          + f") -> {out_dir}/graded.bin ({n / 1e3:.0f} KB gzip), "
           f"{len(shards)} trend file(s); {grade_diff} rows where PriceCharting's grade is not Card Ladder's (not compared)")
     return doc, trends
 
@@ -862,6 +987,8 @@ def write_card_data(cd, tally, checks, today, cards=None):
                             "share_over_1_5x_apart", "level", "brett_answer", "built"])
                 for cid in sorted(cards, key=int):
                     c = cards[cid]
+                    if not c.get("pid"):                    # not matched to Card Ladder: nothing to check
+                        continue
                     mc, ma = c.get("mc") or {}, c.get("ma") or {}
                     w.writerow([cid, c.get("pid", ""), c.get("st", ""), mc.get("n", 0), "" if mc.get("r") is None else mc["r"],
                                 "" if mc.get("far") is None else mc["far"], mc.get("lv", ""),
