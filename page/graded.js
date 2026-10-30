@@ -111,7 +111,10 @@ function grUnsure(r) { const c = ((GR.doc && GR.doc.cards) || {})[String(r[0])];
    the next Card Ladder run looks for its real page); the Not the same button shows them again. The newer of this
    browser's answer and the filed one wins. */
 function grMatchV(cid) {
-  const loc = GMARKS[cid + '|card'], doc = (((GR.doc && GR.doc.cards) || {})[String(cid)] || {}).ma;
+  const c = ((GR.doc && GR.doc.cards) || {})[String(cid)] || {}, doc = c.ma;
+  let loc = GMARKS[cid + '|card'];
+  const page = x => String(x || '').replace(/^(matched|psa)-/, 'psa-');   // matched-<spec> and psa-<spec> are one page
+  if (loc && loc.p && c.pid && page(loc.p) !== page(c.pid)) loc = null;    // given for another page (the card has a new match)
   const a = loc && (!doc || (loc.t || 0) >= (doc.t || 0)) ? loc : doc;
   return a ? (a.v === undefined ? undefined : a.v) : undefined;
 }
@@ -604,7 +607,7 @@ async function grMark(r, patch) {
 }
 async function grMarkCard(cid, val) {                       // Review: Same card / Not the same card / withdraw, for the whole card
   const t = Date.now(), c = ((GR.doc && GR.doc.cards) || {})[String(cid)] || {};
-  GMARKS[cid + '|card'] = {v: val, t}; grSave('gmarks', GMARKS);
+  GMARKS[cid + '|card'] = {v: val, t, p: c.pid || ''}; grSave('gmarks', GMARKS);
   for (const r of GR.rows) if (r[0] === cid) r[41] = val;
   let sent = true;
   try { await alSend({type: 'gmark', t, c: cid, g: 'card', p: c.pid || '', v: val, reason: null, note: null}); } catch (e) { sent = false; }

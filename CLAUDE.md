@@ -2002,6 +2002,31 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   delegated handlers (help.js binds only the static ones). TREND: the PC lines are PSA 10's monthly line and each
   grade's own recorded sales (PSA and CGC; the blended grade 9 / 8 / 7 lines are gone); a dashed vertical line follows
   the cursor with every line's value and sales that month (gtHover, #gt-hover / #gt-hit).
+  (13) THE CARD LADDER RUN (2026-10-30, Brett: "turn on CL collection" - store ALL data of each listing; "we dont do raw
+  cards... only graded psa and cgc"; pictures as links only). CODE: card-data tools/clingest/browser/ (common.js - window
+  8 pm - 7 am Eastern, Worker-timed pauses because Chrome throttles a background tab's timers, the encrypted ntfy hand-off
+  with unacknowledged batches kept in IndexedDB; pc_tab.js - a www.pricecharting.com tab: each card's page, slab barcodes
+  off the PSA / CGC sold-listing photos, one slab per grade, certs handed to the Card Ladder tab on the side channel
+  <topic>-s1 (encrypted message bodies under 4 KB, acknowledged on -s1ack; at most 120 cards ahead); cl_tab.js - an
+  app.cardladder.com tab: Card Ladder's cert lookup (dialog closed, never saved; PSA certs first, stop at the first page
+  Brett has not rejected), then the card's page via $router.push - the 'profile-profile' component's $data.profile holds
+  EVERY sale (newest 10,000 at most: "capped") with Card Ladder's fields id, itemId, title, seller, image, thumbnail,
+  platform, listingType, price, date, url, cardId, memberVerified, grader, grade, hasQualifier, hasAutographGrade). One
+  Card Ladder action every 15 s at most; stops at a warning toast / sign-in / two pages that do not load. State in each
+  tab's localStorage (clr-pcq, clr-pc, clr-cl), so a reload needs only the scripts pasted again and loop() called; each
+  tab keeps running night after night while Chrome stays open. ORDER: tools/clingest/make_queue.py -> data/cardladder/
+  queue.csv (built by the ingest when missing; the 30 days to 2026-10-29): group 1 = a PSA or CGC slab sold for $50 -
+  $2,000 in the last 30 days (11,363 cards), most PSA + CGC sales in those 30 days first (a table of PriceCharting's
+  latest 30 that does not reach back 30 days is scaled by its pace); group 2 = the rest, same order; job p = page known
+  (re-read for the full sales), f = the full chain. FILING (cl_ingest.py): "profile_raw" -> data/cardladder/sales/<YYYY-
+  MM>/cl_sales_<run>.jsonl.gz (everything, a new file each run), its summary (monthly / graders / ids / imgs - the old
+  browser format, "full": true) -> profiles/; "timing" -> timing/timing_<YYYY-MM>.csv and progress.md (per night: cards,
+  seconds a card, sales and MB saved, capped pages; the projection). data/cardladder/README.md says where everything is.
+  First pages: ~61 bytes a sale compressed, 1-4 s a page. REJECTED PAGES: a card-level "Not the same card" in marks.csv
+  (its profile) is passed to the Card Ladder tab (queue.csv "rejected"), build_ids.py never lets that page displace
+  another, and graded_site applies a card answer only while the card's page is the one it was given for (graded.js keeps
+  the page with its own answer, GMARKS[cid|card].p) - Charizard #4 Celebrations' CGC cert led to cgc-634819, not the
+  rejected Ultra-Premium page, so it may come back as a new match for Brett to answer.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

@@ -312,7 +312,7 @@ def load_marks(cd):
     for r in d.sort_values("tn").itertuples():               # the newest answer for a card x grade wins
         v = {"1": 1, "0": 0}.get(str(r.v).strip().split(".")[0])
         out[(str(r.pc).split(".")[0], r.gk)] = {"v": v, "reason": getattr(r, "reason", "") or None,
-                                                "note": getattr(r, "note", ""), "t": int(r.tn)}
+                                                "note": getattr(r, "note", ""), "t": int(r.tn), "profile": getattr(r, "profile", "") or ""}
     return out
 
 
@@ -790,6 +790,11 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         cards[str(cid)]["mc"] = {"n": len(lr), "r": round(math.exp(lr[len(lr) // 2]), 2) if lr else None,
                                  "far": round(sum(1 for v in lr if abs(v) > math.log(1.5)) / len(lr), 2) if lr else None}
         ma = marks.get((str(cid), "card"))                  # the answer for the whole card (Review: Same card / Not the same card)
+        # ... about the Card Ladder page it was given for (2026-10-30): once the Card Ladder run finds the card another
+        # page, an old "Not the same card" no longer hides it (matched-<spec> and psa-<spec> are the same page)
+        same_page = lambda a, b: bool(a) and bool(b) and (a == b or a.split("-", 1)[-1] == b.split("-", 1)[-1] and {a.split("-")[0], b.split("-")[0]} <= {"matched", "psa"})
+        if ma and ma.get("profile") and not same_page(ma["profile"], r.get("cl_profile_id", "")):
+            ma = None
         if ma and ma.get("v") in (0, 1):
             cards[str(cid)]["ma"] = {"v": ma["v"], "t": ma["t"], "note": (ma.get("note") or "")[:300]}
         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
