@@ -47,7 +47,12 @@ const grClUrl = pid => pid ? 'https://app.cardladder.com/profiles/' + encodeURIC
    Illustrator, 53 Series, 54 Era, 55 PC number (TCGplayer's), 56-66 Auth Name / Set / Set/Card No. / Rarity/Finish /
    Release / Language / Grade / Label / Pop / Pop Higher / Illustrator, 67 PC price today, 68 CL value today, 69 last
    month's PC price [average, sales, source], 70 the slab's Auth record, 71-74 PC / CL Grade and where each came from,
-   75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), last: the order key.
+   75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), 77 Auth Estimate (PSA's estimate on
+   its cert page), last: the order key.
+   2026-11-02 (Brett: "whenever I manually open a CGC page or a PSA page ... the columns are automatically filled out"):
+   a cert page Brett opened himself (his Cert Reader extension -> card-data certs/results.csv) is the first source of the
+   Auth cells (slab source "pg"), before PSA's API and Card Hedge; with it Auth Pop (64) / Auth Pop Higher (65) are shown
+   again and Auth Estimate (77) is new.
    2026-10-30 (Brett: "fill out the rest of the website to get all of the PC graded data ... the CL rows will be blank
    until we get the data"): every PriceCharting card with a PSA / CGC price or sale has rows, in the Card Ladder run's
    order; a card Card Ladder has not been read for yet says "pending" in the CL columns (not "none", which means Card
@@ -93,11 +98,12 @@ function grBuildRows() {
       grMatchV(cid) !== undefined ? grMatchV(cid) : m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], x[10], x[7], x[9], false, c.pid || '', gk,
       c.pi ? c.pi : c.pi === '' ? 'none' : 'not read', 'none', grBoth(c.ser) || null, grBoth(c.era) || null, c.pn || null,
       A ? A.name || 'none' : aSt, A ? A.set || 'none' : aSt, A ? A.num || 'none' : aSt, A ? grRF(A.rar, A.fin, A.sp) : aSt, A ? A.year || 'none' : aSt, A ? A.lang || 'none' : aSt,
-      sOk ? S[1] || 'none' : sSt, sOk ? (S[5] === 'psa' ? S[2] || 'none' : 'not given') : sSt, sOk && S[3] != null ? S[3] : null, sOk && S[4] != null ? S[4] : null,
+      sOk ? S[1] || 'none' : sSt, sOk ? (S[5] === 'psa' || (S[5] === 'pg' && g === 'psa') ? S[2] || 'none' : 'not given') : sSt, sOk && S[3] != null ? S[3] : null, sOk && S[4] != null ? S[4] : null,
       A ? 'none' : aSt === 'not read' ? 'not read' : 'none',
       x[2], x[6], x[18] || null, S,
       GD[0] || null, GD[2] || null, GD[1] || null, GD[3] || null,           // 71 PC Grade, 72 CL Grade, 73 / 74 where each came from
       GR_CLS_WORD[cls] || cls, n1e,                                         // 75 CL Status, 76 PC sales is an estimate
+      sOk && S[9] != null ? S[9] : null,                                    // 77 Auth Estimate (PSA's cert page)
       ordOf(base) * 64 + 1 + x[1]];
     out.push(r);
   }
@@ -222,9 +228,10 @@ function grPcCells(r, c) {                                  // PC Card Name, PC 
    the source does not carry it (Card Hedge: no label type, no population). */
 const GR_AST_TIP = {'not read': 'The cert is known but not looked up yet: the site build looks certs up with PSA’s Public API (PSA rows) and Card Hedge (PSA and CGC rows) once their keys are in, a batch a day.',
   'none': 'No slab of this card read for this grader yet, so nothing to look up.', 'not found': 'Looked up: the grader has no record of this cert.',
-  'not given': 'Card Hedge does not give PSA’s label type; PSA’s Public API does (a free token Brett can add later).'};
+  'not given': 'This source does not carry it: Card Hedge gives no label type or population, CGC’s cert page shows no label type and no estimate. Open the cert page yourself (Auth Cert link, with the Cert Reader extension on) and what the grader’s page shows fills in after the next build.'};
 function grAuthSrc(r, c) {
   const g = String(r[26]).toLowerCase(), A = (c.a || {})[g]; if (!A) return '';
+  if (A.src === 'pg') return r[26] + '’s own cert page of ' + A.cert + ', opened by you' + (A.read ? ' (read ' + A.read + ')' : '');
   return A.src === 'psa' ? 'PSA’s cert record of ' + r[26] + ' ' + A.cert + ' (PSA’s Public API' + (A.read ? ', read ' + A.read : '') + ')'
     : 'The description of ' + r[26] + ' ' + A.cert + ' as Card Hedge relays it from GemRate: “' + (A.desc || '') + '”';
 }
@@ -234,15 +241,21 @@ function grAuthCells(r, c) {
   const cell = (v, tip, cls, num) => word(v) || v == null ? '<td' + (num ? ' class="num"' : '') + '><span class="dim" title="' + esc(GR_AST_TIP[v] || GR_AST_TIP[r[62]] || '') + '">' + esc(v == null ? (word(r[62]) ? r[62] : 'none') : v) + '</span></td>'
     : '<td class="' + (num ? 'num ' : '') + (cls || '') + '" title="' + esc(tip) + '">' + (typeof v === 'number' ? fmtInt(v) : esc(v)) + '</td>';
   const bad = (...f) => f.some(x => fc[x] === 'mismatch') ? 'rfbad' : '';
-  const slab = S && S[0] === 'ok' ? (S[5] === 'psa' ? 'PSA’s record of ' : 'Card Hedge’s record (from GemRate) of ') + r[26] + ' ' + S[6] + (S[8] ? ', read ' + S[8] : '') : '';
+  const slab = S && S[0] === 'ok' ? (S[5] === 'pg' ? r[26] + '’s own cert page (opened by you) of ' : S[5] === 'psa' ? 'PSA’s record of ' : 'Card Hedge’s record (from GemRate) of ') + r[26] + ' ' + S[6] + (S[8] ? ', read ' + S[8] : '') : '';
+  const ok = S && S[0] === 'ok', notGiven = v => v == null && ok ? 'not given' : v;   // read, but this source does not carry it
   return cell(r[56], src + (A && A.ch ? ' · Card Hedge’s matched card: ' + [A.ch.player, A.ch.set, A.ch.number && '#' + A.ch.number, A.ch.variant].filter(Boolean).join(' · ') : '')) +
     cell(r[57], src) +
     cell(r[58], src + ' · graders print no set size, so the total is none' + (fc.number === 'mismatch' ? ' · RED: a different number from PC’s or CL’s' : ''), bad('number'), true) +
-    cell(r[59], 'Rarity · finish (· special) from the grader’s own words, read with the dictionary' + (A && A.src === 'psa' ? ' (PSA’s card name after the hyphen, variety, label type, brand)' : ' (the description)') + '; none = the grader does not say. ' + src, bad('rarity', 'finish', 'special')) +
+    cell(r[59], 'Rarity · finish (· special) from the grader’s own words, read with the dictionary' + (A && A.src === 'pg' ? ' (the cert page’s variety' + (String(r[26]) === 'PSA' ? ', label type, card name after the hyphen, brand)' : ' and set)') : A && A.src === 'psa' ? ' (PSA’s card name after the hyphen, variety, label type, brand)' : ' (the description)') + '; none = the grader does not say. ' + src, bad('rarity', 'finish', 'special')) +
     cell(r[60], src + (fc.release === 'mismatch' ? ' · AMBER: a different year from PC’s or CL’s (PriceCharting dates promos and some old sets by the set)' : ''), fc.release === 'mismatch' ? 'rfnear' : '') +
     cell(r[61], A && A.ls ? 'Written by the grader. ' + src : 'The grader names no language - PSA and CGC write it only for a non-English card, so this is English. ' + src) +
     cell(r[62], 'The grade on the slab: ' + slab) +
-    cell(r[63], 'PSA’s label type: ' + slab);                // Auth Pop / Pop Higher were removed (2026-10-29, Brett: Card Hedge cannot give them)
+    cell(r[63], 'PSA’s label type: ' + slab) +
+    // Auth Pop / Pop Higher: back on 2026-11-02 (removed 2026-10-29 - Card Hedge cannot give them; the cert pages Brett
+    // opens and PSA's API do); Auth Estimate: PSA's estimate on its cert page
+    cell(notGiven(r[64]), 'The grader’s population of this grade: ' + slab, '', true) +
+    cell(notGiven(r[65]), 'Graded higher than this slab, by the same grader: ' + slab, '', true) +
+    (r[77] != null ? '<td class="num" title="' + esc('PSA’s estimate on its cert page: ' + slab) + '">' + fmtMoney(r[77]) + '</td>' : cell(notGiven(null), '', '', true));
 }
 function grRow(r) {
   if (r[48]) return grRawCells(r);
@@ -292,7 +305,7 @@ function grRow(r) {
 }
 function grRawCells(r) {                                    // a raw card in the both-view (the raw tab's figures, the CL columns empty)
   return '<td><span class="dim">Raw</span></td>' + gdash + gdash + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
-    gdash.repeat(6) + gdash.repeat(8) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
+    gdash.repeat(6) + gdash.repeat(11) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) +
     '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
     grPct(r[12], false, 2) + grPct(r[13]) +
@@ -317,8 +330,9 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
   // v1 Graded To PC Sales Ratio removed; v2 PC Illustrator, CL Illustrator, Series, Era after CL Release (2026-10-28);
   // v3 the ten Auth columns after CL Release, v4 Auth Illustrator after CL Illustrator; v5 / v6 Auth Pop and Auth Pop
   // Higher removed again (2026-10-29); v7 CL Grade after the grade column, which became PC Grade (2026-10-29); v8 CL Status
-  // after CL Grade (2026-10-30: every PriceCharting graded card, read / pending / no match)
-  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}, {v: 8, at: 4, n: 1}],
+  // after CL Grade (2026-10-30: every PriceCharting graded card, read / pending / no match); v9 Auth Pop, Auth Pop Higher
+  // and Auth Estimate after Auth Label (2026-11-02: the cert pages Brett opens carry them)
+  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}, {v: 8, at: 4, n: 1}, {v: 9, at: 24, n: 3}],
   row: grRow, root: null});
 const GR_TABLES = {pcg: Object.assign(grCfg(() => GR.rows, 'graded rows'), {root: '#pcv-g', name: 'PriceCharting · graded'}),
                    pca: Object.assign(grCfg(grAll, 'rows'), {root: '#pcv-a', name: 'PriceCharting · raw + graded'})};

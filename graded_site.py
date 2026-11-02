@@ -25,6 +25,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
   tcgplayer/details.csv                    TCGplayer's product page details - the Artist (tcg_details.py)
   psa/certs.csv                            PSA's own record of each slab, from PSA's Public API (cert_lookups.py)
   cardhedge/certs.csv                      each slab as Card Hedge relays it from GemRate, and Card Hedge's matched card
+  certs/results.csv                        the PSA / CGC cert pages Brett opened himself (his Cert Reader extension, via
+                                           card-inbox and card-data's hourly ingest): one row per cert (optional)
 and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
 PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
 
@@ -52,7 +54,12 @@ The Auth side (2026-10-29, Brett: "auth set ... the rows that are psa are to be 
 psa, where as cgc text is derived from cgc"): what the grader says, from the slab certs - a PSA row from PSA's own cert
 record (PSA's Public API), else the description Card Hedge relays from GemRate; a CGC row from Card Hedge. Card-level
 facts (name, set, number, release, language, rarity / finish words) per grader in cards[id].a; the slab's own facts
-(grade, label, population, population higher, cert) per row in the "auth" column.
+(grade, label, population, population higher, cert, PSA's estimate) per row in the "auth" column.
+2026-11-02 (Brett: "whenever I manually open a CGC page or a PSA page, the results are automatically stored in the
+results CSV on GitHub. And then the columns are automatically filled out"): a cert page Brett opened himself
+(certs/results.csv) comes first - PSA's or CGC's own page, with the population and PSA's estimate - then PSA's API, then
+Card Hedge. The Auth Pop / Pop Higher columns are back (they were removed on 2026-10-29 because Card Hedge cannot give
+them), and Auth Estimate is new (PSA's estimate on its cert page).
 
 PC Graded / CL Graded are LAST MONTH's prices (2026-10-29, Brett: "i thought those were suppose to be grade for last
 month"): Card Ladder's average of last month's sales of the grade, and PriceCharting's Hodges-Lehmann estimate of last
@@ -432,6 +439,23 @@ def load_ch_certs(cd):
         return {(r["grader"], r["cert"]): r for r in csv.DictReader(f) if r.get("cert")}
 
 
+def load_page_certs(cd):
+    """{(grader, cert): row} from certs/results.csv - the PSA / CGC cert pages Brett opened himself (newest read per cert)."""
+    import csv
+    p = os.path.join(cd, "certs", "results.csv")
+    if not os.path.exists(p):
+        return {}
+    with open(p, newline="", encoding="utf-8-sig") as f:
+        return {(r["grader"].lower(), re.sub(r"\D", "", r["cert"])): r for r in csv.DictReader(f) if r.get("cert") and r.get("grader")}
+
+
+def tofloat(v):
+    try:
+        return float(str(v).replace(",", "").replace("$", ""))
+    except (TypeError, ValueError):
+        return None
+
+
 def toint(v):
     try:
         return int(float(str(v).replace(",", "")))
@@ -439,12 +463,23 @@ def toint(v):
         return None
 
 
-def auth_rec(g, cert, psa, ch):
-    """One slab, as the grader says: {"src": "psa" | "ch" | None, "st": "ok" | "nf" (looked up, not found) | "wait"
-    (not looked up yet), ...}. PSA slabs: PSA's own record first; Card Hedge's (from GemRate) otherwise."""
+def auth_rec(g, cert, psa, ch, pg=None):
+    """One slab, as the grader says: {"src": "pg" | "psa" | "ch" | None, "st": "ok" | "nf" (looked up, not found) | "wait"
+    (not looked up yet), ...}. The grader's own cert page Brett opened first (pg, certs/results.csv - PSA or CGC); PSA
+    slabs: PSA's own record next; Card Hedge's (from GemRate) otherwise."""
     cert = re.sub(r"\D", "", str(cert or ""))
     if not cert:
         return None
+    w = (pg or {}).get((g, cert))
+    if w:
+        extra = {k: v for k, v in w.items() if k.startswith(("PSA ", "CGC ")) and v}
+        return {"src": "pg", "st": "ok", "cert": cert, "subject": w.get("card_name", ""), "brand": w.get("set", ""),
+                "category": extra.get("PSA Category", ""), "variety": w.get("variety", ""),
+                "label": extra.get("PSA Label Type", "") if g == "psa" else None, "year": w.get("year", ""),
+                "number": w.get("card_number", ""), "grade": w.get("grade", ""), "pop": toint(w.get("pop_this_grade")),
+                "popq": None, "poph": toint(w.get("pop_higher")), "est": tofloat(w.get("price_estimate")),
+                "language": w.get("language", ""), "read": str(w.get("read_at", ""))[:10], "url": w.get("page_url", ""), "ch": None,
+                "desc": w.get("title", "")}
     h = ch.get((g, cert))
     chc = None
     if h and h.get("status") == "ok":
@@ -723,13 +758,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     tcgf = load_tcg_facts(tcg_path)
     tdet = load_tcg_details(cd)
     pop_hist = load_pop_hist(cd, sorted(matched), last_m)   # for Review's Number graded: matched cards only
-    psa_c, ch_c = load_psa_certs(cd), load_ch_certs(cd)
+    psa_c, ch_c, pg_c = load_psa_certs(cd), load_ch_certs(cd), load_page_certs(cd)
     checks = []
     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
-          f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}")
+          f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}, "
+          f"cert pages Brett opened {len(pg_c)}")
     pop = load_pop(cd, ids)
     psales = load_pc_sales(cd, ids, today)
     pmon = load_pc_monthly(cd, ids)
@@ -753,14 +789,15 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         recs = {}                                           # (grader, cert) -> the slab as the grader says
         for g, card_cert in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
             for cert in [card_cert] + [v for k, v in slabs.items() if k.startswith(g + "|")]:
-                a = auth_rec(g, cert, psa_c, ch_c)
+                a = auth_rec(g, cert, psa_c, ch_c, pg_c)
                 if a:
                     recs.setdefault((g, a["cert"]), a)
         best = {}                                           # grader -> the record the card-level Auth facts come from
         for (g, _), a in recs.items():
             if a["st"] != "ok":
                 continue
-            if g not in best or (best[g]["src"] != "psa" and a["src"] == "psa"):
+            rank = {"pg": 0, "psa": 1}                     # Brett's own page read, then PSA's API, then Card Hedge
+            if g not in best or rank.get(a["src"], 2) < rank.get(best[g]["src"], 2):
                 best[g] = a
         stats_by_col = {col: series_stats(pts, today) for col, pts in (snaps.get(cid) or {}).items()}
         pcrow = pc.loc[cid] if cid in pc.index else None
@@ -819,9 +856,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             cgl, cgf = cl_grade(pr, k, mon)
             if pgl and cgl and grade_norm(pgl) != grade_norm(cgl):
                 grade_diff += 1
-            ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c)
+            ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c, pg_c)
             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
-                                        ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None]
+                                        ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None, ar.get("est")]
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
                          (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e])
@@ -836,9 +873,11 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         pc_year = pcrow.get("release-date", "") if pcrow is not None else ""
         aside = {}
         for g, a in best.items():
-            aside[g] = gt.auth_side({"src": a["src"], "subject": a.get("subject"), "brand": a.get("brand"), "category": a.get("category"),
-                                     "variety": a.get("variety"), "label": a.get("label"), "year": a.get("year"),
-                                     "number": a.get("number"), "desc": a.get("desc")}, dic)
+            src = (g if g in ("psa", "cgc") else "ch") if a["src"] == "pg" else a["src"]   # a page Brett opened: PSA's / CGC's own fields
+            aside[g] = gt.auth_side({"src": src, "page": a["src"] == "pg", "subject": a.get("subject"), "brand": a.get("brand"),
+                                     "category": a.get("category"), "variety": a.get("variety"), "label": a.get("label"),
+                                     "year": a.get("year"), "number": a.get("number"), "desc": a.get("desc"),
+                                     "language": a.get("language")}, dic)
         au = merge_sides(aside.values()) if aside else None
         tally.side(cid, "pc", ps)
         if r:

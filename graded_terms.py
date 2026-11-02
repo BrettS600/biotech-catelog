@@ -313,9 +313,10 @@ def parse_description(d):
 
 
 def auth_side(rec, dic):
-    """What the grader says the card is, read with the dictionary - from PSA's own cert record (src 'psa') or from the
-    one-line description Card Hedge relays from GemRate (src 'ch'). rec: {"src", "subject", "brand", "variety",
-    "label", "desc"}. Sets name / set_name / num / year / lang on the Side."""
+    """What the grader says the card is, read with the dictionary - from PSA's own cert record (src 'psa': PSA's Public
+    API, or PSA's cert page Brett opened, "page": True), CGC's cert page Brett opened (src 'cgc') or the one-line
+    description Card Hedge relays from GemRate (src 'ch'). rec: {"src", "subject", "brand", "variety", "label", "desc",
+    "language"}. Sets name / set_name / num / year / lang on the Side."""
     s = Side()
     if not rec:
         return s
@@ -334,7 +335,23 @@ def auth_side(rec, dic):
         s.name, s.set_name, s.year = subj, brand, str(rec.get("year") or "")[:4]
         s.num_raw = str(rec.get("number") or "")
         s.lang, s.lang_said = language_of(brand, rec.get("category"), rec.get("variety"))
-        s.source = "PSA's cert record (PSA's Public API)"
+        s.source = "PSA's cert page (opened by Brett)" if rec.get("page") else "PSA's cert record (PSA's Public API)"
+    elif rec.get("src") == "cgc":
+        # CGC's own cert page as Brett opened it (2026-11-02, data/certs/results.csv): card name, set, number, variant,
+        # language and year in CGC's own fields; the variant's words go through the dictionary
+        name, cset = str(rec.get("subject") or ""), str(rec.get("brand") or "")
+        txt = rec.get("variety")
+        if str(txt or "").strip():
+            found, left = dic.match(txt, "any")
+            s.add(found, "CGC variant")
+            if meaningful(left):
+                s.unknown(str(txt).strip(), left, "CGC variant")
+        s.add(dic.match(cset, "set")[0], "CGC set")
+        s.name, s.set_name, s.year = name, cset, str(rec.get("year") or "")[:4]
+        s.num_raw = str(rec.get("number") or "")
+        lang = str(rec.get("language") or "").strip()
+        s.lang, s.lang_said = (lang, True) if lang else language_of(cset, txt)
+        s.source = "CGC's cert page (opened by Brett)"
     else:
         p = parse_description(rec.get("desc"))
         name = p["name"]

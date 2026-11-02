@@ -2061,6 +2061,28 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (Playwright on the built page, test key): ready in ~2.6 s, ~200 MB heap, search ~0.7 s, no errors, header and cell
   counts equal in both views. TCGplayer's Artist (tcg_details.py, 400 a build, card_ids.csv order) still covers only the
   scanned cards: the rest say "not read".
+  (15) THE CERT PAGES BRETT OPENS FILL THE AUTH COLUMNS (2026-11-02, Brett: "whenever I manually open a CGC page or a PSA
+  page, the results are automatically stored in the results CSV on GitHub. And then the columns are automatically
+  filled out ... we would be filling out the auth columns on the site"). Brett opens PSA / CGC cert pages himself (the
+  Auth Cert links, a show ...); his Cert Reader Chrome extension (his own code, kept by him - not in this repo) reads the
+  page he opened (no requests to PSA / CGC; every <dt>/<dd> label, PSA's summary numbers and Sales of Similar Items,
+  CGC's population lines, picture links), keeps a local Downloads/cert-reader/results.csv and leaves each read in
+  card-inbox certs/<grader>_<cert>_<ms>.json with the card-inbox-only key. card-data's hourly Card Ladder ingest takes
+  them (tools/certs/cert_ingest.py) into data/certs/results.csv - ONE row per cert, PSA and CGC together, shared columns
+  first (grader, cert, card_name, year, set, card_number, variety, grade, pop_this_grade, pop_higher, price_estimate,
+  grade_date, language, picture_front/back, recent_sales, title, page_url, read_at), every other label its own column
+  ("PSA Label Type", "CGC Game" ...; a new label adds a column) - plus data/certs/pages/*.jsonl.gz (every read). The
+  site workflow checks out data/certs/; graded_site.load_page_certs reads results.csv and auth_rec takes a cert page
+  Brett opened FIRST (src "pg"), then PSA's API, then Card Hedge; cards[id].a[g].src "pg", its Side from PSA's own
+  fields (graded_terms.auth_side src psa, page=True) or CGC's (new branch src cgc: card name, set, number, Variant 1
+  through the dictionary, Language as written). The row's auth list gains [9] PSA's estimate. PAGE: Auth Pop (64) and
+  Auth Pop Higher (65) are back after Auth Label (removed 2026-10-29 because Card Hedge cannot give them) and Auth
+  Estimate (row 77, before the order key) is new - cfg.inserted v9 at 24, n 3; grRawCells has 11 Auth dashes; a value
+  the source does not carry says "not given" (Card Hedge: label, population; CGC's page: label, estimate). Tested on
+  the 2026-10-30 card-data snapshot with Brett's two real reads (row 1, Mega Charizard X ex #23: its PSA 10 slab
+  165743122 and CGC 10 slab 6114181246 are the certs he opened): PSA 10 row GEM MT 10 · w/ Fugitive Ink Technology ·
+  63,064 · 0 · $126.00; CGC 10 row GEM MINT 10 · not given · 12,035 · 5,446 · not given; other slabs "not read";
+  header and cell counts equal in both views; no page errors.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
