@@ -25,6 +25,7 @@ const GT_CATS = ['Rarity', 'Finish', 'Special', 'Series', 'Era', 'Unidentified']
 const GTS = Object.assign({off: {}, within: {}, side: {}, across: 'all'}, grLS('gterms', {}));
 let GFLAGONLY = grLS('gflagonly', false);                  // the Flags button: only this view's flagged rows
 let GUNSURE = grLS('gunsureonly', false);                  // the Unsure button: only the rows whose match is in doubt
+let GAUTHREAD = grLS('gauthread', false);                 // the Auth read button (2026-11-02): only the rows whose own slab has been read
 let GSHOWNOT = grLS('gshownot', false);                    // the Not the same button: show the cards answered "Not the same card"
 const gtsSave = () => grSave('gterms', GTS);
 // words Brett sorted here (the Sort control), echoed until the data carries them (doc.dect: the newest decision filed)
@@ -143,6 +144,9 @@ function grMatchV(cid) {
 /* The match check (graded_site.match_level): "wrong" = Card Ladder's price has sat far from PriceCharting's for most of
    the months both sides priced the card; Pristine / Perfect rows never carry it. A card answered Same card drops it. */
 function grWrong(r) { const c = ((GR.doc && GR.doc.cards) || {})[String(r[0])]; return !!c && !!c.mc && c.mc.lv === 'wrong' && grAns(r) !== 1 && grAns(r) !== 0 && !/pristine|perfect/.test(r[50] || ''); }
+// the row's own slab (Auth Cert) has been read - a cert page Brett opened (Cert Reader), PSA's record or Card Hedge (2026-11-02,
+// Brett: "an auth read toggle ... to only see listings that have had their pages read")
+function grAuthRead(r) { const S = r[70]; return !r[48] && !!S && S[0] === 'ok'; }
 function grAns(r) { const a = grMatchV(r[0]); return a !== undefined ? a : r[41]; }   // the card's answer, else an older per-grade one
 function grNot(r) { return grMatchV(r[0]) === 0; }        // answered Not the same card: hidden (only a card answer hides)
 function grMcText(c) {
@@ -322,8 +326,8 @@ const GR_LABELS = {5: 'Sales/yr', 6: 'PC Graded (last month)', 35: 'CL Graded (l
   16: 'PC sales', 37: 'CL sales', 38: 'Graded this mo', 39: 'Graded last mo', 18: 'eBay last mo', 19: 'eBay this mo', 20: '$eBay Anchor', 21: 'eBay to PC %', 22: 'Hits 30d', 23: 'Hit %'};
 const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS, defaults: {},
   fav: {s: 'pc', k: r => r[0], c: r => r[0]},
-  extra: r => r[48] ? !GFLAGONLY && !GUNSURE && grTermPass(r[0], true)
-    : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]) && (!GUNSURE || grUnsure(r) || grWrong(r)) && (GSHOWNOT || !grNot(r)),
+  extra: r => r[48] ? !GFLAGONLY && !GUNSURE && !GAUTHREAD && grTermPass(r[0], true)
+    : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]) && (!GUNSURE || grUnsure(r) || grWrong(r)) && (!GAUTHREAD || grAuthRead(r)) && (GSHOWNOT || !grNot(r)),
   rowClass: r => r[48] ? '' : grNot(r) ? 'grnot' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
   hay: r => [r[1], r[2], r[14], r[25], r[71], r[72], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63], r[75]].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
   // columns added (or removed, n < 0) since a layout was saved, so Brett's own order and eyes stay on the same columns:
@@ -382,7 +386,7 @@ function grDecTag(name, left) {                             // a word sorted her
    rearrangable like the other tabs"): Grading, the word buttons and Flags move with the same hold-and-drag as the
    filter chips - press one, hold it still a moment (it lifts), drag it along the row, let go. Remembered in this
    browser (gm-order); a button that arrives later takes its natural place. */
-const GM_KEYS = ['grading'].concat(GT_CATS, ['flags', 'unsure', 'notsame']);
+const GM_KEYS = ['grading'].concat(GT_CATS, ['flags', 'unsure', 'authread', 'notsame']);
 let GM_ORDER = grLS('gm-order', null);
 function gmOrder() {
   const sv = Array.isArray(GM_ORDER) ? GM_ORDER.filter(k => GM_KEYS.includes(k)) : [];
@@ -399,6 +403,7 @@ function grPaintTerms() {
   const part = {grading: '<span id="gm-grades-slot"></span>',
     flags: '<button type="button" class="gm2 gtb gflb' + (GFLAGONLY ? ' on' : '') + '" id="gfl-only" data-mv="flags" title="This view’s own flags (the Flag column), kept apart from the eBay tabs’ Flags: on = show only the flagged rows. Hold and drag to move it.">⚑ Flags <span class="dim">(' + GR.rows.filter(r => r[42]).length + ')</span></button>',
     unsure: '<button type="button" class="gm2 gtb gunb' + (GUNSURE ? ' on' : '') + '" id="gun-only" data-mv="unsure" title="On = show only the rows whose match is in doubt (unsure match / likely wrong match), to answer them in Review. Hold and drag to move it.">Unsure <span class="dim">(' + new Set(GR.rows.filter(r => grUnsure(r) || grWrong(r)).map(r => r[0])).size + ' cards)</span></button>',
+    authread: '<button type="button" class="gm2 gtb garb' + (GAUTHREAD ? ' on' : '') + '" id="gar-only" data-mv="authread" title="On = show only the rows whose own slab (Auth Cert) has been read - a PSA / CGC cert page you opened with the Cert Reader extension (or PSA’s record): their Auth Grade, Pop, Pop Higher and Estimate are filled. Hold and drag to move it.">Auth read <span class="dim">(' + GR.rows.filter(grAuthRead).length + ' rows)</span></button>',
     notsame: '<button type="button" class="gm2 gtb gnotb' + (GSHOWNOT ? ' on' : '') + '" id="gnot-show" data-mv="notsame" title="Cards you answered Not the same card are hidden (nothing is deleted). On = show them, greyed, so an answer can be changed. Hold and drag to move it.">Not the same <span class="dim">(' + new Set(GR.rows.filter(grNot).map(r => r[0])).size + ')</span></button>'};
   GT_CATS.forEach(cat => { const L = grTermList(cat), off = new Set(GTS.off[cat] || []), on = L.filter(x => !off.has(x[0])).length;
     part[cat] = '<button type="button" class="gm2 gtb' + (grTermActive(cat) ? ' on' : '') + '" data-cat="' + cat + '" data-mv="' + cat + '" title="' + esc(cat + ': the words PriceCharting / TCGplayer, Card Ladder and the grader use - tick which to show. Hold and drag to move it.') + '">' + cat + ' <span class="dim">(' + (grTermActive(cat) ? on + ' of ' : '') + L.length + ')</span> ▾</button>'; });
@@ -539,6 +544,7 @@ if ($('gm-terms')) $('gm-terms').addEventListener('click', e => {
   const hb = e.target.closest('button.help'); if (hb) { e.stopPropagation(); openHelp(hb.dataset.h); return; }   // drawn here, after help.js bound the static ones
   if (e.target.closest('#gfl-only')) { GFLAGONLY = !GFLAGONLY; grSave('gflagonly', GFLAGONLY); grTermsChanged(); return; }
   if (e.target.closest('#gun-only')) { GUNSURE = !GUNSURE; grSave('gunsureonly', GUNSURE); grTermsChanged(); return; }
+  if (e.target.closest('#gar-only')) { GAUTHREAD = !GAUTHREAD; grSave('gauthread', GAUTHREAD); grTermsChanged(); return; }
   if (e.target.closest('#gnot-show')) { GSHOWNOT = !GSHOWNOT; grSave('gshownot', GSHOWNOT); grTermsChanged(); return; }
   const b = e.target.closest('.gtb'); if (b) { grOpenTerms(b.dataset.cat); return; }
   const a = e.target.closest('.zb[data-a]'); if (a) { GTS.across = a.dataset.a; grTermsChanged(); }

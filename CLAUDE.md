@@ -2082,7 +2082,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the 2026-10-30 card-data snapshot with Brett's two real reads (row 1, Mega Charizard X ex #23: its PSA 10 slab
   165743122 and CGC 10 slab 6114181246 are the certs he opened): PSA 10 row GEM MT 10 · w/ Fugitive Ink Technology ·
   63,064 · 0 · $126.00; CGC 10 row GEM MINT 10 · not given · 12,035 · 5,446 · not given; other slabs "not read";
-  header and cell counts equal in both views; no page errors.
+  header and cell counts equal in both views; no page errors. AUTH READ button (2026-11-02, Brett: "an auth read toggle
+  ... to only see listings that have had their pages read"): beside Unsure (GM_KEYS 'authread', grAuthRead = the row's own
+  slab record r[70] is ok), on = only those rows; remembered (gauthread).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

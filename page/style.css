@@ -587,6 +587,7 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   td.gdoubt { opacity:.45; }                             /* the PC to CL % while the match is in doubt */
   .gunb.on { border-color:#e3b341; color:#e3b341; }
   .gnotb.on { border-color:var(--muted); color:var(--fg); }
+  .garb.on { border-color:var(--up); color:var(--up); }
   .rvmatch { margin:0 0 10px; padding:8px 10px; border:1px solid #e3b341; border-radius:8px; font-size:13px; }
   .rvmatch.wrong { border-color:var(--down); }
   .rvmatch.not { border-color:var(--muted); }
