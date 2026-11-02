@@ -1,0 +1,258 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 99dc3ab..ea44904 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2063,2 +2063,24 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   scanned cards: the rest say "not read".
++  (15) THE CERT PAGES BRETT OPENS FILL THE AUTH COLUMNS (2026-11-02, Brett: "whenever I manually open a CGC page or a PSA
++  page, the results are automatically stored in the results CSV on GitHub. And then the columns are automatically
++  filled out ... we would be filling out the auth columns on the site"). Brett opens PSA / CGC cert pages himself (the
++  Auth Cert links, a show ...); his Cert Reader Chrome extension (his own code, kept by him - not in this repo) reads the
++  page he opened (no requests to PSA / CGC; every <dt>/<dd> label, PSA's summary numbers and Sales of Similar Items,
++  CGC's population lines, picture links), keeps a local Downloads/cert-reader/results.csv and leaves each read in
++  card-inbox certs/<grader>_<cert>_<ms>.json with the card-inbox-only key. card-data's hourly Card Ladder ingest takes
++  them (tools/certs/cert_ingest.py) into data/certs/results.csv - ONE row per cert, PSA and CGC together, shared columns
++  first (grader, cert, card_name, year, set, card_number, variety, grade, pop_this_grade, pop_higher, price_estimate,
++  grade_date, language, picture_front/back, recent_sales, title, page_url, read_at), every other label its own column
++  ("PSA Label Type", "CGC Game" ...; a new label adds a column) - plus data/certs/pages/*.jsonl.gz (every read). The
++  site workflow checks out data/certs/; graded_site.load_page_certs reads results.csv and auth_rec takes a cert page
++  Brett opened FIRST (src "pg"), then PSA's API, then Card Hedge; cards[id].a[g].src "pg", its Side from PSA's own
++  fields (graded_terms.auth_side src psa, page=True) or CGC's (new branch src cgc: card name, set, number, Variant 1
++  through the dictionary, Language as written). The row's auth list gains [9] PSA's estimate. PAGE: Auth Pop (64) and
++  Auth Pop Higher (65) are back after Auth Label (removed 2026-10-29 because Card Hedge cannot give them) and Auth
++  Estimate (row 77, before the order key) is new - cfg.inserted v9 at 24, n 3; grRawCells has 11 Auth dashes; a value
++  the source does not carry says "not given" (Card Hedge: label, population; CGC's page: label, estimate). Tested on
++  the 2026-10-30 card-data snapshot with Brett's two real reads (row 1, Mega Charizard X ex #23: its PSA 10 slab
++  165743122 and CGC 10 slab 6114181246 are the certs he opened): PSA 10 row GEM MT 10 · w/ Fugitive Ink Technology ·
++  63,064 · 0 · $126.00; CGC 10 row GEM MINT 10 · not given · 12,035 · 5,446 · not given; other slabs "not read";
++  header and cell counts equal in both views; no page errors.
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/graded_site.py b/graded_site.py
+index e550bcf..f0afc61 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -27,2 +27,4 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
+   cardhedge/certs.csv                      each slab as Card Hedge relays it from GemRate, and Card Hedge's matched card
++  certs/results.csv                        the PSA / CGC cert pages Brett opened himself (his Cert Reader extension, via
++                                           card-inbox and card-data's hourly ingest): one row per cert (optional)
+ and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
+@@ -54,3 +56,8 @@ record (PSA's Public API), else the description Card Hedge relays from GemRate;
+ facts (name, set, number, release, language, rarity / finish words) per grader in cards[id].a; the slab's own facts
+-(grade, label, population, population higher, cert) per row in the "auth" column.
++(grade, label, population, population higher, cert, PSA's estimate) per row in the "auth" column.
++2026-11-02 (Brett: "whenever I manually open a CGC page or a PSA page, the results are automatically stored in the
++results CSV on GitHub. And then the columns are automatically filled out"): a cert page Brett opened himself
++(certs/results.csv) comes first - PSA's or CGC's own page, with the population and PSA's estimate - then PSA's API, then
++Card Hedge. The Auth Pop / Pop Higher columns are back (they were removed on 2026-10-29 because Card Hedge cannot give
++them), and Auth Estimate is new (PSA's estimate on its cert page).
+ 
+@@ -434,2 +441,19 @@ def load_ch_certs(cd):
+ 
++def load_page_certs(cd):
++    """{(grader, cert): row} from certs/results.csv - the PSA / CGC cert pages Brett opened himself (newest read per cert)."""
++    import csv
++    p = os.path.join(cd, "certs", "results.csv")
++    if not os.path.exists(p):
++        return {}
++    with open(p, newline="", encoding="utf-8-sig") as f:
++        return {(r["grader"].lower(), re.sub(r"\D", "", r["cert"])): r for r in csv.DictReader(f) if r.get("cert") and r.get("grader")}
++
++
++def tofloat(v):
++    try:
++        return float(str(v).replace(",", "").replace("$", ""))
++    except (TypeError, ValueError):
++        return None
++
++
+ def toint(v):
+@@ -441,5 +465,6 @@ def toint(v):
+ 
+-def auth_rec(g, cert, psa, ch):
+-    """One slab, as the grader says: {"src": "psa" | "ch" | None, "st": "ok" | "nf" (looked up, not found) | "wait"
+-    (not looked up yet), ...}. PSA slabs: PSA's own record first; Card Hedge's (from GemRate) otherwise."""
++def auth_rec(g, cert, psa, ch, pg=None):
++    """One slab, as the grader says: {"src": "pg" | "psa" | "ch" | None, "st": "ok" | "nf" (looked up, not found) | "wait"
++    (not looked up yet), ...}. The grader's own cert page Brett opened first (pg, certs/results.csv - PSA or CGC); PSA
++    slabs: PSA's own record next; Card Hedge's (from GemRate) otherwise."""
+     cert = re.sub(r"\D", "", str(cert or ""))
+@@ -447,2 +472,12 @@ def auth_rec(g, cert, psa, ch):
+         return None
++    w = (pg or {}).get((g, cert))
++    if w:
++        extra = {k: v for k, v in w.items() if k.startswith(("PSA ", "CGC ")) and v}
++        return {"src": "pg", "st": "ok", "cert": cert, "subject": w.get("card_name", ""), "brand": w.get("set", ""),
++                "category": extra.get("PSA Category", ""), "variety": w.get("variety", ""),
++                "label": extra.get("PSA Label Type", "") if g == "psa" else None, "year": w.get("year", ""),
++                "number": w.get("card_number", ""), "grade": w.get("grade", ""), "pop": toint(w.get("pop_this_grade")),
++                "popq": None, "poph": toint(w.get("pop_higher")), "est": tofloat(w.get("price_estimate")),
++                "language": w.get("language", ""), "read": str(w.get("read_at", ""))[:10], "url": w.get("page_url", ""), "ch": None,
++                "desc": w.get("title", "")}
+     h = ch.get((g, cert))
+@@ -725,3 +760,3 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+     pop_hist = load_pop_hist(cd, sorted(matched), last_m)   # for Review's Number graded: matched cards only
+-    psa_c, ch_c = load_psa_certs(cd), load_ch_certs(cd)
++    psa_c, ch_c, pg_c = load_psa_certs(cd), load_ch_certs(cd), load_page_certs(cd)
+     checks = []
+@@ -731,3 +766,4 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
+-          f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}")
++          f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}, "
++          f"cert pages Brett opened {len(pg_c)}")
+     pop = load_pop(cd, ids)
+@@ -755,3 +791,3 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             for cert in [card_cert] + [v for k, v in slabs.items() if k.startswith(g + "|")]:
+-                a = auth_rec(g, cert, psa_c, ch_c)
++                a = auth_rec(g, cert, psa_c, ch_c, pg_c)
+                 if a:
+@@ -762,3 +798,4 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                 continue
+-            if g not in best or (best[g]["src"] != "psa" and a["src"] == "psa"):
++            rank = {"pg": 0, "psa": 1}                     # Brett's own page read, then PSA's API, then Card Hedge
++            if g not in best or rank.get(a["src"], 2) < rank.get(best[g]["src"], 2):
+                 best[g] = a
+@@ -821,5 +858,5 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                 grade_diff += 1
+-            ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c)
++            ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c, pg_c)
+             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
+-                                        ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None]
++                                        ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None, ar.get("est")]
+             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
+@@ -838,5 +875,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         for g, a in best.items():
+-            aside[g] = gt.auth_side({"src": a["src"], "subject": a.get("subject"), "brand": a.get("brand"), "category": a.get("category"),
+-                                     "variety": a.get("variety"), "label": a.get("label"), "year": a.get("year"),
+-                                     "number": a.get("number"), "desc": a.get("desc")}, dic)
++            src = (g if g in ("psa", "cgc") else "ch") if a["src"] == "pg" else a["src"]   # a page Brett opened: PSA's / CGC's own fields
++            aside[g] = gt.auth_side({"src": src, "page": a["src"] == "pg", "subject": a.get("subject"), "brand": a.get("brand"),
++                                     "category": a.get("category"), "variety": a.get("variety"), "label": a.get("label"),
++                                     "year": a.get("year"), "number": a.get("number"), "desc": a.get("desc"),
++                                     "language": a.get("language")}, dic)
+         au = merge_sides(aside.values()) if aside else None
+diff --git a/graded_terms.py b/graded_terms.py
+index f4ab069..ad951be 100644
+--- a/graded_terms.py
++++ b/graded_terms.py
+@@ -315,5 +315,6 @@ def parse_description(d):
+ def auth_side(rec, dic):
+-    """What the grader says the card is, read with the dictionary - from PSA's own cert record (src 'psa') or from the
+-    one-line description Card Hedge relays from GemRate (src 'ch'). rec: {"src", "subject", "brand", "variety",
+-    "label", "desc"}. Sets name / set_name / num / year / lang on the Side."""
++    """What the grader says the card is, read with the dictionary - from PSA's own cert record (src 'psa': PSA's Public
++    API, or PSA's cert page Brett opened, "page": True), CGC's cert page Brett opened (src 'cgc') or the one-line
++    description Card Hedge relays from GemRate (src 'ch'). rec: {"src", "subject", "brand", "variety", "label", "desc",
++    "language"}. Sets name / set_name / num / year / lang on the Side."""
+     s = Side()
+@@ -336,3 +337,19 @@ def auth_side(rec, dic):
+         s.lang, s.lang_said = language_of(brand, rec.get("category"), rec.get("variety"))
+-        s.source = "PSA's cert record (PSA's Public API)"
++        s.source = "PSA's cert page (opened by Brett)" if rec.get("page") else "PSA's cert record (PSA's Public API)"
++    elif rec.get("src") == "cgc":
++        # CGC's own cert page as Brett opened it (2026-11-02, data/certs/results.csv): card name, set, number, variant,
++        # language and year in CGC's own fields; the variant's words go through the dictionary
++        name, cset = str(rec.get("subject") or ""), str(rec.get("brand") or "")
++        txt = rec.get("variety")
++        if str(txt or "").strip():
++            found, left = dic.match(txt, "any")
++            s.add(found, "CGC variant")
++            if meaningful(left):
++                s.unknown(str(txt).strip(), left, "CGC variant")
++        s.add(dic.match(cset, "set")[0], "CGC set")
++        s.name, s.set_name, s.year = name, cset, str(rec.get("year") or "")[:4]
++        s.num_raw = str(rec.get("number") or "")
++        lang = str(rec.get("language") or "").strip()
++        s.lang, s.lang_said = (lang, True) if lang else language_of(cset, txt)
++        s.source = "CGC's cert page (opened by Brett)"
+     else:
+diff --git a/page/body.html b/page/body.html
+index e40f370..268d1a5 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -102,2 +102,5 @@
+     <th data-k="63">Auth Label<span class="s">⇅</span><button class="help" data-h="g_alabel">?</button></th>
++    <th data-k="64" class="num">Auth Pop<span class="s">⇅</span><button class="help" data-h="g_apop">?</button></th>
++    <th data-k="65" class="num">Auth Pop Higher<span class="s">⇅</span><button class="help" data-h="g_apoph">?</button></th>
++    <th data-k="77" class="num">Auth Estimate<span class="s">⇅</span><button class="help" data-h="g_aest">?</button></th>
+     <th data-k="51">PC Illustrator<span class="s">⇅</span><button class="help" data-h="g_pcill">?</button></th>
+@@ -172,2 +175,5 @@
+     <th data-k="63">Auth Label<span class="s">⇅</span><button class="help" data-h="g_alabel">?</button></th>
++    <th data-k="64" class="num">Auth Pop<span class="s">⇅</span><button class="help" data-h="g_apop">?</button></th>
++    <th data-k="65" class="num">Auth Pop Higher<span class="s">⇅</span><button class="help" data-h="g_apoph">?</button></th>
++    <th data-k="77" class="num">Auth Estimate<span class="s">⇅</span><button class="help" data-h="g_aest">?</button></th>
+     <th data-k="51">PC Illustrator<span class="s">⇅</span><button class="help" data-h="g_pcill">?</button></th>
+diff --git a/page/graded.js b/page/graded.js
+index 739a1f6..c361461 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -49,3 +49,8 @@ const grClUrl = pid => pid ? 'https://app.cardladder.com/profiles/' + encodeURIC
+    month's PC price [average, sales, source], 70 the slab's Auth record, 71-74 PC / CL Grade and where each came from,
+-   75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), last: the order key.
++   75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), 77 Auth Estimate (PSA's estimate on
++   its cert page), last: the order key.
++   2026-11-02 (Brett: "whenever I manually open a CGC page or a PSA page ... the columns are automatically filled out"):
++   a cert page Brett opened himself (his Cert Reader extension -> card-data certs/results.csv) is the first source of the
++   Auth cells (slab source "pg"), before PSA's API and Card Hedge; with it Auth Pop (64) / Auth Pop Higher (65) are shown
++   again and Auth Estimate (77) is new.
+    2026-10-30 (Brett: "fill out the rest of the website to get all of the PC graded data ... the CL rows will be blank
+@@ -95,3 +100,3 @@ function grBuildRows() {
+       A ? A.name || 'none' : aSt, A ? A.set || 'none' : aSt, A ? A.num || 'none' : aSt, A ? grRF(A.rar, A.fin, A.sp) : aSt, A ? A.year || 'none' : aSt, A ? A.lang || 'none' : aSt,
+-      sOk ? S[1] || 'none' : sSt, sOk ? (S[5] === 'psa' ? S[2] || 'none' : 'not given') : sSt, sOk && S[3] != null ? S[3] : null, sOk && S[4] != null ? S[4] : null,
++      sOk ? S[1] || 'none' : sSt, sOk ? (S[5] === 'psa' || (S[5] === 'pg' && g === 'psa') ? S[2] || 'none' : 'not given') : sSt, sOk && S[3] != null ? S[3] : null, sOk && S[4] != null ? S[4] : null,
+       A ? 'none' : aSt === 'not read' ? 'not read' : 'none',
+@@ -100,2 +105,3 @@ function grBuildRows() {
+       GR_CLS_WORD[cls] || cls, n1e,                                         // 75 CL Status, 76 PC sales is an estimate
++      sOk && S[9] != null ? S[9] : null,                                    // 77 Auth Estimate (PSA's cert page)
+       ordOf(base) * 64 + 1 + x[1]];
+@@ -224,5 +230,6 @@ const GR_AST_TIP = {'not read': 'The cert is known but not looked up yet: the si
+   'none': 'No slab of this card read for this grader yet, so nothing to look up.', 'not found': 'Looked up: the grader has no record of this cert.',
+-  'not given': 'Card Hedge does not give PSA’s label type; PSA’s Public API does (a free token Brett can add later).'};
++  'not given': 'This source does not carry it: Card Hedge gives no label type or population, CGC’s cert page shows no label type and no estimate. Open the cert page yourself (Auth Cert link, with the Cert Reader extension on) and what the grader’s page shows fills in after the next build.'};
+ function grAuthSrc(r, c) {
+   const g = String(r[26]).toLowerCase(), A = (c.a || {})[g]; if (!A) return '';
++  if (A.src === 'pg') return r[26] + '’s own cert page of ' + A.cert + ', opened by you' + (A.read ? ' (read ' + A.read + ')' : '');
+   return A.src === 'psa' ? 'PSA’s cert record of ' + r[26] + ' ' + A.cert + ' (PSA’s Public API' + (A.read ? ', read ' + A.read : '') + ')'
+@@ -236,3 +243,4 @@ function grAuthCells(r, c) {
+   const bad = (...f) => f.some(x => fc[x] === 'mismatch') ? 'rfbad' : '';
+-  const slab = S && S[0] === 'ok' ? (S[5] === 'psa' ? 'PSA’s record of ' : 'Card Hedge’s record (from GemRate) of ') + r[26] + ' ' + S[6] + (S[8] ? ', read ' + S[8] : '') : '';
++  const slab = S && S[0] === 'ok' ? (S[5] === 'pg' ? r[26] + '’s own cert page (opened by you) of ' : S[5] === 'psa' ? 'PSA’s record of ' : 'Card Hedge’s record (from GemRate) of ') + r[26] + ' ' + S[6] + (S[8] ? ', read ' + S[8] : '') : '';
++  const ok = S && S[0] === 'ok', notGiven = v => v == null && ok ? 'not given' : v;   // read, but this source does not carry it
+   return cell(r[56], src + (A && A.ch ? ' · Card Hedge’s matched card: ' + [A.ch.player, A.ch.set, A.ch.number && '#' + A.ch.number, A.ch.variant].filter(Boolean).join(' · ') : '')) +
+@@ -240,3 +248,3 @@ function grAuthCells(r, c) {
+     cell(r[58], src + ' · graders print no set size, so the total is none' + (fc.number === 'mismatch' ? ' · RED: a different number from PC’s or CL’s' : ''), bad('number'), true) +
+-    cell(r[59], 'Rarity · finish (· special) from the grader’s own words, read with the dictionary' + (A && A.src === 'psa' ? ' (PSA’s card name after the hyphen, variety, label type, brand)' : ' (the description)') + '; none = the grader does not say. ' + src, bad('rarity', 'finish', 'special')) +
++    cell(r[59], 'Rarity · finish (· special) from the grader’s own words, read with the dictionary' + (A && A.src === 'pg' ? ' (the cert page’s variety' + (String(r[26]) === 'PSA' ? ', label type, card name after the hyphen, brand)' : ' and set)') : A && A.src === 'psa' ? ' (PSA’s card name after the hyphen, variety, label type, brand)' : ' (the description)') + '; none = the grader does not say. ' + src, bad('rarity', 'finish', 'special')) +
+     cell(r[60], src + (fc.release === 'mismatch' ? ' · AMBER: a different year from PC’s or CL’s (PriceCharting dates promos and some old sets by the set)' : ''), fc.release === 'mismatch' ? 'rfnear' : '') +
+@@ -244,3 +252,8 @@ function grAuthCells(r, c) {
+     cell(r[62], 'The grade on the slab: ' + slab) +
+-    cell(r[63], 'PSA’s label type: ' + slab);                // Auth Pop / Pop Higher were removed (2026-10-29, Brett: Card Hedge cannot give them)
++    cell(r[63], 'PSA’s label type: ' + slab) +
++    // Auth Pop / Pop Higher: back on 2026-11-02 (removed 2026-10-29 - Card Hedge cannot give them; the cert pages Brett
++    // opens and PSA's API do); Auth Estimate: PSA's estimate on its cert page
++    cell(notGiven(r[64]), 'The grader’s population of this grade: ' + slab, '', true) +
++    cell(notGiven(r[65]), 'Graded higher than this slab, by the same grader: ' + slab, '', true) +
++    (r[77] != null ? '<td class="num" title="' + esc('PSA’s estimate on its cert page: ' + slab) + '">' + fmtMoney(r[77]) + '</td>' : cell(notGiven(null), '', '', true));
+ }
+@@ -294,3 +307,3 @@ function grRawCells(r) {                                    // a raw card in the
+   return '<td><span class="dim">Raw</span></td>' + gdash + gdash + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
+-    gdash.repeat(6) + gdash.repeat(8) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
++    gdash.repeat(6) + gdash.repeat(11) + gdash.repeat(3) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
+     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) +
+@@ -319,4 +332,5 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
+   // Higher removed again (2026-10-29); v7 CL Grade after the grade column, which became PC Grade (2026-10-29); v8 CL Status
+-  // after CL Grade (2026-10-30: every PriceCharting graded card, read / pending / no match)
+-  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}, {v: 8, at: 4, n: 1}],
++  // after CL Grade (2026-10-30: every PriceCharting graded card, read / pending / no match); v9 Auth Pop, Auth Pop Higher
++  // and Auth Estimate after Auth Label (2026-11-02: the cert pages Brett opens carry them)
++  inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}, {v: 8, at: 4, n: 1}, {v: 9, at: 24, n: 3}],
+   row: grRow, root: null});
+diff --git a/page/graded_help.js b/page/graded_help.js
+index ece97c7..62705d9 100644
+--- a/page/graded_help.js
++++ b/page/graded_help.js
+@@ -24,2 +24,5 @@ Object.assign(HELP, {
+   g_alabel: {t: 'Auth Label', f: 'PSA’s label type for this row’s slab', m: 'From PSA’s cert record (PSA’s Public API). Its words also go through the dictionary. not given = the row’s slab was read from Card Hedge, which does not carry it; CGC rows: not given for now.', e: ''},
++  g_apop: {t: 'Auth Pop', f: 'how many the grader has graded at this row’s grade', m: 'From the grader’s own page for the row’s slab (Auth Cert) when you opened it yourself with the Cert Reader extension (PSA Population; CGC: Total Graded by CGC in this grade), else PSA’s record. not given = the slab was read from Card Hedge, which does not carry it; none = no slab of this grade read.', e: '63,064.'},
++  g_apoph: {t: 'Auth Pop Higher', f: 'how many the same grader has graded higher', m: 'PSA Pop Higher, or CGC’s In Higher Grades (CGC’s Pristine and Perfect 10 above Gem Mint 10), from the cert page you opened, else PSA’s record. not given / none as Auth Pop.', e: '0; 5,446.'},
++  g_aest: {t: 'Auth Estimate', f: 'PSA’s own estimate on the slab’s cert page, $', m: 'Shown on PSA’s cert page; filled when you opened the row’s slab (Auth Cert) yourself with the Cert Reader extension - the cert pages you open also fill the other Auth columns first, before PSA’s API and Card Hedge. CGC’s page gives none (not given).', e: '$126.00.'},
+   g_aill: {t: 'Auth Illustrator', f: 'none', m: 'PSA and CGC do not record the illustrator.', e: ''},
