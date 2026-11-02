@@ -102,6 +102,7 @@ jobs:
             data/tcgplayer/
             data/psa/
             data/cardhedge/
+            data/certs/
           sparse-checkout-cone-mode: false
 
       - name: The graded view's answers from the page (Review marks, sorted words) into card-data
