@@ -1,0 +1,53 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index ea44904..6f05a16 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2084,3 +2084,5 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   63,064 · 0 · $126.00; CGC 10 row GEM MINT 10 · not given · 12,035 · 5,446 · not given; other slabs "not read";
+-  header and cell counts equal in both views; no page errors.
++  header and cell counts equal in both views; no page errors. AUTH READ button (2026-11-02, Brett: "an auth read toggle
++  ... to only see listings that have had their pages read"): beside Unsure (GM_KEYS 'authread', grAuthRead = the row's own
++  slab record r[70] is ok), on = only those rows; remembered (gauthread).
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/page/graded.js b/page/graded.js
+index c361461..6e5b56b 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -27,2 +27,3 @@ let GFLAGONLY = grLS('gflagonly', false);                  // the Flags button:
+ let GUNSURE = grLS('gunsureonly', false);                  // the Unsure button: only the rows whose match is in doubt
++let GAUTHREAD = grLS('gauthread', false);                 // the Auth read button (2026-11-02): only the rows whose own slab has been read
+ let GSHOWNOT = grLS('gshownot', false);                    // the Not the same button: show the cards answered "Not the same card"
+@@ -145,2 +146,5 @@ function grMatchV(cid) {
+ function grWrong(r) { const c = ((GR.doc && GR.doc.cards) || {})[String(r[0])]; return !!c && !!c.mc && c.mc.lv === 'wrong' && grAns(r) !== 1 && grAns(r) !== 0 && !/pristine|perfect/.test(r[50] || ''); }
++// the row's own slab (Auth Cert) has been read - a cert page Brett opened (Cert Reader), PSA's record or Card Hedge (2026-11-02,
++// Brett: "an auth read toggle ... to only see listings that have had their pages read")
++function grAuthRead(r) { const S = r[70]; return !r[48] && !!S && S[0] === 'ok'; }
+ function grAns(r) { const a = grMatchV(r[0]); return a !== undefined ? a : r[41]; }   // the card's answer, else an older per-grade one
+@@ -324,4 +328,4 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
+   fav: {s: 'pc', k: r => r[0], c: r => r[0]},
+-  extra: r => r[48] ? !GFLAGONLY && !GUNSURE && grTermPass(r[0], true)
+-    : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]) && (!GUNSURE || grUnsure(r) || grWrong(r)) && (GSHOWNOT || !grNot(r)),
++  extra: r => r[48] ? !GFLAGONLY && !GUNSURE && !GAUTHREAD && grTermPass(r[0], true)
++    : GSEL.has(r[50]) && grTermPass(r[0]) && (!GFLAGONLY || !!r[42]) && (!GUNSURE || grUnsure(r) || grWrong(r)) && (!GAUTHREAD || grAuthRead(r)) && (GSHOWNOT || !grNot(r)),
+   rowClass: r => r[48] ? '' : grNot(r) ? 'grnot' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
+@@ -384,3 +388,3 @@ function grDecTag(name, left) {                             // a word sorted her
+    browser (gm-order); a button that arrives later takes its natural place. */
+-const GM_KEYS = ['grading'].concat(GT_CATS, ['flags', 'unsure', 'notsame']);
++const GM_KEYS = ['grading'].concat(GT_CATS, ['flags', 'unsure', 'authread', 'notsame']);
+ let GM_ORDER = grLS('gm-order', null);
+@@ -401,2 +405,3 @@ function grPaintTerms() {
+     unsure: '<button type="button" class="gm2 gtb gunb' + (GUNSURE ? ' on' : '') + '" id="gun-only" data-mv="unsure" title="On = show only the rows whose match is in doubt (unsure match / likely wrong match), to answer them in Review. Hold and drag to move it.">Unsure <span class="dim">(' + new Set(GR.rows.filter(r => grUnsure(r) || grWrong(r)).map(r => r[0])).size + ' cards)</span></button>',
++    authread: '<button type="button" class="gm2 gtb garb' + (GAUTHREAD ? ' on' : '') + '" id="gar-only" data-mv="authread" title="On = show only the rows whose own slab (Auth Cert) has been read - a PSA / CGC cert page you opened with the Cert Reader extension (or PSA’s record): their Auth Grade, Pop, Pop Higher and Estimate are filled. Hold and drag to move it.">Auth read <span class="dim">(' + GR.rows.filter(grAuthRead).length + ' rows)</span></button>',
+     notsame: '<button type="button" class="gm2 gtb gnotb' + (GSHOWNOT ? ' on' : '') + '" id="gnot-show" data-mv="notsame" title="Cards you answered Not the same card are hidden (nothing is deleted). On = show them, greyed, so an answer can be changed. Hold and drag to move it.">Not the same <span class="dim">(' + new Set(GR.rows.filter(grNot).map(r => r[0])).size + ')</span></button>'};
+@@ -541,2 +546,3 @@ if ($('gm-terms')) $('gm-terms').addEventListener('click', e => {
+   if (e.target.closest('#gun-only')) { GUNSURE = !GUNSURE; grSave('gunsureonly', GUNSURE); grTermsChanged(); return; }
++  if (e.target.closest('#gar-only')) { GAUTHREAD = !GAUTHREAD; grSave('gauthread', GAUTHREAD); grTermsChanged(); return; }
+   if (e.target.closest('#gnot-show')) { GSHOWNOT = !GSHOWNOT; grSave('gshownot', GSHOWNOT); grTermsChanged(); return; }
+diff --git a/page/style.css b/page/style.css
+index 6739520..5dd3718 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -589,2 +589,3 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
+   .gnotb.on { border-color:var(--muted); color:var(--fg); }
++  .garb.on { border-color:var(--up); color:var(--up); }
+   .rvmatch { margin:0 0 10px; padding:8px 10px; border:1px solid #e3b341; border-radius:8px; font-size:13px; }
