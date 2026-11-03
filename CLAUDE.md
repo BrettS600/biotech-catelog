@@ -2119,6 +2119,11 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Follow-up the same day (seen on the live site): every Card Ladder cell of a no-match row says "no match" (CL Grade,
   card number, rarity / finish, price, sales - they said none before), and the PC sales (last month) cell says "not read"
   like the PC price cell when the record does not reach back (pc1 not_read) - it showed "-".
+  TREND % CHANGE (2026-11-03, Brett: "a delta % increase in value toggle ... We can still keep log toggle"): the % change
+  button (GT_PCT, gtr-pct) plots each line divided by its own first price in the window (gtDraw base / val), so every line
+  starts at 0% and the window buttons set the starting month; axis in % (gtNiceTicks, 0% dashed), the hover, the circle
+  tips and the month table add the %, and each chip shows the line's change over the window (.groi, first -> last month
+  in the tip). With Log on: log of the ratio. gtLogTicks falls back to round linear steps when a range is too narrow.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

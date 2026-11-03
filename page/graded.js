@@ -855,6 +855,11 @@ const GT_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#a855f7'];
 const GT_MAX = 4;
 let GT_SEL = grLS('gtr-sel', ['pc|psa|g10', 'cl|psa|g10']);
 let GT_LOG = grLS('gtr-log', false);
+/* % change (2026-11-03, Brett: "a delta % increase in value toggle ... may even be more insightful than the log toggle. We
+   can still keep log toggle"): every line divided by its own first price in the window, so all lines start at 0% and
+   each line's end is its return over the window (6m / 1y / 2y / 5y / All set the starting month); the chips say it.
+   With Log on too the axis is log of that ratio (+100% and -50% the same height). */
+let GT_PCT = grLS('gtr-pct', false);
 let GT_OPEN = '';                                            // the open grade dropdown ('psa' / 'cgc'), kept across redraws
 let GT_SRC = grLS('gtr-src', 'cl');
 let GT_ZOOM = grLS('gtr-zoom', '24');
@@ -901,10 +906,11 @@ function gtPaint() {
       (keys.map(cb).join('') || '<span class="dim">' + none + '</span>') + '</div></details>'; };
   $('ggrades').innerHTML = dd('psa', list.filter(k => k.startsWith('psa|')), 'no PSA ' + (GT_SRC === 'pc' ? 'sales recorded' : 'grades')) + dd('cgc', list.filter(k => k.startsWith('cgc|')), 'no CGC ' + (GT_SRC === 'pc' ? 'sales recorded' : 'grades')) +
     (GT_SRC === 'pc' ? '<small class="dim">PriceCharting: PSA 10’s monthly line, and each grade’s own recorded sales (its Grade 9 / 8 / 7 lines blend every grader, so they are not drawn)</small>' : '');
-  $('gchips').innerHTML = GT_SEL.map((k, i) => '<span class="gchip" style="border-color:' + GT_COLORS[i] + '"><span class="sw" style="background:' + GT_COLORS[i] + '"></span>' + esc(tr ? gtSeries(tr, k).label : k) + ' <button type="button" data-k="' + esc(k) + '" title="Remove this line">✕</button></span>').join('') +
+  $('gchips').innerHTML = GT_SEL.map((k, i) => '<span class="gchip" style="border-color:' + GT_COLORS[i] + '"><span class="sw" style="background:' + GT_COLORS[i] + '"></span>' + esc(tr ? gtSeries(tr, k).label : k) + '<span class="groi" data-j="' + i + '"></span> <button type="button" data-k="' + esc(k) + '" title="Remove this line">✕</button></span>').join('') +
     '<span class="dim">' + (GT_SEL.length >= GT_MAX ? 'Four lines at most — remove one to add another.' : (GT_MAX - GT_SEL.length) + ' more line(s) can be added.') + '</span>';
   $('gzoom').querySelectorAll('.zb').forEach(b => b.classList.toggle('on', b.dataset.z === GT_ZOOM));
   if ($('glog')) $('glog').classList.toggle('on', !!GT_LOG);
+  if ($('gpct')) $('gpct').classList.toggle('on', !!GT_PCT);
   $('gsub').innerHTML = r[27] ? 'Card Ladder: <a href="' + esc(r[31]) + '" target="_blank" rel="noopener">' + esc(r[30] || 'profile') + '</a> · ' + esc(r[27]) : '';
   gtDraw();
 }
@@ -918,18 +924,27 @@ function gtDraw() {
     const from = d.toISOString().slice(0, 7); months = months.filter(x => x >= from);
   }
   const W = 860, H = 340, L = 56, R = 64, T = 20, B = 46;
-  const pv = ser.flatMap(s => s.pts.filter(p => months.includes(p[0]) && p[1] != null).map(p => p[1]));
+  // % change: each line against its own first price in the window (base); val() is what the line plots
+  const base = ser.map(sr => { for (const m of months) { const p = sr.pts.find(q => q[0] === m); if (p && p[1] != null) return [m, p[1]]; } return null; });
+  const pc = !!GT_PCT, val = (j, v) => pc ? (base[j] ? v / base[j][1] : null) : v;
+  const pv = ser.flatMap((s, j) => s.pts.filter(p => months.includes(p[0]) && p[1] != null).map(p => val(j, p[1]))).filter(v => v != null);
   const nv = ser.flatMap(s => s.pts.filter(p => months.includes(p[0]) && p[2] != null).map(p => p[2]));
   if (!months.length || !pv.length) { svg.innerHTML = '<text x="20" y="40" fill="currentColor">No points for these lines in this window.</text>'; tab.innerHTML = ''; return; }
   const lg = !!GT_LOG && pv.every(v => v > 0);                // Log: equal percentage moves at equal heights
-  const pmax = lg ? Math.max(...pv) * 1.15 : Math.max(...pv) * 1.08, pmin = lg ? Math.min(...pv) / 1.15 : Math.max(0, Math.min(...pv) * 0.9), nmax = Math.max(1, ...nv) * 1.15;
+  const pv1 = pc ? pv.concat([1]) : pv;                        // % change: 0% always on the axis
+  const pad = pc && !lg ? (Math.max(...pv1) - Math.min(...pv1)) * 0.08 || 0.05 : 0;
+  const pmax = lg ? Math.max(...pv1) * 1.15 : pc ? Math.max(...pv1) + pad : Math.max(...pv) * 1.08;
+  const pmin = lg ? Math.min(...pv1) / 1.15 : pc ? Math.max(0, Math.min(...pv1) - pad) : Math.max(0, Math.min(...pv) * 0.9), nmax = Math.max(1, ...nv) * 1.15;
   const x = i => L + (months.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (months.length - 1));
   const yp = lg ? v => T + (H - T - B) * (1 - (Math.log(v) - Math.log(pmin)) / (Math.log(pmax) - Math.log(pmin) || 1))
     : v => T + (H - T - B) * (1 - (v - pmin) / (pmax - pmin || 1)), yn = v => H - B - (H - T - B) * v / nmax;
   const bw = Math.max(2, Math.min(18, (W - L - R) / Math.max(1, months.length) / (ser.length + 1)));
   let s = '';
-  const pTicks = lg ? gtLogTicks(pmin, pmax) : [0, 1, 2, 3, 4].map(k => pmin + (pmax - pmin) * k / 4);
-  for (const v of pTicks) { const y = yp(v); s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="currentColor" stroke-opacity=".08"/><text x="' + (W - R + 6) + '" y="' + (y + 4) + '" font-size="11" fill="currentColor" fill-opacity=".7">$' + (v < 10 && lg ? +v.toPrecision(2) : Math.round(v)).toLocaleString('en-US') + '</text>'; }
+  const pTicks = pc ? (lg && pmax / pmin >= 3 ? gtLogTicks(pmin, pmax) : gtNiceTicks((pmin - 1) * 100, (pmax - 1) * 100).map(t => 1 + t / 100))
+    : lg ? gtLogTicks(pmin, pmax) : [0, 1, 2, 3, 4].map(k => pmin + (pmax - pmin) * k / 4);
+  for (const v of pTicks) { const y = yp(v), zero = pc && Math.abs(v - 1) < 1e-9;
+    s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="currentColor" stroke-opacity="' + (zero ? '.4' : '.08') + '"' + (zero ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + (W - R + 6) + '" y="' + (y + 4) + '" font-size="11" fill="currentColor" fill-opacity=".7">' +
+      (pc ? gtPctTxt(v) : '$' + (v < 10 && lg ? +v.toPrecision(2) : Math.round(v)).toLocaleString('en-US')) + '</text>'; }
   for (let k = 0; k <= 4; k++) { const v = nmax * k / 4, y = yn(v); s += '<text x="' + (L - 8) + '" y="' + (y + 4) + '" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".5">' + Math.round(v) + '</text>'; }
   const step = Math.ceil(months.length / 12);
   months.forEach((m, i) => { if (i % step === 0 || i === months.length - 1) s += '<text x="' + x(i) + '" y="' + (H - B + 16) + '" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity=".7">' + MONTHS_S[+m.slice(5) - 1] + ' ' + m.slice(2, 4) + '</text>'; });
@@ -938,17 +953,34 @@ function gtDraw() {
     months.forEach((m, i) => { const p = by.get(m); if (p && p[2]) s += '<rect x="' + (x(i) - bw * ser.length / 2 + j * bw) + '" y="' + yn(p[2]) + '" width="' + (bw - 1) + '" height="' + (H - B - yn(p[2])) + '" fill="' + GT_COLORS[j] + '" fill-opacity=".28"><title>' + esc(sr.label) + ' · ' + m + ': ' + p[2] + ' sales</title></rect>'; });
   });
   ser.forEach((sr, j) => {
-    const pts = months.map((m, i) => { const p = sr.pts.find(q => q[0] === m); return p && p[1] != null ? [x(i), yp(p[1]), p, m] : null; }).filter(Boolean);
+    const pts = months.map((m, i) => { const p = sr.pts.find(q => q[0] === m), v = p && p[1] != null ? val(j, p[1]) : null; return v != null ? [x(i), yp(v), p, m, v] : null; }).filter(Boolean);
     if (pts.length > 1) s += '<polyline fill="none" stroke="' + GT_COLORS[j] + '" stroke-width="2" points="' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ') + '"/>';
-    pts.forEach(p => { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="' + GT_COLORS[j] + '"><title>' + esc(sr.label) + ' · ' + p[3] + ': $' + p[2][1].toLocaleString('en-US') + (p[2][2] != null ? ' (' + p[2][2] + ' sales)' : '') + '</title></circle>'; });
+    pts.forEach(p => { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="' + GT_COLORS[j] + '"><title>' + esc(sr.label) + ' · ' + p[3] + ': $' + p[2][1].toLocaleString('en-US') + (pc ? ' (' + gtPctTxt(p[4]) + ')' : '') + (p[2][2] != null ? ' (' + p[2][2] + ' sales)' : '') + '</title></circle>'; });
   });
-  s += '<text x="' + L + '" y="12" font-size="11" fill="currentColor" fill-opacity=".6">sales per month</text><text x="' + (W - R) + '" y="12" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6">price per month' + (lg ? ' (log scale)' : '') + '</text>';
+  s += '<text x="' + L + '" y="12" font-size="11" fill="currentColor" fill-opacity=".6">sales per month</text><text x="' + (W - R) + '" y="12" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6">' + (pc ? '% change since each line’s first month shown' : 'price per month') + (lg ? ' (log scale)' : '') + '</text>';
   s += '<g id="gt-hover" style="display:none;pointer-events:none"></g><rect id="gt-hit" x="' + L + '" y="' + T + '" width="' + (W - L - R) + '" height="' + (H - T - B) + '" fill="transparent"/>';
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.innerHTML = s;
-  svg._gt = {months, ser, x, yp, W, H, L, R, T, B};
+  svg._gt = {months, ser, x, yp, W, H, L, R, T, B, pc, val};
+  // the chips: each line's change over the window (first month shown -> last), in % change mode
+  document.querySelectorAll('#gchips .groi').forEach(el => { const j = +el.dataset.j, sr = ser[j], b = base[j];
+    let last = null; if (pc && sr && b) for (const m of months) { const p = sr.pts.find(q => q[0] === m); if (p && p[1] != null) last = [m, p[1]]; }
+    const r = last ? last[1] / b[1] : null;
+    el.className = 'groi' + (r == null ? '' : r > 1 ? ' up' : r < 1 ? ' down' : '');
+    el.textContent = r == null ? '' : ' ' + gtPctTxt(r);
+    el.title = r == null ? '' : MONTHS_S[+b[0].slice(5) - 1] + ' ' + b[0].slice(0, 4) + ' ' + fmtMoneyPlain(b[1]) + ' → ' + MONTHS_S[+last[0].slice(5) - 1] + ' ' + last[0].slice(0, 4) + ' ' + fmtMoneyPlain(last[1]); });
   if (!svg._gtBound) { svg._gtBound = true; svg.addEventListener('mousemove', gtHover); svg.addEventListener('mouseleave', () => { const g = $('gt-hover'); if (g) g.style.display = 'none'; }); }
   tab.innerHTML = '<table><thead><tr><th>Month</th>' + ser.map((sr, j) => '<th class="num" style="color:' + GT_COLORS[j] + '">' + esc(sr.label) + '</th>').join('') + '</tr></thead><tbody>' +
-    months.slice().reverse().map(m => '<tr><td>' + MONTHS_S[+m.slice(5) - 1] + ' ' + m.slice(0, 4) + '</td>' + ser.map(sr => { const p = sr.pts.find(q => q[0] === m); return '<td class="num">' + (p && p[1] != null ? fmtMoneyPlain(p[1]) : '-') + (p && p[2] != null ? ' <span class="dim">(' + p[2] + ')</span>' : '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table>';
+    months.slice().reverse().map(m => '<tr><td>' + MONTHS_S[+m.slice(5) - 1] + ' ' + m.slice(0, 4) + '</td>' + ser.map((sr, j) => { const p = sr.pts.find(q => q[0] === m), v = pc && p && p[1] != null ? val(j, p[1]) : null; return '<td class="num">' + (p && p[1] != null ? fmtMoneyPlain(p[1]) : '-') + (v != null ? ' <span class="' + (v > 1 ? 'up' : v < 1 ? 'down' : 'dim') + '">' + gtPctTxt(v) + '</span>' : '') + (p && p[2] != null ? ' <span class="dim">(' + p[2] + ')</span>' : '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table>';
+}
+function gtPctTxt(ratio) {                                    // 1.234 -> +23%, 0.95 -> -5%, 1.004 -> +0.4%
+  const p = (ratio - 1) * 100, a = Math.abs(p), t = a >= 10 || a === 0 ? String(Math.round(a)) : String(+a.toFixed(1));
+  return (t === '0' ? '' : p > 0 ? '+' : '-') + t + '%';
+}
+function gtNiceTicks(lo, hi, n) {                            // round steps (1 / 2 / 2.5 / 5 x 10^k) inside [lo, hi]
+  const raw = (hi - lo) / (n || 5); if (!(raw > 0)) return [lo];
+  const mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw);
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
 }
 function gtLogTicks(lo, hi) {                                // 1 / 2 / 5 x 10^n inside [lo, hi] (1 / 1.5 / 2 / 3 / 5 / 7 when that gives too few)
   const out = [];
@@ -957,7 +989,7 @@ function gtLogTicks(lo, hi) {                                // 1 / 2 / 5 x 10^n
     for (let e = Math.floor(Math.log10(lo)) - 1; e <= Math.ceil(Math.log10(hi)); e++) for (const m of mult) { const v = m * Math.pow(10, e); if (v >= lo && v <= hi) out.push(v); }
     if (out.length >= 3) break;
   }
-  return out.length ? out : [lo, hi];
+  return out.length >= 3 ? out : gtNiceTicks(lo, hi, 4);   // a narrow range: plain round steps (log is near straight there)
 }
 /* A vertical line that follows the cursor with every line's value that month (2026-10-29, Brett: "a hover vertical line
    and move with cursor feature to see values on trend charts similar to how pc charts do it") */
@@ -970,7 +1002,8 @@ function gtHover(e) {
   let i = 0, best = Infinity;
   st.months.forEach((mo, j) => { const d = Math.abs(st.x(j) - p.x); if (d < best) { best = d; i = j; } });
   const mo = st.months[i], X = st.x(i);
-  const lines = st.ser.map((sr, j) => { const q = sr.pts.find(z => z[0] === mo); return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), y: q && q[1] != null ? st.yp(q[1]) : null}; });
+  const lines = st.ser.map((sr, j) => { const q = sr.pts.find(z => z[0] === mo), v = q && q[1] != null ? st.val(j, q[1]) : null;
+    return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (st.pc && v != null ? ' (' + gtPctTxt(v) + ')' : '') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), y: v != null ? st.yp(v) : null}; });
   const head = MONTHS_S[+mo.slice(5) - 1] + ' ' + mo.slice(0, 4), wBox = Math.max(head.length, ...lines.map(l => l.t.length)) * 6.6 + 22, hBox = 22 + lines.length * 17;
   const bx = X + 12 + wBox > st.W - st.R ? X - 12 - wBox : X + 12, by = st.T + 4;
   let h = '<line x1="' + X + '" x2="' + X + '" y1="' + st.T + '" y2="' + (st.H - st.B) + '" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="3 3"/>';
@@ -988,6 +1021,7 @@ if ($('gov')) {
   $('ggrades').addEventListener('toggle', e => { const d = e.target; if (!d.classList || !d.classList.contains('gdd')) return;   // one dropdown open at a time
     if (d.open) { GT_OPEN = d.dataset.g; $('ggrades').querySelectorAll('details.gdd[open]').forEach(o => { if (o !== d) o.open = false; }); } else if (GT_OPEN === d.dataset.g) GT_OPEN = ''; }, true);
   if ($('glog')) $('glog').addEventListener('click', () => { GT_LOG = !GT_LOG; grSave('gtr-log', GT_LOG); gtPaint(); });
+  if ($('gpct')) $('gpct').addEventListener('click', () => { GT_PCT = !GT_PCT; grSave('gtr-pct', GT_PCT); gtPaint(); });
   $('gchips').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; GT_SEL = GT_SEL.filter(k => k !== b.dataset.k); grSave('gtr-sel', GT_SEL); gtPaint(); });
   $('gzoom').addEventListener('click', e => { const b = e.target.closest('.zb'); if (!b) return; GT_ZOOM = b.dataset.z; grSave('gtr-zoom', GT_ZOOM); gtPaint(); });
 }
