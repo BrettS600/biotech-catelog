@@ -2099,6 +2099,23 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (peak 1.4 GB), 805 MB available, swap 30 MB used; disk 8.6 of 24 GB used; load ~0.9 on its one CPU (mostly eBay);
   pc_hist/gs 21 MB. No GRADED_VERSION bump (that would re-read all 44k cards at once): grades 1-6 arrive as each card is
   re-read on its own schedule; the site says "not read" for them until then (graded_site.py LOW_FROM).
+- THE GRADED VIEW, 2026-11-03 (Brett): (1) GRADES 1-6 "not read": graded_site.py LOW_FROM "2026-11-04" - a card whose
+  PriceCharting page was last read before it (load_pc_read: the population files' read_date) has no grade 1-6 sale on
+  record, so its grade 1-6 rows' PC sales / price last month say not read (pc_n1 None) instead of 0; read after it, a
+  short table (<30) counts as complete. Checked on the Oct 30 snapshot with test rows: Eevee 1st Edition PSA 1 -> 3 sales,
+  $79.99 (read 11-04); a card read 11-02 -> not read. (2) NOT THE SAME CARD NO LONGER HIDES: grBuildRow() gives a card
+  answered Not the same card (grMatchV 0) no Card Ladder side - CL Status "no match" (tip: you said not the same), the CL
+  cells "no match", no PC-to-CL difference; a Review answer rebuilds the card's rows (grRebuildCard). The Not the same
+  button is gone. (3) CL READ and CL TO PC MATCH buttons (GM_KEYS clread / clmatch), each click both -> one side -> the
+  other -> both: CL read = read only (looked at: read or no match) / pending only, label "CL read: both | 5.8k of 156k";
+  CL To PC Match = matched only (CL Status read - unsure and likely-wrong count) / no match only, counted among the read
+  rows ("| 5.8k of 5.8k read"). Only the CL / PC pairing - the Auth columns play no part ("it should not be for auth
+  columns"). (4) TREND: GT_MAX 4 lines (a 4th colour); the grades in two dropdowns (details.gdd, "PC PSA grades (n on)" /
+  CGC, the open one kept across redraws, GT_OPEN); opening a row's Trend selects that row's grade on both sides (the ones
+  with points); the price axis fits the lines shown in the window (it always did); a Log button (GT_LOG, gtr-log) - log
+  price axis with 1 / 2 / 5 ticks (gtLogTicks). Ids/marks: Eevee [1st Edition] #51 Jungle (643351) answered Not the same
+  card for Card Ladder's matched-544219 (the Unlimited Eevee). The Card Ladder queue is built once (cl_ingest
+  ensure_queue), so a rejected card is not looked at again by itself - that waits for the 1st Edition matching fix.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

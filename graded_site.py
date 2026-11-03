@@ -535,6 +535,33 @@ def load_pop(cd, ids):
     return out
 
 
+# PriceCharting's Grade 1-6 sales (2026-11-03, Brett: "fix the psa problem for all cards"): the collector kept only grades
+# 7-10 before (pchist GS_MIN_GRADE 7, now 1), so a card whose page was last read before LOW_FROM has no grade 1-6 sale on
+# record - its grade 1-6 rows say "not read" (not 0) until the page is read again (each card on its own schedule: days
+# for busy cards, a month at most)
+LOW_FROM = "2026-11-04"
+
+
+def low_grade(k):
+    m = re.search(r"\|g(\d+)", k or "")
+    return bool(m) and int(m.group(1)) < 7
+
+
+def load_pc_read(cd, ids):
+    """{card id: the latest day its PriceCharting page was read} (the population files' read_date)."""
+    out, idset = {}, set(ids)
+    for f in sorted(glob.glob(os.path.join(cd, "pricecharting", "pop", "pop_*.csv.gz"))):
+        try:
+            d = pd.read_csv(f, usecols=["card_id", "read_date"], dtype={"read_date": str})
+        except Exception:
+            continue
+        d = d[d["card_id"].isin(idset)]
+        for cid, rd in zip(d["card_id"].astype(int), d["read_date"].fillna("")):
+            if rd and rd > out.get(cid, ""):
+                out[cid] = rd
+    return out
+
+
 def load_pop_hist(cd, ids, last_m):
     """{card id: {gk: [graded since the first read (None until a second read), first read date, latest read date,
     latest population, graded last month (None until both last month's and the month before's files exist)]}} - the
@@ -767,6 +794,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
           f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}, "
           f"cert pages Brett opened {len(pg_c)}")
     pop = load_pop(cd, ids)
+    pc_read = load_pc_read(cd, ids)                         # grades 1-6 on record only from a read on or after LOW_FROM
     psales = load_pc_sales(cd, ids, today)
     pmon = load_pc_monthly(cd, ids)
     first_seen = {cid: min(d for v in m.values() for d, _ in v) for cid, m in psales.items() if m}
@@ -825,6 +853,10 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             # PriceCharting lists only the latest 30 sales of a grade: when this grade's recorded sales (or, for a quiet
             # grade, the card's) do not reach back to the start of last month, last month's count is not known
             cover = min((d for d, _ in ps_list), default=None) if len(ps_list) >= 30 else first_seen.get(cid)
+            if low_grade(k):                                # grades 1-6: nothing on record before the card's first read after
+                cover = None if pc_read.get(cid, "") < LOW_FROM else \
+                    min((d for d, _ in ps_list), default=None) if len(ps_list) >= 30 else "0000-00-00"   # a short table is all
+                                                            # PriceCharting lists, so a read after LOW_FROM covers it
             if cover is None or cover > last_m + "-03":
                 pc_n1 = None
             pc_n1e = est_last_month(ps_list, last_m) if pc_n1 is None else None
