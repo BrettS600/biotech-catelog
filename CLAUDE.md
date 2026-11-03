@@ -2124,6 +2124,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   starts at 0% and the window buttons set the starting month; axis in % (gtNiceTicks, 0% dashed), the hover, the circle
   tips and the month table add the %, and each chip shows the line's change over the window (.groi, first -> last month
   in the tip). With Log on: log of the ratio. gtLogTicks falls back to round linear steps when a range is too narrow.
+  A card answered Not the same card draws no Card Ladder lines in its Trend (grOpenTrend empties curTr.cl; the cache keeps
+  them for a later Same card) and the Trend's header says Card Ladder: no match - it drew the rejected page's lines before.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

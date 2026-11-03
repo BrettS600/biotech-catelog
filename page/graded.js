@@ -888,6 +888,8 @@ async function grOpenTrend(key) {
   $('gsub').innerHTML = '<span class="dim">Loading…</span>';
   $('gov').classList.add('open');
   try { GR.curTr = await grTrendData(r[0]); } catch (e) { GR.curTr = null; $('gsub').innerHTML = '<span class="warn">' + esc(e.message) + '</span>'; }
+  // answered Not the same card: Card Ladder's page is another card, so no CL lines (the cache keeps them for Same card)
+  if (GR.curTr && grMatchV(r[0]) === 0) GR.curTr = Object.assign({}, GR.curTr, {cl: {}});
   // the row's own grade, both sides (the ones with points; both when neither has any)
   const own = ['pc|' + r[50], 'cl|' + r[50]], withPts = GR.curTr ? own.filter(k => gtSeries(GR.curTr, k).pts.some(p => p[1] != null)) : [];
   GT_SEL = withPts.length ? withPts : own; grSave('gtr-sel', GT_SEL);
@@ -911,7 +913,8 @@ function gtPaint() {
   $('gzoom').querySelectorAll('.zb').forEach(b => b.classList.toggle('on', b.dataset.z === GT_ZOOM));
   if ($('glog')) $('glog').classList.toggle('on', !!GT_LOG);
   if ($('gpct')) $('gpct').classList.toggle('on', !!GT_PCT);
-  $('gsub').innerHTML = r[27] ? 'Card Ladder: <a href="' + esc(r[31]) + '" target="_blank" rel="noopener">' + esc(r[30] || 'profile') + '</a> · ' + esc(r[27]) : '';
+  $('gsub').innerHTML = r[75] === 'no match' ? 'Card Ladder: <span class="dim" title="' + esc(grClsTip((GR.doc && GR.doc.cards[String(r[0])]) || {}, 'no match', r[0])) + '">no match</span>' + (r[27] ? ' · ' + esc(r[27]) : '')
+    : r[27] ? 'Card Ladder: <a href="' + esc(r[31]) + '" target="_blank" rel="noopener">' + esc(r[30] || 'profile') + '</a> · ' + esc(r[27]) : '';
   gtDraw();
 }
 function gtDraw() {
