@@ -1,217 +1,63 @@
-name: Update Pokemon catalog site
+# Weekly biotech funding tracker
+# File must live at:  .github/workflows/update.yml
+name: Weekly funding tracker
 
 on:
   schedule:
-    - cron: "0 10 * * *"      # every day at 10:00 UTC = 6 AM Eastern (5 AM in winter)
-  workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
+    - cron: "17 13 * * 1"  # Mondays 13:17 UTC (~9:17 AM ET), after NIH's Sunday-night refresh
+  workflow_dispatch: {}     # manual run button stays available
+  push:                     # a code change rebuilds the page right away
+    branches: [main]
+    paths:
+      - "funding_tracker.py"
+      - "requirements.txt"
+      - ".github/workflows/update.yml"
 
 permissions:
-  contents: write             # attach snapshots to the "snapshots" release
-  pages: write                # publish to GitHub Pages
-  id-token: write
+  contents: write
 
+# one run at a time: a code change during the Monday run waits its turn
 concurrency:
-  group: pages
+  group: funding-tracker
   cancel-in-progress: false
 
-# Snapshots are NOT committed to the repo (git never forgets, and encrypted files never
-# compress, so the repo would grow ~0.6 GB a year). Instead every day's encrypted file is
-# attached to one permanent release tagged "snapshots", which acts as a bottomless folder:
-#   - before the build, every file on that release is downloaded into snapshots/
-#   - build_catalog.py reads the folder exactly as before (trend stats + Trend popup)
-#   - after the build, any local snapshot not yet on the release is uploaded
-# All of this runs on GitHub's machine, not yours.
-
 jobs:
-  build:
+  update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main                # latest main, so this run's commit lands on top of the last one
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install packages
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch past snapshots from the "snapshots" release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p snapshots
-          if ! gh release view snapshots >/dev/null 2>&1; then
-            echo "Creating the snapshots release (first run)."
-            gh release create snapshots --title "Daily snapshots" --latest=false \
-              --notes "Encrypted daily data files written by the workflow. Downloaded automatically before each build; not meant to be opened by hand."
-          fi
-          n=$(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | length')
-          echo "$n PriceCharting snapshot(s) on the release."
-          if [ "$n" -gt 0 ]; then
-            gh release download snapshots --dir snapshots --pattern 'pc_catalog_*' --clobber
-          fi
-          got=$(ls snapshots/pc_catalog_* 2>/dev/null | wc -l)
-          echo "$got snapshot file(s) on disk (release + anything still in the repo)."
-          if [ "$got" -lt "$n" ]; then
-            echo "Download incomplete ($got of $n) - stopping so a short history is never published."
-            exit 1
-          fi
+      # Stage 1: pull the week's awards and publish the page right away (~2 min)
+      - name: Update funding table
+        run: python funding_tracker.py --skip-emails
 
-      - name: Build the table from PriceCharting
-        env:
-          PC_DOWNLOAD_URL: ${{ secrets.PC_DOWNLOAD_URL }}
-          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-        run: python build_catalog.py
-
-      - name: Password-protect the page
-        env:
-          STATICRYPT_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-          # a fixed salt, so the "Remember me" box survives rebuilds: the remembered value is the password hashed with
-          # this salt, and a fresh salt every build (what --config false did) logged Brett out after every change
-          # (2026-10-08). The salt is in the published page anyway; it is not a secret.
-          STATICRYPT_SALT: "d7286d997ea6320153e33a0a772d1d7b"
-        run: |
-          cd site
-          npx --yes staticrypt index.html -d ../public --config false --short --salt "$STATICRYPT_SALT" \
-            --remember 90 --template-title "Pokemon Card Catalog" \
-            --template-color-primary "#1f6feb" --template-color-secondary "#0d1117"
-          # the phone's hit-check screen: a plain page with no data in it (each alert's link carries the hit)
-          cp ../page/hit.html ../public/hit.html
-          cp ../page/link.html ../public/link.html   # where eBay sends Brett back after he approves account access
-          ls -la ../public
-
-      - name: Check out the card data for the graded view (the private repo card-data)
-        continue-on-error: true      # no access or a hiccup: the graded view then says no data was built; the raw view is untouched
-        uses: actions/checkout@v4
+      - name: Publish funding table
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          repository: BrettS600/card-data
-          token: ${{ secrets.DATA_REPO_TOKEN }}
-          path: card-data
-          sparse-checkout: |
-            data/ids/
-            data/cardladder/
-            !data/cardladder/sales/
-            data/pricecharting/pop/
-            data/pricecharting/graded_sales/
-            data/pricecharting/pc_graded_monthly_*
-            data/dictionary/
-            data/tcgplayer/
-            data/psa/
-            data/cardhedge/
-            data/certs/
-          sparse-checkout-cone-mode: false
+          commit_message: "Weekly funding update"
+          file_pattern: "data/* docs/*"
 
-      - name: The graded view's answers from the page (Review marks, sorted words) into card-data
-        continue-on-error: true      # nothing sent yet, or a hiccup: the graded view is built from what card-data already has
+      # Stage 2: PI emails, then publications (only PIs not seen before), publish again
+      - name: Look up PI emails and publications
         env:
-          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-        run: |
-          [ -d card-data/data ] || { echo "no card-data checkout"; exit 0; }
-          git fetch -q --depth 1 origin live
-          if git cat-file -e FETCH_HEAD:graded_marks.bin 2>/dev/null; then git show FETCH_HEAD:graded_marks.bin > graded_marks.bin; fi
-          python graded_answers.py --live graded_marks.bin --card-data card-data/data
+          # Free keys, stored under Settings > Secrets and variables > Actions.
+          # NCBI_API_KEY triples the PubMed lookup rate (optional).
+          # OPENALEX_API_KEY is required for the publications popup ($1/day free tier).
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+        run: python funding_tracker.py --emails-only
 
-      - name: TCGplayer product pages (the Artist) for the graded view's cards
-        continue-on-error: true      # TCGplayer turning the reader away stops it; the cards left show "not read"
-        run: |
-          [ -d card-data/data ] || { echo "no card-data checkout"; exit 0; }
-          python tcg_details.py --card-data card-data/data --max 400
-
-      - name: Cert lookups (PSA's Public API, Card Hedge) for the graded view's slabs - the Auth columns
-        continue-on-error: true      # no key yet, a refusal or a hiccup: the Auth cells say "not read"; nothing else waits on it
-        env:
-          PSA_API_TOKEN: ${{ secrets.PSA_API_TOKEN }}
-          CARDHEDGE_API_KEY: ${{ secrets.CARDHEDGE_API_KEY }}
-        run: |
-          [ -d card-data/data ] || { echo "no card-data checkout"; exit 0; }
-          python cert_lookups.py --card-data card-data/data
-
-      - name: Graded view (the PriceCharting tab's PSA / CGC rows - Card Ladder beside PriceCharting)
-        continue-on-error: true      # a hiccup here must never block the site
-        env:
-          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-        run: |
-          python graded_site.py --card-data card-data/data --pc-csv pricecharting.csv --snapshots snapshots --out public
-
-      - name: Save the dictionary, the page's answers, TCGplayer details, the cert lookups and the field checks to card-data
-        continue-on-error: true      # the site never waits on this; the next build writes them again
-        run: |
-          [ -d card-data/.git ] || { echo "no card-data checkout"; exit 0; }
-          cd card-data
-          git config user.name "github-actions[bot]"
-          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          for f in data/dictionary/term_counts.csv data/ids/field_checks.csv data/ids/match_checks.csv data/ids/marks.csv data/dictionary/terms.csv \
-                   data/dictionary/decisions.csv data/tcgplayer/details.csv data/psa data/cardhedge; do
-            if [ -e "$f" ]; then git add -- "$f"; fi
-          done
-          if git diff --cached --quiet; then echo "no change"; exit 0; fi
-          git diff --cached --stat
-          git commit -q -m "graded view: dictionary, page answers, TCGplayer details, cert lookups, field checks ($(date -u +%F))"
-          b=$(git rev-parse --abbrev-ref HEAD)
-          for i in 1 2 3; do
-            if git pull -q --rebase origin "$b" && git push -q origin "HEAD:$b"; then echo "pushed"; exit 0; fi
-            sleep 10
-          done
-          echo "could not push (card-data moved three times)"
-
-      - name: Remove the card data checkout
-        if: always()
-        run: rm -rf card-data
-
-      - name: Forecast (the Forecast tab's model, from the collector's PriceCharting history)
-        continue-on-error: true      # a model hiccup must never block the site; the tab then shows the last file
-        env:
-          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-        run: |
-          git fetch --depth 1 origin live
-          rm -rf live_pc && mkdir -p live_pc && git archive FETCH_HEAD pc | tar -x -C live_pc
-          python forecast.py --shards live_pc/pc --snapshots snapshots --calib forecast_calib.json --out public/forecast.bin
-
-      - name: Forecast history (the monthly replay, if one has been built - see forecast_history.yml)
-        continue-on-error: true      # no replay yet, or a download hiccup: the tab says so and shows the live plans
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release download snapshots --dir public --pattern forecast_hist.bin --clobber
-          ls -la public/forecast_hist.bin
-
-      - uses: actions/configure-pages@v5
+      - name: Publish PI emails and publications
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: public
-
-      - name: Save new snapshots to the release
-        continue-on-error: true      # a snapshot hiccup must never block the site
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view snapshots --json assets -q '.assets[].name' > /tmp/on_release.txt
-          today=$(date -u +%F)
-          for f in snapshots/pc_catalog_*; do
-            b=$(basename "$f")
-            if ! grep -qx "$b" /tmp/on_release.txt; then
-              echo "Uploading $b"
-              gh release upload snapshots "$f"
-            elif [[ "$b" == *"$today"* ]]; then
-              echo "Replacing $b (a later run today: same prices, newer columns)"
-              gh release upload snapshots "$f" --clobber
-            fi
-          done
-          echo "Release now holds $(gh release view snapshots --json assets -q '[.assets[].name | select(startswith("pc_catalog_"))] | length') snapshot(s)."
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          commit_message: "PI email and publication update"
+          file_pattern: "data/* docs/*"
