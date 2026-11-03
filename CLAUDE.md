@@ -2116,6 +2116,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   price axis with 1 / 2 / 5 ticks (gtLogTicks). Ids/marks: Eevee [1st Edition] #51 Jungle (643351) answered Not the same
   card for Card Ladder's matched-544219 (the Unlimited Eevee). The Card Ladder queue is built once (cl_ingest
   ensure_queue), so a rejected card is not looked at again by itself - that waits for the 1st Edition matching fix.
+  Follow-up the same day (seen on the live site): every Card Ladder cell of a no-match row says "no match" (CL Grade,
+  card number, rarity / finish, price, sales - they said none before), and the PC sales (last month) cell says "not read"
+  like the PC price cell when the record does not reach back (pc1 not_read) - it showed "-".
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
