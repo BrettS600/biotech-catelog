@@ -2115,6 +2115,8 @@ def pc_image(state, pid):
 
 
 PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
+PC_DAY_CAP = 2500                # planned page reads a UTC day at most (2026-11-03, Brett: re-read the busy cards daily, but
+                                 # keep the total modest - about 1,300 a day before); pages asked for from the site are not counted
 PC_POLL_S = 20                   # how often the picture worker polls its request topic (-pc); see poll_requests for why not 4 s
 PC_HIST_PUBLISH_S = 600          # changed history shards go to the live branch this often
 PCG_KEEP_D = 10                  # graded-sales chunks (pcg/<stamp>.bin) stay on the live branch this long (the archive reads them daily)
@@ -2143,6 +2145,8 @@ class PcImageWorker(threading.Thread):
         self.gap, self.streak, self.logged = PC_PREFETCH_GAP_S, 0, 0.0   # the gap adapts to what their site tolerates
         self.req_since, self.polled, self.tries = None, 0.0, {}
         self.rush = False                                    # the card being read was asked for from the site's chart
+        self.from_plan = False                               # ... or came from the plan (counted against PC_DAY_CAP)
+        self.day, self.day_n = None, 0                       # planned reads this UTC day
 
     def set_plan(self, cards):
         """cards: [(card id, picture wanted)] - a card read for its history alone does not fill the picture cache."""
@@ -2221,11 +2225,12 @@ class PcImageWorker(threading.Thread):
                 break
             if cid is None and self.wanted_hist:              # a chart Brett has open: its page is read now
                 cid, want_img, self.rush = self.wanted_hist.popleft(), False, True
-            if cid is None:
+            self.from_plan = False
+            if cid is None and self.day_left() > 0:          # the daily cap: the rest of the plan waits for tomorrow
                 while self.plan:
                     c, want_img = self.plan.popleft()
                     if c not in self.done:                   # read once per plan, even if filed later
-                        cid = c
+                        cid, self.from_plan = c, True
                         break
             if cid is not None:
                 self.done.add(cid)
@@ -2233,10 +2238,19 @@ class PcImageWorker(threading.Thread):
             self.answer(c, cache.get(str(c)))
         return cid, urgent, want_img
 
+    def day_left(self):
+        """Planned page reads left this UTC day (PC_DAY_CAP a day; the count starts again at midnight UTC)."""
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if self.day != today:
+            self.day, self.day_n = today, 0
+        return PC_DAY_CAP - self.day_n
+
     def step(self):
         cid, urgent, want_img = self.next_card()
         if cid is None:
             return False
+        if self.from_plan:
+            self.day_n += 1
         status, url, hist, note = pc_read_page(cid)
         rush, self.rush = self.rush, False
         self.results.put((cid, status, url, hist, note, urgent or rush, want_img))
@@ -2327,6 +2341,7 @@ def pc_plan(state, cards, cat=None):
     out, seen = [], set()
     today_i = pchist.day_index()
     want_signed = bool(PC_COOKIE) and v.get("pch_signin") != "expired"   # a sign-in that works (or is untested): re-read for the bars
+    first = []
     for group, ids in enumerate(([r["card"] for r in recent], list(active), rest)):
         for cid in ids:
             k = str(cid)
@@ -2335,8 +2350,12 @@ def pc_plan(state, cards, cat=None):
             want_img = group < 2 and k not in cache and not fresh_miss(k)
             if want_img or pchist.stale(cid, active=cid in active, today=today_i, want_signed=want_signed, want_graded=True):
                 seen.add(cid)
-                out.append((cid, want_img))
-    return out
+                (first if group == 0 else out).append((cid, want_img))
+    # the busy cards first after the newest listings' (2026-11-03): a card whose graded table fills in days is due again
+    # soon, and with the daily cap (PC_DAY_CAP) it must not wait behind the slow ones - busiest (shortest interval) first
+    hot = sorted((x for x in out if pchist.gdue_of(x[0])), key=lambda x: pchist.gdue_of(x[0]))
+    hot_ids = {x[0] for x in hot}
+    return first + hot + [x for x in out if x[0] not in hot_ids]
 
 
 def file_pc_images(state, worker):
@@ -3715,6 +3734,7 @@ def cycle(state, cat, sched, counters):
         sched["publish"] = 0
     if pc is not None and pc.backlog() and due("pictures", 600):   # while the backlog lasts: a line every ten minutes
         log(f"Pictures: {len(v.get('pc_img', {}))} on file, {pc.read} pages read since the start, {pc.backlog()} to go, "
+            f"{pc.day_n:,} planned reads today (cap {PC_DAY_CAP:,}), "
             f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s; "
             f"history: {pchist.count():,} of {len(cat.cards):,} cards on file, {pchist.count_signed():,} with the volume series; "
             + pchist.graded_summary())

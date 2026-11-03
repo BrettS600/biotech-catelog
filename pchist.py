@@ -63,9 +63,12 @@ GRADE_SERIES = (("cib", "g7"), ("new", "g8"), ("graded", "g9"), ("boxonly", "g95
 GS_KEEP_D = 400                                             # graded sales kept on the data disk this long ...
 GS_KEEP_N = 1500                                            # ... and at most this many per card (newest)
 GS_FULL = 30                                                # a grade's table shows at most this many sales
-GS_MIN_GRADE = 7                                            # the "Grade N" tables under this are not kept
-GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card with a full graded table spanning under GDUE_MAX_D / 0.7 days
-GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..29 days)
+GS_MIN_GRADE = 1                                            # every "Grade N" table is kept (2026-11-03, Brett: grades 1-6 too;
+                                                            # it was 7 - PSA / CGC 1-6 rows showed 0 PriceCharting sales)
+GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card whose busiest graded table would gather GS_FULL new sales within
+GDUE_SHARE = 0.7                                            # GDUE_MAX_D / 0.7 days is re-read after 70% of that time (1..29 days)
+GDUE_MIN_N = 3                                              # a table needs this many sales before its pace is trusted
+GDUE_RECENT_D = 30                                          # ... and its pace over the last 30 days counts when it is faster
 GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
 PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue", "guide", "guide_t")   # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
 GS_SHARDS = 1000                                            # the graded sales live in their own files (<store>/gs/<card id % 1000>.json.gz),
@@ -389,25 +392,39 @@ def graded_series(series, m0, length):
 
 
 def graded_due(rows, sizes, today=None):
-    """Days until the card's page should be read again for its graded sales: when a grade's table is full (GS_FULL
-    rows), the next read should come before they scroll off - 70% of the span, 1 to 29 days (stale() takes the sooner
-    of this and the card's normal refresh). None when no table is full or the busiest spans 43+ days."""
+    """Days until the card's page should be read again for its graded sales: before GS_FULL (30) NEW sales can pile up
+    in any one grade's table - PriceCharting shows only the latest 30, so a read later than that would miss some.
+    2026-11-03 (Brett: "when they turn, we can turn them on daily"): judged from each table's pace (its sales over the
+    days they span, or over the last 30 days when that is faster), full or not, so a grade that is only getting busy is
+    caught too; the next read comes after 70% of the time 30 new sales would take, 1 to 29 days (daily for the busiest).
+    stale() takes the sooner of this and the card's normal refresh. None when no table is that busy (the normal refresh
+    keeps up)."""
+    today = day_index() if today is None else today
     best = None
     by = {}
     for r in rows:
         by.setdefault((r[3], r[4] if r[3].startswith("10") else ""), []).append(day_of(r[1]))
-    full = {lab for lab, n in sizes.items() if n >= GS_FULL}
-    if not full:
-        return None
     for (grade, grader), days in by.items():
-        if len(days) < GS_FULL:
+        n = len(days)
+        if n < GDUE_MIN_N:
             continue
-        due = int((max(days) - min(days)) * GDUE_SHARE)
-        if due >= GDUE_MAX_D:                                # the table spans 43+ days: the monthly refresh keeps up
+        span = max(1, max(days) - min(days))                # whole days; sales all on one day count as a day
+        rate = n / span                                     # sales a day over the table
+        recent = sum(1 for d in days if today - d <= GDUE_RECENT_D)
+        if recent >= GDUE_MIN_N:                             # a grade turning busy: its last month's pace, not its old sales'
+            rate = max(rate, recent / GDUE_RECENT_D)
+        due = int(GS_FULL / rate * GDUE_SHARE)              # 70% of the days GS_FULL new sales take at this pace
+        if due >= GDUE_MAX_D:                                # slower than that: the monthly refresh keeps up
             continue
         due = max(GDUE_MIN_D, due)
         best = due if best is None else min(best, due)
     return best
+
+
+def gdue_of(cid):
+    """The card's early re-read interval in days (graded_due at its last read), or None - for the reader's order."""
+    last = _index.get(int(cid))
+    return last[3] if last is not None and len(last) > 3 else None
 
 
 def spread(sales, today=None, window_d=SPREAD_WINDOW_D, min_n=SPREAD_MIN_N):

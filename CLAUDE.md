@@ -1697,7 +1697,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   call): extract() adds rec["g"] = {g7, g8, g9, g95, psa10} (cents per month on the record's months, a line with no price
   left out; graded_series), rec["pop"] (pop_report), the graded sold listings (graded_tables: the 10s with the grader
   from the label - "10P" = CGC 10 Pristine, "10B" = BGS 10 Black - and grades 7/8/9/9.5 with the grader read off the title
-  (grader_of: PSA CGC BGS/BECKETT SGC TAG ACE AGS PCG ...); grades under GS_MIN_GRADE 7 skipped; rows [row id, date, cents,
+  (grader_of: PSA CGC BGS/BECKETT SGC TAG ACE AGS PCG ...); every grade kept since 2026-11-03 (GS_MIN_GRADE 1, was 7 - see
+  GRADES 1-6 below); rows [row id, date, cents,
   grade, grader, best offer, title70]), rec["gv"] = GRADED_VERSION 1 and rec["gdue"] = graded_due(): a full (30-row) table
   spanning under ~10 days asks for the next read after 70% of its span (1-6 days; stale() takes min(normal refresh,
   gdue)). file() -> keep_graded(): merges the sales with the card's file in <store>/gs/<card id % 1000>.json.gz (dedupe by
@@ -2085,6 +2086,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   header and cell counts equal in both views; no page errors. AUTH READ button (2026-11-02, Brett: "an auth read toggle
   ... to only see listings that have had their pages read"): beside Unsure (GM_KEYS 'authread', grAuthRead = the row's own
   slab record r[70] is ok), on = only those rows; remembered (gauthread).
+- GRADES 1-6 AND THE BUSY-CARD RE-READS (2026-11-03, Brett: "fix the psa problem for all cards"; "stales ones don't need
+  to be read daily, but when they turn, we can turn them on daily"; "the last thing I want is to pay more money to digital
+  ocean"). The collector kept only PriceCharting's Grade 7-10 tables (GS_MIN_GRADE 7), so every PSA / CGC 1-6 row showed 0
+  PriceCharting sales although the page lists them (Eevee 1st Edition Jungle: 3 PSA 1 sales in October). Now
+  GS_MIN_GRADE = 1. graded_due() judges every table with 3+ sales by its pace (full or not; over the table, or over the
+  last 30 days when faster - a grade turning busy): the next read comes after 70% of the days 30 new sales would take
+  (1-29 days), so no sale scrolls off PriceCharting's 30-row table between reads; slower tables leave it to the normal
+  refresh. The reader (PcImageWorker) caps planned reads at PC_DAY_CAP 2,500 a UTC
+  day (pages asked for from the site are not counted; before: ~1,300 a day) and pc_plan puts the busy cards (gdue, the
+  shortest first) right after the newest listings' cards. The server on 2026-11-03 (read-only look): 2 GB, collector 1.0 GB
+  (peak 1.4 GB), 805 MB available, swap 30 MB used; disk 8.6 of 24 GB used; load ~0.9 on its one CPU (mostly eBay);
+  pc_hist/gs 21 MB. No GRADED_VERSION bump (that would re-read all 44k cards at once): grades 1-6 arrive as each card is
+  re-read on its own schedule; the site says "not read" for them until then (graded_site.py LOW_FROM).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
