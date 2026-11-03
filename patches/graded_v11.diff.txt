@@ -1,0 +1,138 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 199374c..42b994a 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2121,2 +2121,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   like the PC price cell when the record does not reach back (pc1 not_read) - it showed "-".
++  TREND % CHANGE (2026-11-03, Brett: "a delta % increase in value toggle ... We can still keep log toggle"): the % change
++  button (GT_PCT, gtr-pct) plots each line divided by its own first price in the window (gtDraw base / val), so every line
++  starts at 0% and the window buttons set the starting month; axis in % (gtNiceTicks, 0% dashed), the hover, the circle
++  tips and the month table add the %, and each chip shows the line's change over the window (.groi, first -> last month
++  in the tip). With Log on: log of the ratio. gtLogTicks falls back to round linear steps when a range is too narrow.
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/page/body.html b/page/body.html
+index cff557d..4e0a18e 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -493,3 +493,3 @@
+     <div class="sub" id="gsub"></div>
+-    <div class="bar"><span class="dim">Lines from:</span> <span id="gsrc"></span> <span class="dim">Window:</span> <span id="gzoom"><button class="zb" data-z="6">6m</button><button class="zb" data-z="12">1y</button><button class="zb" data-z="24">2y</button><button class="zb" data-z="60">5y</button><button class="zb" data-z="all">All</button></span> <button class="zb" id="glog" title="Log scale: equal percentage moves at equal heights - a $70 card and a $900 card both get room, and a 20% rise looks the same size on both. Off: equal dollar steps.">Log</button></div>
++    <div class="bar"><span class="dim">Lines from:</span> <span id="gsrc"></span> <span class="dim">Window:</span> <span id="gzoom"><button class="zb" data-z="6">6m</button><button class="zb" data-z="12">1y</button><button class="zb" data-z="24">2y</button><button class="zb" data-z="60">5y</button><button class="zb" data-z="all">All</button></span> <button class="zb" id="glog" title="Log scale: equal percentage moves at equal heights - a $70 card and a $900 card both get room, and a 20% rise looks the same size on both. Off: equal dollar steps.">Log</button><button class="zb" id="gpct" title="% change: every line as its change since its own first month in the window, so all lines start at 0% and grades far apart in price (or PC against CL) compare by how much they grew. The window (6m / 1y / 2y / 5y / All) sets the starting month; each line's chip shows its change over the window. Works with Log.">% change</button></div>
+     <div class="gpick" id="ggrades"></div>
+diff --git a/page/graded.js b/page/graded.js
+index 9350c22..2b69342 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -857,2 +857,7 @@ let GT_SEL = grLS('gtr-sel', ['pc|psa|g10', 'cl|psa|g10']);
+ let GT_LOG = grLS('gtr-log', false);
++/* % change (2026-11-03, Brett: "a delta % increase in value toggle ... may even be more insightful than the log toggle. We
++   can still keep log toggle"): every line divided by its own first price in the window, so all lines start at 0% and
++   each line's end is its return over the window (6m / 1y / 2y / 5y / All set the starting month); the chips say it.
++   With Log on too the axis is log of that ratio (+100% and -50% the same height). */
++let GT_PCT = grLS('gtr-pct', false);
+ let GT_OPEN = '';                                            // the open grade dropdown ('psa' / 'cgc'), kept across redraws
+@@ -903,3 +908,3 @@ function gtPaint() {
+     (GT_SRC === 'pc' ? '<small class="dim">PriceCharting: PSA 10’s monthly line, and each grade’s own recorded sales (its Grade 9 / 8 / 7 lines blend every grader, so they are not drawn)</small>' : '');
+-  $('gchips').innerHTML = GT_SEL.map((k, i) => '<span class="gchip" style="border-color:' + GT_COLORS[i] + '"><span class="sw" style="background:' + GT_COLORS[i] + '"></span>' + esc(tr ? gtSeries(tr, k).label : k) + ' <button type="button" data-k="' + esc(k) + '" title="Remove this line">✕</button></span>').join('') +
++  $('gchips').innerHTML = GT_SEL.map((k, i) => '<span class="gchip" style="border-color:' + GT_COLORS[i] + '"><span class="sw" style="background:' + GT_COLORS[i] + '"></span>' + esc(tr ? gtSeries(tr, k).label : k) + '<span class="groi" data-j="' + i + '"></span> <button type="button" data-k="' + esc(k) + '" title="Remove this line">✕</button></span>').join('') +
+     '<span class="dim">' + (GT_SEL.length >= GT_MAX ? 'Four lines at most — remove one to add another.' : (GT_MAX - GT_SEL.length) + ' more line(s) can be added.') + '</span>';
+@@ -907,2 +912,3 @@ function gtPaint() {
+   if ($('glog')) $('glog').classList.toggle('on', !!GT_LOG);
++  if ($('gpct')) $('gpct').classList.toggle('on', !!GT_PCT);
+   $('gsub').innerHTML = r[27] ? 'Card Ladder: <a href="' + esc(r[31]) + '" target="_blank" rel="noopener">' + esc(r[30] || 'profile') + '</a> · ' + esc(r[27]) : '';
+@@ -920,3 +926,6 @@ function gtDraw() {
+   const W = 860, H = 340, L = 56, R = 64, T = 20, B = 46;
+-  const pv = ser.flatMap(s => s.pts.filter(p => months.includes(p[0]) && p[1] != null).map(p => p[1]));
++  // % change: each line against its own first price in the window (base); val() is what the line plots
++  const base = ser.map(sr => { for (const m of months) { const p = sr.pts.find(q => q[0] === m); if (p && p[1] != null) return [m, p[1]]; } return null; });
++  const pc = !!GT_PCT, val = (j, v) => pc ? (base[j] ? v / base[j][1] : null) : v;
++  const pv = ser.flatMap((s, j) => s.pts.filter(p => months.includes(p[0]) && p[1] != null).map(p => val(j, p[1]))).filter(v => v != null);
+   const nv = ser.flatMap(s => s.pts.filter(p => months.includes(p[0]) && p[2] != null).map(p => p[2]));
+@@ -924,3 +933,6 @@ function gtDraw() {
+   const lg = !!GT_LOG && pv.every(v => v > 0);                // Log: equal percentage moves at equal heights
+-  const pmax = lg ? Math.max(...pv) * 1.15 : Math.max(...pv) * 1.08, pmin = lg ? Math.min(...pv) / 1.15 : Math.max(0, Math.min(...pv) * 0.9), nmax = Math.max(1, ...nv) * 1.15;
++  const pv1 = pc ? pv.concat([1]) : pv;                        // % change: 0% always on the axis
++  const pad = pc && !lg ? (Math.max(...pv1) - Math.min(...pv1)) * 0.08 || 0.05 : 0;
++  const pmax = lg ? Math.max(...pv1) * 1.15 : pc ? Math.max(...pv1) + pad : Math.max(...pv) * 1.08;
++  const pmin = lg ? Math.min(...pv1) / 1.15 : pc ? Math.max(0, Math.min(...pv1) - pad) : Math.max(0, Math.min(...pv) * 0.9), nmax = Math.max(1, ...nv) * 1.15;
+   const x = i => L + (months.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (months.length - 1));
+@@ -930,4 +942,7 @@ function gtDraw() {
+   let s = '';
+-  const pTicks = lg ? gtLogTicks(pmin, pmax) : [0, 1, 2, 3, 4].map(k => pmin + (pmax - pmin) * k / 4);
+-  for (const v of pTicks) { const y = yp(v); s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="currentColor" stroke-opacity=".08"/><text x="' + (W - R + 6) + '" y="' + (y + 4) + '" font-size="11" fill="currentColor" fill-opacity=".7">$' + (v < 10 && lg ? +v.toPrecision(2) : Math.round(v)).toLocaleString('en-US') + '</text>'; }
++  const pTicks = pc ? (lg && pmax / pmin >= 3 ? gtLogTicks(pmin, pmax) : gtNiceTicks((pmin - 1) * 100, (pmax - 1) * 100).map(t => 1 + t / 100))
++    : lg ? gtLogTicks(pmin, pmax) : [0, 1, 2, 3, 4].map(k => pmin + (pmax - pmin) * k / 4);
++  for (const v of pTicks) { const y = yp(v), zero = pc && Math.abs(v - 1) < 1e-9;
++    s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="currentColor" stroke-opacity="' + (zero ? '.4' : '.08') + '"' + (zero ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + (W - R + 6) + '" y="' + (y + 4) + '" font-size="11" fill="currentColor" fill-opacity=".7">' +
++      (pc ? gtPctTxt(v) : '$' + (v < 10 && lg ? +v.toPrecision(2) : Math.round(v)).toLocaleString('en-US')) + '</text>'; }
+   for (let k = 0; k <= 4; k++) { const v = nmax * k / 4, y = yn(v); s += '<text x="' + (L - 8) + '" y="' + (y + 4) + '" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".5">' + Math.round(v) + '</text>'; }
+@@ -940,13 +955,30 @@ function gtDraw() {
+   ser.forEach((sr, j) => {
+-    const pts = months.map((m, i) => { const p = sr.pts.find(q => q[0] === m); return p && p[1] != null ? [x(i), yp(p[1]), p, m] : null; }).filter(Boolean);
++    const pts = months.map((m, i) => { const p = sr.pts.find(q => q[0] === m), v = p && p[1] != null ? val(j, p[1]) : null; return v != null ? [x(i), yp(v), p, m, v] : null; }).filter(Boolean);
+     if (pts.length > 1) s += '<polyline fill="none" stroke="' + GT_COLORS[j] + '" stroke-width="2" points="' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ') + '"/>';
+-    pts.forEach(p => { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="' + GT_COLORS[j] + '"><title>' + esc(sr.label) + ' · ' + p[3] + ': $' + p[2][1].toLocaleString('en-US') + (p[2][2] != null ? ' (' + p[2][2] + ' sales)' : '') + '</title></circle>'; });
++    pts.forEach(p => { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="' + GT_COLORS[j] + '"><title>' + esc(sr.label) + ' · ' + p[3] + ': $' + p[2][1].toLocaleString('en-US') + (pc ? ' (' + gtPctTxt(p[4]) + ')' : '') + (p[2][2] != null ? ' (' + p[2][2] + ' sales)' : '') + '</title></circle>'; });
+   });
+-  s += '<text x="' + L + '" y="12" font-size="11" fill="currentColor" fill-opacity=".6">sales per month</text><text x="' + (W - R) + '" y="12" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6">price per month' + (lg ? ' (log scale)' : '') + '</text>';
++  s += '<text x="' + L + '" y="12" font-size="11" fill="currentColor" fill-opacity=".6">sales per month</text><text x="' + (W - R) + '" y="12" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6">' + (pc ? '% change since each line’s first month shown' : 'price per month') + (lg ? ' (log scale)' : '') + '</text>';
+   s += '<g id="gt-hover" style="display:none;pointer-events:none"></g><rect id="gt-hit" x="' + L + '" y="' + T + '" width="' + (W - L - R) + '" height="' + (H - T - B) + '" fill="transparent"/>';
+   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.innerHTML = s;
+-  svg._gt = {months, ser, x, yp, W, H, L, R, T, B};
++  svg._gt = {months, ser, x, yp, W, H, L, R, T, B, pc, val};
++  // the chips: each line's change over the window (first month shown -> last), in % change mode
++  document.querySelectorAll('#gchips .groi').forEach(el => { const j = +el.dataset.j, sr = ser[j], b = base[j];
++    let last = null; if (pc && sr && b) for (const m of months) { const p = sr.pts.find(q => q[0] === m); if (p && p[1] != null) last = [m, p[1]]; }
++    const r = last ? last[1] / b[1] : null;
++    el.className = 'groi' + (r == null ? '' : r > 1 ? ' up' : r < 1 ? ' down' : '');
++    el.textContent = r == null ? '' : ' ' + gtPctTxt(r);
++    el.title = r == null ? '' : MONTHS_S[+b[0].slice(5) - 1] + ' ' + b[0].slice(0, 4) + ' ' + fmtMoneyPlain(b[1]) + ' → ' + MONTHS_S[+last[0].slice(5) - 1] + ' ' + last[0].slice(0, 4) + ' ' + fmtMoneyPlain(last[1]); });
+   if (!svg._gtBound) { svg._gtBound = true; svg.addEventListener('mousemove', gtHover); svg.addEventListener('mouseleave', () => { const g = $('gt-hover'); if (g) g.style.display = 'none'; }); }
+   tab.innerHTML = '<table><thead><tr><th>Month</th>' + ser.map((sr, j) => '<th class="num" style="color:' + GT_COLORS[j] + '">' + esc(sr.label) + '</th>').join('') + '</tr></thead><tbody>' +
+-    months.slice().reverse().map(m => '<tr><td>' + MONTHS_S[+m.slice(5) - 1] + ' ' + m.slice(0, 4) + '</td>' + ser.map(sr => { const p = sr.pts.find(q => q[0] === m); return '<td class="num">' + (p && p[1] != null ? fmtMoneyPlain(p[1]) : '-') + (p && p[2] != null ? ' <span class="dim">(' + p[2] + ')</span>' : '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table>';
++    months.slice().reverse().map(m => '<tr><td>' + MONTHS_S[+m.slice(5) - 1] + ' ' + m.slice(0, 4) + '</td>' + ser.map((sr, j) => { const p = sr.pts.find(q => q[0] === m), v = pc && p && p[1] != null ? val(j, p[1]) : null; return '<td class="num">' + (p && p[1] != null ? fmtMoneyPlain(p[1]) : '-') + (v != null ? ' <span class="' + (v > 1 ? 'up' : v < 1 ? 'down' : 'dim') + '">' + gtPctTxt(v) + '</span>' : '') + (p && p[2] != null ? ' <span class="dim">(' + p[2] + ')</span>' : '') + '</td>'; }).join('') + '</tr>').join('') + '</tbody></table>';
++}
++function gtPctTxt(ratio) {                                    // 1.234 -> +23%, 0.95 -> -5%, 1.004 -> +0.4%
++  const p = (ratio - 1) * 100, a = Math.abs(p), t = a >= 10 || a === 0 ? String(Math.round(a)) : String(+a.toFixed(1));
++  return (t === '0' ? '' : p > 0 ? '+' : '-') + t + '%';
++}
++function gtNiceTicks(lo, hi, n) {                            // round steps (1 / 2 / 2.5 / 5 x 10^k) inside [lo, hi]
++  const raw = (hi - lo) / (n || 5); if (!(raw > 0)) return [lo];
++  const mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw);
++  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toFixed(10));
++  return out;
+ }
+@@ -959,3 +991,3 @@ function gtLogTicks(lo, hi) {                                // 1 / 2 / 5 x 10^n
+   }
+-  return out.length ? out : [lo, hi];
++  return out.length >= 3 ? out : gtNiceTicks(lo, hi, 4);   // a narrow range: plain round steps (log is near straight there)
+ }
+@@ -972,3 +1004,4 @@ function gtHover(e) {
+   const mo = st.months[i], X = st.x(i);
+-  const lines = st.ser.map((sr, j) => { const q = sr.pts.find(z => z[0] === mo); return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), y: q && q[1] != null ? st.yp(q[1]) : null}; });
++  const lines = st.ser.map((sr, j) => { const q = sr.pts.find(z => z[0] === mo), v = q && q[1] != null ? st.val(j, q[1]) : null;
++    return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (st.pc && v != null ? ' (' + gtPctTxt(v) + ')' : '') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), y: v != null ? st.yp(v) : null}; });
+   const head = MONTHS_S[+mo.slice(5) - 1] + ' ' + mo.slice(0, 4), wBox = Math.max(head.length, ...lines.map(l => l.t.length)) * 6.6 + 22, hBox = 22 + lines.length * 17;
+@@ -990,2 +1023,3 @@ if ($('gov')) {
+   if ($('glog')) $('glog').addEventListener('click', () => { GT_LOG = !GT_LOG; grSave('gtr-log', GT_LOG); gtPaint(); });
++  if ($('gpct')) $('gpct').addEventListener('click', () => { GT_PCT = !GT_PCT; grSave('gtr-pct', GT_PCT); gtPaint(); });
+   $('gchips').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; GT_SEL = GT_SEL.filter(k => k !== b.dataset.k); grSave('gtr-sel', GT_SEL); gtPaint(); });
+diff --git a/page/graded_help.js b/page/graded_help.js
+index 05031b0..fcad268 100644
+--- a/page/graded_help.js
++++ b/page/graded_help.js
+@@ -57,4 +57,4 @@ Object.assign(HELP, {
+   g_hitpct: {t: 'Hit %', f: 'none for graded copies yet', m: 'Shows - until graded eBay data exists.', e: ''},
+-  g_trend: {t: 'PSA Trend', f: 'PriceCharting’s and Card Ladder’s monthly price and sales for the grades you pick (up to 3 lines)', m: 'PriceCharting / Card Ladder above the grade ticks picks whose lines you are choosing; tick PC PSA 10 and CL PSA 10 to lay the two over each other. Bars = sales per month (left axis), lines = price per month (right axis).', e: ''},
+-  g_review: {t: 'Review', f: 'PriceCharting’s card beside Card Ladder’s and the grader’s (Auth)', m: 'Above the three sides: a Trend button, the number graded last month and the PC to CL % difference. Each side then shows only its own source: pictures, release year, set, name, card / set number, rarity · finish, illustrator, series, era, last month’s sales, the grade, last month’s price (Auth: the card Card Hedge matched to the cert and how it found it), the cert and the IDs (Auth: PSA’s spec). Red = the sides disagree; amber = one side says nothing. At the top, a box says when the match is in doubt (unsure match / likely wrong match) and why. Same card / Not the same card answer for the whole card (every grade): Not the same card hides its rows (nothing is deleted). Flags are set in the Flag column, not here.', e: ''},
++  g_trend: {t: 'PSA Trend', f: 'PriceCharting’s and Card Ladder’s monthly price and sales for the grades you pick (up to 4 lines)', m: 'It opens on the row’s own grade. PriceCharting / Card Ladder picks whose lines the PSA and CGC grade dropdowns choose; tick PC PSA 10 and CL PSA 10 to lay the two over each other. Bars = sales per month (left axis), lines = price per month (right axis, fitted to the lines shown). Log: equal percentage moves at equal heights. % change: each line as its change since its own first month in the window (all start at 0%; the chip shows the change over the window) - the window buttons set the starting month.', e: ''},
++  g_review: {t: 'Review', f: 'PriceCharting’s card beside Card Ladder’s and the grader’s (Auth)', m: 'Above the three sides: a Trend button, the number graded last month and the PC to CL % difference. Each side then shows only its own source: pictures, release year, set, name, card / set number, rarity · finish, illustrator, series, era, last month’s sales, the grade, last month’s price (Auth: the card Card Hedge matched to the cert and how it found it), the cert and the IDs (Auth: PSA’s spec). Red = the sides disagree; amber = one side says nothing. At the top, a box says when the match is in doubt (unsure match / likely wrong match) and why. Same card / Not the same card answer for the whole card (every grade): Not the same card keeps its rows listed, with “no match” on the Card Ladder side. Flags are set in the Flag column, not here.', e: ''},
+   g_flag: {t: 'Flag', f: 'your own flag on this card × grade, with a reason and a note', m: 'This view’s own flags: click the flag for a short menu (set / name / number / variant mismatch, language, other, a note); click a red flag to change it or take it off. It is separate from everything else - it does not answer Review (Same card / Not the same card stays its own answer) and it never appears in the eBay tabs’ Flags. The ⚑ Flags button above the table shows only the flagged rows. Saved in this browser at once and sent to the collector; the next site build files it in card-data/data/ids/marks.csv.', e: ''},
+diff --git a/page/style.css b/page/style.css
+index c4fd2fa..d890909 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -572,2 +572,3 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
+   .gchip { display:inline-flex; align-items:center; gap:6px; padding:3px 6px 3px 9px; border:1.5px solid var(--line); border-radius:999px; font-size:12.5px; margin-right:6px; }
++  .gchip .groi { font-weight:600; font-variant-numeric:tabular-nums; }   /* the line's change over the window (% change) */
+   .gchip button { border:none; background:none; color:var(--muted); cursor:pointer; font-size:12px; padding:0 3px; }
