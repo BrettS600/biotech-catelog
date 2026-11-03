@@ -1,0 +1,144 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 6f05a16..d2a13c8 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1699,3 +1699,4 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   from the label - "10P" = CGC 10 Pristine, "10B" = BGS 10 Black - and grades 7/8/9/9.5 with the grader read off the title
+-  (grader_of: PSA CGC BGS/BECKETT SGC TAG ACE AGS PCG ...); grades under GS_MIN_GRADE 7 skipped; rows [row id, date, cents,
++  (grader_of: PSA CGC BGS/BECKETT SGC TAG ACE AGS PCG ...); every grade kept since 2026-11-03 (GS_MIN_GRADE 1, was 7 - see
++  GRADES 1-6 below); rows [row id, date, cents,
+   grade, grader, best offer, title70]), rec["gv"] = GRADED_VERSION 1 and rec["gdue"] = graded_due(): a full (30-row) table
+@@ -2087,2 +2088,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   slab record r[70] is ok), on = only those rows; remembered (gauthread).
++- GRADES 1-6 AND THE BUSY-CARD RE-READS (2026-11-03, Brett: "fix the psa problem for all cards"; "stales ones don't need
++  to be read daily, but when they turn, we can turn them on daily"; "the last thing I want is to pay more money to digital
++  ocean"). The collector kept only PriceCharting's Grade 7-10 tables (GS_MIN_GRADE 7), so every PSA / CGC 1-6 row showed 0
++  PriceCharting sales although the page lists them (Eevee 1st Edition Jungle: 3 PSA 1 sales in October). Now
++  GS_MIN_GRADE = 1. graded_due() judges every table with 3+ sales by its pace (full or not; over the table, or over the
++  last 30 days when faster - a grade turning busy): the next read comes after 70% of the days 30 new sales would take
++  (1-29 days), so no sale scrolls off PriceCharting's 30-row table between reads; slower tables leave it to the normal
++  refresh. The reader (PcImageWorker) caps planned reads at PC_DAY_CAP 2,500 a UTC
++  day (pages asked for from the site are not counted; before: ~1,300 a day) and pc_plan puts the busy cards (gdue, the
++  shortest first) right after the newest listings' cards. The server on 2026-11-03 (read-only look): 2 GB, collector 1.0 GB
++  (peak 1.4 GB), 805 MB available, swap 30 MB used; disk 8.6 of 24 GB used; load ~0.9 on its one CPU (mostly eBay);
++  pc_hist/gs 21 MB. No GRADED_VERSION bump (that would re-read all 44k cards at once): grades 1-6 arrive as each card is
++  re-read on its own schedule; the site says "not read" for them until then (graded_site.py LOW_FROM).
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/collector.py b/collector.py
+index e761043..1a6e3cb 100644
+--- a/collector.py
++++ b/collector.py
+@@ -2117,2 +2117,4 @@ def pc_image(state, pid):
+ PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
++PC_DAY_CAP = 2500                # planned page reads a UTC day at most (2026-11-03, Brett: re-read the busy cards daily, but
++                                 # keep the total modest - about 1,300 a day before); pages asked for from the site are not counted
+ PC_POLL_S = 20                   # how often the picture worker polls its request topic (-pc); see poll_requests for why not 4 s
+@@ -2145,2 +2147,4 @@ class PcImageWorker(threading.Thread):
+         self.rush = False                                    # the card being read was asked for from the site's chart
++        self.from_plan = False                               # ... or came from the plan (counted against PC_DAY_CAP)
++        self.day, self.day_n = None, 0                       # planned reads this UTC day
+ 
+@@ -2223,3 +2227,4 @@ class PcImageWorker(threading.Thread):
+                 cid, want_img, self.rush = self.wanted_hist.popleft(), False, True
+-            if cid is None:
++            self.from_plan = False
++            if cid is None and self.day_left() > 0:          # the daily cap: the rest of the plan waits for tomorrow
+                 while self.plan:
+@@ -2227,3 +2232,3 @@ class PcImageWorker(threading.Thread):
+                     if c not in self.done:                   # read once per plan, even if filed later
+-                        cid = c
++                        cid, self.from_plan = c, True
+                         break
+@@ -2235,2 +2240,9 @@ class PcImageWorker(threading.Thread):
+ 
++    def day_left(self):
++        """Planned page reads left this UTC day (PC_DAY_CAP a day; the count starts again at midnight UTC)."""
++        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
++        if self.day != today:
++            self.day, self.day_n = today, 0
++        return PC_DAY_CAP - self.day_n
++
+     def step(self):
+@@ -2239,2 +2251,4 @@ class PcImageWorker(threading.Thread):
+             return False
++        if self.from_plan:
++            self.day_n += 1
+         status, url, hist, note = pc_read_page(cid)
+@@ -2329,2 +2343,3 @@ def pc_plan(state, cards, cat=None):
+     want_signed = bool(PC_COOKIE) and v.get("pch_signin") != "expired"   # a sign-in that works (or is untested): re-read for the bars
++    first = []
+     for group, ids in enumerate(([r["card"] for r in recent], list(active), rest)):
+@@ -2337,4 +2352,8 @@ def pc_plan(state, cards, cat=None):
+                 seen.add(cid)
+-                out.append((cid, want_img))
+-    return out
++                (first if group == 0 else out).append((cid, want_img))
++    # the busy cards first after the newest listings' (2026-11-03): a card whose graded table fills in days is due again
++    # soon, and with the daily cap (PC_DAY_CAP) it must not wait behind the slow ones - busiest (shortest interval) first
++    hot = sorted((x for x in out if pchist.gdue_of(x[0])), key=lambda x: pchist.gdue_of(x[0]))
++    hot_ids = {x[0] for x in hot}
++    return first + hot + [x for x in out if x[0] not in hot_ids]
+ 
+@@ -3717,2 +3736,3 @@ def cycle(state, cat, sched, counters):
+         log(f"Pictures: {len(v.get('pc_img', {}))} on file, {pc.read} pages read since the start, {pc.backlog()} to go, "
++            f"{pc.day_n:,} planned reads today (cap {PC_DAY_CAP:,}), "
+             f"one page every {pc.gap:g} s, last read HTTP {PC_LAST_READ.get('code')} in {PC_LAST_READ.get('s', 0):.1f} s; "
+diff --git a/pchist.py b/pchist.py
+index 28200ba..ce4fc0f 100644
+--- a/pchist.py
++++ b/pchist.py
+@@ -65,5 +65,8 @@ GS_KEEP_N = 1500                                            # ... and at most th
+ GS_FULL = 30                                                # a grade's table shows at most this many sales
+-GS_MIN_GRADE = 7                                            # the "Grade N" tables under this are not kept
+-GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card with a full graded table spanning under GDUE_MAX_D / 0.7 days
+-GDUE_SHARE = 0.7                                            # is re-read after 70% of that span (1..29 days)
++GS_MIN_GRADE = 1                                            # every "Grade N" table is kept (2026-11-03, Brett: grades 1-6 too;
++                                                            # it was 7 - PSA / CGC 1-6 rows showed 0 PriceCharting sales)
++GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card whose busiest graded table would gather GS_FULL new sales within
++GDUE_SHARE = 0.7                                            # GDUE_MAX_D / 0.7 days is re-read after 70% of that time (1..29 days)
++GDUE_MIN_N = 3                                              # a table needs this many sales before its pace is trusted
++GDUE_RECENT_D = 30                                          # ... and its pace over the last 30 days counts when it is faster
+ GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
+@@ -391,5 +394,10 @@ def graded_series(series, m0, length):
+ def graded_due(rows, sizes, today=None):
+-    """Days until the card's page should be read again for its graded sales: when a grade's table is full (GS_FULL
+-    rows), the next read should come before they scroll off - 70% of the span, 1 to 29 days (stale() takes the sooner
+-    of this and the card's normal refresh). None when no table is full or the busiest spans 43+ days."""
++    """Days until the card's page should be read again for its graded sales: before GS_FULL (30) NEW sales can pile up
++    in any one grade's table - PriceCharting shows only the latest 30, so a read later than that would miss some.
++    2026-11-03 (Brett: "when they turn, we can turn them on daily"): judged from each table's pace (its sales over the
++    days they span, or over the last 30 days when that is faster), full or not, so a grade that is only getting busy is
++    caught too; the next read comes after 70% of the time 30 new sales would take, 1 to 29 days (daily for the busiest).
++    stale() takes the sooner of this and the card's normal refresh. None when no table is that busy (the normal refresh
++    keeps up)."""
++    today = day_index() if today is None else today
+     best = None
+@@ -398,10 +406,13 @@ def graded_due(rows, sizes, today=None):
+         by.setdefault((r[3], r[4] if r[3].startswith("10") else ""), []).append(day_of(r[1]))
+-    full = {lab for lab, n in sizes.items() if n >= GS_FULL}
+-    if not full:
+-        return None
+     for (grade, grader), days in by.items():
+-        if len(days) < GS_FULL:
++        n = len(days)
++        if n < GDUE_MIN_N:
+             continue
+-        due = int((max(days) - min(days)) * GDUE_SHARE)
+-        if due >= GDUE_MAX_D:                                # the table spans 43+ days: the monthly refresh keeps up
++        span = max(1, max(days) - min(days))                # whole days; sales all on one day count as a day
++        rate = n / span                                     # sales a day over the table
++        recent = sum(1 for d in days if today - d <= GDUE_RECENT_D)
++        if recent >= GDUE_MIN_N:                             # a grade turning busy: its last month's pace, not its old sales'
++            rate = max(rate, recent / GDUE_RECENT_D)
++        due = int(GS_FULL / rate * GDUE_SHARE)              # 70% of the days GS_FULL new sales take at this pace
++        if due >= GDUE_MAX_D:                                # slower than that: the monthly refresh keeps up
+             continue
+@@ -412,2 +423,8 @@ def graded_due(rows, sizes, today=None):
+ 
++def gdue_of(cid):
++    """The card's early re-read interval in days (graded_due at its last read), or None - for the reader's order."""
++    last = _index.get(int(cid))
++    return last[3] if last is not None and len(last) > 3 else None
++
++
+ def spread(sales, today=None, window_d=SPREAD_WINDOW_D, min_n=SPREAD_MIN_N):
