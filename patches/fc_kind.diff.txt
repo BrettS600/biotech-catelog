@@ -1,0 +1,165 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 82f6656..843d323 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2148,2 +2148,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   CL Status tip no longer quotes the old line number).
++- THE FORECAST TAB'S FOUR PAGES, FORECAST HISTORY'S TWO (2026-11-04, Brett: "the forecasting and planning options should
++  subordinate one of two categories raw card or graded card. each of the four options should have their own page"; "by
++  page, i dont mean pane ... i want it to take up the whole screen"; the raw pages "just make sure to keep it the same. i
++  dont want it looking different"; "for the forecast history tab, i want to be able to switch between raw cards and
++  graded cards. for the graded cards, you can keep it blank"). A first row (Raw cards / Graded cards, .kindbar / .kb in
++  style.css, #fc-kind and #fh-kind in body.html) sits on top of each tab; the Forecasting / Planning buttons stay where
++  they were (#fc-modes in the bar). Raw = the tab exactly as before (nothing in it moved). Graded = #p-fc.graded /
++  #p-fh.graded: the raw parts are hidden by CSS (meta-fc, fc-al, the bar's tools, #npl; meta-fh, .fh) and a blank
++  (.gblank #fc-graded / #fh-graded) shows. app.js NAV (declared beside TAB_HASH, ahead of FC, because the address is
++  read at load): fc raw|graded, rm = the raw Forecasting/Planning (FC.mode = NAV.rm; localStorage fc-mode as before), gm
++  = the graded one (fc-gmode), fh (fh-kind). Addresses #forecast/<raw|graded>/<forecasting|planning> and
++  #forecast-history/<raw|graded> (replaceState like the other tabs; a bare #forecast opens the page used last). Help:
++  fc_kind; a paragraph in the fc and fh READMEs. The graded pages are blank until Brett approves what they should do.
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/page/app.js b/page/app.js
+index c33413b..4a29aa6 100644
+--- a/page/app.js
++++ b/page/app.js
+@@ -1520,2 +1520,49 @@ window.addEventListener('scroll', () => {
+ const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', fc: 'forecast', fh: 'forecast-history', al: 'alerts', rv: 'revenue', fv: 'favorites'};      // default (no hash) = PriceCharting
++/* Raw cards / Graded cards (2026-11-04, Brett: "the forecasting and planning options should subordinate one of two
++   categories raw card or graded card. each of the four options should have their own page"; "i want it to take up the
++   whole screen"; "for the forecast history tab, i want to be able to switch between raw cards and graded cards. for
++   the graded cards, you can keep it blank"). The Forecast tab is four pages - Raw or Graded, then Forecasting or
++   Planning - and Forecast History two, each with its own address (#forecast/raw/planning, #forecast-history/graded), so
++   a refresh or a bookmark opens that page; each tab reopens on the page used last (this browser). The raw pages are
++   the tabs exactly as they were; the graded ones are blank for now. NAV is declared here, ahead of FC, because the
++   address is read at load: rm = the raw side's Forecasting / Planning (FC.mode follows it), gm = the graded side's. */
++$('npl').insertAdjacentHTML('afterend', '<span class="n" id="npl-g">0</span>');   // the graded side's plan count (none yet)
++const NAV = (() => { const g = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
++  return {fc: g('fc-kind') === 'graded' ? 'graded' : 'raw', rm: g('fc-mode') === 'pl' ? 'pl' : 'fc', gm: g('fc-gmode') === 'pl' ? 'pl' : 'fc', fh: g('fh-kind') === 'graded' ? 'graded' : 'raw'}; })();
++function navSave() { try { localStorage.setItem('fc-kind', NAV.fc); localStorage.setItem('fc-mode', NAV.rm); localStorage.setItem('fc-gmode', NAV.gm); localStorage.setItem('fh-kind', NAV.fh); } catch (e) {} }
++const navMode = () => NAV.fc === 'graded' ? NAV.gm : NAV.rm;   // the Forecasting / Planning button lit on the Forecast tab
++function navHash(id) {
++  if (id === 'fc') return 'forecast/' + NAV.fc + '/' + (navMode() === 'pl' ? 'planning' : 'forecasting');
++  if (id === 'fh') return 'forecast-history/' + NAV.fh;
++  return TAB_HASH[id];
++}
++function navApply() {                                     // the two Raw / Graded rows, the lit Forecasting / Planning button, the graded blanks
++  $('p-fc').classList.toggle('graded', NAV.fc === 'graded'); $('p-fh').classList.toggle('graded', NAV.fh === 'graded');
++  document.querySelectorAll('#fc-kind .kb').forEach(b => b.classList.toggle('on', b.dataset.k === NAV.fc));
++  document.querySelectorAll('#fh-kind .kb').forEach(b => b.classList.toggle('on', b.dataset.k === NAV.fh));
++  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === navMode()));
++  $('fcg-t').textContent = NAV.gm === 'pl' ? 'Graded planning' : 'Graded forecasting';
++  $('fcg-s').textContent = NAV.gm === 'pl' ? 'Blank for now. Graded plans will be listed here, separate from your raw plans.' : 'Blank for now. Its settings and picks go here once the graded forecast is designed.';
++}
++function navAddr() {                                      // the address follows the page showing
++  const p = document.querySelector('.panel:not([hidden])'), id = p && p.id.slice(2);
++  if (id === 'fc' || id === 'fh') history.replaceState(null, '', location.pathname + location.search + '#' + navHash(id));
++}
++(() => {                                                  // an address that names a page opens it, and it becomes the one remembered
++  const h = location.hash.slice(1).split('/');
++  if (h[0] === 'forecast' && (h[1] === 'raw' || h[1] === 'graded')) {
++    NAV.fc = h[1]; if (h[2] === 'planning' || h[2] === 'forecasting') NAV[h[1] === 'raw' ? 'rm' : 'gm'] = h[2] === 'planning' ? 'pl' : 'fc'; navSave();
++  }
++  if (h[0] === 'forecast-history' && (h[1] === 'raw' || h[1] === 'graded')) { NAV.fh = h[1]; navSave(); }
++})();
++navApply();
++$('fc-kind').addEventListener('click', e => {
++  const b = e.target.closest('.kb'); if (!b || b.dataset.k === NAV.fc) return;
++  NAV.fc = b.dataset.k === 'graded' ? 'graded' : 'raw'; navSave(); navApply(); navAddr();
++  if (NAV.fc === 'raw' && FC.mode === 'pl') plRender();   // the raw plan may have changed while the graded page showed
++});
++$('fh-kind').addEventListener('click', e => {
++  const b = e.target.closest('.kb'); if (!b || b.dataset.k === NAV.fh) return;
++  NAV.fh = b.dataset.k === 'graded' ? 'graded' : 'raw'; navSave(); navApply(); navAddr();
++});
+ function showTab(id) {
+@@ -1526,3 +1573,3 @@ function showTab(id) {
+   if (id === 'fh') setTimeout(() => { if (FH.doc) fhRender(); else loadForecastHist(); }, 0);   // the Forecast history tab: the replay file is read on first sight (deferred: at load, with #forecast-history in the address, FH is declared further down)
+-  history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
++  history.replaceState(null, '', location.pathname + location.search + (navHash(id) ? '#' + navHash(id) : ''));   // the Forecast tabs add their page (NAV)
+   auMode();                                             // the top boxes are out of play only while Raw Data shows auctions
+@@ -1530,3 +1577,3 @@ function showTab(id) {
+ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
+-showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
++showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1).split('/')[0]) || 'pc');
+ 
+@@ -2898,3 +2945,3 @@ document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click',
+ const FC = {doc: null, err: null, rows: [], picks: [], mc: null, loaded: 0, mode: 'fc'};   // mode: 'fc' Forecasting / 'pl' Planning (2026-10-24)
+-try { if (localStorage.getItem('fc-mode') === 'pl') FC.mode = 'pl'; } catch (e) {}
++FC.mode = NAV.rm;                                        // the raw side's Forecasting / Planning, remembered (or named by the address) - see NAV
+ const FC_MIN_VOL12 = 6;                                  // a card needs six sales in its last twelve PriceCharting months
+@@ -3370,3 +3417,3 @@ $('fcl-mode').addEventListener('click', e => {
+ function fcModeApply() {                                 // Forecasting shows the model's picks; Planning the listings he added
+-  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === FC.mode));
++  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === navMode()));
+   $('fc-main').hidden = FC.mode !== 'fc'; $('fc-plan').hidden = FC.mode !== 'pl';
+@@ -3374,3 +3421,7 @@ function fcModeApply() {                                 // Forecasting shows th
+ }
+-$('fc-modes').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; FC.mode = b.dataset.m === 'pl' ? 'pl' : 'fc'; try { localStorage.setItem('fc-mode', FC.mode); } catch (x) {} fcModeApply(); });
++$('fc-modes').addEventListener('click', e => {
++  const b = e.target.closest('.fvchip'); if (!b) return; const m = b.dataset.m === 'pl' ? 'pl' : 'fc';
++  if (NAV.fc === 'graded') { NAV.gm = m; navSave(); navApply(); navAddr(); return; }   // the graded pages: blank for now
++  FC.mode = NAV.rm = m; navSave(); fcModeApply(); navAddr();
++});
+ fcModeApply();
+diff --git a/page/body.html b/page/body.html
+index 4e0a18e..bc6e256 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -513,2 +513,4 @@
+ <section class="panel" id="p-fc" hidden>
++<div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting and Planning as they were"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): blank for now"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
++<div class="meta" id="meta-fcg">Forecast &middot; graded cards (PSA and CGC)</div>
+ <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
+@@ -568,2 +570,3 @@
+ </div>
++<div class="gblank" id="fc-graded"><strong id="fcg-t">Graded forecasting</strong><span id="fcg-s">Blank for now.</span></div>
+ </section>
+@@ -571,4 +574,7 @@
+ <section class="panel" id="p-fh" hidden>
++<div class="kindbar" id="fh-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: the Forecast tab’s record, as it was"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): blank for now"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
+ <div class="meta" id="meta-fh">Forecast History &middot; the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
++<div class="meta" id="meta-fhg">Forecast History &middot; graded cards (PSA and CGC)</div>
+ <div class="fc fh"><div class="al-card fh-card" id="fh-body"></div></div>
++<div class="gblank" id="fh-graded"><strong>Graded forecast history</strong><span>Blank for now. The graded forecasts’ month-by-month record goes here once graded forecasting is built.</span></div>
+ </section>
+diff --git a/page/help.js b/page/help.js
+index fbddaa5..f643102 100644
+--- a/page/help.js
++++ b/page/help.js
+@@ -28,2 +28,4 @@ fc: `
+ 
++<p><b>Raw cards / Graded cards (November 4).</b> The first row of the tab chooses the cards: <b>Raw cards</b> is the tab as described here, and its <b>Forecasting</b> and <b>Planning</b> buttons are two pages of their own; <b>Graded cards</b> (PSA and CGC) has its own Forecasting and Planning, blank for now. Each of the four pages has its own address, and the tab reopens on the one you used last.</p>
++
+ <h3>2. What the research found (October 2026, version 2)</h3>
+@@ -203,2 +205,4 @@ fh: `
+ 
++<p><b>Raw cards / Graded cards (November 4).</b> The first row of the tab chooses the cards: <b>Raw cards</b> is the record described here; <b>Graded cards</b> is blank for now, until graded forecasting is built.</p>
++
+ <h3>2. Two halves, two kinds of evidence</h3>
+@@ -415,2 +419,3 @@ const HELP = {
+ };
++HELP.fc_kind = {t: 'Raw cards / Graded cards', f: 'which cards the Forecast and Forecast History tabs are about: raw (ungraded) cards, or graded cards (PSA and CGC)', m: 'The first row of the Forecast tab and of the Forecast History tab (November 4). Raw cards is everything these tabs did before: on the Forecast tab, the Forecasting and Planning buttons under it are the model\'s picks and your plan, exactly as they were. Graded cards has its own Forecasting and Planning, blank for now until the graded forecast is designed; graded plans will never mix with the raw ones. Each choice is its own page with its own address - #forecast/raw/forecasting, #forecast/raw/planning, #forecast/graded/forecasting, #forecast/graded/planning, and #forecast-history/raw or /graded - so a refresh or a bookmark opens that page, and each tab reopens on the page you used last in this browser.', e: 'Graded cards, then Planning: the address ends #forecast/graded/planning and the page is blank; Raw cards brings back your raw plan as you left it.'};   // the Forecast / Forecast History tabs' first row (2026-11-04)
+ // what each eBay column is built from, and what is built from it (shown in the help popup)
+diff --git a/page/style.css b/page/style.css
+index d890909..936f834 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -610 +610,18 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
+   table.gtable td:first-child + td + td b { font-weight:600; }
++
++/* Raw cards / Graded cards (2026-11-04, Brett: "the forecasting and planning options should subordinate one of two
++   categories raw card or graded card. each of the four options should have their own page"; "for the forecast history
++   tab, i want to be able to switch between raw cards and graded cards"): the first row of the Forecast and Forecast
++   History tabs. The raw side is each tab exactly as it was; the graded side is blank for now. */
++.kindbar { display:flex; align-items:center; gap:6px; padding:0 18px; border-bottom:1px solid var(--line); }
++.kb { font:inherit; font-size:15px; font-weight:650; padding:11px 14px 9px; border:0; border-bottom:3px solid transparent; margin-bottom:-1px; background:none; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
++.kb:hover { color:var(--fg); }
++.kb.on { color:var(--fg); border-bottom-color:var(--link); }
++.kic { display:inline-block; width:11px; height:15px; border:1.6px solid currentColor; border-radius:2px; position:relative; flex:none; }
++.kic.slab { width:12px; height:16px; border-radius:3px; }
++.kic.slab::after { content:""; position:absolute; left:1px; right:1px; top:2px; height:3px; background:currentColor; border-radius:1px; }
++.gblank { margin:4px 18px 28px; min-height:55vh; border:2px dashed var(--line); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:24px; text-align:center; color:var(--muted); }
++.gblank strong { color:var(--fg); font-size:18px; }
++#p-fc:not(.graded) #meta-fcg, #p-fc:not(.graded) #fc-graded, #p-fc:not(.graded) #npl-g,
++#p-fc.graded #meta-fc, #p-fc.graded #fc-al, #p-fc.graded #npl, #p-fc.graded .fc-unfold, #p-fc.graded .fc-tools,
++#p-fh:not(.graded) #meta-fhg, #p-fh:not(.graded) #fh-graded, #p-fh.graded #meta-fh, #p-fh.graded > .fh { display:none !important; }
