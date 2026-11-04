@@ -114,10 +114,16 @@ def build(cd, keep_ids=None, today=None):
     reg3 = pd.Series(reg1).rolling(3).mean().values
     breadth3 = pd.Series(breadth).rolling(3).mean().values
     fwd3 = pd.Series(reg1).shift(-1).rolling(3).sum().shift(-2).values          # the market's next three months
-    # the latest month, and the last complete one (the current calendar month is still filling in)
+    # the latest month, and the last complete one (the current calendar month is still filling in). The newest column
+    # can hold only the few lines read so far this month (2026-11-04, first live run: 881 of ~150,000): "now" is the
+    # newest month with at least half the lines of the busiest recent month
     today = today or datetime.now(timezone.utc).date()
     cur = today.year * 12 + today.month - 1
+    cnt = np.isfinite(W).sum(axis=0)
+    ref = cnt[max(0, T - 13):].max()
     j_now = T - 1
+    while j_now > 0 and cnt[j_now] < 0.5 * ref:
+        j_now -= 1
     j_last = j_now - 1 if m0 + j_now >= cur else j_now
     j_start = max(0, _mi(CALIB_START) - m0)
     # the odds tables
