@@ -2159,6 +2159,28 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   = the graded one (fc-gmode), fh (fh-kind). Addresses #forecast/<raw|graded>/<forecasting|planning> and
   #forecast-history/<raw|graded> (replaceState like the other tabs; a bare #forecast opens the page used last). Help:
   fc_kind; a paragraph in the fc and fh READMEs. The graded pages are blank until Brett approves what they should do.
+- GRADED CARDS > FORECASTING (2026-11-04, Brett: "i plan to go to card vendor, scan graded card links, then sell them on
+  ebay ... we assume all cards are available for purchase"; "lets just use the same predictive model but on the graded
+  cards ... its okay if its flawed"; "shipping is factored into buy price"; "i will only buy cards that are least 14.1%
+  under"). MODEL graded_forecast.py (called by graded_site.py -> graded.bin doc.fc; ~10 s, ~1 GB): the raw v2 method on
+  card-data pricecharting/pc_graded_monthly_*.csv.gz (PSA 10, Grade 9.5 / 9 / 8 / 7 lines, monthly since 2021): rank =
+  percentile of -dev12 among lines $25+ with 12 months of prices, TEN groups (raw: 4); odds tables h = 1..6 x regime x
+  group, quantile grid 1..99%, mean, p_up, buying at max(price, 3-mo avg); pct per (listed card, line) as 0..1000. ONE
+  DEVIATION: the market is the MEAN monthly move (clipped +-50%) of lines $10+ - the median was 0 every month (4 lines in
+  10 do not move in a month), which made the regime always "down"; measured since 2022: 3-mo mean > 0 -> next quarter up
+  79% (28 months), < 0 -> 26% (27). PAGE page/graded_fc.js (stitched after graded.js; build_catalog.py) + #fcg in
+  body.html: rows = every graded row (not raw) whose standard (PC r[67] today else r[6]; CL r[68] else r[35], only when
+  CL Status read) is in the price band; line by grade (FCG_LINE: psa g10 -> psa_10, g9_5/g9/g8/g7 -> the blended
+  lines, else no score). Buy price = std x (1 - d) - ship; net = std x ((1 + r)(1 - fee) - (1 - d)) (the shipping
+  cancels; at d = fee a flat price nets 0); Chance = 1 - CDF(break-even) with a tie-aware CDF (flat mass counts whole),
+  capped 95%; Net = the group's MEAN return (the raw tab's Net too - pulled up by a few big jumps; the summary's range
+  shows the median); ROI = net / buy. Values live as properties on the GR.rows arrays (r.fcS ...), so makeTable sorts /
+  filters them and pcg is untouched. Allocation in cfg.after over the rows on view (the filters steer the money), then
+  the rows are drawn again. The chips: graded.js state moved into per-view objects GF.pc / GF.fc (grFilters; fc keys
+  behind "fcg-"); every chip function takes F. + = localStorage fcg-plan (Graded Planning to come; count on #npl-g).
+  Defaults: 14.1% under, $5.20 shipping, $50-$5,000, 3 months, gate on, Grading PSA 10/9/8/7 + CGC 9.5/9/8/7. The table
+  scrolls in its own box (#fcg .wrap, sticky header inside; more rows on the box's scroll). The graded Planning page is
+  still the blank (#fc-graded, class gpl on #p-fc).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

@@ -1043,6 +1043,16 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                                     "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e"],
            "cls": {k: sum(1 for c in cards.values() if c.get("cls") == k) for k in ("read", "pending", "nomatch")},
            "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
+    # the Forecast tab's Graded cards > Forecasting (2026-11-04): the raw model's method on PriceCharting's graded lines
+    # (graded_forecast.py) - its odds tables and today's rank of each listed card's lines; a failure leaves the page an
+    # error to show, never the build broken
+    try:
+        import graded_forecast
+        doc["fc"] = graded_forecast.build(cd, keep)
+        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} lines ranked, month {doc['fc'].get('month')}, market {'up' if (doc['fc'].get('regime') or {}).get('up') else 'down'}")
+    except Exception as e:                                   # noqa: BLE001
+        doc["fc"] = {"err": f"{type(e).__name__}: {e}"}
+        print("graded forecast failed:", doc["fc"]["err"])
     if key is None:
         print("graded: no SITE_PASSWORD - nothing written")
         return doc, trends

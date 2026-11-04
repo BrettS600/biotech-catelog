@@ -623,5 +623,20 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
 .gblank { margin:4px 18px 28px; min-height:55vh; border:2px dashed var(--line); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:24px; text-align:center; color:var(--muted); }
 .gblank strong { color:var(--fg); font-size:18px; }
 #p-fc:not(.graded) #meta-fcg, #p-fc:not(.graded) #fc-graded, #p-fc:not(.graded) #npl-g,
-#p-fc.graded #meta-fc, #p-fc.graded #fc-al, #p-fc.graded #npl, #p-fc.graded .fc-unfold, #p-fc.graded .fc-tools,
+#p-fc.graded #meta-fc, #p-fc.graded #fc-al, #p-fc.graded #npl, #p-fc.graded #fc-unfold, #p-fc.graded .fc-tools,
 #p-fh:not(.graded) #meta-fhg, #p-fh:not(.graded) #fh-graded, #p-fh.graded #meta-fh, #p-fh.graded > .fh { display:none !important; }
+
+/* Graded cards > Forecasting (2026-11-04): shown on that page only; the two-line CL / PC cells; the buys in bold */
+#p-fc:not(.graded) #fcg, #p-fc.gpl #fcg, #p-fc.graded:not(.gpl) #fc-graded { display:none !important; }
+.al.fc.folded #fcg-side { display:none; }
+#fcg-main { min-width:0; }
+#fcg .wrap { overflow:auto; max-height:calc(100vh - 90px); border:1px solid var(--line); border-radius:8px; }
+#fcg-main .fc-unfold { float:right; }
+.fcg-gmode { padding:4px 0 8px; }
+#fcg .controls, #fcg .ranges { padding-left:0; padding-right:0; }
+td.fcg2 > span { display:block; white-space:nowrap; line-height:1.35; }
+td.fcg2 i { font-style:normal; font-size:10px; color:var(--muted); margin-right:4px; }
+tr.fcg-buy > td { font-weight:600; }
+button.gplb { font:inherit; font-size:15px; font-weight:700; line-height:1; width:22px; height:22px; padding:0; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--muted); cursor:pointer; }
+button.gplb:hover { color:var(--fg); border-color:var(--link); }
+button.gplb.on { background:var(--up); border-color:var(--up); color:#fff; }

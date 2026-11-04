@@ -569,6 +569,59 @@
   </div>
 </div>
 <div class="gblank" id="fc-graded"><strong id="fcg-t">Graded forecasting</strong><span id="fcg-s">Blank for now.</span></div>
+<!-- Graded cards > Forecasting (2026-11-04, Brett): every graded row assumed for sale, the raw model's method on PriceCharting's graded lines (page/graded_fc.js) -->
+<div class="al fc" id="fcg">
+  <div class="al-card" id="fcg-side">
+    <h3>Your plan<button type="button" class="fc-fold" id="fcg-fold" title="Hide the inputs so the table has the whole width (the summary shows a button to bring them back)">&#9666; Hide</button></h3>
+    <div class="al-row"><span class="lab">Capital to spend<button class="help" data-h="fcg_cap">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-cap" min="0" step="50" value="1000"></span></div>
+    <div class="al-row"><span class="lab">Hold for<button class="help" data-h="fcg_hold">?</button></span><span><select id="fcg-h"><option value="1">1 month</option><option value="2">2 months</option><option value="3" selected>3 months</option><option value="4">4 months</option><option value="5">5 months</option><option value="6">6 months</option></select></span></div>
+    <div class="al-row"><span class="lab">I buy at<button class="help" data-h="fcg_disc">?</button></span><span><input type="number" id="fcg-disc" min="0" max="60" step="0.1" value="14.1"><span class="unit">%</span><span class="dim"> Under The Standard Grade Price</span></span></div>
+    <div class="al-row"><span class="lab">eBay Shipping Fee<button class="help" data-h="fcg_ship">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-ship" min="0" step="0.1" value="5.2"></span></div>
+    <div class="al-row"><span class="lab">Card price between<button class="help" data-h="fcg_price">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-pmin" min="0" step="5" value="50"> <span class="dim">and</span> <span class="unit">$</span><input type="number" id="fcg-pmax" min="0" step="50" value="5000"></span></div>
+    <div class="al-row"><span class="lab">At most per card<button class="help" data-h="fcg_share">?</button></span><span><input type="number" id="fcg-share" min="5" max="100" step="5" value="20"><span class="unit">%</span><span class="dim"> of the capital</span></span></div>
+    <div class="al-row"><span class="lab">Buy only at<button class="help" data-h="fcg_conf">?</button></span><span><input type="number" id="fcg-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span><span class="dim"> or better chance of a profit</span></span></div>
+    <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fcg_copies">?</button></span><span><input type="number" id="fcg-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
+    <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is rising<button class="help" data-h="fcg_gate">?</button></label>
+    <h3>The market now<button class="help" data-h="fcg_regime">?</button></h3>
+    <div class="al-now" id="fcg-regime">Waiting for the graded data&hellip;</div>
+  </div>
+  <div class="al-card" id="fcg-main">
+    <button type="button" class="actbtn fc-unfold" id="fcg-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <h3>What to buy<button class="help" data-h="fcg_picks">?</button></h3>
+    <div id="fcg-summary" class="al-now"></div>
+    <div class="gmode fcg-gmode" id="fcg-gmode"><button type="button" class="gm2" id="fcg-gm-grades" title="Which grades and graders to list (this page's own ticks)">Grading <span id="fcg-gm-gn"></span> &#9662;</button><span class="gterms" id="fcg-gm-terms" hidden></span></div>
+    <div class="controls">
+      <input type="search" id="q-fcg" placeholder="Search card, set or grade&hellip; (e.g. charizard psa 10)">
+      <select id="set-fcg"><option value="">All sets (release order)</option></select>
+      <span class="count" id="count-fcg"></span>
+    </div>
+    <div class="ranges" id="ranges-fcg">
+      <button class="reset" id="reset-fcg">Reset filters</button>
+    </div>
+    <div class="wrap">
+<table class="wide gtable fcgt">
+  <thead><tr>
+    <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts the card on the Favorites tab">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th data-k="fcPl">+<span class="s">⇅</span><button class="help" data-h="fcg_plan">?</button></th>
+    <th data-k="42">Flag<span class="s">⇅</span><button class="help" data-h="g_flag">?</button></th>
+    <th>Review<button class="help" data-h="g_review">?</button></th>
+    <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="fcg_name">?</button></th>
+    <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="fcg_grade">?</button></th>
+    <th data-k="fcS" class="num">Standard Price<span class="s">⇅</span><button class="help" data-h="fcg_std">?</button></th>
+    <th data-k="fcB" class="num">Buy Price<span class="s">⇅</span><button class="help" data-h="fcg_buy">?</button></th>
+    <th data-k="16" class="num">Sold (last month)<span class="s">⇅</span><button class="help" data-h="fcg_sold">?</button></th>
+    <th data-k="fcP" class="num">Chance<span class="s">⇅</span><button class="help" data-h="fcg_chance">?</button></th>
+    <th data-k="fcQ" class="num">Buy<span class="s">⇅</span><button class="help" data-h="fcg_qty">?</button></th>
+    <th data-k="fcN" class="num">Net<span class="s">⇅</span><button class="help" data-h="fcg_net">?</button></th>
+    <th data-k="fcR" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="fcg_roi">?</button></th>
+  </tr></thead>
+  <tbody id="rows-fcg"></tbody>
+</table>
+    </div>
+    <button class="more" id="more-fcg" hidden>Show more</button>
+  </div>
+</div>
 </section>
 
 <section class="panel" id="p-fh" hidden>
