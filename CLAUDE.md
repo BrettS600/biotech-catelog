@@ -2126,6 +2126,26 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   in the tip). With Log on: log of the ratio. gtLogTicks falls back to round linear steps when a range is too narrow.
   A card answered Not the same card draws no Card Ladder lines in its Trend (grOpenTrend empties curTr.cl; the cache keeps
   them for a later Same card) and the Trend's header says Card Ladder: no match - it drew the rejected page's lines before.
+- THE $50 CARDS AND THE NEW CARD LADDER ORDER (2026-11-03 evening, Brett: "only look for cards $50 to max"; "prioritize
+  all cards with more than 10 sales last month, starting the highest price and ending with the lowest price ($50). then
+  all other cards within the price range ... just do highest sales in the last month"; group 3 "by PriceCharting's PSA 10
+  price, highest first"; "typical price ... basically price charts estimated value"; "last month, rather than last 30
+  days"; rebuild weekly). SITE: graded_site.py MIN_CARD_VALUE 50 - a card is listed when the highest PriceCharting value
+  of any of its grades (row x[2], else x[18][0]) is $50+, every grade of it then stays; applied after write_card_data
+  (match_checks keeps every answer). Live 2026-11-03: 22,184 of 39,997 cards. RUN ORDER (eligible = that same rule, not
+  read / no match yet): group 1 = more than 10 PSA + CGC PriceCharting sales last calendar month (the site's PC sales
+  (last mo), every grade) by the highest grade value; group 2 = 1-10 sales by sales count (ties: the old rank); group 3 =
+  no sales by the PSA 10 value. 165 / 9,575 / 8,943 cards. Computed in the site page (Brett's Chrome) and written into the
+  two tabs' localStorage by hand that evening, as rank KEYS that keep that order: group 1 = 1000 + position, group 2 =
+  1e6 + (10 - sales) * 1e5 + old rank, group 3 = 2e6 + position. The Card Ladder tab sorts ready by r every loop
+  (cl_tab.js), and the PriceCharting tab hands each card over with its pcq rank, so the keys order everything. CL tab:
+  clr-cl.ready re-keyed (4,919 kept; old rank in r0; 160 cards under $50 dropped -> clr-cl-dropped-20261103; whole old
+  state clr-cl-backup-20261103). PC tab: clr-pcq = 4,866 cards (groups 1 and 2 not scanned yet, plus the 50 cards of last
+  night's unacknowledged hand-off, re-scanned), qi 0; old list clr-pcq-backup-20261103 / clr-pc-backup-20261103. NOT DONE
+  YET: group 3's 8,848 unscanned cards are not in the PC tab's list (it says "queue finished" after ~2 nights); the weekly
+  rebuild (card-data make_queue with these rules + a way for the tabs to load a new list without a hand copy);
+  data/cardladder/queue.csv still holds the old order (progress.md's "group 1 left" and the old c.qr ranks follow it - the
+  CL Status tip no longer quotes the old line number).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

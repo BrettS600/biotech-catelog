@@ -541,6 +541,23 @@ def load_pop(cd, ids):
 # for busy cards, a month at most)
 LOW_FROM = "2026-11-04"
 
+# Only cards worth $50+ are listed (2026-11-03, Brett: "remove pc psa10 cards below $50. if card is a lower than $50
+# because it is a lower grade then the one above $50 then we can keep it"): a card stays when the highest PriceCharting
+# value of any of its PSA / CGC grades (the row's price today, else last month's) is MIN_CARD_VALUE or more - almost always
+# its PSA 10 - and then every grade of it stays, the cheap ones too. Nothing is deleted: card-data keeps everything, and
+# the learning data (match_checks.csv) is written before the filter. The Card Ladder run reads only these cards.
+MIN_CARD_VALUE = 50.0
+
+
+def card_values(rows):
+    """{card id: the highest PriceCharting value of its graded rows} (x[2] the price today, else x[18][0] last month's)."""
+    val = {}
+    for x in rows:
+        v = x[2] if x[2] is not None else (x[18] or [None])[0]
+        if v is not None and v > val.get(x[0], -1):
+            val[x[0]] = v
+    return val
+
 
 def low_grade(k):
     m = re.search(r"\|g(\d+)", k or "")
@@ -1012,6 +1029,13 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
           else f"fixed: {mcfit['n']} card answers so far, {MC_FIT_MIN} needed with {MC_FIT_EACH}+ of each") + ")")
     key = hist_key(pw) if pw else None
     write_card_data(cd, tally, checks, today, cards)
+    val = card_values(rows)                                 # the $50 rule (MIN_CARD_VALUE): cheaper cards are not listed
+    keep = {cid for cid, v in val.items() if v >= MIN_CARD_VALUE}
+    n_before = len(cards)
+    rows = [x for x in rows if x[0] in keep]
+    cards = {k: v for k, v in cards.items() if int(k) in keep}
+    trends = {cid: tr for cid, tr in trends.items() if cid in keep}
+    print(f"graded: {len(cards):,} of {n_before:,} cards worth ${MIN_CARD_VALUE:.0f}+ on PriceCharting (any grade) are listed")
     doc = {"v": 2, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
            "markt": max((m["t"] for m in marks.values()), default=0), "mcfit": mcfit,

@@ -126,10 +126,9 @@ const GR_CLS_WORD = {read: 'read', pending: 'pending', nomatch: 'no match'};
 // where the Card Ladder run is with the card (graded_site.py cards[id].cls / .qr): the CL Status cell and the CL cells' word
 function grClsTip(c, w, cid) {
   if (w === 'no match' && cid != null && grMatchV(cid) === 0) return 'You answered Not the same card: Card Ladder’s page (' + ((c && c.pid) || 'its page') + ') is not this card, so the Card Ladder side says no match. Review still shows that page - answer Same card there to bring it back.';
-  const q = c && c.qr ? '#' + c.qr.toLocaleString('en-US') + ' in the Card Ladder run’s line' : 'not in the Card Ladder run’s line';
-  if (w === 'pending') return 'Card Ladder not read for this card yet: ' + q + ' (it reads about 1,300 cards a night, 8 pm–7 am Eastern, the $50–$2,000 PSA / CGC cards first, the most sales last month first). Its CL columns fill in after that night’s run.';
+  if (w === 'pending') return 'Card Ladder not read for this card yet: it is in the Card Ladder run’s list (up to 900 cards a night, 8 pm–7 am Eastern): first cards with more than 10 PSA / CGC sales last month, highest PriceCharting value first; then the rest that sold last month, most sales first; then those with no sales last month, highest PSA 10 value first. Its CL columns fill in after the night it is read.';
   if (w === 'no match') return 'The Card Ladder run looked and found no Card Ladder page for this card: no PSA / CGC cert in PriceCharting’s sold-listing photos, or no cert led to a page (other than one you answered Not the same card). Its CL columns say none.';
-  return 'Card Ladder’s page for this card has been read' + (c && c.read ? ' (' + c.read + ')' : '') + (c && c.qr ? ' · ' + q : '') + '.';
+  return 'Card Ladder’s page for this card has been read' + (c && c.read ? ' (' + c.read + ')' : '') + '.';
 }
 // the two sides' grades are the same grade ('CGC 10 PRISTINE' = 'CGC 10 Pristine'); 'Grade 9 (any grader)' is not 'PSA 9'
 function grSameGrade(a, b) { const n = v => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase(); return !!a && !!b && n(a) === n(b); }
