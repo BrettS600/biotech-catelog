@@ -2146,6 +2146,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   rebuild (card-data make_queue with these rules + a way for the tabs to load a new list without a hand copy);
   data/cardladder/queue.csv still holds the old order (progress.md's "group 1 left" and the old c.qr ranks follow it - the
   CL Status tip no longer quotes the old line number).
+- THE FORECAST TAB'S FOUR PAGES, FORECAST HISTORY'S TWO (2026-11-04, Brett: "the forecasting and planning options should
+  subordinate one of two categories raw card or graded card. each of the four options should have their own page"; "by
+  page, i dont mean pane ... i want it to take up the whole screen"; the raw pages "just make sure to keep it the same. i
+  dont want it looking different"; "for the forecast history tab, i want to be able to switch between raw cards and
+  graded cards. for the graded cards, you can keep it blank"). A first row (Raw cards / Graded cards, .kindbar / .kb in
+  style.css, #fc-kind and #fh-kind in body.html) sits on top of each tab; the Forecasting / Planning buttons stay where
+  they were (#fc-modes in the bar). Raw = the tab exactly as before (nothing in it moved). Graded = #p-fc.graded /
+  #p-fh.graded: the raw parts are hidden by CSS (meta-fc, fc-al, the bar's tools, #npl; meta-fh, .fh) and a blank
+  (.gblank #fc-graded / #fh-graded) shows. app.js NAV (declared beside TAB_HASH, ahead of FC, because the address is
+  read at load): fc raw|graded, rm = the raw Forecasting/Planning (FC.mode = NAV.rm; localStorage fc-mode as before), gm
+  = the graded one (fc-gmode), fh (fh-kind). Addresses #forecast/<raw|graded>/<forecasting|planning> and
+  #forecast-history/<raw|graded> (replaceState like the other tabs; a bare #forecast opens the page used last). Help:
+  fc_kind; a paragraph in the fc and fh READMEs. The graded pages are blank until Brett approves what they should do.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

@@ -608,3 +608,20 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .gtsearch { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
   .gtsearch input[type=search] { flex:1 1 220px; min-width:0; font:inherit; font-size:14px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
   table.gtable td:first-child + td + td b { font-weight:600; }
+
+/* Raw cards / Graded cards (2026-11-04, Brett: "the forecasting and planning options should subordinate one of two
+   categories raw card or graded card. each of the four options should have their own page"; "for the forecast history
+   tab, i want to be able to switch between raw cards and graded cards"): the first row of the Forecast and Forecast
+   History tabs. The raw side is each tab exactly as it was; the graded side is blank for now. */
+.kindbar { display:flex; align-items:center; gap:6px; padding:0 18px; border-bottom:1px solid var(--line); }
+.kb { font:inherit; font-size:15px; font-weight:650; padding:11px 14px 9px; border:0; border-bottom:3px solid transparent; margin-bottom:-1px; background:none; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+.kb:hover { color:var(--fg); }
+.kb.on { color:var(--fg); border-bottom-color:var(--link); }
+.kic { display:inline-block; width:11px; height:15px; border:1.6px solid currentColor; border-radius:2px; position:relative; flex:none; }
+.kic.slab { width:12px; height:16px; border-radius:3px; }
+.kic.slab::after { content:""; position:absolute; left:1px; right:1px; top:2px; height:3px; background:currentColor; border-radius:1px; }
+.gblank { margin:4px 18px 28px; min-height:55vh; border:2px dashed var(--line); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:24px; text-align:center; color:var(--muted); }
+.gblank strong { color:var(--fg); font-size:18px; }
+#p-fc:not(.graded) #meta-fcg, #p-fc:not(.graded) #fc-graded, #p-fc:not(.graded) #npl-g,
+#p-fc.graded #meta-fc, #p-fc.graded #fc-al, #p-fc.graded #npl, #p-fc.graded .fc-unfold, #p-fc.graded .fc-tools,
+#p-fh:not(.graded) #meta-fhg, #p-fh:not(.graded) #fh-graded, #p-fh.graded #meta-fh, #p-fh.graded > .fh { display:none !important; }

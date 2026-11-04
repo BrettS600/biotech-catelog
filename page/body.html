@@ -511,6 +511,8 @@
 <!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
 <!-- ============ Tab: Forecast (Brett, 2026-10-17: capital in, cards + quantities + net profit range + confidence out) ============ -->
 <section class="panel" id="p-fc" hidden>
+<div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting and Planning as they were"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): blank for now"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
+<div class="meta" id="meta-fcg">Forecast &middot; graded cards (PSA and CGC)</div>
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
 <div class="actbar fc-bar">
   <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
@@ -566,11 +568,15 @@
     <div class="al-status" id="pl-status"></div>
   </div>
 </div>
+<div class="gblank" id="fc-graded"><strong id="fcg-t">Graded forecasting</strong><span id="fcg-s">Blank for now.</span></div>
 </section>
 
 <section class="panel" id="p-fh" hidden>
+<div class="kindbar" id="fh-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: the Forecast tab’s record, as it was"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): blank for now"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
 <div class="meta" id="meta-fh">Forecast History &middot; the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
+<div class="meta" id="meta-fhg">Forecast History &middot; graded cards (PSA and CGC)</div>
 <div class="fc fh"><div class="al-card fh-card" id="fh-body"></div></div>
+<div class="gblank" id="fh-graded"><strong>Graded forecast history</strong><span>Blank for now. The graded forecasts’ month-by-month record goes here once graded forecasting is built.</span></div>
 </section>
 <section class="panel" id="p-al" hidden>
 <div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes on the eBay Raw Data tab only change what the tables show.</div>

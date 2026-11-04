@@ -1518,17 +1518,64 @@ window.addEventListener('scroll', () => {
 
 /* ---------------- Tabs ---------------- */
 const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', fc: 'forecast', fh: 'forecast-history', al: 'alerts', rv: 'revenue', fv: 'favorites'};      // default (no hash) = PriceCharting
+/* Raw cards / Graded cards (2026-11-04, Brett: "the forecasting and planning options should subordinate one of two
+   categories raw card or graded card. each of the four options should have their own page"; "i want it to take up the
+   whole screen"; "for the forecast history tab, i want to be able to switch between raw cards and graded cards. for
+   the graded cards, you can keep it blank"). The Forecast tab is four pages - Raw or Graded, then Forecasting or
+   Planning - and Forecast History two, each with its own address (#forecast/raw/planning, #forecast-history/graded), so
+   a refresh or a bookmark opens that page; each tab reopens on the page used last (this browser). The raw pages are
+   the tabs exactly as they were; the graded ones are blank for now. NAV is declared here, ahead of FC, because the
+   address is read at load: rm = the raw side's Forecasting / Planning (FC.mode follows it), gm = the graded side's. */
+$('npl').insertAdjacentHTML('afterend', '<span class="n" id="npl-g">0</span>');   // the graded side's plan count (none yet)
+const NAV = (() => { const g = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  return {fc: g('fc-kind') === 'graded' ? 'graded' : 'raw', rm: g('fc-mode') === 'pl' ? 'pl' : 'fc', gm: g('fc-gmode') === 'pl' ? 'pl' : 'fc', fh: g('fh-kind') === 'graded' ? 'graded' : 'raw'}; })();
+function navSave() { try { localStorage.setItem('fc-kind', NAV.fc); localStorage.setItem('fc-mode', NAV.rm); localStorage.setItem('fc-gmode', NAV.gm); localStorage.setItem('fh-kind', NAV.fh); } catch (e) {} }
+const navMode = () => NAV.fc === 'graded' ? NAV.gm : NAV.rm;   // the Forecasting / Planning button lit on the Forecast tab
+function navHash(id) {
+  if (id === 'fc') return 'forecast/' + NAV.fc + '/' + (navMode() === 'pl' ? 'planning' : 'forecasting');
+  if (id === 'fh') return 'forecast-history/' + NAV.fh;
+  return TAB_HASH[id];
+}
+function navApply() {                                     // the two Raw / Graded rows, the lit Forecasting / Planning button, the graded blanks
+  $('p-fc').classList.toggle('graded', NAV.fc === 'graded'); $('p-fh').classList.toggle('graded', NAV.fh === 'graded');
+  document.querySelectorAll('#fc-kind .kb').forEach(b => b.classList.toggle('on', b.dataset.k === NAV.fc));
+  document.querySelectorAll('#fh-kind .kb').forEach(b => b.classList.toggle('on', b.dataset.k === NAV.fh));
+  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === navMode()));
+  $('fcg-t').textContent = NAV.gm === 'pl' ? 'Graded planning' : 'Graded forecasting';
+  $('fcg-s').textContent = NAV.gm === 'pl' ? 'Blank for now. Graded plans will be listed here, separate from your raw plans.' : 'Blank for now. Its settings and picks go here once the graded forecast is designed.';
+}
+function navAddr() {                                      // the address follows the page showing
+  const p = document.querySelector('.panel:not([hidden])'), id = p && p.id.slice(2);
+  if (id === 'fc' || id === 'fh') history.replaceState(null, '', location.pathname + location.search + '#' + navHash(id));
+}
+(() => {                                                  // an address that names a page opens it, and it becomes the one remembered
+  const h = location.hash.slice(1).split('/');
+  if (h[0] === 'forecast' && (h[1] === 'raw' || h[1] === 'graded')) {
+    NAV.fc = h[1]; if (h[2] === 'planning' || h[2] === 'forecasting') NAV[h[1] === 'raw' ? 'rm' : 'gm'] = h[2] === 'planning' ? 'pl' : 'fc'; navSave();
+  }
+  if (h[0] === 'forecast-history' && (h[1] === 'raw' || h[1] === 'graded')) { NAV.fh = h[1]; navSave(); }
+})();
+navApply();
+$('fc-kind').addEventListener('click', e => {
+  const b = e.target.closest('.kb'); if (!b || b.dataset.k === NAV.fc) return;
+  NAV.fc = b.dataset.k === 'graded' ? 'graded' : 'raw'; navSave(); navApply(); navAddr();
+  if (NAV.fc === 'raw' && FC.mode === 'pl') plRender();   // the raw plan may have changed while the graded page showed
+});
+$('fh-kind').addEventListener('click', e => {
+  const b = e.target.closest('.kb'); if (!b || b.dataset.k === NAV.fh) return;
+  NAV.fh = b.dataset.k === 'graded' ? 'graded' : 'raw'; navSave(); navApply(); navAddr();
+});
 function showTab(id) {
   if (!TABLES[id] && id !== 'al' && id !== 'fc' && id !== 'fv' && id !== 'fh') id = 'pc';
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === id));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + id; });
   if (id === 'fv') fvRender();                           // the Favorites tab draws its view from the stars as they stand now
   if (id === 'fh') setTimeout(() => { if (FH.doc) fhRender(); else loadForecastHist(); }, 0);   // the Forecast history tab: the replay file is read on first sight (deferred: at load, with #forecast-history in the address, FH is declared further down)
-  history.replaceState(null, '', location.pathname + location.search + (TAB_HASH[id] ? '#' + TAB_HASH[id] : ''));
+  history.replaceState(null, '', location.pathname + location.search + (navHash(id) ? '#' + navHash(id) : ''));   // the Forecast tabs add their page (NAV)
   auMode();                                             // the top boxes are out of play only while Raw Data shows auctions
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
-showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1)) || 'pc');
+showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1).split('/')[0]) || 'pc');
 
 /* ---------------- eBay live data ----------------
    ebay_sweep.py publishes live/ebay_live.bin (AES-GCM, same key as the history shards) to the
@@ -2896,7 +2943,7 @@ document.querySelectorAll('#ebpts .zb').forEach(b => b.addEventListener('click',
    which scores them with PriceCharting's prices when the hold is up (live.forecasts), so the record below says
    how the forecasts have done. The research behind it is in the README (Forecast tab) and CLAUDE.md. */
 const FC = {doc: null, err: null, rows: [], picks: [], mc: null, loaded: 0, mode: 'fc'};   // mode: 'fc' Forecasting / 'pl' Planning (2026-10-24)
-try { if (localStorage.getItem('fc-mode') === 'pl') FC.mode = 'pl'; } catch (e) {}
+FC.mode = NAV.rm;                                        // the raw side's Forecasting / Planning, remembered (or named by the address) - see NAV
 const FC_MIN_VOL12 = 6;                                  // a card needs six sales in its last twelve PriceCharting months
 const FC_BO_HAIRCUT = 0.90;                              // a Best Offer copy counts at 90% of its ask (ebay_sweep.BO_HAIRCUT); an LP copy at its NM-equivalent (the card's lpd)
 /* Supply (2026-10-25, Brett: "if it says 3, then it shows 3 listings, with the one closest to 20% under ... as 1 of the 3,
@@ -3368,11 +3415,15 @@ $('fcl-mode').addEventListener('click', e => {
   fclModeRender(); tables.fcl.apply();
 });
 function fcModeApply() {                                 // Forecasting shows the model's picks; Planning the listings he added
-  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === FC.mode));
+  document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === navMode()));
   $('fc-main').hidden = FC.mode !== 'fc'; $('fc-plan').hidden = FC.mode !== 'pl';
   if (FC.mode === 'pl') plRender();
 }
-$('fc-modes').addEventListener('click', e => { const b = e.target.closest('.fvchip'); if (!b) return; FC.mode = b.dataset.m === 'pl' ? 'pl' : 'fc'; try { localStorage.setItem('fc-mode', FC.mode); } catch (x) {} fcModeApply(); });
+$('fc-modes').addEventListener('click', e => {
+  const b = e.target.closest('.fvchip'); if (!b) return; const m = b.dataset.m === 'pl' ? 'pl' : 'fc';
+  if (NAV.fc === 'graded') { NAV.gm = m; navSave(); navApply(); navAddr(); return; }   // the graded pages: blank for now
+  FC.mode = NAV.rm = m; navSave(); fcModeApply(); navAddr();
+});
 fcModeApply();
 /* The inputs card folds away (2026-10-24, Brett: "have the your plans variable pane, on the left ... collapsible, so that
    the other side ... will enlarge, so that way, i dont have to right scroll to the right to see all of the column. do
