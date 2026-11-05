@@ -1621,8 +1621,10 @@ def read_requests(state, cat=None, cards=None):
                 pass
         elif msg.get("type") == "forecast":
             forecast_record(v, msg, t)
-        elif msg.get("type") in ("gplan", "gplan_del"):             # the Forecast tab's Graded > Planning: Record plan (2026-11-04)
+        elif msg.get("type") in ("gplan", "gplan_del"):             # the Forecast tab's Graded > Purchases: Record Purchases (2026-11-04)
             gplan_record(v, msg, t)
+        elif msg.get("type") in ("gspot", "gspot_del"):             # Graded > Forecasting / Recording: Add to Pre-Sales Spotcheck (2026-11-05)
+            gplan_record(v, msg, t, "gspot")
         elif msg.get("type") == "read" and msg.get("i"):            # Review pressed on a listing with an incomplete eBay record
             q = v.setdefault("site_read_q", [])
             if str(msg["i"])[:60] not in q:
@@ -1759,27 +1761,31 @@ GPLAN_KEEP = 100                 # recorded plans kept (newest)
 GPLAN_SLABS = 300                # slabs kept per plan at most
 
 
-def gplan_record(v, msg, t):
-    """A graded plan recorded on the Forecast tab (Graded cards > Planning): the slabs Brett marked purchased at a card
+def gplan_record(v, msg, t, kind="gplan"):
+    """A graded plan recorded on the Forecast tab (Graded cards > Purchases): the slabs Brett marked purchased at a card
     show, with the settings of the moment. Sent in parts (the channel carries about 4 KB a message): {type: 'gplan', t,
     id (the plan's time, the same in every part), k (this part), n (the parts), s: [[card id, grade key, % under x 1000,
     PC standard, CL standard, paid, chance x 10, expected net, rank x 1000], ...]}; part 0 also carries h (the hold),
     cap, disc, ship, fee, month, reg, spent, model, smp (1: sample slabs among them) and holds: [[expected, low, high,
     chance] for holds 1..6]. A plan is filed once all its parts are in. {type: 'gplan_del', t, id} removes one. The page
-    scores them (PriceCharting's price when each hold is up)."""
-    recs = v.setdefault("gplans", [])
+    scores them (PriceCharting's price when each hold is up).
+    kind "gspot" (2026-11-05): a Pre-Sales Spotcheck set - the green rows of Graded Forecasting or Recording sent with
+    "Add to Pre-Sales Spotcheck", the same shape (the buy price for paid, no holds) plus src ('fc' / 'rc'), minp (the
+    chance bar) and gate; kept in v["gspots"], shown on History > Pre-Sales Spotcheck, which looks each slab back."""
+    recs = v.setdefault(kind + "s", [])
     try:
         pid = int(msg.get("id") or 0)
     except (TypeError, ValueError):
         return
     if not pid:
         return
-    if msg.get("type") == "gplan_del":
+    what = "Spotcheck set" if kind == "gspot" else "Graded plan"
+    if msg.get("type") == kind + "_del":
         n0 = len(recs)
         recs[:] = [r for r in recs if r.get("id") != pid]
         if len(recs) != n0:
-            v["gplan_t"] = t
-            log(f"Graded plan removed ({pid})")
+            v[kind + "_t"] = t
+            log(f"{what} removed ({pid})")
         return
     try:
         k, n = int(msg.get("k") or 0), max(1, min(20, int(msg.get("n") or 1)))
@@ -1796,9 +1802,11 @@ def gplan_record(v, msg, t):
                     "disc": round(float(msg.get("disc") or 0), 4), "ship": round(float(msg.get("ship") or 0), 2), "fee": round(float(msg.get("fee") or 0), 4),
                     "month": str(msg.get("month") or "")[:7], "reg": str(msg.get("reg") or "")[:8], "spent": round(float(msg.get("spent") or 0), 2),
                     "model": str(msg.get("model") or "")[:80], "smp": 1 if msg.get("smp") else 0, "holds": holds}
+            if kind == "gspot":
+                head.update({"src": str(msg.get("src") or "")[:4], "minp": round(float(msg.get("minp") or 0), 3), "gate": 1 if msg.get("gate") else 0})
     except (TypeError, ValueError, KeyError, IndexError):
         return
-    parts = v.setdefault("gplan_parts", {})
+    parts = v.setdefault(kind + "_parts", {})
     for key in [x for x, p in parts.items() if t - p.get("got", t) > 2 * 86400 * 1000]:   # a plan whose parts never all came
         del parts[key]
     p = parts.setdefault(str(pid), {"got": t, "n": n, "parts": {}})
@@ -1810,8 +1818,8 @@ def gplan_record(v, msg, t):
     del parts[str(pid)]
     recs[:] = [r for r in recs if r.get("id") != pid] + [rec]
     del recs[:-GPLAN_KEEP]
-    v["gplan_t"] = t
-    log(f"Graded plan recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f} spent, hold {rec['h']} month(s)")
+    v[kind + "_t"] = t
+    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)")
 
 
 def forecast_score(v, cat, cards=None):
@@ -3828,7 +3836,8 @@ def cycle(state, cat, sched, counters):
     live["help"] = {"t": v.get("help_t", 0), "v": v.get("help") or {}}   # descriptions and READMEs he rewrote on the site
     forecast_score(v, cat, cards)
     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
-    live["gplans"] = {"t": v.get("gplan_t", 0), "recs": v.get("gplans") or []}   # Graded > Planning's recorded plans (Graded Forecast History)
+    live["gplans"] = {"t": v.get("gplan_t", 0), "recs": v.get("gplans") or []}   # Graded > Purchases' recorded purchases (Graded Forecast History)
+    live["gspots"] = {"t": v.get("gspot_t", 0), "recs": v.get("gspots") or []}   # the Pre-Sales Spotcheck sets (History > Pre-Sales Spotcheck)
     try:
         fc_auto_tick(state, cat, cards, live.get("band") or es.TAB_PRICE)
     except Exception as e:
@@ -3844,7 +3853,7 @@ def cycle(state, cat, sched, counters):
     # 5. publish, when something changed (or every 10 min regardless, so the "as of" time keeps moving)
     sig = (len(state["open"]), len(state["closed"]), counters["matched"], counters["repriced"], counters["confirm_sold"],
            v.get("alert_t", 0), v.get("test_t", 0), v.get("help_t", 0), v.get("mark_t", 0), v.get("review_t", 0), v.get("cond_t", 0), v.get("flag_t", 0), v.get("forecast_t", 0),
-           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0), v.get("gmark_t", 0), v.get("gplan_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
+           v.get("read_t", 0), v.get("fav_t", 0), v.get("fc_auto_t", 0), v.get("plan_t", 0), v.get("gmark_t", 0), v.get("gplan_t", 0), v.get("gspot_t", 0))   # a change on the Alerts tab, a listing read for the Review screen, a star or a plan click is published at once
     changed = sig != v.get("pub_sig") or urgent > 0
     if due("publish", PUBLISH_EVERY_S) and (changed or t - sched.get("published", 0) >= 600):
         sched["published"] = t

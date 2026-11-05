@@ -94,8 +94,22 @@ function fcgRows() {
     out.push(fcgCalc(r, pc, cl, I.disc, I.ship, D, I, fee));
   }
   out.sort(fcgOrder);
+  fcgPlaces(out);
   FCG.rows = out; FCG.src = GR.rows; FCG.key = key; FCG.I = I; FCG.fee = fee; FCG.be = be;
   return out;
+}
+/* Best to Buy and Best Chance (2026-11-05, Brett: "a best chance, and best to buy togglable and sortable column in recording
+   and forcasting"): rows in buy order -> fcBB, the place in that order (Chance to the whole percent, then the deeper dip,
+   then the higher price: the order the money goes in); fcBC, the place by Chance alone, ties sharing it (fcBCn = how many
+   share that chance). Over every row of the page (not the filters), so a slab keeps its number while you filter; only
+   slabs with a chance get one. Neither depends on the capital, the share, the copies, the bar or the gate. */
+function fcgPlaces(rows) {
+  const sc = rows.filter(r => r.fcP != null), cnt = new Map();
+  sc.forEach(r => { const k = Math.round(r.fcP); cnt.set(k, (cnt.get(k) || 0) + 1); });
+  let place = 0, prev = null;
+  sc.forEach((r, i) => { const k = Math.round(r.fcP); r.fcBB = i + 1; if (k !== prev) { place = i + 1; prev = k; } r.fcBC = place; r.fcBCn = cnt.get(k); });
+  rows.forEach(r => { if (r.fcP == null) { r.fcBB = null; r.fcBC = null; r.fcBCn = 0; } });
+  return sc.length;
 }
 // the plan: best chance first among the rows on view, up to the per-card share, the copies and the capital
 function fcgAllocate(view) {
@@ -138,7 +152,7 @@ function fcgSummary() {
   s += '<div class="stats fc-stats">' +
     '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + (mc ? fcMoney(mc.mean) + (FCG.spent > 0 ? ' <span class="fc-roi ' + (mc.mean < 0 ? 'down' : 'up') + '">' + fcgPct(mc.mean / FCG.spent) + '</span>' : '') : '-') + '</div><div class="d">average of the basket, after fees and shipping</div></div>' +
     '<div class="stat"><div class="k">Likely range</div><div class="v">' + (mc ? fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) : '-') + '</div><div class="d">10th to 90th percentile' + (mc ? '; median ' + fcMoney(mc.med) : '') + '</div></div>' +
-    '<div class="stat"><div class="k">Chance of a profit</div><div class="v">' + (mc ? (mc.p * 100).toFixed(0) + '%' : '-') + '</div><div class="d">P(basket net &gt; 0), bought ' + fcgDiscWord(I.disc) + ' under</div></div>' +
+    '<div class="stat"><div class="k">Chance the plan profits<button class="help" data-h="fcg_mc">?</button></div><div class="v">' + (mc ? (mc.p * 100).toFixed(0) + '%' : '-') + '</div><div class="d">the green slabs together, bought ' + fcgDiscWord(I.disc) + ' under</div></div>' +
     '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (FCG.fee * 100).toFixed(1) + '% + ' + fmtMoneyPlain(I.ship) + '</div><div class="d">eBay’s fee and your eBay Shipping Fee (in the buy price)</div></div></div>';
   box.innerHTML = s;
 }
@@ -164,9 +178,9 @@ function fcgMeta() {
   const m = $('meta-fcg'); if (!m) return;
   const D = fcgDoc();
   const md = typeof fcgMode === 'function' ? fcgMode() : 'fc';
-  m.textContent = md === 'rc' ? 'Forecast · graded cards (PSA and CGC) · Recording: the slabs you recorded at a card show, best chance first - green: buy it with the capital left; Yes: you bought it at its buy price; No: the vendor wanted more'
-    : md === 'pl' ? 'Forecast · graded cards (PSA and CGC) · Planning: the slabs you bought (marked Yes on Recording), what you paid and what they are expected to make; Record plan keeps them on History'
-    : md === 'hi' ? 'Forecast · graded cards (PSA and CGC) · History: Graded Forecasting’s plan run on every month since 2022 with only what was known then, and the plans you recorded on Planning'
+  m.textContent = md === 'rc' ? 'Forecast · graded cards (PSA and CGC) · Recording: the slabs you recorded at a card show, best to buy first - green: buy it with the capital left; Yes: you bought it at your price; No: the vendor wanted more (it goes to the bottom)'
+    : md === 'pl' ? 'Forecast · graded cards (PSA and CGC) · Purchases: the slabs you bought (marked Yes on Recording), what you paid and what they are expected to make; Record Purchases keeps them on History'
+    : md === 'hi' ? 'Forecast · graded cards (PSA and CGC) · History: Forecasting Replay (the plan run on every month since 2022 with only what was known then), Recorded Purchases, and Pre-Sales Spotcheck (the green rows you sent, looked back)'
     : 'Forecast · graded cards (PSA and CGC) · which slabs to buy at a vendor and sell on eBay, every listed slab assumed for sale, ranked like the raw tab: how far each grade’s PriceCharting price sits below its own 12-month mean' + (D ? ' · ' + D.model : '');
 }
 // the cells
@@ -191,13 +205,17 @@ function fcgCells(r, I) {
     buy: fcg2(fcgM(r.fcBc), fcgM(r.fcB), buyTip('Card Ladder’s'), buyTip('PriceCharting’s'), r),
     sold: fcg2(r[37] == null ? '<span class="dim">-</span>' : fmtInt(r[37]), pcSold, 'Card Ladder’s recorded sales of this grade last month', 'PriceCharting’s recorded sales of this grade and grader last month' + (r[76] ? ' (an estimate: its list of sales does not reach back to the start of the month)' : ''), r),
     chance: fcgChanceCell(r, I),
+    bb: r.fcBB == null ? '<td class="num"><span class="dim" title="No chance, so no place in the buy order">-</span></td>'
+      : '<td class="num" title="' + esc('Best to Buy: number ' + r.fcBB + ' in the buy order - Chance first (to the whole percent), then the deeper dip, then the higher price. The order the plan spends in; the green rows are the ones the money reaches.') + '"><b>' + r.fcBB + '</b></td>',
+    bc: r.fcBC == null ? '<td class="num"><span class="dim" title="No chance, so no place">-</span></td>'
+      : '<td class="num" title="' + esc('Best Chance: place ' + r.fcBC + ' by Chance alone' + (r.fcBCn > 1 ? ', shared by ' + r.fcBCn + ' slabs at ' + Math.round(r.fcP) + '% (the model sees them as equally good)' : '')) + '">' + r.fcBC + (r.fcBCn > 1 ? '<span class="dim">=</span>' : '') + '</td>',
     qty: '<td class="num">' + (r.fcQ ? '<b>' + r.fcQ + '</b>' : '<span class="dim">—</span>') + '</td>',
     net: fcg2(r.fcNc == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcNc), r.fcN == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcN), 'Expected net per copy at Card Ladder’s value, after eBay’s fee and the shipping', 'Expected net per copy at PriceCharting’s price: standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - ' + fcgDiscWord(d) + '))', r),
     roi: fcg2(r.fcRc == null ? '<span class="dim">-</span>' : fcgPct(r.fcRc / 100), r.fcR == null ? '<span class="dim">-</span>' : fcgPct(r.fcR / 100), 'Net / buy price, over the hold (Card Ladder)', 'Net / buy price, over the hold (PriceCharting)', r)};
 }
 function fcgRow(r) {
   const x = fcgCells(r, FCG.I);
-  return x.flag + x.review + x.name + x.grade + x.std + x.buy + x.sold + x.chance + x.qty + x.net + x.roi + fcgPcx(r).join('');
+  return x.flag + x.review + x.name + x.grade + x.std + x.buy + x.sold + x.chance + x.bb + x.bc + x.qty + x.net + x.roi + fcgPcx(r).join('');
 }
 function fcgChanceCell(r, I) {
   const grp = r.fcG == null ? '' : r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10 (1 = deepest)', d = r.fcD != null ? r.fcD : I.disc;
@@ -211,11 +229,12 @@ const fcgMoneyS = v => '<span class="' + (v < 0 ? 'down' : v > 0 ? 'up' : '') + 
 // as before - and then only its green rows are drawn.
 const FCG_HITS = {on: !!grLS('fcg-hits', false)};
 $('fcg-gmode').insertAdjacentHTML('afterbegin', '<button type="button" class="gm2 gtb fcg-hits" id="fcg-hits" title="On = show only the green rows: the slabs the plan buys with the capital (Recording: the open slabs it would buy with what is left). The plan is worked out on every row the other filters leave, then only its buys are listed.">Only Hits <span class="dim" id="fcg-hits-n"></span></button>');
-{ const pt = grPaintTerms; grPaintTerms = function (F) {   // the switch sits first in the row of filter buttons (kept out of their redraw, like Grading)
-  const b = $('fcg-hits'), box = $('fcg-gm-terms');
+{ const pt = grPaintTerms; grPaintTerms = function (F) {   // the switch sits first in the row of filter buttons (kept out of their redraw, like Grading); Add to Pre-Sales Spotcheck right after it
+  const b = $('fcg-hits'), box = $('fcg-gm-terms'), sw = document.querySelector('.fcg-spotw');
   if (b && box && box.contains(b)) box.parentNode.insertBefore(b, box);
+  if (sw && box && box.contains(sw)) box.parentNode.insertBefore(sw, box);
   const out = pt.apply(this, arguments);
-  if ((F || GF.pc) === GF.fc && b && box && !box.hidden) box.insertBefore(b, box.firstChild);
+  if ((F || GF.pc) === GF.fc && b && box && !box.hidden) { box.insertBefore(b, box.firstChild); if (sw) b.after(sw); }
   return out;
 }; }
 function fcgHitsView(t, id, total, noun, isHit, n) {        // after a table's plan: the green count on the button, and the rows cut to them when on
@@ -290,12 +309,12 @@ function fcgColsSeed(id) {                                 // the first time: th
   grSave('fcg-cols', FCG_COLS);
 }
 // the copied headers' ? buttons (help.js bound the page's own before these existed)
-$('fcg').addEventListener('click', e => { const hb = e.target.closest('th.pcx button.help'); if (hb) { e.stopPropagation(); e.preventDefault(); openHelp(hb.dataset.h); } }, true);
+$('fcg').addEventListener('click', e => { const hb = e.target.closest('th.pcx button.help, .al-now button.help, .fcg-spotw button.help'); if (hb) { e.stopPropagation(); e.preventDefault(); openHelp(hb.dataset.h); } }, true);
 // the table: the PriceCharting tab's machinery (eyes, highlight, names, drag, Columns…, Filters…)
 const FCG_RANGES = ['fcS', 'fcSc', 'fcB', 'fcBc', 16, 37, 'fcP', 'fcN', 'fcNc', 'fcR', 'fcRc'];
 const FCG_LABELS = {fcS: 'Standard PC $', fcSc: 'Standard CL $', fcB: 'Buy price PC $', fcBc: 'Buy price CL $', 16: 'Sold PC (last mo)', 37: 'Sold CL (last mo)', fcP: 'Chance %', fcN: 'Net PC $', fcNc: 'Net CL $', fcR: 'ROI PC %', fcRc: 'ROI CL %'};
 fcgAddPcHeads('#fcg-main', 'fcg');
-tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg-main', name: 'Forecast · graded', onCols: h => fcgColsTake('fcg', h), inserted: {v: 'noplus', at: 2, n: -1},   // the + column went (2026-11-05): saved order / widths / highlights move with it
+tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg-main', name: 'Forecast · graded', onCols: h => fcgColsTake('fcg', h), inserted: [{v: 'noplus', at: 2, n: -1}, {v: 'best', at: 10, n: 2}],   // the + column went, Best to Buy / Best Chance came after Chance (2026-11-05): saved order / widths / highlights move with them
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r[0] + '|' + r[50],
   extra: r => grPass(r, GF.fc),
   rowClass: r => r.fcQ ? 'fcg-buy' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
@@ -375,21 +394,163 @@ Object.assign(HELP, {
   fcg_hold: {t: 'Hold for', f: '1 to 6 months: how long you keep a slab before selling it on eBay', m: 'The odds are specific to the hold: how slabs of the same rank group did over exactly that many months, in this kind of market, 2022 on. The market box shows all six side by side.', e: 'Hold 6 months: the chances use what each group did over six months.'},
   fcg_disc: {t: '% Under The Standard Grade Price', f: 'Buy price = standard price x (1 - this) - the eBay Shipping Fee', m: 'How far under the standard price (PriceCharting\'s price of the grade, and Card Ladder\'s value beside it) you pay the vendor. 14.1% by default: eBay\'s fee, so a slab bought 14.1% under whose price does not move nets $0 - the profit is the move over the hold, and anything you buy deeper under. The market box\'s last column follows this box.', e: 'Standard $200, 14.1% under, $5.20 shipping: pay at most $166.60.'},
   fcg_ship: {t: 'eBay Shipping Fee', f: 'what one sale costs to ship (label and supplies); $5.20 by default', m: 'Taken off the Buy price (what to pay the vendor) and paid again as the label when the slab sells, so it cancels out in Net: Net and Chance depend on the % under, the Buy price and ROI on the shipping too. The "Fees assumed" figure shows it.', e: 'Shipping $6 instead of $5.20: every Buy price drops 80 cents.'},
-  fcg_price: {t: 'Card price between', f: 'only slabs whose standard price (PriceCharting\'s, else Card Ladder\'s) is inside this range are listed', m: 'The band narrows the listing and the plan, on Forecasting, Recording and Planning alike (a bought slab by the price it was bought at; its money stays spent). $50 to $5,000 by default.', e: '$100 to $1,000: the cheaper and the dearer slabs leave the list.'},
+  fcg_price: {t: 'Card price between', f: 'only slabs whose standard price (PriceCharting\'s, else Card Ladder\'s) is inside this range are listed', m: 'The band narrows the listing and the plan, on Forecasting, Recording and Purchases alike (a bought slab by the price it was bought at; its money stays spent). $50 to $5,000 by default.', e: '$100 to $1,000: the cheaper and the dearer slabs leave the list.'},
   fcg_share: {t: 'At most per card', f: 'copies of one slab x buy price stays under this share of the capital', m: 'Spreads the money over many slabs, as the raw tab does: picks are nearly independent, so twenty slabs are far safer than two.', e: '20% of $1,000: no single slab gets more than $200.'},
-  fcg_conf: {t: 'Buy only at ... or better chance of a profit', f: 'a slab is bought only when its Chance is at least this', m: 'The rows under the bar stay listed, in buy order, but get no money.', e: '50%: a slab at 48% is listed, not bought.'},
   fcg_copies: {t: 'Copies per card', f: 'the most copies of one slab the plan buys (1-5)', m: 'One by default, as the raw tab.', e: '2: the plan may buy two PSA 10s of the same card.'},
   fcg_gate: {t: 'Buy only when the market is rising', f: 'on (the default): nothing is bought while the graded market is falling', m: 'The graded market (the box below): the average monthly move of PriceCharting\'s graded lines over the last three months. Since 2022, when it was positive the next quarter was up about 8 times in 10; when negative, about 1 in 4. Off: the plan buys in a falling market too, with the falling-market odds.', e: 'Falling market, switch on: every Buy is 0 and the summary says why.'},
-  fcg_regime: {t: 'The market now (graded)', f: 'the average monthly move of PriceCharting\'s graded lines over the last three months; up or down sets which odds are used and the gate', m: 'The raw tab reads the median move; most graded lines do not move at all in a month, which made the median 0 every month, so the graded market is the average move (each line clipped to plus or minus 50%). The table: what the deepest-dip slabs (the top 10% of the rank) did over 1 to 6 months in this kind of market - the median move, how often the price was up, and how often one bought at your % under (the shipping in the buy price) netted a profit.', e: 'Rising, +4% a month: the plan may buy, with the rising-market odds.'},
-  fcg_picks: {t: 'What to buy (graded)', f: 'every graded row of the PriceCharting tab in your price band, assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, Auth read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Planning (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs; Columns… also lists every PriceCharting graded column but the eBay ones (off until you tick them), and which columns show is one choice for Forecasting, Recording, Planning and the slab lists on History. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
+  fcg_picks: {t: 'What to buy (graded)', f: 'every graded row of the PriceCharting tab in your price band, assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, Auth read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Purchases (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs; Columns… also lists every PriceCharting graded column but the eBay ones (off until you tick them), and which columns show is one choice for Forecasting, Recording, Purchases and the slab lists on History. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
   fcg_name: {t: 'PC Card Name', f: 'PriceCharting\'s name of the card, with its set and number under it', m: 'Not a link (Brett). Review compares it with Card Ladder\'s card.', e: 'Umbreon VMAX #215 · Evolving Skies.'},
   fcg_grade: {t: 'Grade', f: 'the grader and grade of the row: one row per card per grade', m: 'The model reads PriceCharting\'s PSA 10 line for PSA 10, and its Grade 9.5 / 9 / 8 / 7 lines (every grader blended) for those grades; other grades show no score.', e: 'PSA 9 and CGC 9 read the same Grade 9 line.'},
   fcg_std: {t: 'Standard Price', f: 'CL: Card Ladder\'s value of the grade today (else last month\'s average); PC: PriceCharting\'s price of the grade today (else last month\'s)', m: 'The price a slab is bought under and sold at. The model\'s history is PriceCharting\'s, so the chance is worked out on the PC side; Net and ROI are shown for both. Sorting and the filter chip use the PC figure.', e: 'CL $185.00 / PC $200.00.'},
   fcg_buy: {t: 'Buy Price', f: 'standard price x (1 - % under) - eBay Shipping Fee, for each side', m: 'The most to pay the vendor for the slab. Brett\'s rule: "the pc buy price would be 10% under minus $6".', e: 'PC $200, 14.1% under, $5.20: $166.60.'},
   fcg_sold: {t: 'Sold (last month)', f: 'CL: Card Ladder\'s recorded sales of the grade last month; PC: PriceCharting\'s recorded sales of the grade and grader last month', m: 'How liquid the slab is - what you would sell against. A ~ marks PriceCharting\'s estimate (its list of sales does not reach back to the start of the month); pending = Card Ladder has not read the card yet.', e: 'CL 12 / PC 9.'},
-  fcg_chance: {t: 'Chance', f: 'how often slabs of the same rank group made money over your hold, in this kind of market, 2022 on, bought at your % under', m: 'The rank: how far the grade\'s PriceCharting price sits below its own 12-month mean, against every graded line $25+ (ten groups). The break-even is a price that does not move at 14.1% under (the shipping cancels out), so every slab of a group has the same chance; hover for the group. "no score": no line of its own, or not a full year of prices. At most 95%.', e: '62%: 62 of every 100 such slabs ended up.'},
-  fcg_hits: {t: 'Only Hits', f: 'on = only the green rows: the slabs the plan buys', m: 'One switch for Graded Forecasting and Recording (not on Planning, where every row is bought). The plan is still worked out on every row the other filters and the boxes leave, best chance first; Only Hits then lists just its buys, and the count beside the search box says how many. The number on the button is the green rows at these settings.', e: '$1,000 at 14.1% under: Only Hits lists the 15 slabs the plan buys.'},
+  fcg_hits: {t: 'Only Hits', f: 'on = only the green rows: the slabs the plan buys', m: 'One switch for Graded Forecasting and Recording (not on Purchases, where every row is bought). The plan is still worked out on every row the other filters and the boxes leave, best chance first; Only Hits then lists just its buys, and the count beside the search box says how many. The number on the button is the green rows at these settings.', e: '$1,000 at 14.1% under: Only Hits lists the 15 slabs the plan buys.'},
   fcg_qty: {t: 'QTY', f: 'how many copies the plan buys', m: 'Best chance first among the rows on view, only at or above your bar, never more than the copies per card or the per-card share, until the capital runs out; nothing while the gate is red.', e: '1 on the first ten rows of a $1,000 plan.'},
   fcg_net: {t: 'Net', f: 'expected net per copy: standard x ((1 + the group\'s average return) x (1 - eBay\'s fee) - (1 - % under))', m: 'The average outcome of the group over the hold, after eBay\'s fee, the shipping and what you paid; for both sides\' standard prices. An average: the typical slab moves less, a few move a lot - the summary\'s range shows the spread.', e: 'PC $200, average return +12% over 3 months, 14.1% under: +$20.61.'},
   fcg_roi: {t: 'ROI %', f: 'Net / Buy price, over the hold, for each side', m: 'What the money spent on the slab earns over the hold.', e: '+$20.61 on $166.60: +12.4%.'}
+});
+/* ---- the laid-out ? popups (2026-11-05, Brett: "the question mark explanations for these should be more descriptive and
+   better and the formatting should look good"; renamed: Chance (this slab), Chance the plan profits, Buy only slabs with
+   a chance of at least): md: 1 = help.js's markup (helpMd); now() = the Right now line, worked out when the popup opens ---- */
+const fcgNowPct = v => v == null ? '-' : '<b class="' + (v > 0 ? 'up' : v < 0 ? 'down' : '') + '">' + fcgPct(v) + '</b>';
+const fcgHoldWord = h => h + '-month hold';
+Object.assign(HELP, {
+  fcg_regime: {t: 'The market now (graded)', md: 1, m: [
+    '> Is the graded market rising or falling right now? The answer decides two things: whether the plan may buy at all, and which history every Chance is read from.',
+    '## How it’s worked out',
+    '1. **Each line’s move last month.** A line is one card’s PriceCharting price for one grade: PSA 10, Grade 9.5, 9, 8 or 7. Every line priced $10 or more the month before counts, and the month needs at least 50 of them.',
+    '   `move = this month’s price ÷ last month’s price − 1`',
+    '2. **Cap the wild jumps** at −50% and +50%. A $12 line that jumps to $40 (+233%) counts as +50%, so a few thin, jumpy cards can’t swing the whole market.',
+    '3. **Average them.** That average is the market’s move for the month. It’s an average, not a median: about 4 in 10 graded lines don’t move at all in a month, which left the median at 0% every month. The share of lines that rose is counted too (“% of lines up”).',
+    '4. **Smooth over three months.**',
+    '   `3-month figure = (month 1 + month 2 + month 3) ÷ 3`',
+    '5. **Make the call.** Above 0 = rising; 0 or below = falling.',
+    '- **Green:** rising, and last month was up.',
+    '- **Amber:** rising, but last month was down. The plan still buys.',
+    '- **Red:** falling. With “Buy only when the market is rising” on, nothing is bought.',
+    '## The track record',
+    'For every month since January 2022 the model checked two things: was the 3-month figure positive, and was the market up over the next three months? When it was rising, the next quarter was up about 4 times in 5; when falling, about 1 time in 4. The box gives the exact counts. A real signal, not a guarantee.',
+    '## The table',
+    'What the deepest-dip slabs (the top 10% of the Rank) did in today’s kind of market, for holds of 1 to 6 months, 2022 on:',
+    '| Column | What it is |',
+    '|---|---|',
+    '| Move | the middle (median) return |',
+    '| Up | how often the price rose |',
+    '| X% under | how often one bought at your % under made a profit after eBay’s fee |',
+    'At 14.1% under the last two columns match: a slab bought 14.1% under breaks even when its price doesn’t move (the shipping cancels out).',
+    '## Example',
+    'Aug +1.8%, Sep +3.1%, Oct −0.6%:',
+    '`(1.8 + 3.1 − 0.6) ÷ 3 = +1.4% a month`',
+    'Rising, but last month was down: amber.',
+    '## Keep in mind',
+    '- PriceCharting’s monthly chart prices, not single eBay sales.',
+    '- The Grade 9.5 / 9 / 8 / 7 lines blend every grader (PSA, CGC, BGS …).'].join('\n'),
+    now: () => { const D = fcgDoc(); if (!D || !D.regime) return ''; const R = D.regime, light = !R.up ? '<b class="down">red: falling</b>' : R.confirm ? '<b class="up">green: rising</b>' : '<b style="color:#d97706">amber: rising, last month down</b>';
+      return fcgNowPct(R.reg3) + ' a month over the last three months · last month ' + fcgNowPct(R.reg1) + (R.breadth3 != null ? ' · ' + Math.round(R.breadth3 * 100) + '% of lines up' : '') + ' → ' + light + ' <span class="dim">(data month ' + esc(D.month || '') + ')</span>'; }},
+  fcg_chance: {t: 'Chance (this slab)', md: 1, m: [
+    '> How often slabs like this one made money in the past: the same rank group, the same kind of market, held as long as your Hold, bought at your % under.',
+    '## How it’s worked out',
+    '1. **Find the slab’s PriceCharting line.** PSA 10 uses PriceCharting’s PSA 10 line. Any grader’s 9.5, 9, 8 or 7 uses the blended Grade line. CGC 10, half grades and grades 1–6 have no line: “no score”.',
+    '2. **Its rank group today:** how far its price sits below its own 12-month average, among every graded line $25+, in 10 groups (see Rank).',
+    '3. **Pick the history:** every case since 2022 of that group, in today’s kind of market (rising or falling), held exactly your Hold. Fewer than 30 cases: all cases pooled.',
+    '4. **The break-even return** at your % under:',
+    '   `break-even = (1 − % under) ÷ (1 − 14.1% fee) − 1`',
+    '5. **Chance = the share of those cases that beat the break-even,** read off the history’s 1st–99th percentiles with a straight line between the two nearest. At most 95%.',
+    '## What the break-even means',
+    '| You buy at | The price must move at least |',
+    '|---|---|',
+    '| 0% under | +16.4% |',
+    '| 10% under | +4.8% |',
+    '| 14.1% under | 0%: it just can’t fall |',
+    '| 20% under | −6.9%: it can fall a little |',
+    '## Example',
+    'In the history the 37th percentile return is −0.4% and the 38th is +0.3%. A break-even of 0% sits 4/7 of the way between them, so 37.6% of cases fell short:',
+    '`Chance = 100% − 37.6% = 62.4% → 62%`',
+    'Read it as: of every 100 such slabs, about 62 made money.',
+    '## Keep in mind',
+    '- Every slab in the same group, at the same % under, gets the same chance: the model knows nothing about the card beyond its group. Best Chance shows the ties.',
+    '- On Recording and Purchases each row uses its own % under, so the chance follows the price you type.',
+    '- The history is PriceCharting’s; Card Ladder’s figures never change it.'].join('\n'),
+    now: () => { const D = fcgDoc(), I = fcgInputs(), fee = fcgFee(); if (!D) return '';
+      const be = fcgBreak(I.disc, fee), out = [];
+      for (let g = 9; g >= 0; g--) { const t = fcgTab(D, I.h, g); if (t) out.push((g === 9 ? 'deepest 10%' : 'group ' + (10 - g)) + ' <b>' + Math.round(Math.min(0.95, 1 - fcgCdf(D, t, be)) * 100) + '%</b>'); }
+      return 'at a ' + fcgHoldWord(I.h) + ', ' + fcgDiscWord(I.disc) + ' under, ' + (D.regime && D.regime.up ? 'rising' : 'falling') + ' market: ' + out.join(' · '); }},
+  fcg_mc: {t: 'Chance the plan profits', md: 1, m: [
+    '> The chance that the slabs together - the green rows (on Recording and Purchases, the bought ones too) - end your Hold with more money than they cost, after eBay’s fee and the shipping.',
+    '## How it’s worked out',
+    '1. **Take the slabs** and their copies.',
+    '2. **Simulate 2,000 possible futures.** In each: one “market luck” number shared by every slab, plus one “own luck” number per slab, mixed half and half:',
+    '   `luck = √0.5 × market + √0.5 × own`',
+    '   The luck becomes a percentile, and the slab’s return is read at that percentile from its own history (its group, the market, your Hold).',
+    '3. **Add up the net in that future:**',
+    '   `net = Σ copies × standard × [(1 + return) × (1 − fee) − (1 − % under)]`',
+    '4. **Read the 2,000 results:**',
+    '- **Chance the plan profits:** the share above $0 (at most 95%).',
+    '- **Expected net profit:** their average.',
+    '- **Likely range:** the 10th to the 90th percentile, with the median.',
+    '## What it means',
+    'The half-and-half mix makes slabs rise and fall together, like a real market: when it sours most picks lose at once. So more slabs raise this chance only up to a point, and it is not simply higher than each slab’s own chance.',
+    '## Keep in mind',
+    '- The 50% market share is borrowed from the raw tab; it wasn’t measured on graded cards.',
+    '- The draws start from the same seed every time, so the same settings always give the same number.',
+    '- Chance (this slab) is the column; this is the whole plan.'].join('\n'),
+    now: () => { const m = fcgMode(), A = m === 'rc' ? FCR.res.rc : m === 'pl' ? FCR.res.pl : null, mc = A ? A.mc : FCG.mc, n = m === 'fc' ? (FCG.picks || []).length : A ? (m === 'rc' ? A.boughtV.length + A.green.length : A.view.length) : 0;
+      if (!mc) return 'no slabs to count on this page at these settings';
+      return n + ' slab' + (n === 1 ? '' : 's') + ': chance <b>' + Math.round(mc.p * 100) + '%</b> · expected ' + fcMoney(mc.mean) + ' · likely ' + fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi); }},
+  fcg_conf: {t: 'Buy only slabs with a chance of at least …', md: 1, m: [
+    '> The bar: a slab gets money only when its Chance (this slab) is at least this. Slabs under it stay listed, in order, but aren’t green.',
+    '## How the plan spends',
+    '1. **Order the slabs on view** best to buy first: Chance (to the whole percent), then the deeper dip, then the higher price. That order is the Best to Buy column.',
+    '2. **Skip what doesn’t qualify:** a Chance under the bar, or no buy price.',
+    '3. **Decide the copies** of each one that does: the smallest of',
+    '   `(capital × per-card share) ÷ buy price`',
+    '   `copies per card`',
+    '   `money left ÷ buy price`',
+    '   … and go on down the list until the money runs out.',
+    '4. **The gate comes first:** in a falling market with “Buy only when the market is rising” on, nothing is bought, whatever the bar.',
+    '## What it means in practice',
+    'Every slab in a rank group shares one chance at a given hold and % under, so the bar really decides which groups qualify. Example, bar 50%: deepest 10% at 62% and group 2 at 55% get money; group 3 at 49% doesn’t. Buying deeper under raises every chance.',
+    '## Keep in mind',
+    '- A higher bar buys fewer, surer slabs; a lower one spreads the money wider.',
+    '- On Recording each row has its own % under, so a vendor’s price can lift a slab over the bar.'].join('\n'),
+    now: () => { const I = fcgInputs(); return 'bar <b>' + Math.round(I.minp * 100) + '%</b> · on Forecasting ' + Number(FCG.elig || 0).toLocaleString('en-US') + ' slab' + (FCG.elig === 1 ? '' : 's') + ' on view clear it' + (FCG.gated ? ', but the gate is red: nothing is bought' : '; the plan buys ' + (FCG.picks || []).length); }},
+  fcg_bb: {t: 'Best to Buy', md: 1, m: [
+    '> The slab’s place in the buy order: 1 is the slab the plan would spend on first.',
+    '## How it’s worked out',
+    '1. **Every slab with a chance** on the page (Forecasting: inside your price band; Recording: every open and Yes row) is put in order:',
+    '- highest Chance (this slab), to the whole percent, first',
+    '- then the deeper dip (the higher Rank)',
+    '- then the higher price',
+    '2. **Number them** 1, 2, 3 …',
+    '## What it means',
+    'It is exactly the order the money goes in, so the green rows are the top places the capital reaches. Sort by it to see the best to buy first: Recording opens that way.',
+    '## Keep in mind',
+    '- It doesn’t depend on the capital, the per-card share, the copies, the bar or the gate; those only decide which places turn green.',
+    '- It does depend on the Hold and the % under, because the Chance does. On Recording a vendor’s price can move a row up or down.',
+    '- The number ignores the filters, so a slab keeps its place while you search.',
+    '- Inside a rank group the model sees slabs as equally good: the order there (the deeper dip first) hasn’t been tested by the history.'].join('\n'),
+    now: () => { const r = (FCG.rows || []).find(x => x.fcBB === 1); return r ? 'number 1 on Forecasting: <b>' + esc(r[1]) + '</b> ' + esc(r[25]) + ' at ' + Math.round(r.fcP) + '%' : ''; }},
+  fcg_bc: {t: 'Best Chance', md: 1, m: [
+    '> The slab’s place by Chance (this slab) alone. Slabs with the same chance share the place, shown with “=”.',
+    '## How it’s worked out',
+    '1. **Order by Chance**, to the whole percent, highest first.',
+    '2. **Ties share a place:** if five slabs are at 62% and they come first, all five are 1=, and the next slab is 6.',
+    '## What it means',
+    'It shows honestly how many slabs the model sees as equally good. Many ties at the top mean the choice among them comes from something else: the dip, the price, or what you know about the card.',
+    '## Keep in mind',
+    '- Best to Buy breaks the ties (deeper dip, then higher price); this column doesn’t.',
+    '- Like Best to Buy, it ignores the filters and the capital, and follows the Hold and the % under.'].join('\n'),
+    now: () => { const r = (FCG.rows || []).find(x => x.fcBC === 1); return r ? 'the top chance on Forecasting is <b>' + Math.round(r.fcP) + '%</b>, shared by ' + r.fcBCn + ' slab' + (r.fcBCn === 1 ? '' : 's') : ''; }},
+  fcg_spot: {t: 'Add to Pre-Sales Spotcheck', md: 1, m: [
+    '> Sends the green rows of this page to History › Pre-Sales Spotcheck, where each slab is looked back on with the model, month by month since 2022.',
+    '## What is sent',
+    '- Every green row: the slab, its % under and price, its chance and rank today.',
+    '- The settings of the moment: your Hold, the bar, the gate, the shipping, eBay’s fee.',
+    '- Each click makes a new set, dated, from Forecasting or Recording.',
+    '## What you get',
+    'For each slab and each hold: how many times the model would have bought it since 2022, how many of those made money, and the ROI it expected against the ROI it made. Before you buy, it shows how the model has done on these exact cards.',
+    '## Keep in mind',
+    '- The sets are kept by the collector, so they show on every device a minute or two after sending.',
+    '- Slabs without a PriceCharting line of their own (CGC 10, half grades) can’t be looked back on.'].join('\n'),
+    now: () => { const m = fcgMode(), n = m === 'rc' ? ((FCR.res.rc || {}).green || []).length : m === 'fc' ? (FCG.picks || []).length : 0; return n ? '<b>' + n + '</b> green row' + (n === 1 ? '' : 's') + ' on this page would be sent' : 'no green rows on this page at these settings'; }}
 });

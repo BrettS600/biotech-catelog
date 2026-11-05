@@ -536,6 +536,55 @@ function editBar(bar, hasOvr, onSave, onCancel, onRestore, hint) {
 /* ---- the "?" popup ---- */
 let HCUR = null;
 const helpOf = key => { const h = HELP[key]; if (!h) return null; const o = ovr('h:' + key); return o ? Object.assign({}, h, o) : h; };
+/* The laid-out popups (2026-11-05, Brett: "the question mark explanations for these should be more descriptive and better
+   and the formatting should look good"). An entry with md: 1 keeps its text in m as plain lines with a little markup,
+   so his own edits (the pencil) keep working as plain text:
+     > line           the one-line summary, at the top
+     ## Heading       a section
+     1. text / - text a numbered / bulleted step; an indented line under it continues it (a `formula` line is a box)
+     `whole line`     a formula box;  `inline` code;  **bold**
+     | a | b |        a table (the first row is the header; |---| rows are skipped)
+   An entry's now(), when it has one, is the "Right now" line under the summary: today's figures, worked out live. */
+function helpMd(src) {
+  const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  const isF = s => /^`[^`]+`$/.test(s.trim());
+  const lines = String(src || '').replace(/\r/g, '').split('\n'), out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const ln = lines[i], tr = ln.trim();
+    if (!tr) { i++; continue; }
+    if (tr.startsWith('> ')) { out.push('<p class="hsum">' + inl(tr.slice(2)) + '</p>'); i++; continue; }
+    if (tr.startsWith('## ')) { out.push('<h4>' + inl(tr.slice(3)) + '</h4>'); i++; continue; }
+    if (isF(tr)) { out.push('<div class="formula">' + esc(tr.slice(1, -1)) + '</div>'); i++; continue; }
+    if (tr.startsWith('|')) {
+      const rows = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) { const c = lines[i].trim().replace(/^\||\|$/g, '').split('|').map(x => x.trim()); if (!c.every(x => /^:?-+:?$/.test(x))) rows.push(c); i++; }
+      out.push('<div class="htab"><table><thead><tr>' + rows[0].map(c => '<th>' + inl(c) + '</th>').join('') + '</tr></thead><tbody>' +
+        rows.slice(1).map(r => '<tr>' + r.map(c => '<td>' + inl(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>');
+      continue;
+    }
+    const li = /^(\d+)\.\s+|^-\s+/.exec(tr);
+    if (li) {
+      const ol = !!li[1], items = [];
+      while (i < lines.length) {
+        const t2 = lines[i].trim(), m = /^(\d+)\.\s+|^-\s+/.exec(t2);
+        if (m && !!m[1] === ol && !/^\s/.test(lines[i])) { items.push([t2.slice(m[0].length)]); i++; continue; }
+        if (t2 && /^\s/.test(lines[i]) && items.length) { items[items.length - 1].push(t2); i++; continue; }
+        break;
+      }
+      out.push('<' + (ol ? 'ol' : 'ul') + ' class="hlist">' + items.map(it => '<li>' + it.map((x, k) => isF(x) ? '<div class="formula">' + esc(x.trim().slice(1, -1)) + '</div>' : (k && !isF(it[k - 1]) ? '<br>' : '') + inl(x)).join('') + '</li>').join('') + '</' + (ol ? 'ol' : 'ul') + '>');
+      continue;
+    }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^(>\s|##\s|\||\d+\.\s|-\s)/.test(lines[i].trim()) && !isF(lines[i])) { para.push(lines[i].trim()); i++; }
+    if (para.length) out.push('<p>' + para.map(inl).join(' ') + '</p>'); else i++;
+  }
+  return out.join('');
+}
+function helpNowLine(h) {                                   // the live line; any failure just leaves it out
+  if (typeof h.now !== 'function') return '';
+  try { const s = h.now(); return s ? '<div class="hnow"><b>Right now</b> ' + s + '</div>' : ''; } catch (e) { return ''; }
+}
 function openHelp(key) {
   const h = helpOf(key); if (!h) return;
   HCUR = key;
@@ -543,6 +592,12 @@ function openHelp(key) {
   const o = ovr('h:' + key);
   $('htitle').innerHTML = esc((o && o.n) || h.t) + (o ? '<span class="edited">edited by you</span>' : '');
   const L = LINKS[key];
+  $('hov').querySelector('.modal').classList.toggle('hwide', !!h.md);
+  if (h.md) {                                               // the laid-out kind: the summary, the live line, the rest
+    const body = helpMd(h.m) + (h.f ? '<h4>Formula</h4><div class="formula">' + esc(h.f) + '</div>' : '') + (h.e ? '<h4>Example</h4><p>' + esc(h.e) + '</p>' : '');
+    const k = body.indexOf('</p>'), now = helpNowLine(h);
+    $('hbody').innerHTML = '<div class="hmd">' + (body.startsWith('<p class="hsum">') && k > 0 ? body.slice(0, k + 4) + now + body.slice(k + 4) : now + body) + '</div>';
+  } else
   $('hbody').innerHTML = '<h4>Formula</h4><div class="formula">' + esc(h.f) + '</div><h4>What it means</h4><p>' + esc(h.m) + '</p>' + (h.e ? '<h4>Example</h4><p>' + esc(h.e) + '</p>' : '') +
     (L ? '<h4>Built from</h4><p>' + esc(L[0]) + '</p><h4>Feeds into</h4><p>' + esc(L[1]) + '</p>' : '');
   $('hov').classList.add('open');
@@ -552,7 +607,8 @@ $('hedit').addEventListener('click', () => {
   $('hedit').hidden = true;
   const th = headerOf(key), o = ovr('h:' + key);
   $('hbody').innerHTML = (th ? '<h4>Column name</h4><input class="hname" id="he-n" maxlength="60" placeholder="' + esc(th.dataset.on || headerText(th)) + '">' : '') +
-    '<h4>Formula</h4><textarea id="he-f" rows="3"></textarea><h4>What it means</h4><textarea id="he-m" rows="10"></textarea><h4>Example</h4><textarea id="he-e" rows="3"></textarea>';
+    (h.md ? '<h4>Text</h4><p class="dim">Plain text. A line starting “> ” is the summary, “## ” a heading, “1. ” or “- ” a step (an indented line under it continues it), a line in `backticks` a formula box, **two stars** bold, and lines starting with | a table. The Right now line is worked out live and is not part of the text.</p><textarea id="he-m" rows="22"></textarea><textarea id="he-f" hidden></textarea><textarea id="he-e" hidden></textarea>'
+      : '<h4>Formula</h4><textarea id="he-f" rows="3"></textarea><h4>What it means</h4><textarea id="he-m" rows="10"></textarea><h4>Example</h4><textarea id="he-e" rows="3"></textarea>');
   if (th) $('he-n').value = (o && o.n) || th.dataset.on || headerText(th);
   $('he-f').value = h.f || ''; $('he-m').value = h.m || ''; $('he-e').value = h.e || '';
   editBar($('hbar'), !!o,

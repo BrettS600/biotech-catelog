@@ -1540,13 +1540,15 @@ const NAV_WORD = {fc: 'forecasting', rc: 'recording', pl: 'planning', hi: 'histo
    (graded_fh.js, beside the plan pane). An old #forecast-history/raw|graded address opens it. */
 const fhRawOn = () => !$('p-fc').hidden && NAV.fc === 'raw' && NAV.rm === 'hi';
 function navHash(id) {
-  if (id === 'fc' || id === 'fh') return 'forecast/' + NAV.fc + '/' + NAV_WORD[navMode()];
+  if (id === 'fc' || id === 'fh') return 'forecast/' + NAV.fc + '/' + (NAV.fc === 'graded' && navMode() === 'pl' ? 'purchases' : NAV_WORD[navMode()]);   // the graded Planning is Purchases (2026-11-05)
   return TAB_HASH[id];
 }
 function navApply() {                                     // the two Raw / Graded rows, the lit Forecasting / Planning button, the graded blanks
   $('p-fc').classList.toggle('graded', NAV.fc === 'graded'); $('p-fc').classList.toggle('hist', navMode() === 'hi');
   document.querySelectorAll('#fc-kind .kb').forEach(b => b.classList.toggle('on', b.dataset.k === NAV.fc));
   document.querySelectorAll('#fc-modes .fvchip').forEach(b => b.classList.toggle('on', b.dataset.m === navMode()));
+  { const pb = document.querySelector('#fc-modes .fvchip[data-m="pl"]'), tn = pb && [...pb.childNodes].find(n => n.nodeType === 3);   // graded: Purchases (2026-11-05, Brett: "rename planning to purchases"); raw: Planning
+    if (tn) { tn.textContent = NAV.fc === 'graded' ? 'Purchases' : 'Planning'; pb.title = NAV.fc === 'graded' ? 'The slabs you marked Yes on Recording: what you bought, at what you paid' : 'The listings you added with +'; } }
   if (fhRawOn()) setTimeout(() => { if (FH.doc) fhRender(); else loadForecastHist(); }, 0);   // raw History: the replay file is read on first sight (deferred: FH is declared further down)
   $('fcg-t').textContent = NAV.gm === 'pl' ? 'Graded planning' : 'Graded forecasting';
   $('fcg-s').textContent = NAV.gm === 'pl' ? 'Blank for now. Graded plans will be listed here, separate from your raw plans.' : 'Blank for now. Its settings and picks go here once the graded forecast is designed.';
@@ -1558,6 +1560,7 @@ function navAddr() {                                      // the address follows
 (() => {                                                  // an address that names a page opens it, and it becomes the one remembered
   const h = location.hash.slice(1).split('/');
   if (h[0] === 'forecast' && (h[1] === 'raw' || h[1] === 'graded')) {
+    if (h[2] === 'purchases' && h[1] === 'graded') h[2] = 'planning';
     NAV.fc = h[1]; if (h[2] === 'planning' || h[2] === 'forecasting' || h[2] === 'history' || (h[2] === 'recording' && h[1] === 'graded')) NAV[h[1] === 'raw' ? 'rm' : 'gm'] = h[2] === 'planning' ? 'pl' : h[2] === 'recording' ? 'rc' : h[2] === 'history' ? 'hi' : 'fc'; navSave();
   }
   if (h[0] === 'forecast-history') { if (h[1] === 'raw' || h[1] === 'graded') NAV.fc = h[1]; NAV[NAV.fc === 'raw' ? 'rm' : 'gm'] = 'hi'; navSave(); }   // the old tab's address

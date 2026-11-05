@@ -701,3 +701,39 @@ input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:
 #fhg .fhr-sw, .colpick label.fhr-h::before { display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(59,130,246,.35); vertical-align:-1px; }
 .colpick label.fhr-h::before { content:''; margin-right:5px; }
 .fhr-smp { display:inline-block; margin-left:6px; padding:0 5px; font-size:10px; line-height:15px; border:1px solid var(--line); border-radius:4px; color:var(--muted); }
+/* the laid-out ? popups (2026-11-05): summary, Right now, steps with formula boxes, small tables */
+.modal.narrow.hwide { width:min(820px, 100%); }
+.hmd p.hsum { font-size:14.5px; font-weight:600; line-height:1.5; margin:2px 0 8px; }
+.hmd .hnow { margin:4px 0 12px; padding:8px 11px; border-radius:8px; border:1px solid color-mix(in srgb, var(--link) 40%, transparent); background:color-mix(in srgb, var(--link) 9%, transparent); font-size:13px; line-height:1.55; }
+.hmd .hnow > b:first-child { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--link); margin-right:6px; }
+.hmd h4 { margin:14px 0 4px; padding-top:8px; border-top:1px solid var(--line); }
+.hmd ol.hlist, .hmd ul.hlist { margin:4px 0 8px; padding-left:22px; }
+.hmd li { margin:5px 0; line-height:1.5; }
+.hmd li .formula, .hmd .formula { margin:5px 0 6px; padding:6px 10px; white-space:pre-wrap; }
+.hmd code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:var(--head); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+.hmd .htab { overflow-x:auto; margin:4px 0 8px; }
+.hmd .htab table { border-collapse:collapse; font-size:13px; min-width:0; }
+.hmd .htab th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:4px 12px 4px 0; border-bottom:1px solid var(--line); }
+.hmd .htab td { padding:4px 12px 4px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+.stat .k .help { margin-left:4px; }
+/* Recording / Purchases: the one price and its % under, linked (2026-11-05) */
+td.fcr-pxc { white-space:nowrap; }
+.fcr-pxw { display:inline-flex; align-items:center; gap:2px; }
+.fcr-pxc > .dim { display:block; font-size:11px; margin-top:2px; }
+input.fcr-px { font:inherit; font-size:12px; width:84px; padding:3px 5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); text-align:right; }
+input.fcr-px:focus, input.fcr-d:focus { border-color:var(--link); outline:none; }
+/* Add to Pre-Sales Spotcheck, beside the filter buttons (Forecasting and Recording) */
+.fcg-spotw { display:inline-flex; align-items:center; gap:2px; margin-left:6px; }
+#p-fc.gm-pl .fcg-spotw, #p-fc.gm-hi .fcg-spotw { display:none; }
+.fcg-spot:disabled { opacity:.5; cursor:wait; }
+/* History's three windows (2026-11-05): Forecasting Replay / Recorded Purchases / Pre-Sales Spotcheck */
+.fhg-wins { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:2px 0 8px; }
+#fhg:not([data-win="rp"]) #fhg-rp, #fhg:not([data-win="rp"]) #fhg-note, #fhg:not([data-win="rp"]) #fhg-cards,
+#fhg:not([data-win="rec"]) #fhg-rec, #fhg:not([data-win="sc"]) #fhg-sc { display:none !important; }
+#fhg tr.fhs-row { cursor:pointer; }
+#fhg tr.fhx tr.fhs-slab { cursor:pointer; }
+#fhg tr.fhx tr.fhs-slab:hover > td { background:color-mix(in srgb, var(--link) 8%, transparent); }
+#fhg tr.fhx tr.fhs-slab.open > td { font-weight:600; }
+#fhg tr.fhx tr.fhs-mo > td { padding:2px 0 10px 18px; background:none; }
+#fhg tr.fhx td.fhs-buy { background:rgba(34,197,94,.14); }
+#fhg tr.fhx .fhs-slabs th.fhr-on, #fhg tr.fhx .fhs-slabs td.fhr-on { background:rgba(34,197,94,.10); }

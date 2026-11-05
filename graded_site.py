@@ -35,6 +35,7 @@ Trend shards and the eBay live file use, so the page can read them):
   <out>/graded.bin        {v, built, gk: [grade keys], cards: {pc id: card meta}, rows: [[...]]} - the table
   <out>/graded_hist.bin   the graded Forecast History's replay (graded_forecast.build_hist): months, odds known then, candidates
   <out>/gtrend/s<n>.bin   {pc id: {cl: {gk: [[YYYY-MM, n, avg]]}, pc: {gk: [[YYYY-MM, price]]}, ps: {gk: [[YYYY-MM, n, Hodges-Lehmann]]},
+                          pm: {grade_9_5 | grade_9 | grade_8 | grade_7: [first YYYY-MM, [price or null a month]]},
                           pd: [[date, PSA 10]]}} - 300 cards a file (cards[id].sh says which), loaded when a Trend popup opens
 
 Only Card Ladder's PSA and CGC grades are used (Brett: "I only care about CGC and PSA graded cards").
@@ -678,6 +679,28 @@ def load_pc_sales(cd, ids, today):
     return out
 
 
+def pm_lines(lines):
+    """The blended PriceCharting lines (Grade 9.5 / 9 / 8 / 7) of one card for its trend file, compactly: {line: [first
+    month, [price or null, one a month]]} (Pre-Sales Spotcheck, 2026-11-05: the page ranks a slab from its own line, month
+    by month; PSA 10's line is already in tr["pc"]). Not drawn on the Trend chart (they blend every grader)."""
+    out = {}
+    for c, v in (lines or {}).items():
+        if c == "psa_10" or not v:
+            continue
+        by = {str(ym)[:7]: p for ym, p in v}
+        first, last = min(by), max(by)
+        y, m = int(first[:4]), int(first[5:7])
+        vals = []
+        while f"{y}-{m:02d}" <= last:
+            p = by.get(f"{y}-{m:02d}")
+            vals.append(None if p is None else round(float(p), 2))
+            m += 1
+            if m > 12:
+                y, m = y + 1, 1
+        out[c] = [first, vals]
+    return out
+
+
 def load_pc_monthly(cd, ids):
     out = {}
     for f in sorted(glob.glob(os.path.join(cd, "pricecharting", "pc_graded_monthly_*.csv.gz"))):
@@ -1029,7 +1052,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             c0["pi"] = ps.artist                            # '' = TCGplayer shows none, None = not read: both mean something
             c0["cls"], c0["qr"] = cls, rank
             cards[str(cid)] = c0
-            tr = {"pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"}, "ps": {}}
+            tr = {"pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"}, "ps": {}, "pm": pm_lines(pmon.get(cid))}
             for k, sl in (psales.get(cid) or {}).items():
                 by = {}
                 for d, p in sl:
@@ -1079,7 +1102,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             cards[str(cid)]["ma"] = {"v": ma["v"], "t": ma["t"], "note": (ma.get("note") or "")[:300]}
         tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
               "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"},   # the 9 / 9.5 / 8 / 7 lines blend every grader
-              "ps": {}}
+              "ps": {}, "pm": pm_lines(pmon.get(cid))}           # ... kept apart for Pre-Sales Spotcheck (not drawn)
         for k, sl in (psales.get(cid) or {}).items():
             by = {}
             for d, p in sl:

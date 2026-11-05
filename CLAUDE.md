@@ -2268,6 +2268,35 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   reason of every blank in its hover. The Trend chart's button is "% Change From First Month" (base: each line's first
   month on the chart, as before); its hover adds each line's change from the month before (green up, red down). The
   Grading popup has a Select all / Deselect all button under the PSA and the CGC list (on the grades shown).
+- GRADED: PURCHASES, ONE PRICE, BEST TO BUY / BEST CHANCE, HISTORY'S THREE WINDOWS, PRE-SALES SPOTCHECK, LAID-OUT ? POPUPS
+  (2026-11-05, Brett). Graded side only (the raw side's Planning is untouched): the Planning chip reads "Purchases"
+  (#forecast/graded/purchases; 'planning' still opens it), Record plan is "Record Purchases", History's recorded plans
+  are "Recorded Purchases". RECORDING / PURCHASES PRICES: one price paid (r.fcPx) and the % Under (PC) are linked -
+  price = PC standard x (1 - d) - shipping; whichever was typed last is kept (rec.px = a typed price, its d follows
+  today's standard; a typed % deletes rec.px; a Yes keeps rec.paid with the standard prices of that moment, still
+  editable); Card Ladder's side is the same dollars against its value (r.fcDc shown read-only, its Net/ROI at that %);
+  money spent counts fcPx. Only the PC % moves the Chance (the model's history is PriceCharting's). RECORDING ORDER:
+  open + Yes rows in buy order (fcgOrder), No rows last ("marking no moves it to the very bottom; yes leaves it as is").
+  fcgPlaces(rows): fcBB = place in buy order (Chance to the whole %, then rank, then price), fcBC = place by Chance alone
+  with ties shared (fcBCn), over every row of the page (not the filters); columns Best to Buy / Best Chance on
+  Forecasting (inserted v 'best' at 10) and Recording (at 12). Help: the tile is "Chance the plan profits", the column
+  "Chance (this slab)", the pane row "Buy only slabs with a chance of at least __%". HISTORY: #fhg data-win rp / rec /
+  sc (fhg-win in this browser): Forecasting Replay / Recorded Purchases / Pre-Sales Spotcheck; the hold eyes and
+  Holds… are one choice for the three (FHH_ROOT / FHH_IDS). PRE-SALES SPOTCHECK: "Add to Pre-Sales Spotcheck" (beside
+  Only Hits, Forecasting and Recording) sends the green rows like Record Purchases (type 'gspot', parts of 20, + src,
+  minp, gate); the collector's gplan_record(v, msg, t, "gspot") keeps v["gspots"] -> live.gspots ('gspot_del' removes).
+  The page looks each slab back (fhsSlab): its own line from the trend file (PSA 10 = tr.pc['psa|g10']; the blended
+  Grade 9.5 / 9 / 8 / 7 lines are new in the trend files as tr.pm {line: [first YYYY-MM, [price|null a month]]},
+  graded_site.pm_lines), a full year of prices and $25+ to rank, the rank from graded_hist.bin's new rq (each month's
+  1st..99th percentile of -dev12 x 10000, rqs grid, rqn counts; checked against the replay's candidates: 0.3
+  percentile points at most, no group differs), the odds known that month (tab), chance at the slab's % under, bought
+  = chance >= the set's bar and (gate off or market up), actual = PriceCharting's price when the hold was up (bought
+  at max(price, 3-month average), the replay's rules). THE ? POPUPS: an entry with md: 1 keeps markup in m (help.js
+  helpMd: "> " summary, "## " heading, "1. " / "- " steps with indented continuation, `formula` lines, | tables,
+  **bold**); now() is the live "Right now" line; the pencil edits the markup as plain text (f / e stay empty). Laid
+  out: fcg_regime, fcg_chance, fcg_mc, fcg_conf, fcg_bb, fcg_bc, fcg_spot, fcr_rank, fcr_disc / fcr_buy / fcp_disc /
+  fcp_paid, fhs_spot. Test page: built locally with a test key (graded_site.build + the page assembled as
+  build_catalog does) and real pc_graded_monthly files; ntfy stubbed.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

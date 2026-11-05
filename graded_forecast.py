@@ -129,7 +129,7 @@ def _prep(cd, today=None):
     j_start = max(0, _mi(CALIB_START) - m0)
     grp = np.minimum(GROUPS - 1, np.floor(np.nan_to_num(pct, nan=-1) * GROUPS)).astype(int)
     return dict(keys=keys, W=W, m0=m0, T=T, buy=buy, pct=pct, grp=grp, reg1=reg1, reg3=reg3, breadth3=breadth3, fwd3=fwd3,
-                nreg=nreg, j_now=j_now, j_last=j_last, j_start=j_start)
+                nreg=nreg, j_now=j_now, j_last=j_last, j_start=j_start, dev12=dev12)
 
 
 def _pairs(P, h):
@@ -200,6 +200,7 @@ HIST_QS = [round(i / 20, 2) for i in range(1, 20)]    # the replay's odds grids:
 HIST_K = (8, 24)                                      # candidates kept per month per group and line, deepest first: groups 1-5 / 6-10 of the rank
 HIST_BAND = (50.0, 5000.0)                            # the replay's candidates: buy price inside the page's default band
 HIST_MIN = 30                                         # an odds cell needs this many realized cases, else the whole-period cell
+RQ = [round(i / 100, 2) for i in range(1, 100)]       # the rank's cut points kept per month (Pre-Sales Spotcheck, 2026-11-05)
 
 
 def build_hist(cd, keep_ids=None, today=None):
@@ -207,13 +208,14 @@ def build_hist(cd, keep_ids=None, today=None):
     THAT month (the realized returns of the decision months whose hold was over by then - in 2022, too few, so the whole
     period's tables are used, marked first) for holds 1-6 in that month's market, and the month's best-ranked lines of
     each group and line in the $50 - $5,000 band with what they went on to do: [card id, line (index into lines), standard
-    price, rank x 1000, return after 1..6 months x 1000 (null while not over)].
+    price, rank x 1000, return after 1..6 months x 1000 (null while not over)]; and each month's rank cut points (rq: the
+    1st .. 99th percentile of -dev12, x 10000, over the rqn lines ranked), so the page can rank any slab from its own line.
     The page runs the plan for each month with Graded Forecasting's capital, % under and the other boxes."""
     P = _prep(cd, today)
     if P is None:
         return {"err": "no pc_graded_monthly files in card-data"}
     keys, W, m0, buy, pct, grp, reg3 = P["keys"], P["W"], P["m0"], P["buy"], P["pct"], P["grp"], P["reg3"]
-    j_start, j_last = P["j_start"], P["j_last"]
+    j_start, j_last, dev12 = P["j_start"], P["j_last"], P["dev12"]
     keep = None if keep_ids is None else {int(k) for k in keep_ids}
     cid = keys["card_id"].astype(int).values
     lix = keys["line"].map({l: i for i, l in enumerate(LINES)}).values
@@ -235,11 +237,17 @@ def build_hist(cd, keep_ids=None, today=None):
                     whole[(h, reg, g)] = Y[sel]
     def grid(y):
         return [round(float(y.mean()), 4)] + [round(float(v), 4) for v in np.quantile(y, HIST_QS)]
-    months, ups, regs, firsts, tabs, cands = [], [], [], [], [], []
+    months, ups, regs, firsts, tabs, cands, rqs, rqn = [], [], [], [], [], [], [], []
     for j in range(j_start, j_last + 1):
         if not np.isfinite(reg3[j]):
             continue
         up = bool(reg3[j] > 0)
+        # the rank's cut points that month (Pre-Sales Spotcheck, 2026-11-05: the page ranks any slab from its own price
+        # line): the 1st .. 99th percentile of -dev12 among the lines it ranked ($25+, a full year of prices), x 10000
+        with np.errstate(invalid="ignore"):
+            okr = (W[:, j] >= RANK_MIN_PRICE) & np.isfinite(dev12[:, j])
+        v = -dev12[okr, j]
+        rqs.append([int(round(float(x) * 10000)) for x in np.quantile(v, RQ)] if v.size else None); rqn.append(int(v.size))
         tab = []
         for h in HORIZONS:
             row = []
@@ -272,7 +280,8 @@ def build_hist(cd, keep_ids=None, today=None):
         months.append(_ym(m0 + j)); ups.append(1 if up else 0); regs.append(round(float(reg3[j]), 4)); firsts.append(1 if j < first_honest else 0); tabs.append(tab); cands.append(out)
     return {"model": VERSION, "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "qs": HIST_QS, "lines": LINES,
             "groups": GROUPS, "horizons": list(HORIZONS), "band": list(HIST_BAND), "k": list(HIST_K), "yscale": 1000, "last": _ym(m0 + j_last),
-            "months": months, "up": ups, "reg3": regs, "first": firsts, "tab": tabs, "cands": cands}
+            "months": months, "up": ups, "reg3": regs, "first": firsts, "tab": tabs, "cands": cands,
+            "rqs": RQ, "rq": rqs, "rqn": rqn, "rank_min": RANK_MIN_PRICE}
 
 
 if __name__ == "__main__":
