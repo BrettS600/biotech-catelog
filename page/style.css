@@ -624,13 +624,16 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
 .gblank strong { color:var(--fg); font-size:18px; }
 #p-fc:not(.graded) #meta-fcg, #p-fc:not(.graded) #fc-graded, #p-fc:not(.graded) #npl-g,
 #p-fc.graded #meta-fc, #p-fc.graded #fc-al, #p-fc.graded #npl, #p-fc.graded #fc-unfold, #p-fc.graded .fc-tools,
-#p-fh:not(.graded) #meta-fhg, #p-fh:not(.graded) #fhg, #p-fh.graded #meta-fh, #p-fh.graded > .fh:not(#fhg) { display:none !important; }
+/* History (2026-11-04): the Forecast tab's last button - raw: #fh-raw instead of the plan grid; graded: #fhg-main in #fcg */
+#p-fc:not(.hist) #meta-fh, #p-fc.graded #meta-fh, #p-fc.hist #meta-fc, #p-fc:not(.hist) #fh-raw, #p-fc.graded #fh-raw,
+#p-fc.hist:not(.graded) #fc-al, #p-fc.hist #fc-unfold, #p-fc.hist .fc-tools { display:none !important; }
 #p-fc:not(.graded) #fc-rc { display:none !important; }
 
 /* Graded cards > Forecasting (2026-11-04): shown on that page only; the two-line CL / PC cells; the buys in bold */
 #p-fc:not(.graded) #fcg, #fc-graded { display:none !important; }
 /* Graded > Forecasting / Recording / Planning (2026-11-04): one plan pane, each page its own card; gm-fc / gm-rc / gm-pl on #p-fc */
-#p-fc:not(.gm-fc) #fcg-main, #p-fc:not(.gm-rc) #fcr-main, #p-fc:not(.gm-pl) #fcp-main { display:none !important; }
+#p-fc:not(.gm-fc) #fcg-main, #p-fc:not(.gm-rc) #fcr-main, #p-fc:not(.gm-pl) #fcp-main, #p-fc:not(.gm-hi) #fhg-main { display:none !important; }
+#fhg.fh { padding:0; }
 #p-fc:not(.gm-pl) .fcg-only-pl, #p-fc.gm-pl #fcg-disc-row { display:none !important; }
 .fcg-disc-note { font-size:12px; margin:-2px 0 4px; }
 .fcg-disc-note:empty { display:none; }

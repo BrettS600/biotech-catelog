@@ -3,7 +3,6 @@
   <button class="tab" data-t="ec">eBay Catalog</button>
   <button class="tab" data-t="er">eBay Raw Data</button>
   <button class="tab" data-t="fc">Forecast</button>
-  <button class="tab" data-t="fh" title="How the Forecast tab's plans would have done, month by month">Forecast History</button>
   <button class="tab" data-t="al">Notification Settings</button>
   <button class="tab" data-t="rv">Transaction Report</button>
   <button class="tab" data-t="fv" title="The rows you starred, from every tab">Favorites <span class="tcnt" id="nfv"></span></button>
@@ -514,8 +513,9 @@
 <div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting and Planning as they were"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): Forecasting, Recording and Planning"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
 <div class="meta" id="meta-fcg">Forecast &middot; graded cards (PSA and CGC)</div>
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
+<div class="meta" id="meta-fh">Forecast &middot; raw cards &middot; History: the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
 <div class="actbar fc-bar">
-  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
+  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button></span>
   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
   <span class="fc-tools"><button class="actbtn" id="fc-flags" title="The Flags archive: cards held for a PC gap, listings far from PriceCharting or the anchor - review and mark them">Flags (<span class="nfg">0</span>)</button><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>
@@ -568,6 +568,7 @@
     <div class="al-status" id="pl-status"></div>
   </div>
 </div>
+<div class="fc fh" id="fh-raw"><div class="al-card fh-card" id="fh-body"></div></div>
 <div class="gblank" id="fc-graded"><strong id="fcg-t">Graded forecasting</strong><span id="fcg-s">Blank for now.</span></div>
 <!-- Graded cards > Forecasting (2026-11-04, Brett): every graded row assumed for sale, the raw model's method on PriceCharting's graded lines (page/graded_fc.js) -->
 <div class="al fc" id="fcg">
@@ -583,7 +584,7 @@
     <div class="al-row"><span class="lab">Buy only at<button class="help" data-h="fcg_conf">?</button></span><span><input type="number" id="fcg-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span><span class="dim"> or better chance of a profit</span></span></div>
     <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fcg_copies">?</button></span><span><input type="number" id="fcg-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
     <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is rising<button class="help" data-h="fcg_gate">?</button></label>
-    <div class="al-actions fcg-only-pl"><button class="al-save" id="fcp-record" title="Save these purchased slabs, with the settings of the moment, to Forecast History (Graded cards)">Record plan</button><button class="help" data-h="fcp_record">?</button></div>
+    <div class="al-actions fcg-only-pl"><button class="al-save" id="fcp-record" title="Save these purchased slabs, with the settings of the moment, to History (Graded cards)">Record plan</button><button class="help" data-h="fcp_record">?</button></div>
     <div class="al-status fcg-only-pl" id="fcp-status"></div>
     <h3>The market now<button class="help" data-h="fcg_regime">?</button></h3>
     <div class="al-now" id="fcg-regime">Waiting for the graded data&hellip;</div>
@@ -701,15 +702,9 @@
     </div>
     <button class="more" id="more-fcp" hidden>Show more</button>
   </div>
-</div>
-</section>
-
-<section class="panel" id="p-fh" hidden>
-<div class="kindbar" id="fh-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: the Forecast tab’s record, as it was"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): the graded replay and your recorded graded plans"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
-<div class="meta" id="meta-fh">Forecast History &middot; the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
-<div class="meta" id="meta-fhg">Forecast History &middot; graded cards (PSA and CGC) &middot; Graded Forecasting&rsquo;s plan run on every month since 2022 with only what was known then, and the plans you recorded on Graded &rsaquo; Planning</div>
-<div class="fc fh"><div class="al-card fh-card" id="fh-body"></div></div>
-<div class="fc fh" id="fhg"><div class="al-card fh-card">
+  <div class="al-card fcg-main" id="fhg-main">
+    <button type="button" class="actbtn fc-unfold fcg-unfold" id="fhg-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <div id="fhg" class="fh">
   <div class="dim fhg-note" id="fhg-note"></div>
   <div id="fhg-cards"></div>
   <div id="fhg-rp">
@@ -731,9 +726,11 @@
   <button class="more" id="more-fhr" hidden>Show more</button>
   <p class="dim" id="fhr-none"></p>
   </div>
-</div></div>
-
+</div>
+  </div>
+</div>
 </section>
+
 <section class="panel" id="p-al" hidden>
 <div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes on the eBay Raw Data tab only change what the tables show.</div>
 <div class="al">

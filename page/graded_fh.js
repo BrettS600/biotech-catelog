@@ -1,4 +1,4 @@
-/* ---------------- Forecast History > Graded cards (2026-11-04, Brett) ----------------
+/* ---------------- Forecast > Graded cards > History (2026-11-04, Brett; first the Forecast History tab's Graded cards) ----------------
    "The capital and % under will simply draw from the variables in the graded forcasted page. For the circled green, we
    should show 1-month, 2, 3, 4, 5, and 6-month. In each month, I think all we need to show is mean roi for each and mean
    chance. For the column headers, lets show all 6. give the option to hide them and have a column toggle feature ...
@@ -144,7 +144,7 @@ function fhxInsert(id, t, isOpen, detail) {               // the opened rows' de
   const tb = $('rows-' + id), n = fhxColspan(id);
   [...tb.children].forEach(tr => { if (!tr.classList.contains('fhx')) { const r = t.view.find(x => String(x.key) === tr.dataset.key); tr.classList.toggle('open', !!(r && isOpen(r))); if (r && isOpen(r)) { const x = document.createElement('tr'); x.className = 'fhx'; x.innerHTML = '<td data-ci="x" colspan="' + n + '"><div class="fhx-in">' + detail(r) + '</div></td>'; tr.after(x); } } });
 }
-tables.fhg = makeTable('fhg', {rows: fhgRowsData, noun: 'months', ranges: [], labels: {}, defaults: {}, root: '#fhg-rp', name: 'Forecast History · graded replay',
+tables.fhg = makeTable('fhg', {rows: fhgRowsData, noun: 'months', ranges: [], labels: {}, defaults: {}, root: '#fhg-rp', name: 'Forecast · graded history replay',
   key: r => { r.key = r.m; return r.m; }, hay: r => r.m, row: fhgRow, rowClass: () => 'fhg-row',
   after: t => fhxInsert('fhg', t, r => FHG.open.has('m:' + r.m), fhgDetail)});
 
@@ -241,9 +241,9 @@ function fhrDetail(r) {
   }).join('');
   return '<h4>' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' bought ' + fhrDate(rec.t) + ' for ' + fmtMoneyPlain(rec.spent) + ' · held ' + h + ' month' + (h > 1 ? 's' : '') + ' (up ' + fhrDate(due.getTime()) + ') · ' + (Math.round(rec.disc * 1000) / 10) + '% under by default, ' + fmtMoneyPlain(rec.ship) + ' shipping, eBay’s fee ' + (Math.round(rec.fee * 1000) / 10) + '% · capital ' + fmtMoneyPlain(rec.cap) + (rec.reg ? ' · market ' + esc(rec.reg) : '') + '</h4>' +
     '<table class="fhr-slabs"><thead><tr><th>★</th><th>Review</th><th>PC Card Name</th><th>Grade</th><th class="num">Rank</th><th class="num">Standard Price</th><th class="num">% Under Paid</th><th class="num">Price Paid</th><th class="num">Sold (last month)</th><th class="num" title="the chance for the ' + h + '-month hold, the day it was recorded">Chance</th><th class="num">QTY</th><th class="num" title="expected net for the ' + h + '-month hold, the day it was recorded">Net</th><th class="num">ROI %</th><th class="num" title="sold at PriceCharting’s price in the month the ' + h + '-month hold is up, after eBay’s fee and the shipping">Actual (' + h + ' mo)</th><th>Purchased</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-    '<button type="button" class="fhr-del" data-id="' + esc(rec.id) + '" title="Take this plan off Forecast History (for one recorded by mistake)">Remove this recorded plan</button>';
+    '<button type="button" class="fhr-del" data-id="' + esc(rec.id) + '" title="Take this plan off History (for one recorded by mistake)">Remove this recorded plan</button>';
 }
-tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded plans', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast History · recorded graded plans',
+tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded plans', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded plans',
   key: r => r.key, row: fhrRow, rowClass: () => 'fhr-row',
   hay: r => r.rec.slabs.map(s => { const b = GR.doc ? fcrMap().get(s[0] + '|' + s[1]) : null; return b ? b[1] + ' ' + b[2] + ' ' + b[25] : fhgName(s[0]).join(' ') + ' ' + grLabel(s[1]); }).join(' ') + ' ' + fhrDate(r.rec.t),
   after: t => {
@@ -280,7 +280,7 @@ $('rows-fhr').addEventListener('click', e => {
 function fhgNote() {
   const el = $('fhg-note'); if (!el) return;
   const I = fcgInputs(), grades = [...GF.fc.gsel].filter(gk => FCG_LINE(gk)).map(grLabel);
-  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.join(', ')) : 'no grade with a PriceCharting line ticked') + ' - set on Forecast › Graded cards › Forecasting.';
+  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.join(', ')) : 'no grade with a PriceCharting line ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.';
 }
 function fhgPaint() {                                     // the cards and the replay table, once its cells are in
   fhgCards();
@@ -288,7 +288,7 @@ function fhgPaint() {                                     // the cards and the r
   tables.fhg.apply(true);
 }
 function fhgRender() {
-  if ($('p-fh').hidden || NAV.fh !== 'graded') return;
+  if ($('p-fc').hidden || NAV.fc !== 'graded' || NAV.gm !== 'hi') return;
   fhgNote();
   if (!GR.doc && !GR.loading) grLoad().then(() => { tables.fhr.apply(true); });
   if (!FHG.doc) { if (!FHG.err) fhgLoad(); $('fhg-run').textContent = FHG.err || 'Loading the replay…'; fhgCards(); tables.fhg.apply(true); }
@@ -297,7 +297,7 @@ function fhgRender() {
 }
 { const na = navApply; navApply = function () { na.apply(this, arguments); fhgRender(); }; }
 { const st = showTab; showTab = function () { st.apply(this, arguments); fhgRender(); }; }
-{ const rb = rebuildLive; rebuildLive = function () { const out = rb.apply(this, arguments); if (!$('p-fh').hidden && NAV.fh === 'graded') tables.fhr.apply(true); return out; }; }
+{ const rb = rebuildLive; rebuildLive = function () { const out = rb.apply(this, arguments); if (!$('p-fc').hidden && NAV.fc === 'graded' && NAV.gm === 'hi') tables.fhr.apply(true); return out; }; }
 fhgRender();
 
 Object.assign(HELP, {

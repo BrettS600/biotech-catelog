@@ -11,7 +11,7 @@
    grade on Recording's Looking for list.
    Planning: "it basically just show the same things as the graded recorded. But in this case, it will only show the
    listing that I marked as purchased" - each at what was paid and the % under it was paid at; Record plan (Planning
-   only) keeps the plan, with the settings of the moment, on Forecast History > Graded cards (through the collector, so
+   only) keeps the plan, with the settings of the moment, on History, Graded cards (through the collector, so
    it follows from laptop to phone).
    One plan pane and one set of filter buttons for Forecasting, Recording and Planning ("When I change a filter or
    button setting in graded forcasting then those same changes automatically show in graded planning, and vice versa"),
@@ -104,7 +104,7 @@ function fcpSummary(F) {
   if (!GR.doc) { box.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>' : 'Loading the graded data…'; return; }
   const n = F.rows.length, I = F.I, nsmp = F.rows.filter(r => r.rec.smp).length;
   let s = !n ? '<p><b>Nothing bought yet.</b> Mark a slab <b>Yes</b> on Recording and it comes here, at what you paid.</p>'
-    : '<p>You bought <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(F.spent) + '</b>' + (I.cap ? ' (' + fmtMoneyPlain(Math.max(0, F.left)) + ' of ' + fmtMoneyPlain(I.cap) + ' left)' : '') + '. Held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' and sold on eBay at PriceCharting’s price then' + (F.scored < n ? '; ' + (n - F.scored) + ' of them have no score, so they are in the money spent but not in the expected figures' : '') + '. <b>Record plan</b> (the plan pane) keeps it on Forecast History.' + (nsmp ? ' <span class="dim">' + nsmp + ' are sample purchases (Recording’s Remove samples takes them away).</span>' : '') + '</p>';
+    : '<p>You bought <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(F.spent) + '</b>' + (I.cap ? ' (' + fmtMoneyPlain(Math.max(0, F.left)) + ' of ' + fmtMoneyPlain(I.cap) + ' left)' : '') + '. Held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' and sold on eBay at PriceCharting’s price then' + (F.scored < n ? '; ' + (n - F.scored) + ' of them have no score, so they are in the money spent but not in the expected figures' : '') + '. <b>Record plan</b> (the plan pane) keeps it on History.' + (nsmp ? ' <span class="dim">' + nsmp + ' are sample purchases (Recording’s Remove samples takes them away).</span>' : '') + '</p>';
   s += fcrStats(F.mc, F.spent, I, 'the slabs you bought', [F.left, fmtMoneyPlain(F.spent) + ' of ' + fmtMoneyPlain(I.cap) + ' spent']);
   box.innerHTML = s;
 }
@@ -255,8 +255,8 @@ async function fcpRecord() {
     for (let k = 0; k < n; k++) await alSend(Object.assign({type: 'gplan', t: k ? nextT() : id, id, k, n, s: slabs.slice(k * FCP_PART, (k + 1) * FCP_PART)}, k ? {} : head));
   } catch (e) { return say('Could not reach the collector’s channel (' + e.message + '). Nothing was recorded.', 'warn'); }
   FCR.echo = FCR.echo.filter(x => Date.now() - x.t < 2 * 86400000).concat([Object.assign({id, t: id, slabs, local: 1}, head)]); grSave('fcg-gplan-echo', FCR.echo);
-  say('Recorded: ' + rows.length + ' slab' + (rows.length > 1 ? 's' : '') + ', ' + fmtMoneyPlain(spent) + ', held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + '. It is on Forecast History > Graded cards; the collector confirms it in a minute or two.', 'ok');
-  if (typeof fhgRender === 'function' && !$('p-fh').hidden) fhgRender();
+  say('Recorded: ' + rows.length + ' slab' + (rows.length > 1 ? 's' : '') + ', ' + fmtMoneyPlain(spent) + ', held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + '. It is on the History button (Graded cards); the collector confirms it in a minute or two.', 'ok');
+  if (typeof fhgRender === 'function') fhgRender();
 }
 $('fcp-record').addEventListener('click', fcpRecord);
 fcrCounts();
@@ -272,8 +272,8 @@ Object.assign(HELP, {
   fcr_qty: {t: 'QTY', f: '1: buy this slab (the green rows); a bought slab shows 1 too', m: 'Each row is one slab, so 1 or nothing: the capital left, best chance first, the share and copies limits.', e: ''},
   fcr_net: {t: 'Net', f: 'expected net of the slab at its own % under: standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - % under))', m: 'After eBay’s fee, the shipping and what you pay; for both sides’ standard prices.', e: ''},
   fcr_purchased: {t: 'Purchased', f: 'Yes: you bought it; No: you did not (the vendor wanted more than the buy price); neither: still open', m: 'Yes takes the buy price off the capital and puts the slab on Planning, at what you paid. No greys the row and gives its money to the next row, so new rows may turn green. Click the lit button again to undo.', e: ''},
-  fcp_picks: {t: 'What you bought (Planning)', f: 'the slabs marked Yes on Recording, at what you paid', m: 'Each at the standard prices and shipping of the moment you marked it, and the % under it was paid at (change the box and the price paid follows). The summary is the basket: what it cost and what it is expected to make over the hold in the pane (a simulation drawing each slab from its group). Record plan keeps it on Forecast History.', e: ''},
+  fcp_picks: {t: 'What you bought (Planning)', f: 'the slabs marked Yes on Recording, at what you paid', m: 'Each at the standard prices and shipping of the moment you marked it, and the % under it was paid at (change the box and the price paid follows). The summary is the basket: what it cost and what it is expected to make over the hold in the pane (a simulation drawing each slab from its group). Record plan keeps it on History.', e: ''},
   fcp_disc: {t: '% Under Paid', f: 'the % under the standard price you paid', m: 'Kept with the slab; change it and the price paid follows.', e: ''},
   fcp_paid: {t: 'Price Paid', f: 'what you paid: standard price x (1 - % under paid) - eBay Shipping Fee', m: 'The PriceCharting side is the one counted; Card Ladder’s beside it.', e: ''},
-  fcp_record: {t: 'Record plan', f: 'saves the slabs you bought, with the date, the hold and the other settings, to Forecast History > Graded cards', m: 'Through the collector, so it is there on every device. It keeps each slab’s price paid and standard prices, and the odds of the day for all six holds; Forecast History scores each hold at PriceCharting’s price when it is up.', e: ''}
+  fcp_record: {t: 'Record plan', f: 'saves the slabs you bought, with the date, the hold and the other settings, to History (Graded cards)', m: 'Through the collector, so it is there on every device. It keeps each slab’s price paid and standard prices, and the odds of the day for all six holds; History scores each hold at PriceCharting’s price when it is up.', e: ''}
 });

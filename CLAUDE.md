@@ -2210,6 +2210,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   draws; CSS keeps col-hidden / widths off them. ONLY HITS (same day): #fcg-hits, first in the GF.fc button row
   (grPaintTerms wrapped to keep it out of the redraw), localStorage 'fcg-hits', one switch for fcg and fcr (hidden on
   Planning); fcgHitsView cuts t.view to the green rows AFTER the allocation ran on every row on view.
+- HISTORY IS A FORECAST-TAB BUTTON (2026-11-04 evening, Brett: "instead of having a forcase history tab ... another button
+  next to the others ... called history"). No p-fh panel, no top tab: NAV.rm 'fc'|'pl'|'hi', NAV.gm 'fc'|'rc'|'pl'|'hi'
+  (no NAV.fh), #forecast/raw|graded/history; an old #forecast-history[/raw|/graded] address and showTab('fh') open it.
+  #p-fc gets .hist; raw History = #meta-fh + #fh-raw (#fh-body, fhRender unchanged, its own capital / % under chips)
+  in place of #fc-al (FC.mode stays 'fc'/'pl'; fhRawOn() replaces the old p-fh checks); graded History = #fhg-main, a
+  fourth card in #fcg beside the plan pane (the % under box shows Forecasting's; a pane change reruns the replay).
+  README on History = the old 'fh' README (curTab).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

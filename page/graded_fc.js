@@ -159,7 +159,8 @@ function fcgMeta() {
   const D = fcgDoc();
   const md = typeof fcgMode === 'function' ? fcgMode() : 'fc';
   m.textContent = md === 'rc' ? 'Forecast · graded cards (PSA and CGC) · Recording: the slabs you recorded at a card show, best chance first - green: buy it with the capital left; Yes: you bought it at its buy price; No: the vendor wanted more'
-    : md === 'pl' ? 'Forecast · graded cards (PSA and CGC) · Planning: the slabs you bought (marked Yes on Recording), what you paid and what they are expected to make; Record plan keeps them on Forecast History'
+    : md === 'pl' ? 'Forecast · graded cards (PSA and CGC) · Planning: the slabs you bought (marked Yes on Recording), what you paid and what they are expected to make; Record plan keeps them on History'
+    : md === 'hi' ? 'Forecast · graded cards (PSA and CGC) · History: Graded Forecasting’s plan run on every month since 2022 with only what was known then, and the plans you recorded on Planning'
     : 'Forecast · graded cards (PSA and CGC) · which slabs to buy at a vendor and sell on eBay, every listed slab assumed for sale, ranked like the raw tab: how far each grade’s PriceCharting price sits below its own 12-month mean' + (D ? ' · ' + D.model : '');
 }
 // the cells
@@ -256,10 +257,10 @@ function fcgPlusToggle(k) {
 $('rows-fcg').addEventListener('click', e => { const b = e.target.closest('.gplb'); if (b) fcgPlusToggle(b.dataset.k); });
 function fcgPlanCount() { if (typeof fcrCounts === 'function') fcrCounts(); }
 // the plan's boxes: remembered in this browser, every change worked out again
-const fcgMode = () => NAV.gm === 'rc' ? 'rc' : NAV.gm === 'pl' ? 'pl' : 'fc';
+const fcgMode = () => ['rc', 'pl', 'hi'].includes(NAV.gm) ? NAV.gm : 'fc';
 function fcgDiscPaint() {                                  // the % under box: Forecasting's own, Recording's starting %, none on Planning
   const m = fcgMode(); $('fcg-disc').value = m === 'rc' ? FCG_IN.rdisc : FCG_IN.disc;
-  $('fcg-disc-note').textContent = m === 'rc' ? 'Recording: the % a newly recorded slab starts at - each row has its own % Under box (what the vendor will take). Forecasting keeps its own % under.' : '';
+  $('fcg-disc-note').textContent = m === 'rc' ? 'Recording: the % a newly recorded slab starts at - each row has its own % Under box (what the vendor will take). Forecasting keeps its own % under.' : m === 'hi' ? 'History: the replay runs these boxes, with Forecasting’s % under (the same box as on Forecasting).' : '';
 }
 function fcgInputsPaint() {
   const I = FCG_IN;
@@ -274,6 +275,7 @@ function fcgChanged() {
   if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
   grSave('fcg-in', FCG_IN);
   fcgRegime(); if (GR.doc) { tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }
+  if (m === 'hi' && typeof fhgRender === 'function') fhgRender();   // History: the replay follows the pane
 }
 $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
 $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
@@ -289,14 +291,16 @@ function fcgMoveChips(m) {
 function fcgShow() {
   fcgMeta();
   if ($('p-fc').hidden || NAV.fc !== 'graded') return;
-  const m = fcgMode(); fcgMoveChips(m);
+  const m = fcgMode();
+  if (m === 'hi') { fcgRegime(); grLoad().then(() => { fcgRegime(); fcgMeta(); }); return; }   // History: graded_fh.js draws it (its own wrapper of navApply / showTab); the market box wants the graded data
+  fcgMoveChips(m);
   fcgRegime(); if (m === 'fc') fcgSummary(); grPaintGrades(GF.fc);
   grLoad().then(() => {
     grPaintTerms(GF.fc); grPaintGrades(GF.fc); fcgRegime(); fcgMeta();
     if (fcgMode() === 'fc') { tables.fcg.resync(); tables.fcg.apply(); } else if (typeof fcrShowData === 'function') fcrShowData();
   });
 }
-function fcgModeClass() { const m = fcgMode(); ['fc', 'rc', 'pl'].forEach(x => $('p-fc').classList.toggle('gm-' + x, x === m)); }
+function fcgModeClass() { const m = fcgMode(); ['fc', 'rc', 'pl', 'hi'].forEach(x => $('p-fc').classList.toggle('gm-' + x, x === m)); }
 { const na = navApply; navApply = function () { na.apply(this, arguments); fcgModeClass(); fcgDiscPaint(); fcgShow(); }; }
 { const st = showTab; showTab = function () { st.apply(this, arguments); fcgShow(); }; }
 // the table scrolls in its own box (it is wider than the card; the header row sticks to the box's top): more rows as the
