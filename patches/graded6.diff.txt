@@ -1,0 +1,247 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index e3d6bf9..d975439 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2255,2 +2255,17 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   ✕ / backdrop / Esc close Trend alone (a capture-phase Esc handler on window).
++- THE GRADED STATS FROM PRICECHARTING ONLY; TREND HOVER; GRADING BUTTONS (2026-11-05, Brett: "for the stats, i am thinking
++  we just use pc for all of them"; "i want to stop using cl in the futre and just use pc"). PriceCharting has a daily price
++  of its own only for PSA 10 and CGC 10 (manual-only-price / condition-17-price, the site's snapshots since 2026-09-28);
++  those rows keep series_stats (d7 d30 pos vol ts). Every other grade - and a CGC 10 that is the 0.40 x PSA 10 formula -
++  gets sales_stats(ps_list, asof) from PriceCharting's recorded sales of that grade and grader, as of the card's last page
++  read (pc_read): Δ7d / Δ30d = median of the last 7 / 30 days vs the 7 / 30 before (5+ / 3+ sales each), ts = Theil-Sen
++  through the last 90 days' sales (5+ over 30+ days); pos and vol stay None for them (no daily price: one-off copies).
++  Volume drift for every grade: sales_drift = [last 30 days, the 30 before, asof] only when cover (the row's existing
++  complete-from date) is 60+ days back - PriceCharting lists 30 sales a grade, and the collector's graded_due re-reads a
++  busy grade before any scroll off (since 2026-11-03 for all grades), so busy grades fill as the record grows. Row
++  columns vd (x[22]) and sx (x[23] = [asof, n7, n7 before, n30, n30 before, n90], 0 = none in 90 days, absent = daily).
++  Page: grBuildRow sets r[10] (%) / r[11] (difference) from vd, r.vd, r.sx; grStatCells draws the six cells with the
++  reason of every blank in its hover. The Trend chart's button is "% Change From First Month" (base: each line's first
++  month on the chart, as before); its hover adds each line's change from the month before (green up, red down). The
++  Grading popup has a Select all / Deselect all button under the PSA and the CGC list (on the grades shown).
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/graded_site.py b/graded_site.py
+index 5eff8fb..2c9e8dd 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -728,2 +728,63 @@ def load_snap_history(snap_dir, ids, pw):
+ # ---------------- statistics (build_catalog.py's formulas, on one price series) ----------------
++# ---------------- the same figures from one grade and grader's own sales (2026-11-05, Brett: "for the stats, i am thinking
++# we just use pc for all of them"): PriceCharting has a daily price of its own only for PSA 10 and CGC 10, so the other
++# grades (and a CGC 10 that is PriceCharting's 0.40 x PSA 10 formula) take theirs from the sales PriceCharting recorded of
++# that exact grade and grader, as of the day the card's page was last read. Range 90d and Volatility need a daily price:
++# none for these rows (the page says why). ----------------
++SALES_D7_MIN, SALES_D30_MIN, SALES_TS_MIN, SALES_TS_SPAN = 5, 3, 5, 30
++
++
++def sales_stats(sales, asof):
++    """sales [(YYYY-MM-DD, price)] of one grade and grader -> ({d7, d30, ts}, [n7, n7 before, n30, n30 before, n90]):
++    the median of the last 7 / 30 days against the 7 / 30 before (5+ / 3+ sales in each), and the Theil-Sen slope of
++    the last 90 days' sales (5+ sales over 30+ days), % a month; all as of asof (YYYY-MM-DD)."""
++    a = date.fromisoformat(asof)
++    pts = []
++    for d, p in sales:
++        try:
++            dd = date.fromisoformat(d[:10])
++        except ValueError:
++            continue
++        if p and p > 0 and dd <= a:
++            pts.append(((a - dd).days, dd, float(p)))
++    out, n = {}, []
++    for key, w, mn in (("d7", 7, SALES_D7_MIN), ("d30", 30, SALES_D30_MIN)):
++        now = [p for ago, _, p in pts if ago < w]
++        bef = [p for ago, _, p in pts if w <= ago < 2 * w]
++        n += [len(now), len(bef)]
++        if len(now) >= mn and len(bef) >= mn:
++            out[key] = r2((statistics.median(now) / statistics.median(bef) - 1) * 100)
++    W = [(dd, p) for ago, dd, p in pts if ago < 90]
++    n.append(len(W))
++    if len(W) >= SALES_TS_MIN and (max(d for d, _ in W) - min(d for d, _ in W)).days >= SALES_TS_SPAN:
++        t = np.array([d.toordinal() for d, _ in W], dtype=float)
++        L = np.log(np.array([p for _, p in W], dtype=float))
++        iu = np.triu_indices(len(W), 1)
++        dt, dl = (t[None, :] - t[:, None])[iu], (L[None, :] - L[:, None])[iu]
++        sl = dl[dt != 0] / dt[dt != 0]                       # pairs on one day carry no slope
++        if sl.size:
++            out["ts"] = r2((np.exp(float(np.median(sl)) * 30) - 1) * 100)
++    return out, n
++
++
++def sales_drift(sales, asof, cover):
++    """Volume drift: [sales in the last 30 days, sales in the 30 before, asof] of one grade and grader as of asof - only when our
++    record of the grade is complete back 60 days (cover: the day it is complete from; PriceCharting lists only its latest
++    30 sales of a grade, and the collector re-reads a busy grade before any scrolls off), else None."""
++    a = date.fromisoformat(asof)
++    if not cover or cover > (a - timedelta(days=60)).isoformat():
++        return None
++    now = bef = 0
++    for d, _ in sales:
++        try:
++            ago = (a - date.fromisoformat(d[:10])).days
++        except ValueError:
++            continue
++        if 0 <= ago < 30:
++            now += 1
++        elif 30 <= ago < 60:
++            bef += 1
++    return [now, bef, asof]
++
++
+ def series_stats(pts, today):
+@@ -880,2 +941,4 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             pc_n1e = est_last_month(ps_list, last_m) if pc_n1 is None else None
++            asof = (pc_read.get(cid) or today.isoformat())[:10]   # the stats from sales: as of the card's last read
++            vd = sales_drift(ps_list, asof, cover)
+             cl = clg.get(k, [None, None, None])
+@@ -885,2 +948,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             st = stats_by_col.get(col, {}) if col and col_ok else {}    # the daily moves of a blended column are not this grade's
++            sx = None
++            if not (col and col_ok):                        # no daily price of its own: Δ7d / Δ30d / slope from its own sales
++                sst, sn = sales_stats(ps_list, asof)
++                st = sst
++                sx = [asof] + sn if sn[-1] else 0       # [as of, n7, n7 before, n30, n30 before, n90]; 0 = no sale in 90 days
+             mk = marks.get((str(cid), k))
+@@ -913,3 +981,4 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
+-                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e])
++                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e,
++                         vd, sx])
+         if not r and len(rows) == nrow0:
+@@ -1043,3 +1112,4 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
+-                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e"],
++                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e",
++                                    "vd", "sx"],
+            "cls": {k: sum(1 for c in cards.values() if c.get("cls") == k) for k in ("read", "pending", "nomatch")},
+diff --git a/page/body.html b/page/body.html
+index d12d633..d8ab567 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -492,3 +492,3 @@
+     <div class="sub" id="gsub"></div>
+-    <div class="bar"><span class="dim">Lines from:</span> <span id="gsrc"></span> <span class="dim">Window:</span> <span id="gzoom"><button class="zb" data-z="6">6m</button><button class="zb" data-z="12">1y</button><button class="zb" data-z="24">2y</button><button class="zb" data-z="60">5y</button><button class="zb" data-z="all">All</button></span> <button class="zb" id="glog" title="Log scale: equal percentage moves at equal heights - a $70 card and a $900 card both get room, and a 20% rise looks the same size on both. Off: equal dollar steps.">Log</button><button class="zb" id="gpct" title="% change: every line as its change since its own first month in the window, so all lines start at 0% and grades far apart in price (or PC against CL) compare by how much they grew. The window (6m / 1y / 2y / 5y / All) sets the starting month; each line's chip shows its change over the window. Works with Log.">% change</button></div>
++    <div class="bar"><span class="dim">Lines from:</span> <span id="gsrc"></span> <span class="dim">Window:</span> <span id="gzoom"><button class="zb" data-z="6">6m</button><button class="zb" data-z="12">1y</button><button class="zb" data-z="24">2y</button><button class="zb" data-z="60">5y</button><button class="zb" data-z="all">All</button></span> <button class="zb" id="glog" title="Log scale: equal percentage moves at equal heights - a $70 card and a $900 card both get room, and a 20% rise looks the same size on both. Off: equal dollar steps.">Log</button><button class="zb" id="gpct" title="% Change From First Month: every line as its change since its own first month on the chart, so all lines start at 0% and grades far apart in price (or PC against CL) compare by how much they grew. The window (6m / 1y / 2y / 5y / All) sets that first month; each line's chip shows its change over the window. Works with Log. The hover gives each line's change from the month before.">% Change From First Month</button></div>
+     <div class="gpick" id="ggrades"></div>
+diff --git a/page/graded.js b/page/graded.js
+index 4c218c8..998c174 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -123,2 +123,8 @@ function grBuildRow(d, x) {
+       ordOf(base) * 64 + 1 + x[1]];
++    // the analysis columns from PriceCharting's own sales (2026-11-05): volume drift [last 30 days, the 30 before, as of]
++    // for every grade; r.sx = [as of, n7, n7 before, n30, n30 before, n90] behind a grade's Δ7d / Δ30d / slope when it has
++    // no daily price of its own (all but PSA 10 and a real CGC 10)
++    const vd = x[22] || null;
++    r.vd = vd; r.sx = x[23] === undefined ? null : x[23];   // 0: a grade without a daily price and no sale in 90 days
++    if (vd) { r[11] = vd[0] - vd[1]; r[10] = vd[1] ? Math.round((vd[0] / vd[1] - 1) * 1000) / 10 : null; }
+     return r;
+@@ -234,2 +240,40 @@ const grInt = v => v == null ? gdash : '<td class="num">' + fmtInt(v) + '</td>';
+ const grPct = (v, signed = true, nd = 1) => v == null ? gdash : '<td class="num">' + fmtPct(v, signed, nd) + '</td>';
++/* The analysis columns of a graded row (2026-11-05, Brett: "for the stats, i am thinking we just use pc for all of them";
++   blanks "with the reason in the hover text"): PSA 10 and a real CGC 10 from PriceCharting's daily price of that grade
++   (the site's daily snapshots); every other grade - and a CGC 10 that is PriceCharting's 0.40 x PSA 10 - from the sales
++   PriceCharting recorded of that exact grade and grader, as of the card's last page read: Δ7d / Δ30d = the median of the
++   last 7 / 30 days against the 7 / 30 before (5+ / 3+ sales in each), Slope = Theil-Sen through the last 90 days' sales.
++   Range 90d and Volatility need a daily price, so those rows leave them blank. Volume drift: every grade, from its sales. */
++const grDay = s => s ? MONTHS_S[+s.slice(5, 7) - 1] + ' ' + (+s.slice(8, 10)) : '';
++const grStatDash = t => '<td class="ctr"><span class="dim" title="' + esc(t) + '">-</span></td>';
++const grStatVal = (v, t, signed = true, nd = 1) => '<td class="num" title="' + esc(t) + '">' + fmtPct(v, signed, nd) + '</td>';
++function grStatCells(r) {
++  const g = r[25], gk = r[50], sx = r.sx || null, vd = r.vd;
++  const daily = (gk === 'psa|g10' || gk === 'cgc|g10') && r.sx == null;   // a CGC 10 that is PriceCharting's formula comes with sx
++  const asof = sx ? grDay(sx[0]) : '', read = asof ? ' (as of the card’s last page read, ' + asof + ')' : '';
++  const own = 'PriceCharting has a daily price of its own only for PSA 10 and CGC 10';
++  const noSales = 'No ' + g + ' sale on record in the last 90 days' + read + ' - ' + own + ', so this grade’s figures come from its own sales.';
++  const win = (v, i, n, mn) => {                            // Δ7d / Δ30d from the sales: i = the counts' place in sx
++    if (!sx) return grStatDash(noSales);
++    const a = sx[i], b = sx[i + 1], span = n === 7 ? 'week' : '30 days';
++    if (v == null) return grStatDash('Fewer than ' + mn + ' ' + g + ' sales in one of the two ' + (n === 7 ? 'weeks' : '30-day spans') + ' to ' + asof + ' (' + a + ' in the last ' + span + ', ' + b + ' in the ' + span + ' before) - too few for a steady median. ' + own + '.');
++    return grStatVal(v, 'The median of the ' + a + ' ' + g + ' sales of the ' + n + ' days to ' + asof + ' against the median of the ' + b + ' of the ' + n + ' days before (PriceCharting’s recorded sales of this grade and grader)' + read + '.');
++  };
++  const d7 = daily ? (r[7] == null ? grStatDash('Needs 7 days of PriceCharting’s daily ' + g + ' price.') : grStatVal(r[7], 'PriceCharting’s ' + g + ' price today against 7 days ago (the site’s daily prices).'))
++    : win(r[7], 1, 7, 5);
++  const d30 = daily ? (r[8] == null ? grStatDash('Needs 30 days of PriceCharting’s daily ' + g + ' price.') : grStatVal(r[8], 'PriceCharting’s ' + g + ' price today against 30 days ago (the site’s daily prices).'))
++    : win(r[8], 3, 30, 3);
++  const pos = daily ? (r[9] == null ? grStatDash('Needs 60 days of PriceCharting’s daily ' + g + ' price: the site saves it daily since Sep 28, so this fills from about Nov 27.') : grStatVal(r[9], 'Where today’s PriceCharting ' + g + ' price sits in its 90-day low-high range (0% = the low, 100% = the high).', false, 0))
++    : grStatDash('No daily ' + g + ' price of its own (' + own + '): the low and the high of single sales are one-off copies, not the market.');
++  const vdc = !vd ? grStatDash('Our record of the ' + g + ' sales does not reach back 60 days yet: PriceCharting lists only its latest 30 sales of a grade. The collector now re-reads a busy grade before any scroll off, so this fills as the record grows.')
++    : !vd[0] && !vd[1] ? grStatDash('No ' + g + ' sale in the last 60 days (as of ' + grDay(vd[2]) + ').')
++    : '<td class="num" title="' + esc(vd[0] + ' ' + g + ' sale' + (vd[0] === 1 ? '' : 's') + ' in the 30 days to ' + grDay(vd[2]) + ' against ' + vd[1] + ' in the 30 days before (PriceCharting’s recorded sales of this grade and grader; the count of every grade together is all PriceCharting’s own volume gives).') + '"><span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + (r[10] != null ? ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)' : vd[0] ? ' (new)' : '') + '</span></td>';
++  const vol = daily ? (r[12] == null ? grStatDash('PriceCharting’s ' + g + ' price changed on fewer than 3 days in the last 90 - too few moves to measure.') : grStatVal(r[12], 'The median size of the day-to-day moves of PriceCharting’s ' + g + ' price over 90 days.', false, 2))
++    : grStatDash('No daily ' + g + ' price of its own (' + own + '): the spread between single sales reflects the copies (centering, auction or Buy It Now), not the market moving.');
++  const ts = daily ? (r[13] == null ? grStatDash('Needs 10 days of PriceCharting’s daily ' + g + ' price in the last 30.') : grStatVal(r[13], 'Theil-Sen slope of PriceCharting’s daily ' + g + ' price over 30 days, % a month.'))
++    : !sx ? grStatDash(noSales)
++    : r[13] == null ? grStatDash('Fewer than 5 ' + g + ' sales over the 90 days to ' + asof + ' (' + sx[5] + '), or spread over less than 30 days - too few for a trend line. ' + own + '.')
++    : grStatVal(r[13], 'Theil-Sen slope through the ' + sx[5] + ' ' + g + ' sales of the 90 days to ' + asof + ' (the median of the slopes between every two sales, so one odd copy barely moves it), % a month' + read + '.');
++  return d7 + d30 + pos + vdc + vol + ts;
++}
+ const grText = v => v == null || v === '' ? gdash : '<td>' + esc(v) + '</td>';
+@@ -340,3 +384,3 @@ function grRow(r) {
+       : r[6] != null && r[35] != null ? '<td class="num rfbad" title="' + esc('Not compared: PriceCharting’s price is for ' + (r[71] || 'another grade') + ', Card Ladder’s for ' + (r[72] || 'another grade') + ' - not the same grade') + '">≠ grade</td>' : gdash) +
+-    grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) + gdash + grPct(r[12], false, 2) + grPct(r[13]) +
++    grStatCells(r) +
+     (r[76] && r[16] != null ? '<td class="num" title="' + esc('Estimate: PriceCharting lists only its latest 30 sales of a grade, and the ' + r[25] + ' sales we recorded do not reach back to the start of ' + grMonthName(r[17]) + ' - this is how many that month at the pace they came (the Card Ladder queue ranks cards the same way)') + '">~' + fmtInt(r[16]) + '</td>'
+@@ -640,6 +684,9 @@ function grOpenGrades(F = GF.pc) {
+   $('bbody').innerHTML = '<div class="gtsearch"><input type="search" id="gp-q" placeholder="Search grades… (e.g. psa 10, 9.5, pristine)"><button type="button" class="reset" id="gp-all">Select all</button><button type="button" class="reset" id="gp-none">Deselect all</button><span class="dim" id="gp-qn"></span></div>' +
+-    '<div class="gpick"><div><h4>PSA</h4>' + col('psa').map(box).join('') + '</div><div><h4>CGC</h4>' + col('cgc').map(box).join('') + '</div></div>' +
++    '<div class="gpick"><div><h4>PSA</h4>' + col('psa').map(box).join('') + '<button type="button" class="reset gp-grp" data-g="psa"></button></div><div><h4>CGC</h4>' + col('cgc').map(box).join('') + '<button type="button" class="reset gp-grp" data-g="cgc"></button></div></div>' +
+     '<div class="pickbtns"><button class="reset" id="gp-done">Done</button></div>';
+-  const sync = () => $('bbody').querySelectorAll('.gpick input').forEach(i => { i.checked = S.has(i.dataset.gk); });
+-  const changed = () => { grSave(F.p + 'pcg-grades', [...S]); grPaintGrades(F); F.apply(); };
++  // one button under each grader's list (2026-11-05, Brett): Select all, or Deselect all once every grade shown there is ticked
++  const grpKeys = g => [...$('bbody').querySelectorAll('.gpick label')].filter(l => !l.hidden).map(l => l.querySelector('input').dataset.gk).filter(k => k.startsWith(g + '|'));
++  const grpPaint = () => $('bbody').querySelectorAll('.gp-grp').forEach(b => { const ks = grpKeys(b.dataset.g), all = ks.length && ks.every(k => S.has(k)); b.textContent = (all ? 'Deselect all ' : 'Select all ') + b.dataset.g.toUpperCase(); b.dataset.all = all ? '1' : ''; });
++  const sync = () => { $('bbody').querySelectorAll('.gpick input').forEach(i => { i.checked = S.has(i.dataset.gk); }); grpPaint(); };
++  const changed = () => { grSave(F.p + 'pcg-grades', [...S]); grPaintGrades(F); F.apply(); grpPaint(); };
+   $('bbody').querySelector('.gpick').addEventListener('input', e => { const i = e.target; if (!i.dataset.gk) return; if (i.checked) S.add(i.dataset.gk); else S.delete(i.dataset.gk); changed(); });
+@@ -648,3 +695,5 @@ function grOpenGrades(F = GF.pc) {
+     $('bbody').querySelectorAll('.gpick label').forEach(l => { l.hidden = !!q && !l.textContent.toLowerCase().includes(q); if (!l.hidden) n++; });
+-    $('gp-qn').textContent = q ? n + ' shown' : ''; });
++    $('gp-qn').textContent = q ? n + ' shown' : ''; grpPaint(); });
++  $('bbody').querySelectorAll('.gp-grp').forEach(b => b.addEventListener('click', () => { const ks = grpKeys(b.dataset.g); ks.forEach(k => { if (b.dataset.all) S.delete(k); else S.add(k); }); sync(); changed(); }));
++  grpPaint();
+   $('gp-all').addEventListener('click', () => { shownG().forEach(k => S.add(k)); sync(); changed(); });
+@@ -1025,4 +1074,9 @@ function gtHover(e) {
+   const lines = st.ser.map((sr, j) => { const q = sr.pts.find(z => z[0] === mo), v = q && q[1] != null ? st.val(j, q[1]) : null;
+-    return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (st.pc && v != null ? ' (' + gtPctTxt(v) + ')' : '') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), y: v != null ? st.yp(v) : null}; });
+-  const head = MONTHS_S[+mo.slice(5) - 1] + ' ' + mo.slice(0, 4), wBox = Math.max(head.length, ...lines.map(l => l.t.length)) * 6.6 + 22, hBox = 22 + lines.length * 17;
++    // the change from the month before (2026-11-05, Brett: in the hover, red when down, green when up; nothing when the
++    // line has no price that month)
++    const [yy, mm] = mo.split('-').map(Number), pm = mm === 1 ? (yy - 1) + '-12' : yy + '-' + String(mm - 1).padStart(2, '0');
++    const q0 = sr.pts.find(z => z[0] === pm), ch = q && q[1] != null && q0 && q0[1] ? (q[1] / q0[1] - 1) * 100 : null;
++    const flat = ch != null && Math.abs(ch) < 0.05, chT = ch == null ? '' : ' · ' + (flat ? '' : ch > 0 ? '+' : '−') + Math.abs(ch).toFixed(1) + '% vs ' + MONTHS_S[+pm.slice(5) - 1];
++    return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (st.pc && v != null ? ' (' + gtPctTxt(v) + ')' : '') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), ch: chT, cc: ch == null || flat ? '#e6edf3' : ch > 0 ? '#4ade80' : '#f87171', y: v != null ? st.yp(v) : null}; });
++  const head = MONTHS_S[+mo.slice(5) - 1] + ' ' + mo.slice(0, 4), wBox = Math.max(head.length, ...lines.map(l => (l.t + l.ch).length)) * 6.6 + 22, hBox = 22 + lines.length * 17;
+   const bx = X + 12 + wBox > st.W - st.R ? X - 12 - wBox : X + 12, by = st.T + 4;
+@@ -1032,3 +1086,3 @@ function gtHover(e) {
+     '<text x="' + (bx + 10) + '" y="' + (by + 16) + '" font-size="12" font-weight="600" fill="#e6edf3">' + esc(head) + '</text>';
+-  lines.forEach((l, j) => { h += '<circle cx="' + (bx + 14) + '" cy="' + (by + 31 + j * 17) + '" r="4" fill="' + l.c + '"/><text x="' + (bx + 24) + '" y="' + (by + 35 + j * 17) + '" font-size="12" fill="#e6edf3">' + esc(l.t) + '</text>'; });
++  lines.forEach((l, j) => { h += '<circle cx="' + (bx + 14) + '" cy="' + (by + 31 + j * 17) + '" r="4" fill="' + l.c + '"/><text x="' + (bx + 24) + '" y="' + (by + 35 + j * 17) + '" font-size="12" fill="#e6edf3">' + esc(l.t) + (l.ch ? '<tspan fill="' + l.cc + '">' + esc(l.ch) + '</tspan>' : '') + '</text>'; });
+   g.innerHTML = h; g.style.display = '';
+diff --git a/page/graded_help.js b/page/graded_help.js
+index d7008de..a56da9f 100644
+--- a/page/graded_help.js
++++ b/page/graded_help.js
+@@ -41,8 +41,8 @@ Object.assign(HELP, {
+   g_pc2cl: {t: 'PC to CL % Difference', f: '(CL Graded − PC Graded) / PC Graded × 100, last month', m: 'PC’s Hodges–Lehmann estimate (or chart value) against Card Ladder’s average - only where PC Grade and CL Grade are the same grade; otherwise it says ≠ grade. A large gap can be a real price difference, few sales, or a wrong match - check with Review.', e: 'PC $600, CL $660 -> +10%.'},
+-  g_d7: {t: 'Δ 7d %', f: 'PriceCharting’s price for this grade, today vs 7 days ago (this site’s daily snapshots)', m: 'The raw tab’s formula on the grade’s own PriceCharting price - PSA 10 and CGC 10 only. Its Grade 9 / 9.5 / 8 / 7 prices blend every grader, so those rows show -.', e: ''},
+-  g_d30: {t: 'Δ 30d %', f: 'PriceCharting’s price for this grade, today vs 30 days ago', m: 'As Δ 7d, over 30 days.', e: ''},
+-  g_pos: {t: 'Range 90d %', f: 'where today’s PriceCharting price for this grade sits in its 90-day low-high range', m: 'Needs 60 days of daily history.', e: ''},
+-  g_vd: {t: 'Volume drift 30d', f: 'none for a grade yet', m: 'PriceCharting’s volume counts every grade together, so there is no volume of one grade to compare.', e: ''},
+-  g_vol: {t: 'Volatility %', f: 'median size of the day-to-day moves of PriceCharting’s price for this grade (90 days)', m: 'As on the raw tab.', e: ''},
+-  g_ts: {t: 'Slope 30d %/mo', f: 'Theil-Sen slope of PriceCharting’s price for this grade over 30 days', m: 'As on the raw tab.', e: ''},
++  g_d7: {t: 'Δ 7d %', f: 'the change in this grade and grader’s price over 7 days', m: 'PSA 10 and CGC 10: PriceCharting’s own price of the grade today against 7 days ago (the site’s daily prices). Every other grade - and a CGC 10 that is PriceCharting’s 0.40 x PSA 10 formula - has no daily price of its own, so it comes from the sales PriceCharting recorded of that exact grade and grader: the median of the last 7 days against the median of the 7 before, 5+ sales in each, as of the card’s last page read. Fewer sales: blank, with the reason in the hover.', e: 'PSA 9: 6 sales this week at a $340 median, 5 the week before at $320: +6.3%.'},
++  g_d30: {t: 'Δ 30d %', f: 'the change in this grade and grader’s price over 30 days', m: 'As Δ 7d, over 30 days: PriceCharting’s daily price for PSA 10 and CGC 10; the median of the last 30 days’ sales against the 30 before for the other grades, 3+ sales in each. The hover gives the counts and the date.', e: ''},
++  g_pos: {t: 'Range 90d %', f: 'where today’s PriceCharting price for this grade sits in its 90-day low-high range', m: 'PSA 10 and CGC 10 only: it needs 60 days of the daily price, which the site saves since Sep 28, so it fills from about Nov 27. The other grades have no daily price - the low and high of single sales would be one-off copies - so they stay blank.', e: ''},
++  g_vd: {t: 'Volume drift 30d', f: 'this grade and grader’s sales of the last 30 days against the 30 before', m: 'Counted from the sales PriceCharting recorded of the grade and grader (its own volume counts every grade of the card together). Only when our record of the grade reaches back 60 days: PriceCharting lists only its latest 30 sales of a grade, and the collector now re-reads a busy grade before any scroll off, so busy grades fill as the record grows.', e: '+4 (+50.0%): 12 sales in the last 30 days, 8 in the 30 before.'},
++  g_vol: {t: 'Volatility %', f: 'median size of the day-to-day moves of PriceCharting’s price for this grade (90 days)', m: 'PSA 10 and CGC 10 only, as on the raw tab (blank when the price changed on fewer than 3 days). The other grades have no daily price: the spread between single sales reflects the copies (centering, auction or Buy It Now), not the market, so they stay blank.', e: ''},
++  g_ts: {t: 'Slope 30d %/mo', f: 'the trend of this grade and grader’s price, % a month', m: 'PSA 10 and CGC 10: the Theil-Sen slope of PriceCharting’s daily price over 30 days. The other grades: the Theil-Sen slope through the sales PriceCharting recorded of the grade and grader over 90 days (5+ sales spread over 30+ days) - the median of the slopes between every two sales, so one odd copy barely moves it.', e: ''},
+   g_pcs: {t: 'PC sales (last mo)', f: 'sales of this grade and grader PriceCharting recorded last month', m: 'From the sold-listings tables on the card’s page (the grader read off each title). PriceCharting shows only the latest 30 sales of a grade, so a busy grade’s older sales drop off before the collector reads them: when the recorded sales of this grade do not reach back to the start of last month the cell shows - (not known) rather than a count that would be too low - or, for a busy grade (30 or more sales recorded), ~ and an estimate: how many last month at the pace the recorded sales came (the Card Ladder queue ranks the cards the same way).', e: '~68: the 30 recorded PSA 10 sales came in 13 days.'},
+diff --git a/page/style.css b/page/style.css
+index 84c2f92..b7848a5 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -560,2 +560,3 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
+   .gpick small { margin-top:4px; }
++  .gpick .gp-grp { align-self:flex-start; margin-top:8px; }   /* Select all / Deselect all under each grader's list (2026-11-05) */
+   #ggrades.gpick { max-height:210px; overflow:auto; }
