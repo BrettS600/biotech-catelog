@@ -405,6 +405,26 @@
   </div>
 </div>
 
+<!-- the graded Forecast README (2026-11-05, Brett: "a README button that's shared between all of them ... resizable ...
+     similar to like Word or like Google Docs ... Command B for bold, Command U for underline, maybe adjust the size of the text") -->
+<div class="ov" id="gdov">
+  <div class="modal rd gdoc" id="gdbox" role="dialog" aria-labelledby="gdtitle">
+    <button class="close" id="gdclose" title="Close (Esc) - unsaved changes stay in this browser">✕</button>
+    <h2 id="gdtitle">README · Graded Forecast</h2>
+    <div class="gdtools" id="gdtools">
+      <button type="button" data-c="bold" title="Bold (⌘B)"><b>B</b></button><button type="button" data-c="italic" title="Italic (⌘I)"><i>I</i></button><button type="button" data-c="underline" title="Underline (⌘U)"><u>U</u></button>
+      <span class="gdsep"></span>
+      <button type="button" data-c="smaller" title="Smaller text (⌘⇧,)">A<span class="gdminus">−</span></button><button type="button" data-c="bigger" title="Bigger text (⌘⇧.)">A<span class="gdplus">+</span></button>
+      <select id="gdblock" title="Paragraph style"><option value="p">Normal text</option><option value="h3">Heading</option><option value="h4">Subheading</option></select>
+      <span class="gdsep"></span>
+      <button type="button" data-c="insertUnorderedList" title="Bulleted list (⌘⇧8)">• List</button><button type="button" data-c="insertOrderedList" title="Numbered list (⌘⇧7)">1. List</button><button type="button" data-c="removeFormat" title="Clear formatting (⌘\)">Clear</button>
+      <span class="gdstat" id="gdstat"></span>
+      <button type="button" class="gdgo" id="gdsave" title="Save for every device (⌘S)">Save</button><button type="button" id="gdrestore" hidden title="Put the original README back">Restore the original</button>
+    </div>
+    <div id="gdbody" class="gdbody" contenteditable="true" spellcheck="true"></div>
+  </div>
+</div>
+
 <div class="ov" id="bov">
   <div class="modal mid book">
     <button class="close" id="bclose" title="Close">✕</button>
@@ -515,7 +535,7 @@
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
 <div class="meta" id="meta-fh">Forecast &middot; raw cards &middot; History: the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
 <div class="actbar fc-bar">
-  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button></span>
+  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button><button type="button" class="readme fcg-readme" id="fcg-readme" title="The graded Forecast pages' own README - one for Forecasting, Recording, Purchases and History; edit it like a document">README</button></span>
   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
   <span class="fc-tools"><button class="actbtn" id="fc-flags" title="The Flags archive: cards held for a PC gap, listings far from PriceCharting or the anchor - review and mark them">Flags (<span class="nfg">0</span>)</button><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>

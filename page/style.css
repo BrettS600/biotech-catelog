@@ -737,3 +737,26 @@ input.fcr-px:focus, input.fcr-d:focus { border-color:var(--link); outline:none; 
 #fhg tr.fhx tr.fhs-mo > td { padding:2px 0 10px 18px; background:none; }
 #fhg tr.fhx td.fhs-buy { background:rgba(34,197,94,.14); }
 #fhg tr.fhx .fhs-slabs th.fhr-on, #fhg tr.fhx .fhs-slabs td.fhr-on { background:rgba(34,197,94,.10); }
+/* the graded Forecast README (2026-11-05): a resizable document with a toolbar */
+#p-fc:not(.graded) .fcg-readme { display:none; }
+.fc-modes .fcg-readme { margin-left:6px; padding:4px 11px; font-size:13px; }
+.modal.gdoc { width:min(900px, calc(100vw - 24px)); height:min(80vh, 760px); min-width:380px; min-height:280px; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); resize:both; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+.gdoc h2 { margin-right:40px; }
+.gdtools { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:6px 0 8px; border-bottom:1px solid var(--line); margin-bottom:6px; }
+.gdtools button, .gdtools select { font:inherit; font-size:13px; min-width:30px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
+.gdtools button:hover, .gdtools select:hover { border-color:var(--link); }
+.gdtools button.on { background:color-mix(in srgb, var(--link) 22%, transparent); border-color:var(--link); }
+.gdtools .gdminus, .gdtools .gdplus { font-size:10px; vertical-align:super; margin-left:1px; }
+.gdtools .gdsep { width:1px; align-self:stretch; background:var(--line); margin:0 4px; }
+.gdtools .gdstat { margin-left:auto; font-size:12px; color:var(--muted); }
+.gdtools .gdstat.warn { color:#d97706; } .gdtools .gdstat.ok { color:var(--up); }
+.gdtools button.gdgo { background:var(--link); border-color:var(--link); color:#fff; font-weight:600; }
+.gdtools #gdrestore.arm { border-color:var(--down); color:var(--down); }
+.gdbody { flex:1 1 auto; overflow:auto; padding:6px 10px 24px; outline:none; font-size:14px; line-height:1.6; }
+.gdbody:focus { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--link) 35%, transparent); border-radius:6px; }
+.gdbody h3 { font-size:19px; margin:14px 0 6px; } .gdbody h4 { font-size:15.5px; margin:12px 0 4px; }
+.gdbody p { margin:6px 0; } .gdbody ul, .gdbody ol { margin:4px 0 8px; padding-left:24px; }
+.gdbody font[size="3"] { font-size:14px; } .gdbody font[size="1"], .gdbody .fs-1, .rd .fs-1 { font-size:11px; } .gdbody font[size="2"], .gdbody .fs-2, .rd .fs-2 { font-size:12.5px; }
+.gdbody font[size="4"], .gdbody .fs-4, .rd .fs-4 { font-size:17px; } .gdbody font[size="5"], .gdbody .fs-5, .rd .fs-5 { font-size:20px; }
+.gdbody font[size="6"], .gdbody .fs-6, .rd .fs-6 { font-size:25px; } .gdbody font[size="7"], .gdbody .fs-7, .rd .fs-7 { font-size:32px; }
+.modal.gdoc > .close { position:absolute; top:10px; right:12px; float:none; margin:0; }

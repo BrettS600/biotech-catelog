@@ -2297,6 +2297,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   out: fcg_regime, fcg_chance, fcg_mc, fcg_conf, fcg_bb, fcg_bc, fcg_spot, fcr_rank, fcr_disc / fcr_buy / fcp_disc /
   fcp_paid, fhs_spot. Test page: built locally with a test key (graded_site.build + the page assembled as
   build_catalog does) and real pc_graded_monthly files; ntfy stubbed.
+- THE GRADED FORECAST README (2026-11-05, Brett: "a README button that's shared between all of them ... resizable ...
+  similar to like Word or like Google Docs ... Command B for bold, Command U for underline, maybe adjust the size of the
+  text"): a README button beside the graded Forecast chips (#fcg-readme, graded side only) opens #gdov, one README for
+  Forecasting / Recording / Purchases / History, always editable: toolbar (B I U, A- / A+, Normal / Heading /
+  Subheading, bullet / numbered lists, Clear) and ⌘B ⌘I ⌘U, ⌘⇧. / ⌘⇧, (size), ⌘⇧8 / ⌘⇧7 (lists), ⌘\ (clear), ⌘S
+  (save), Esc (close). Saved through the collector as help key r:fcg (HELP_KEY now allows it; live.help), so every
+  device shows it; unsaved typing stays in this browser (fcg-readme-draft) and comes back next time. Sizes: edited as
+  <font size=1-7> (the browser's own size command; gdSizeNow reads the current one from the DOM - queryCommandValue
+  maps computed px and is wrong here), stored as <span class="fs-N"> (cleanHtml keeps classes only; 3 = normal, not
+  stored). The box is CSS resize: both; its size is kept in fcg-readme-size. The original text: README_FCG.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

@@ -879,7 +879,7 @@ def alert_channel():
 
 
 WRONG_KEEP_D = 365               # "not the same card" answers on clean listings are kept this long
-HELP_KEY = re.compile(r"^(h:[A-Za-z0-9_]{1,40}|r:(pc|ec|er|al|rv))$")
+HELP_KEY = re.compile(r"^(h:[A-Za-z0-9_]{1,40}|r:(pc|ec|er|al|rv|fcg))$")   # r:fcg: the graded Forecast README (2026-11-05)
 
 
 def help_edit(v, msg, t):
