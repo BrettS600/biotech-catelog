@@ -689,6 +689,12 @@ input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:
 #fhg tr.fhx h4 { margin:8px 0 2px; font-size:13px; }
 #fhg .fhr-del { font:inherit; font-size:12px; padding:3px 10px; border-radius:6px; border:1px solid var(--line); background:none; color:var(--muted); cursor:pointer; margin-top:6px; }
 #fhg .fhr-del.arm { border-color:var(--down); color:var(--down); }
+/* the recorded plans' slab lists (2026-11-04): the plan's own figures tinted light blue, the listing details plain */
+#fhg tr.fhx .fhr-slabs th.fhr-h, #fhg tr.fhx .fhr-slabs td.fhr-h, #fhg tr.fhx:hover .fhr-slabs td.fhr-h { background:rgba(59,130,246,.16); }
+#fhg .fhr-slabs th.pcx .help { margin-left:3px; }
+#fhg .fhr-bar { display:flex; align-items:center; gap:10px; margin:4px 0 2px; font-size:12px; }
+#fhg .fhr-sw, .colpick label.fhr-h::before { display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(59,130,246,.35); vertical-align:-1px; }
+.colpick label.fhr-h::before { content:''; margin-right:5px; }
 .fhr-smp { display:inline-block; margin-left:6px; padding:0 5px; font-size:10px; line-height:15px; border:1px solid var(--line); border-radius:4px; color:var(--muted); }
 button.gplb { font:inherit; font-size:15px; font-weight:700; line-height:1; width:22px; height:22px; padding:0; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--muted); cursor:pointer; }
 button.gplb:hover { color:var(--fg); border-color:var(--link); }

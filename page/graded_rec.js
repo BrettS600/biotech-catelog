@@ -95,6 +95,7 @@ function fcrSummary(A) {
     (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best chance first among the open rows on view, each at its own % under. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance, ' + I.h + '-month hold). ') +
     'A No (the vendor wants more than the buy price) frees its money for the next row.</p>';
   s += fcrStats(A.mc, A.spent + cost, I, 'the bought and the green slabs', [I.cap - A.spent, fmtMoneyPlain(A.spent) + ' spent on the slabs marked Yes' + (A.green.length ? '; the green ones take ' + fmtMoneyPlain(cost) + ' of it' : '')]);
+  if (!nsmp) s += '<div class="fcr-tools"><button type="button" class="actbtn" id="fcr-smpback" title="50 sample slabs again, 5 of them bought (the slabs you recorded stay)">Bring the samples back</button></div>';
   if (nsmp) s += '<div class="fcr-tools"><button type="button" class="actbtn" id="fcr-nosmp" title="Take the sample rows away (Planning loses its sample purchases too)">Remove samples (' + nsmp + ')</button><span class="dim">' + nsmp + ' of the rows are samples - real slabs, picked at random, ' + recs.filter(x => x.smp && x.pur === 1).length + ' marked bought - until scanning brings in the slabs you record.</span></div>';
   if (!D) s += '<p class="dim">The graded model is not in this build of the graded data yet: the rows have their prices, not their chances.</p>';
   box.innerHTML = s;
@@ -119,14 +120,14 @@ function fcrRow(r, pl) {
   const dv = Math.round((rec.d || 0) * 1000) / 10;
   const dCell = '<td class="num"><input type="number" class="fcr-d" data-id="' + id + '" min="0" max="60" step="0.1" value="' + dv + '" title="' + esc(pl ? 'The % under the standard price you paid. Change it and the price paid follows.' : 'What the vendor will take: % under the standard price. The buy price, chance, net and the green rows follow.') + '"></td>';
   const puCell = '<td><span class="fcr-pu"><button type="button" class="yes' + (pur === 1 ? ' on' : '') + '" data-id="' + id + '" data-v="1" title="' + (pur === 1 ? 'Bought - click to undo' : 'You bought it at its buy price: the money comes off the capital and it goes to Planning') + '">Yes</button><button type="button" class="no' + (pur === 0 ? ' on' : '') + '" data-id="' + id + '" data-v="0" title="' + (pur === 0 ? 'Not bought - click to undo' : 'The vendor wants more than the buy price: not bought, so its money goes to the next row') + '">No</button></span></td>';
-  return x.plus + x.flag + x.review + x.name + x.grade + fcrRankCell(r) + x.std + dCell + x.buy + x.sold + x.chance + x.qty + x.net + x.roi + puCell;
+  return x.plus + x.flag + x.review + x.name + x.grade + fcrRankCell(r) + x.std + dCell + x.buy + x.sold + x.chance + x.qty + x.net + x.roi + puCell + fcgPcx(r).join('');
 }
 const fcrClass = r => (r.rec.pur === 1 ? 'fcr-yes' : r.rec.pur === 0 ? 'fcr-no' : r.fcQ ? 'fcg-buy' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '') + (r.rec.smp ? ' fcr-smp' : '');
 function fcrRedraw(t, id) {                               // the QTY column and the green follow the plan: draw the rows again
   if (t.sortKey === 'fcQ') t.view.sort((a, b) => (a.fcQ - b.fcQ) * t.sortDir);
   const n = t.shown; $('rows-' + id).innerHTML = ''; t.shown = 0; t.renderMore(Math.max(PAGE, n));
 }
-const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ? 'bought slabs' : 'recorded slabs', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#' + id + '-main',
+const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ? 'bought slabs' : 'recorded slabs', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#' + id + '-main', onCols: h => fcgColsTake(id, h),
   name: kind === 'pl' ? 'Forecast · graded planning' : 'Forecast · graded recording',
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r.rec.id,
   extra: r => grPass(r, GF.fc), rowClass: fcrClass,
@@ -136,8 +137,10 @@ const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ?
     if (kind === 'pl') { FCR.res.pl = fcpFigures(t.view); fcpSummary(FCR.res.pl); }
     else { FCR.res.rc = fcrAllocate(t.view); fcgHitsView(t, 'fcr', FCR.rows.rc.length, 'recorded slabs', r => r.fcQ > 0 && r.rec.pur == null, FCR.res.rc.green.length); fcrRedraw(t, id); fcrSummary(FCR.res.rc); }
   }});
+fcgAddPcHeads('#fcr-main', 'fcr'); fcgAddPcHeads('#fcp-main', 'fcp');   // the PriceCharting tab's graded columns, off at first (graded_fc.js)
 tables.fcr = makeTable('fcr', FCR_CFG('fcr', 'rc'));
 tables.fcp = makeTable('fcp', FCR_CFG('fcp', 'pl'));
+fcgColsApply('fcr'); fcgColsApply('fcp');
 function fcrApplyAll() {                                  // whatever changed (a box, a Yes, a filter): the page showing is drawn again
   if (!GR.doc || NAV.fc !== 'graded') return;
   const m = fcgMode();
@@ -183,6 +186,7 @@ for (const id of ['fcr', 'fcp']) {
     const pl = e.target.closest('.gplb'); if (pl) { fcgPlusToggle(pl.dataset.k); return; }
     const fl = e.target.closest('.gflag'); if (fl) { grFlagPop(fl); return; }
     const rv = e.target.closest('.grvb'); if (rv) { grOpenReview(rv.dataset.k); return; }
+    const gt = e.target.closest('.gtbtn'); if (gt) { grOpenTrend(gt.dataset.k); return; }   // PSA Trend (the PriceCharting columns)
     const pu = e.target.closest('.fcr-pu button'); if (pu) { fcrSetPur(pu.dataset.id, +pu.dataset.v); return; }
   });
   tb.addEventListener('change', e => { const i = e.target.closest('input.fcr-d'); if (i) fcrSetD(i.dataset.id, parseFloat(i.value)); });
@@ -194,6 +198,11 @@ for (const id of ['fcr', 'fcp']) {
 }
 $('fcr-main').addEventListener('click', e => {
   if (e.target.closest('#fcr-nosmp')) { FCR.recs = (FCR.recs || []).filter(x => !x.smp); fcrSave(); fcrApplyAll(); return; }
+  if (e.target.closest('#fcr-smpback')) {                // 2026-11-04, Brett: "i accisdently remove the samples. please put them back"
+    const kept = (FCR.recs || []).filter(x => !x.smp); FCR.recs = null; fcrEnsureSamples();
+    if (FCR.recs) { FCR.recs.forEach(x => { if (x.smp && x.pur !== 1) x.d = 0.141; }); FCR.recs = kept.concat(FCR.recs); } else FCR.recs = kept;
+    fcrSave(); fcrApplyAll(); return;
+  }
   const lx = e.target.closest('.fcr-lx'); if (lx) { fcgPlusToggle(lx.dataset.k); return; }
 });
 // the Looking for list: the cards and grades Forecasting's + picked, with the most to pay at Recording's starting % under
@@ -226,7 +235,7 @@ function fcrShowData() {
   fcrEnsureSamples();
   const m = fcgMode(), id = m === 'pl' ? 'fcp' : 'fcr';
   if (m !== 'rc' && m !== 'pl') return;
-  tables[id].resync(); tables[id].apply(true);
+  tables[id].resync(); fcgColsApply(id); tables[id].apply(true);
   fcrLookPaint(); fcrCounts();
 }
 function fcrShowNow() {                                  // before the data: the summaries say what they wait for

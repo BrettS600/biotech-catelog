@@ -982,6 +982,7 @@ function makeTable(id, cfg) {
   const toggleCol = ci => {
     if (hiddenCols.has(ci)) hiddenCols.delete(ci); else hiddenCols.add(ci);
     try { localStorage.setItem('hide-' + store, JSON.stringify([...hiddenCols])); } catch (e) {}
+    if (cfg.onCols) cfg.onCols(hiddenCols);              // a table that shares its column choices with others (the graded forecast pages)
     paintHeads();
     el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) td.classList.toggle('col-hidden', hiddenCols.has(ci)); });
     if (t.sizeRow) { const th = [...headRow.children].find(x => +x.dataset.ci === ci) || headRow.children[ci]; const w = (JSON.parse(localStorage.getItem('width-' + store) || '{}') || {})[ci]; if (th) { const on = w && !hiddenCols.has(ci); th.style.width = th.style.minWidth = th.style.maxWidth = on ? w + 'px' : ''; th.classList.toggle('sized', !!on); } el('rows').querySelectorAll('tr').forEach(tr => { const td = cellOf(tr, ci); if (td) { const on = w && !hiddenCols.has(ci); td.style.width = td.style.minWidth = td.style.maxWidth = on ? w + 'px' : ''; td.classList.toggle('sized', !!on); } }); }
@@ -1034,6 +1035,7 @@ function makeTable(id, cfg) {
   t.setHidden = set => {
     hiddenCols = new Set([...set].map(Number));
     try { localStorage.setItem('hide-' + store, JSON.stringify([...hiddenCols])); } catch (e) {}
+    if (cfg.onCols) cfg.onCols(hiddenCols);
     paintHeads();
     el('rows').querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, pos) => { td.classList.toggle('col-hidden', hiddenCols.has(td.dataset.ci != null ? +td.dataset.ci : pos)); }));
     [...headRow.children].forEach((th, pos) => sizeCell(th, th.dataset.ci != null ? +th.dataset.ci : pos));

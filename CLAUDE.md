@@ -2217,6 +2217,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   in place of #fc-al (FC.mode stays 'fc'/'pl'; fhRawOn() replaces the old p-fh checks); graded History = #fhg-main, a
   fourth card in #fcg beside the plan pane (the % under box shows Forecasting's; a pane change reruns the replay).
   README on History = the old 'fh' README (curTab).
+- GRADED PAGES' COLUMNS (same evening, Brett: "the same columns toggle buttomn as the pc tab ... make sure you have them
+  off"; no eBay columns; "shared on those 3 in addition to history"). graded_fc.js: FCG_PCX = the grRow cells added
+  (all but PC Card Name, the PC / CL sales already in Sold, the six eBay, Review, Flag), headers CLONED from #pcv-g's
+  (eye / ring / handle stripped, data-col 'pc:<n>', class pcx; refused if that header is not 55 columns), cells cut out
+  of grRow(r) via a <template> (fcgPcx), appended after each page's own columns (fcgAddPcHeads, before makeTable; a
+  saved order gets the new indexes appended). ONE visibility choice for fcg / fcr / fcp and History's slab lists:
+  localStorage 'fcg-cols' {key: 1 hidden / 0 shown}, key = data-col | 'k:'+data-k | 'l:'+label | 'row'; 'pc:' keys
+  hidden until ticked; makeTable got cfg.onCols(hiddenSet) (toggleCol / setHidden) -> fcgColsTake; fcgColsApply on show;
+  seeded once from hide-fcg. History's slab lists (FHR_COLS) render only the shown columns, the plan's own figures
+  tinted blue (fhr-h), with their own Columns… picker on the same choice.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

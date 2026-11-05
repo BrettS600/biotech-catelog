@@ -217,31 +217,66 @@ function fhrRow(r) {
   }
   return s;
 }
-// a plan opened: its slabs with Planning's columns, a star and Review, and what each made when the recorded hold was up
+// a plan opened: its slabs with Planning's columns, a star and Review, what each made when the recorded hold was up, and
+// the PriceCharting tab's columns (2026-11-04, Brett: "for the listings within each recorded planning record under the
+// history button ... those columns toggles can work on. but may those column should be tinted a light pastel blue so i
+// know which columns related to history and which from pc reg listing attributes"): the plan's own figures are tinted
+// blue; which columns show is the graded pages' shared choice (FCG_COLS), set with this list's Columns… button too.
+const FHR_COLS = [{key: 'k:fav', label: '★'}, {key: 'l:Review', label: 'Review'}, {key: 'k:1', label: 'PC Card Name'}, {key: 'k:24', label: 'Grade'},
+  {key: 'k:fcPct', label: 'Rank', h: 1, num: 1}, {key: 'k:fcS', label: 'Standard Price', h: 1, num: 1}, {key: 'k:fcD', label: '% Under Paid', h: 1, num: 1}, {key: 'k:fcB', label: 'Price Paid', h: 1, num: 1},
+  {key: 'k:16', label: 'Sold (last month)', num: 1}, {key: 'k:fcP', label: 'Chance', h: 1, num: 1}, {key: 'k:fcQ', label: 'QTY', h: 1, num: 1}, {key: 'k:fcN', label: 'Net', h: 1, num: 1},
+  {key: 'k:fcR', label: 'ROI %', h: 1, num: 1}, {key: 'h:actual', label: 'Actual', h: 1, num: 1}, {key: 'k:fcU', label: 'Purchased', h: 1}]
+  .concat(FCG_PCH ? FCG_PCX.map((i, j) => ({key: 'pc:' + i, label: fcgColText(FCG_PCH[i]), pc: j, th: FCG_PCH[i]})) : []);
 function fhrDetail(r) {
   const rec = r.rec, h = rec.h, due = fhrDue(rec.t, h), up = Date.now() >= due.getTime(), ym = fhrYm(due);
+  const cols = FHR_COLS.filter(c => !fcgColHidden(c.key)), hc = c => c.h ? ' fhr-h' : '';
   const rows = rec.slabs.map(s => {
     const [cid, gk, dk, std, stdc, paid, pk, net, rk] = s, base = GR.doc ? fcrMap().get(cid + '|' + gk) : null, c = GR.doc ? (GR.doc.cards || {})[String(cid)] || {} : {};
     const nm = base ? [base[1], String(base[2] || '').replace(/^Pokemon /, '') + (base[3] ? ' · #' + base[3] : '')] : fhgName(cid), d = dk / 1000;
     const p1 = up ? fhrPrice(cid, gk, ym) : null, real = p1 == null ? null : p1 * (1 - rec.fee) - rec.ship - paid;
-    const cl = stdc == null ? null : stdc * (1 - d) - rec.ship, two = (a, b) => '<td class="num fcg2"><span><i>CL</i> ' + a + '</span><span><i>PC</i> ' + b + '</span></td>';
-    const pct = rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10));
-    return '<tr><td class="favc">' + favBtn('pc', cid, cid) + '</td>' +
-      '<td>' + (c.pid ? '<button class="rvb grvb' + (base && base[41] === 1 ? ' same' : base && base[41] === 0 ? ' diff' : '') + '" data-k="' + esc(cid + '|' + gk) + '">Review</button>' : '<span class="dim">-</span>') + '</td>' +
-      '<td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td>' +
-      '<td class="num">' + (pct == null ? '<span class="dim">-</span>' : fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + '</span>') + '</td>' +
-      two(stdc == null ? '<span class="dim">-</span>' : fmtMoney(stdc), std == null ? '<span class="dim">-</span>' : fmtMoney(std)) +
-      '<td class="num">' + (Math.round(d * 1000) / 10) + '%</td>' +
-      two(cl == null ? '<span class="dim">-</span>' : fmtMoney(cl), fmtMoney(paid)) +
-      two(base && base[37] != null ? fmtInt(base[37]) : '<span class="dim">-</span>', base && base[16] != null ? fmtInt(base[16]) : '<span class="dim">-</span>') +
-      '<td class="num">' + (pk == null ? '<span class="dim">no score</span>' : (pk / 10).toFixed(0) + '%') + '</td><td class="num">1</td>' +
-      '<td class="num">' + (net == null ? '<span class="dim">-</span>' : fcgMoneyS(net)) + '</td><td class="num">' + (net == null || !paid ? '<span class="dim">-</span>' : fcgPct(net / paid)) + '</td>' +
-      '<td class="num">' + (!up ? '<span class="dim">hold not up yet</span>' : real == null ? '<span class="dim">' + (p1 === undefined ? '…' : 'no price') + '</span>' : '<b class="' + (real > 0 ? 'up' : real < 0 ? 'down' : '') + '">' + fcMoney2(real) + '</b> <span class="dim">at ' + fmtMoneyPlain(p1) + '</span>') + '</td>' +
-      '<td><span class="fcr-pu"><button type="button" class="yes on" disabled>Yes</button></span></td></tr>';
+    const cl = stdc == null ? null : stdc * (1 - d) - rec.ship, two = (a, b, k) => '<td class="num fcg2' + k + '"><span><i>CL</i> ' + a + '</span><span><i>PC</i> ' + b + '</span></td>';
+    const pct = rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10)), dash = k => '<td class="num' + k + '"><span class="dim">-</span></td>';
+    const pcx = cols.some(x => x.pc != null) ? fcgPcx(base) : [];
+    const cell = {
+      'k:fav': k => '<td class="favc' + k + '">' + favBtn('pc', cid, cid) + '</td>',
+      'l:Review': k => '<td class="' + k + '">' + (c.pid ? '<button class="rvb grvb' + (base && base[41] === 1 ? ' same' : base && base[41] === 0 ? ' diff' : '') + '" data-k="' + esc(cid + '|' + gk) + '">Review</button>' : '<span class="dim">-</span>') + '</td>',
+      'k:1': k => '<td class="' + k + '">' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td>',
+      'k:24': k => '<td class="' + k + '"><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td>',
+      'k:fcPct': k => pct == null ? dash(k) : '<td class="num' + k + '">' + fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + '</span></td>',
+      'k:fcS': k => two(stdc == null ? '<span class="dim">-</span>' : fmtMoney(stdc), std == null ? '<span class="dim">-</span>' : fmtMoney(std), k),
+      'k:fcD': k => '<td class="num' + k + '">' + (Math.round(d * 1000) / 10) + '%</td>',
+      'k:fcB': k => two(cl == null ? '<span class="dim">-</span>' : fmtMoney(cl), fmtMoney(paid), k),
+      'k:16': k => two(base && base[37] != null ? fmtInt(base[37]) : '<span class="dim">-</span>', base && base[16] != null ? fmtInt(base[16]) : '<span class="dim">-</span>', k),
+      'k:fcP': k => '<td class="num' + k + '">' + (pk == null ? '<span class="dim">no score</span>' : (pk / 10).toFixed(0) + '%') + '</td>',
+      'k:fcQ': k => '<td class="num' + k + '">1</td>',
+      'k:fcN': k => '<td class="num' + k + '">' + (net == null ? '<span class="dim">-</span>' : fcgMoneyS(net)) + '</td>',
+      'k:fcR': k => '<td class="num' + k + '">' + (net == null || !paid ? '<span class="dim">-</span>' : fcgPct(net / paid)) + '</td>',
+      'h:actual': k => '<td class="num' + k + '">' + (!up ? '<span class="dim">hold not up yet</span>' : real == null ? '<span class="dim">' + (p1 === undefined ? '…' : 'no price') + '</span>' : '<b class="' + (real > 0 ? 'up' : real < 0 ? 'down' : '') + '">' + fcMoney2(real) + '</b> <span class="dim">at ' + fmtMoneyPlain(p1) + '</span>') + '</td>',
+      'k:fcU': k => '<td class="' + k + '"><span class="fcr-pu"><button type="button" class="yes on" disabled>Yes</button></span></td>'};
+    return '<tr>' + cols.map(x => x.pc != null ? (pcx[x.pc] || gdash) : cell[x.key](hc(x))).join('') + '</tr>';
+  }).join('');
+  const head = cols.map(x => {
+    if (x.pc != null) { const th = x.th.cloneNode(true); th.querySelectorAll('.s').forEach(n => n.remove()); th.removeAttribute('data-k'); return th.outerHTML; }
+    const tip = x.key === 'k:fcP' ? ' title="the chance for the ' + h + '-month hold, the day it was recorded"' : x.key === 'k:fcN' ? ' title="expected net for the ' + h + '-month hold, the day it was recorded"' : x.key === 'h:actual' ? ' title="sold at PriceCharting’s price in the month the ' + h + '-month hold is up, after eBay’s fee and the shipping"' : '';
+    return '<th class="' + (x.num ? 'num' : '') + hc(x) + '"' + tip + '>' + (x.key === 'h:actual' ? 'Actual (' + h + ' mo)' : x.label) + '</th>';
   }).join('');
   return '<h4>' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' bought ' + fhrDate(rec.t) + ' for ' + fmtMoneyPlain(rec.spent) + ' · held ' + h + ' month' + (h > 1 ? 's' : '') + ' (up ' + fhrDate(due.getTime()) + ') · ' + (Math.round(rec.disc * 1000) / 10) + '% under by default, ' + fmtMoneyPlain(rec.ship) + ' shipping, eBay’s fee ' + (Math.round(rec.fee * 1000) / 10) + '% · capital ' + fmtMoneyPlain(rec.cap) + (rec.reg ? ' · market ' + esc(rec.reg) : '') + '</h4>' +
-    '<table class="fhr-slabs"><thead><tr><th>★</th><th>Review</th><th>PC Card Name</th><th>Grade</th><th class="num">Rank</th><th class="num">Standard Price</th><th class="num">% Under Paid</th><th class="num">Price Paid</th><th class="num">Sold (last month)</th><th class="num" title="the chance for the ' + h + '-month hold, the day it was recorded">Chance</th><th class="num">QTY</th><th class="num" title="expected net for the ' + h + '-month hold, the day it was recorded">Net</th><th class="num">ROI %</th><th class="num" title="sold at PriceCharting’s price in the month the ' + h + '-month hold is up, after eBay’s fee and the shipping">Actual (' + h + ' mo)</th><th>Purchased</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="fhr-bar"><button type="button" class="reset fhr-cols" title="Which columns the slab lists show - the same choice as Forecasting, Recording and Planning">Columns…</button><span class="dim"><span class="fhr-sw"></span> the plan’s own figures (History); the rest are the slab’s listing details</span></div>' +
+    '<table class="fhr-slabs"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table>' +
     '<button type="button" class="fhr-del" data-id="' + esc(rec.id) + '" title="Take this plan off History (for one recorded by mistake)">Remove this recorded plan</button>';
+}
+function fhrOpenColumns() {                               // the slab lists' Columns… (the shared choice)
+  $('btitle').textContent = 'Columns · History slabs';
+  $('bsub').textContent = 'Tick the columns the recorded plans’ slab lists show. The same choice as Forecasting, Recording and Planning (graded); blue = the plan’s own figures. Remembered in this browser.';
+  $('bbody').innerHTML = '<div class="colpick">' + FHR_COLS.map(c => '<label' + (c.h ? ' class="fhr-h"' : '') + '><input type="checkbox" data-key="' + esc(c.key) + '"' + (fcgColHidden(c.key) ? '' : ' checked') + '> ' + esc(c.label) + '</label>').join('') + '</div>' +
+    '<div class="pickbtns"><button class="reset" id="fhrc-plan">The plan’s columns only</button><button class="reset" id="fhrc-all">All columns</button><button class="reset" id="fhrc-done">Done</button></div>';
+  const set = (key, on) => { FCG_COLS[key] = on ? 0 : 1; };
+  const done = () => { grSave('fcg-cols', FCG_COLS); tables.fhr.apply(true); };
+  $('bbody').querySelector('.colpick').addEventListener('input', e => { const i = e.target; if (!i || !i.dataset.key) return; set(i.dataset.key, i.checked); done(); });
+  $('fhrc-all').addEventListener('click', () => { FHR_COLS.forEach(c => set(c.key, true)); done(); fhrOpenColumns(); });
+  $('fhrc-plan').addEventListener('click', () => { FHR_COLS.forEach(c => set(c.key, c.pc == null)); done(); fhrOpenColumns(); });
+  $('fhrc-done').addEventListener('click', () => $('bov').classList.remove('open'));
+  $('bov').classList.add('open');
 }
 tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded plans', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded plans',
   key: r => r.key, row: fhrRow, rowClass: () => 'fhr-row',
@@ -262,6 +297,9 @@ $('rows-fhg').addEventListener('click', e => {
   tables.fhg.apply(true);
 });
 $('rows-fhr').addEventListener('click', e => {
+  if (e.target.closest('.fhr-cols')) { fhrOpenColumns(); return; }
+  const hb = e.target.closest('th.pcx button.help'); if (hb) { e.stopPropagation(); openHelp(hb.dataset.h); return; }
+  const gt = e.target.closest('.gtbtn'); if (gt) { grLoad().then(() => grOpenTrend(gt.dataset.k)); return; }
   const rv = e.target.closest('.grvb'); if (rv) { grLoad().then(() => grOpenReview(rv.dataset.k)); return; }
   const del = e.target.closest('.fhr-del');
   if (del) {

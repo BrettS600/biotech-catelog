@@ -192,7 +192,7 @@ function fcgCells(r, I) {
 }
 function fcgRow(r) {
   const x = fcgCells(r, FCG.I);
-  return x.plus + x.flag + x.review + x.name + x.grade + x.std + x.buy + x.sold + x.chance + x.qty + x.net + x.roi;
+  return x.plus + x.flag + x.review + x.name + x.grade + x.std + x.buy + x.sold + x.chance + x.qty + x.net + x.roi + fcgPcx(r).join('');
 }
 function fcgChanceCell(r, I) {
   const grp = r.fcG == null ? '' : r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10 (1 = deepest)', d = r.fcD != null ? r.fcD : I.disc;
@@ -225,10 +225,73 @@ $('fcg-hits').addEventListener('click', () => {
   if (!GR.doc) return;
   if (fcgMode() === 'rc' && tables.fcr) tables.fcr.apply(); else if (fcgMode() === 'fc') tables.fcg.apply();
 });
+/* ---- Columns (2026-11-04, Brett: "for the forcasting page, reocrindg page, planning page, history page, i want the same
+   columns toggle buttomn as the pc tab ... when add you add the rest make sure you have them off"; the eBay columns "leave
+   em out"; "have them shared on those 3 in addition to history"). The PriceCharting tab's graded columns the page lacks are
+   added at the end of Forecasting's, Recording's and Planning's tables (and of History's recorded-plan slab lists), off at
+   first; their headers are copies of the PriceCharting tab's (same ? help, same data-k, so they sort and filter alike) and
+   their cells are its own (grRow's). Which columns show is ONE choice for the four pages, kept by column (FCG_COLS:
+   'pc:<n>' the PriceCharting column n of grRow, 'k:<data-k>', 'l:<label>'), so a column a page does not have is left alone. ---- */
+const FCG_PCX = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+  31, 32, 33, 34, 35, 36, 37, 38, 39, 42, 43, 50];        // grRow's cells: all but PC Card Name (3), PC / CL sales (40, 41: in Sold), the eBay six (44-49), Review (51), Flag (52)
+const FCG_PCN = 53;                                        // grRow's cells (the PriceCharting graded header has two more: Row and the star)
+const FCG_PCH = (() => {                                   // the copied headers, by grRow index (none if the PriceCharting header is not the one expected)
+  const ths = [...document.querySelectorAll('#pcv-g thead tr:last-child th')], out = {};
+  if (ths.length !== FCG_PCN + 2) { console.warn('graded forecast: the PriceCharting graded header has ' + ths.length + ' columns, not ' + (FCG_PCN + 2) + ' - its columns are not added'); return null; }
+  for (const i of FCG_PCX) {
+    const src = ths.find(th => +th.dataset.ci === i + 2) || ths[i + 2]; if (!src) return null;
+    const th = src.cloneNode(true);
+    th.querySelectorAll('.eye, .hlb, .rsz').forEach(x => x.remove());
+    ['data-ci', 'draggable', 'style'].forEach(a => th.removeAttribute(a)); th.classList.remove('col-hidden', 'hl', 'sized', 'on', 'resizing', 'dragging');
+    const st = th.querySelector('.s'); if (st) st.textContent = '⇅';
+    th.classList.add('pcx'); th.dataset.col = 'pc:' + i; out[i] = th;
+  }
+  return out;
+})();
+const FCG_TPL = document.createElement('template');
+function fcgPcx(r) {                                       // a row's PriceCharting cells, in FCG_PCX order
+  if (!FCG_PCH) return [];
+  if (!r || r[48] || !GR.doc) return FCG_PCX.map(() => gdash);
+  FCG_TPL.innerHTML = '<table><tbody><tr>' + grRow(r) + '</tr></tbody></table>';
+  const tds = FCG_TPL.content.querySelector('tr').children;
+  return FCG_PCX.map(i => tds[i] ? tds[i].outerHTML : gdash);
+}
+function fcgAddPcHeads(rootSel, store) {                   // the copies onto a table's header (before makeTable); a saved column order keeps its place
+  if (!FCG_PCH) return;
+  const row = document.querySelector(rootSel + ' thead tr:last-child'), n0 = row.children.length;
+  FCG_PCX.forEach(i => row.appendChild(FCG_PCH[i].cloneNode(true)));
+  const sv = grLS('order-' + store, null);
+  if (Array.isArray(sv) && sv.length === n0) grSave('order-' + store, sv.concat([...Array(row.children.length - n0).keys()].map(k => n0 + k)));
+}
+const fcgColText = th => { const tn = [...th.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); return (tn ? tn.textContent : th.textContent).replace(/[⇅?]/g, '').trim(); };
+const fcgColKey = th => th.dataset.col || (th.classList.contains('rn') ? 'row' : th.dataset.k ? 'k:' + th.dataset.k : 'l:' + fcgColText(th));
+const FCG_COLS = grLS('fcg-cols', null) || {};             // the shared choice: key -> 1 hidden / 0 shown (a key never set: shown, except the PriceCharting ones)
+const FCG_TABLE_ROOT = {fcg: '#fcg-main', fcr: '#fcr-main', fcp: '#fcp-main'};
+let FCG_COLS_LOCK = false;
+const fcgColHidden = key => FCG_COLS[key] === 1 || (FCG_COLS[key] == null && /^pc:/.test(key));
+function fcgColsTake(id, hidden) {                         // a table's eyes / Columns… into the shared choice
+  if (FCG_COLS_LOCK) return;
+  document.querySelectorAll(FCG_TABLE_ROOT[id] + ' thead tr:last-child th').forEach(th => { FCG_COLS[fcgColKey(th)] = hidden.has(+th.dataset.ci) ? 1 : 0; });
+  grSave('fcg-cols', FCG_COLS);
+}
+function fcgColsApply(id) {                                // the shared choice onto a table (when it is shown)
+  const t = tables[id]; if (!t) return;
+  const hide = [...document.querySelectorAll(FCG_TABLE_ROOT[id] + ' thead tr:last-child th')].filter(th => fcgColHidden(fcgColKey(th))).map(th => +th.dataset.ci);
+  FCG_COLS_LOCK = true; try { t.setHidden(hide); } finally { FCG_COLS_LOCK = false; }
+}
+function fcgColsSeed(id) {                                 // the first time: this table's own choices so far become the shared ones (the copies off)
+  if (localStorage.getItem('fcg-cols') != null) return;
+  let hid = []; try { hid = JSON.parse(localStorage.getItem('hide-' + id) || '[]'); } catch (e) {}
+  document.querySelectorAll(FCG_TABLE_ROOT[id] + ' thead tr:last-child th').forEach(th => { const k = fcgColKey(th); if (FCG_COLS[k] == null && !/^pc:/.test(k)) FCG_COLS[k] = hid.includes(+th.dataset.ci) ? 1 : 0; });
+  grSave('fcg-cols', FCG_COLS);
+}
+// the copied headers' ? buttons (help.js bound the page's own before these existed)
+$('fcg').addEventListener('click', e => { const hb = e.target.closest('th.pcx button.help'); if (hb) { e.stopPropagation(); e.preventDefault(); openHelp(hb.dataset.h); } }, true);
 // the table: the PriceCharting tab's machinery (eyes, highlight, names, drag, Columns…, Filters…)
 const FCG_RANGES = ['fcS', 'fcSc', 'fcB', 'fcBc', 16, 37, 'fcP', 'fcN', 'fcNc', 'fcR', 'fcRc'];
 const FCG_LABELS = {fcS: 'Standard PC $', fcSc: 'Standard CL $', fcB: 'Buy price PC $', fcBc: 'Buy price CL $', 16: 'Sold PC (last mo)', 37: 'Sold CL (last mo)', fcP: 'Chance %', fcN: 'Net PC $', fcNc: 'Net CL $', fcR: 'ROI PC %', fcRc: 'ROI CL %'};
-tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg-main', name: 'Forecast · graded',
+fcgAddPcHeads('#fcg-main', 'fcg');
+tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg-main', name: 'Forecast · graded', onCols: h => fcgColsTake('fcg', h),
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r[0] + '|' + r[50],
   extra: r => grPass(r, GF.fc),
   rowClass: r => r.fcQ ? 'fcg-buy' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
@@ -242,6 +305,7 @@ tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', range
     const n = t.shown; $('rows-fcg').innerHTML = ''; t.shown = 0; t.renderMore(Math.max(PAGE, n));
     fcgSummary();
   }});
+fcgColsSeed('fcg'); fcgColsApply('fcg');
 // the + (2026-11-04, Brett: "when its toggled on, the + will turn green, so i know which have been added from forcast"):
 // the card x grade goes on the Looking for list of Graded > Recording - the slabs to look for at the show. Kept in this
 // browser; the same + on Recording's rows
@@ -297,7 +361,7 @@ function fcgShow() {
   fcgRegime(); if (m === 'fc') fcgSummary(); grPaintGrades(GF.fc);
   grLoad().then(() => {
     grPaintTerms(GF.fc); grPaintGrades(GF.fc); fcgRegime(); fcgMeta();
-    if (fcgMode() === 'fc') { tables.fcg.resync(); tables.fcg.apply(); } else if (typeof fcrShowData === 'function') fcrShowData();
+    if (fcgMode() === 'fc') { tables.fcg.resync(); fcgColsApply('fcg'); tables.fcg.apply(); } else if (typeof fcrShowData === 'function') fcrShowData();
   });
 }
 function fcgModeClass() { const m = fcgMode(); ['fc', 'rc', 'pl', 'hi'].forEach(x => $('p-fc').classList.toggle('gm-' + x, x === m)); }
@@ -325,7 +389,7 @@ Object.assign(HELP, {
   fcg_copies: {t: 'Copies per card', f: 'the most copies of one slab the plan buys (1-5)', m: 'One by default, as the raw tab.', e: '2: the plan may buy two PSA 10s of the same card.'},
   fcg_gate: {t: 'Buy only when the market is rising', f: 'on (the default): nothing is bought while the graded market is falling', m: 'The graded market (the box below): the average monthly move of PriceCharting\'s graded lines over the last three months. Since 2022, when it was positive the next quarter was up about 8 times in 10; when negative, about 1 in 4. Off: the plan buys in a falling market too, with the falling-market odds.', e: 'Falling market, switch on: every Buy is 0 and the summary says why.'},
   fcg_regime: {t: 'The market now (graded)', f: 'the average monthly move of PriceCharting\'s graded lines over the last three months; up or down sets which odds are used and the gate', m: 'The raw tab reads the median move; most graded lines do not move at all in a month, which made the median 0 every month, so the graded market is the average move (each line clipped to plus or minus 50%). The table: what the deepest-dip slabs (the top 10% of the rank) did over 1 to 6 months in this kind of market - the median move, how often the price was up, and how often one bought at your % under (the shipping in the buy price) netted a profit.', e: 'Rising, +4% a month: the plan may buy, with the rising-market odds.'},
-  fcg_picks: {t: 'What to buy (graded)', f: 'every graded row of the PriceCharting tab in your price band, assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, Auth read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Planning (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
+  fcg_picks: {t: 'What to buy (graded)', f: 'every graded row of the PriceCharting tab in your price band, assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, Auth read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Planning (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs; Columns… also lists every PriceCharting graded column but the eBay ones (off until you tick them), and which columns show is one choice for Forecasting, Recording, Planning and the slab lists on History. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
   fcg_plan: {t: '+ (Looking for)', f: 'a click puts the card and grade on the Looking for list of Graded > Recording; the + turns green', m: 'The slabs to look for at the show, with the most to pay for each. Click the green + again to take it off. Kept in this browser.', e: '+ on a PSA 10 Umbreon: Recording\'s Looking for list shows it.'},
   fcg_name: {t: 'PC Card Name', f: 'PriceCharting\'s name of the card, with its set and number under it', m: 'Not a link (Brett). Review compares it with Card Ladder\'s card.', e: 'Umbreon VMAX #215 · Evolving Skies.'},
   fcg_grade: {t: 'Grade', f: 'the grader and grade of the row: one row per card per grade', m: 'The model reads PriceCharting\'s PSA 10 line for PSA 10, and its Grade 9.5 / 9 / 8 / 7 lines (every grader blended) for those grades; other grades show no score.', e: 'PSA 9 and CGC 9 read the same Grade 9 line.'},
