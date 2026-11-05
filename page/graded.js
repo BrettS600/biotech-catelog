@@ -121,6 +121,12 @@ function grBuildRow(d, x) {
       GR_CLS_WORD[cls] || cls, n1e,                                         // 75 CL Status, 76 PC sales is an estimate
       sOk && S[9] != null ? S[9] : null,                                    // 77 Auth Estimate (PSA's cert page)
       ordOf(base) * 64 + 1 + x[1]];
+    // the analysis columns from PriceCharting's own sales (2026-11-05): volume drift [last 30 days, the 30 before, as of]
+    // for every grade; r.sx = [as of, n7, n7 before, n30, n30 before, n90] behind a grade's Δ7d / Δ30d / slope when it has
+    // no daily price of its own (all but PSA 10 and a real CGC 10)
+    const vd = x[22] || null;
+    r.vd = vd; r.sx = x[23] === undefined ? null : x[23];   // 0: a grade without a daily price and no sale in 90 days
+    if (vd) { r[11] = vd[0] - vd[1]; r[10] = vd[1] ? Math.round((vd[0] / vd[1] - 1) * 1000) / 10 : null; }
     return r;
 }
 function grRebuildCard(cid) {                               // after a Review answer: the card's rows as they now read
@@ -232,6 +238,44 @@ function grAll() {                                          // the both-view: ev
 const grMoney = v => v == null ? gdash : '<td class="num">' + fmtMoney(v) + '</td>';
 const grInt = v => v == null ? gdash : '<td class="num">' + fmtInt(v) + '</td>';
 const grPct = (v, signed = true, nd = 1) => v == null ? gdash : '<td class="num">' + fmtPct(v, signed, nd) + '</td>';
+/* The analysis columns of a graded row (2026-11-05, Brett: "for the stats, i am thinking we just use pc for all of them";
+   blanks "with the reason in the hover text"): PSA 10 and a real CGC 10 from PriceCharting's daily price of that grade
+   (the site's daily snapshots); every other grade - and a CGC 10 that is PriceCharting's 0.40 x PSA 10 - from the sales
+   PriceCharting recorded of that exact grade and grader, as of the card's last page read: Δ7d / Δ30d = the median of the
+   last 7 / 30 days against the 7 / 30 before (5+ / 3+ sales in each), Slope = Theil-Sen through the last 90 days' sales.
+   Range 90d and Volatility need a daily price, so those rows leave them blank. Volume drift: every grade, from its sales. */
+const grDay = s => s ? MONTHS_S[+s.slice(5, 7) - 1] + ' ' + (+s.slice(8, 10)) : '';
+const grStatDash = t => '<td class="ctr"><span class="dim" title="' + esc(t) + '">-</span></td>';
+const grStatVal = (v, t, signed = true, nd = 1) => '<td class="num" title="' + esc(t) + '">' + fmtPct(v, signed, nd) + '</td>';
+function grStatCells(r) {
+  const g = r[25], gk = r[50], sx = r.sx || null, vd = r.vd;
+  const daily = (gk === 'psa|g10' || gk === 'cgc|g10') && r.sx == null;   // a CGC 10 that is PriceCharting's formula comes with sx
+  const asof = sx ? grDay(sx[0]) : '', read = asof ? ' (as of the card’s last page read, ' + asof + ')' : '';
+  const own = 'PriceCharting has a daily price of its own only for PSA 10 and CGC 10';
+  const noSales = 'No ' + g + ' sale on record in the last 90 days' + read + ' - ' + own + ', so this grade’s figures come from its own sales.';
+  const win = (v, i, n, mn) => {                            // Δ7d / Δ30d from the sales: i = the counts' place in sx
+    if (!sx) return grStatDash(noSales);
+    const a = sx[i], b = sx[i + 1], span = n === 7 ? 'week' : '30 days';
+    if (v == null) return grStatDash('Fewer than ' + mn + ' ' + g + ' sales in one of the two ' + (n === 7 ? 'weeks' : '30-day spans') + ' to ' + asof + ' (' + a + ' in the last ' + span + ', ' + b + ' in the ' + span + ' before) - too few for a steady median. ' + own + '.');
+    return grStatVal(v, 'The median of the ' + a + ' ' + g + ' sales of the ' + n + ' days to ' + asof + ' against the median of the ' + b + ' of the ' + n + ' days before (PriceCharting’s recorded sales of this grade and grader)' + read + '.');
+  };
+  const d7 = daily ? (r[7] == null ? grStatDash('Needs 7 days of PriceCharting’s daily ' + g + ' price.') : grStatVal(r[7], 'PriceCharting’s ' + g + ' price today against 7 days ago (the site’s daily prices).'))
+    : win(r[7], 1, 7, 5);
+  const d30 = daily ? (r[8] == null ? grStatDash('Needs 30 days of PriceCharting’s daily ' + g + ' price.') : grStatVal(r[8], 'PriceCharting’s ' + g + ' price today against 30 days ago (the site’s daily prices).'))
+    : win(r[8], 3, 30, 3);
+  const pos = daily ? (r[9] == null ? grStatDash('Needs 60 days of PriceCharting’s daily ' + g + ' price: the site saves it daily since Sep 28, so this fills from about Nov 27.') : grStatVal(r[9], 'Where today’s PriceCharting ' + g + ' price sits in its 90-day low-high range (0% = the low, 100% = the high).', false, 0))
+    : grStatDash('No daily ' + g + ' price of its own (' + own + '): the low and the high of single sales are one-off copies, not the market.');
+  const vdc = !vd ? grStatDash('Our record of the ' + g + ' sales does not reach back 60 days yet: PriceCharting lists only its latest 30 sales of a grade. The collector now re-reads a busy grade before any scroll off, so this fills as the record grows.')
+    : !vd[0] && !vd[1] ? grStatDash('No ' + g + ' sale in the last 60 days (as of ' + grDay(vd[2]) + ').')
+    : '<td class="num" title="' + esc(vd[0] + ' ' + g + ' sale' + (vd[0] === 1 ? '' : 's') + ' in the 30 days to ' + grDay(vd[2]) + ' against ' + vd[1] + ' in the 30 days before (PriceCharting’s recorded sales of this grade and grader; the count of every grade together is all PriceCharting’s own volume gives).') + '"><span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + (r[10] != null ? ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)' : vd[0] ? ' (new)' : '') + '</span></td>';
+  const vol = daily ? (r[12] == null ? grStatDash('PriceCharting’s ' + g + ' price changed on fewer than 3 days in the last 90 - too few moves to measure.') : grStatVal(r[12], 'The median size of the day-to-day moves of PriceCharting’s ' + g + ' price over 90 days.', false, 2))
+    : grStatDash('No daily ' + g + ' price of its own (' + own + '): the spread between single sales reflects the copies (centering, auction or Buy It Now), not the market moving.');
+  const ts = daily ? (r[13] == null ? grStatDash('Needs 10 days of PriceCharting’s daily ' + g + ' price in the last 30.') : grStatVal(r[13], 'Theil-Sen slope of PriceCharting’s daily ' + g + ' price over 30 days, % a month.'))
+    : !sx ? grStatDash(noSales)
+    : r[13] == null ? grStatDash('Fewer than 5 ' + g + ' sales over the 90 days to ' + asof + ' (' + sx[5] + '), or spread over less than 30 days - too few for a trend line. ' + own + '.')
+    : grStatVal(r[13], 'Theil-Sen slope through the ' + sx[5] + ' ' + g + ' sales of the 90 days to ' + asof + ' (the median of the slopes between every two sales, so one odd copy barely moves it), % a month' + read + '.');
+  return d7 + d30 + pos + vdc + vol + ts;
+}
 const grText = v => v == null || v === '' ? gdash : '<td>' + esc(v) + '</td>';
 const grMonthName = ym => { if (!ym) return 'last month'; const [y, m] = String(ym).split('-'); return MONTHS_S[+m - 1] + ' ' + y; };
 function grPc1Title(r) {                                    // last month's PriceCharting price: where it came from
@@ -338,7 +382,7 @@ function grRow(r) {
       : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' (an average: Card Ladder gives only its monthly average, so Hodges–Lehmann waits until its single sales are saved) · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
     (r[36] != null ? '<td class="num' + (grUnsure(r) || grWrong(r) ? ' gdoubt' : '') + '" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month (both ' + r[71] + ')' + (grUnsure(r) || grWrong(r) ? '. Greyed: the match is in doubt - answer Review first' : '')) + '">' + fmtPct(r[36], true, 1) + '</td>'
       : r[6] != null && r[35] != null ? '<td class="num rfbad" title="' + esc('Not compared: PriceCharting’s price is for ' + (r[71] || 'another grade') + ', Card Ladder’s for ' + (r[72] || 'another grade') + ' - not the same grade') + '">≠ grade</td>' : gdash) +
-    grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) + gdash + grPct(r[12], false, 2) + grPct(r[13]) +
+    grStatCells(r) +
     (r[76] && r[16] != null ? '<td class="num" title="' + esc('Estimate: PriceCharting lists only its latest 30 sales of a grade, and the ' + r[25] + ' sales we recorded do not reach back to the start of ' + grMonthName(r[17]) + ' - this is how many that month at the pace they came (the Card Ladder queue ranks cards the same way)') + '">~' + fmtInt(r[16]) + '</td>'
       : r[16] == null && (r[69] || [])[2] === 'not_read' ? '<td class="num"><span class="dim" title="' + esc(grPc1Title(r)) + '">not read</span></td>' : grInt(r[16])) +   // 2026-11-03: grades 1-6 until the card's page is read again
     (r[37] == null && (pend || nom) ? '<td class="num">' + clNone + '</td>' : grInt(r[37])) + gdash + gdash +
@@ -638,15 +682,20 @@ function grOpenGrades(F = GF.pc) {
   $('bsub').textContent = F === GF.pc ? 'Tick the grades to show as graded rows (one row per card per grade). Remembered in this browser; the graded and both views use the same ticks.'
     : 'Tick the grades to list (one row per card per grade). This page’s own ticks, apart from the PriceCharting tab’s; remembered in this browser.';
   $('bbody').innerHTML = '<div class="gtsearch"><input type="search" id="gp-q" placeholder="Search grades… (e.g. psa 10, 9.5, pristine)"><button type="button" class="reset" id="gp-all">Select all</button><button type="button" class="reset" id="gp-none">Deselect all</button><span class="dim" id="gp-qn"></span></div>' +
-    '<div class="gpick"><div><h4>PSA</h4>' + col('psa').map(box).join('') + '</div><div><h4>CGC</h4>' + col('cgc').map(box).join('') + '</div></div>' +
+    '<div class="gpick"><div><h4>PSA</h4>' + col('psa').map(box).join('') + '<button type="button" class="reset gp-grp" data-g="psa"></button></div><div><h4>CGC</h4>' + col('cgc').map(box).join('') + '<button type="button" class="reset gp-grp" data-g="cgc"></button></div></div>' +
     '<div class="pickbtns"><button class="reset" id="gp-done">Done</button></div>';
-  const sync = () => $('bbody').querySelectorAll('.gpick input').forEach(i => { i.checked = S.has(i.dataset.gk); });
-  const changed = () => { grSave(F.p + 'pcg-grades', [...S]); grPaintGrades(F); F.apply(); };
+  // one button under each grader's list (2026-11-05, Brett): Select all, or Deselect all once every grade shown there is ticked
+  const grpKeys = g => [...$('bbody').querySelectorAll('.gpick label')].filter(l => !l.hidden).map(l => l.querySelector('input').dataset.gk).filter(k => k.startsWith(g + '|'));
+  const grpPaint = () => $('bbody').querySelectorAll('.gp-grp').forEach(b => { const ks = grpKeys(b.dataset.g), all = ks.length && ks.every(k => S.has(k)); b.textContent = (all ? 'Deselect all ' : 'Select all ') + b.dataset.g.toUpperCase(); b.dataset.all = all ? '1' : ''; });
+  const sync = () => { $('bbody').querySelectorAll('.gpick input').forEach(i => { i.checked = S.has(i.dataset.gk); }); grpPaint(); };
+  const changed = () => { grSave(F.p + 'pcg-grades', [...S]); grPaintGrades(F); F.apply(); grpPaint(); };
   $('bbody').querySelector('.gpick').addEventListener('input', e => { const i = e.target; if (!i.dataset.gk) return; if (i.checked) S.add(i.dataset.gk); else S.delete(i.dataset.gk); changed(); });
   const shownG = () => [...$('bbody').querySelectorAll('.gpick label')].filter(l => !l.hidden).map(l => l.querySelector('input').dataset.gk);
   $('gp-q').addEventListener('input', () => { const q = $('gp-q').value.trim().toLowerCase(); let n = 0;
     $('bbody').querySelectorAll('.gpick label').forEach(l => { l.hidden = !!q && !l.textContent.toLowerCase().includes(q); if (!l.hidden) n++; });
-    $('gp-qn').textContent = q ? n + ' shown' : ''; });
+    $('gp-qn').textContent = q ? n + ' shown' : ''; grpPaint(); });
+  $('bbody').querySelectorAll('.gp-grp').forEach(b => b.addEventListener('click', () => { const ks = grpKeys(b.dataset.g); ks.forEach(k => { if (b.dataset.all) S.delete(k); else S.add(k); }); sync(); changed(); }));
+  grpPaint();
   $('gp-all').addEventListener('click', () => { shownG().forEach(k => S.add(k)); sync(); changed(); });
   $('gp-none').addEventListener('click', () => { shownG().forEach(k => S.delete(k)); sync(); changed(); });
   $('gp-done').addEventListener('click', () => $('bov').classList.remove('open'));
@@ -1023,14 +1072,19 @@ function gtHover(e) {
   st.months.forEach((mo, j) => { const d = Math.abs(st.x(j) - p.x); if (d < best) { best = d; i = j; } });
   const mo = st.months[i], X = st.x(i);
   const lines = st.ser.map((sr, j) => { const q = sr.pts.find(z => z[0] === mo), v = q && q[1] != null ? st.val(j, q[1]) : null;
-    return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (st.pc && v != null ? ' (' + gtPctTxt(v) + ')' : '') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), y: v != null ? st.yp(v) : null}; });
-  const head = MONTHS_S[+mo.slice(5) - 1] + ' ' + mo.slice(0, 4), wBox = Math.max(head.length, ...lines.map(l => l.t.length)) * 6.6 + 22, hBox = 22 + lines.length * 17;
+    // the change from the month before (2026-11-05, Brett: in the hover, red when down, green when up; nothing when the
+    // line has no price that month)
+    const [yy, mm] = mo.split('-').map(Number), pm = mm === 1 ? (yy - 1) + '-12' : yy + '-' + String(mm - 1).padStart(2, '0');
+    const q0 = sr.pts.find(z => z[0] === pm), ch = q && q[1] != null && q0 && q0[1] ? (q[1] / q0[1] - 1) * 100 : null;
+    const flat = ch != null && Math.abs(ch) < 0.05, chT = ch == null ? '' : ' · ' + (flat ? '' : ch > 0 ? '+' : '−') + Math.abs(ch).toFixed(1) + '% vs ' + MONTHS_S[+pm.slice(5) - 1];
+    return {c: GT_COLORS[j], t: sr.label + ': ' + (q && q[1] != null ? fmtMoneyPlain(q[1]) : '-') + (st.pc && v != null ? ' (' + gtPctTxt(v) + ')' : '') + (q && q[2] != null ? ' · ' + q[2] + ' sale' + (q[2] === 1 ? '' : 's') : ''), ch: chT, cc: ch == null || flat ? '#e6edf3' : ch > 0 ? '#4ade80' : '#f87171', y: v != null ? st.yp(v) : null}; });
+  const head = MONTHS_S[+mo.slice(5) - 1] + ' ' + mo.slice(0, 4), wBox = Math.max(head.length, ...lines.map(l => (l.t + l.ch).length)) * 6.6 + 22, hBox = 22 + lines.length * 17;
   const bx = X + 12 + wBox > st.W - st.R ? X - 12 - wBox : X + 12, by = st.T + 4;
   let h = '<line x1="' + X + '" x2="' + X + '" y1="' + st.T + '" y2="' + (st.H - st.B) + '" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="3 3"/>';
   lines.forEach(l => { if (l.y != null) h += '<circle cx="' + X + '" cy="' + l.y + '" r="5" fill="none" stroke="' + l.c + '" stroke-width="2"/>'; });
   h += '<rect x="' + bx + '" y="' + by + '" width="' + wBox + '" height="' + hBox + '" rx="6" fill="#2b2f36" fill-opacity=".94" stroke="currentColor" stroke-opacity=".25"/>' +
     '<text x="' + (bx + 10) + '" y="' + (by + 16) + '" font-size="12" font-weight="600" fill="#e6edf3">' + esc(head) + '</text>';
-  lines.forEach((l, j) => { h += '<circle cx="' + (bx + 14) + '" cy="' + (by + 31 + j * 17) + '" r="4" fill="' + l.c + '"/><text x="' + (bx + 24) + '" y="' + (by + 35 + j * 17) + '" font-size="12" fill="#e6edf3">' + esc(l.t) + '</text>'; });
+  lines.forEach((l, j) => { h += '<circle cx="' + (bx + 14) + '" cy="' + (by + 31 + j * 17) + '" r="4" fill="' + l.c + '"/><text x="' + (bx + 24) + '" y="' + (by + 35 + j * 17) + '" font-size="12" fill="#e6edf3">' + esc(l.t) + (l.ch ? '<tspan fill="' + l.cc + '">' + esc(l.ch) + '</tspan>' : '') + '</text>'; });
   g.innerHTML = h; g.style.display = '';
 }
 if ($('gov')) {

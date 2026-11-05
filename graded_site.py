@@ -726,6 +726,67 @@ def load_snap_history(snap_dir, ids, pw):
 
 
 # ---------------- statistics (build_catalog.py's formulas, on one price series) ----------------
+# ---------------- the same figures from one grade and grader's own sales (2026-11-05, Brett: "for the stats, i am thinking
+# we just use pc for all of them"): PriceCharting has a daily price of its own only for PSA 10 and CGC 10, so the other
+# grades (and a CGC 10 that is PriceCharting's 0.40 x PSA 10 formula) take theirs from the sales PriceCharting recorded of
+# that exact grade and grader, as of the day the card's page was last read. Range 90d and Volatility need a daily price:
+# none for these rows (the page says why). ----------------
+SALES_D7_MIN, SALES_D30_MIN, SALES_TS_MIN, SALES_TS_SPAN = 5, 3, 5, 30
+
+
+def sales_stats(sales, asof):
+    """sales [(YYYY-MM-DD, price)] of one grade and grader -> ({d7, d30, ts}, [n7, n7 before, n30, n30 before, n90]):
+    the median of the last 7 / 30 days against the 7 / 30 before (5+ / 3+ sales in each), and the Theil-Sen slope of
+    the last 90 days' sales (5+ sales over 30+ days), % a month; all as of asof (YYYY-MM-DD)."""
+    a = date.fromisoformat(asof)
+    pts = []
+    for d, p in sales:
+        try:
+            dd = date.fromisoformat(d[:10])
+        except ValueError:
+            continue
+        if p and p > 0 and dd <= a:
+            pts.append(((a - dd).days, dd, float(p)))
+    out, n = {}, []
+    for key, w, mn in (("d7", 7, SALES_D7_MIN), ("d30", 30, SALES_D30_MIN)):
+        now = [p for ago, _, p in pts if ago < w]
+        bef = [p for ago, _, p in pts if w <= ago < 2 * w]
+        n += [len(now), len(bef)]
+        if len(now) >= mn and len(bef) >= mn:
+            out[key] = r2((statistics.median(now) / statistics.median(bef) - 1) * 100)
+    W = [(dd, p) for ago, dd, p in pts if ago < 90]
+    n.append(len(W))
+    if len(W) >= SALES_TS_MIN and (max(d for d, _ in W) - min(d for d, _ in W)).days >= SALES_TS_SPAN:
+        t = np.array([d.toordinal() for d, _ in W], dtype=float)
+        L = np.log(np.array([p for _, p in W], dtype=float))
+        iu = np.triu_indices(len(W), 1)
+        dt, dl = (t[None, :] - t[:, None])[iu], (L[None, :] - L[:, None])[iu]
+        sl = dl[dt != 0] / dt[dt != 0]                       # pairs on one day carry no slope
+        if sl.size:
+            out["ts"] = r2((np.exp(float(np.median(sl)) * 30) - 1) * 100)
+    return out, n
+
+
+def sales_drift(sales, asof, cover):
+    """Volume drift: [sales in the last 30 days, sales in the 30 before, asof] of one grade and grader as of asof - only when our
+    record of the grade is complete back 60 days (cover: the day it is complete from; PriceCharting lists only its latest
+    30 sales of a grade, and the collector re-reads a busy grade before any scrolls off), else None."""
+    a = date.fromisoformat(asof)
+    if not cover or cover > (a - timedelta(days=60)).isoformat():
+        return None
+    now = bef = 0
+    for d, _ in sales:
+        try:
+            ago = (a - date.fromisoformat(d[:10])).days
+        except ValueError:
+            continue
+        if 0 <= ago < 30:
+            now += 1
+        elif 30 <= ago < 60:
+            bef += 1
+    return [now, bef, asof]
+
+
 def series_stats(pts, today):
     """pts: [(YYYY-MM-DD, price)] ascending. -> {d7, d30, pos, vol, ts} (percent), None where history is too short."""
     if len(pts) < 2:
@@ -878,11 +939,18 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             if cover is None or cover > last_m + "-03":
                 pc_n1 = None
             pc_n1e = est_last_month(ps_list, last_m) if pc_n1 is None else None
+            asof = (pc_read.get(cid) or today.isoformat())[:10]   # the stats from sales: as of the card's last read
+            vd = sales_drift(ps_list, asof, cover)
             cl = clg.get(k, [None, None, None])
             m = {x[0]: x for x in mon.get(k, [])}
             cl_n1 = m[last_m][1] if last_m in m else (0 if mon.get(k) else None)
             cl_avg1 = m[last_m][2] if last_m in m else None
             st = stats_by_col.get(col, {}) if col and col_ok else {}    # the daily moves of a blended column are not this grade's
+            sx = None
+            if not (col and col_ok):                        # no daily price of its own: Δ7d / Δ30d / slope from its own sales
+                sst, sn = sales_stats(ps_list, asof)
+                st = sst
+                sx = [asof] + sn if sn[-1] else 0       # [as of, n7, n7 before, n30, n30 before, n90]; 0 = no sale in 90 days
             mk = marks.get((str(cid), k))
             if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list):
                 continue                                    # a grade with a population and no price or sale anywhere: no row
@@ -911,7 +979,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                                         ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None, ar.get("est")]
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
-                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e])
+                         (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e,
+                         vd, sx])
         if not r and len(rows) == nrow0:
             continue                                        # no PriceCharting price or sale of any PSA / CGC grade: no rows
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
@@ -1041,7 +1110,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
            "markt": max((m["t"] for m in marks.values()), default=0), "mcfit": mcfit,
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
-                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e"],
+                                    "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e",
+                                    "vd", "sx"],
            "cls": {k: sum(1 for c in cards.values() if c.get("cls") == k) for k in ("read", "pending", "nomatch")},
            "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
     # the Forecast tab's Graded cards > Forecasting (2026-11-04): the raw model's method on PriceCharting's graded lines

@@ -558,6 +558,7 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
   .gpick label { font-size:13px; display:flex; align-items:center; gap:6px; cursor:pointer; }
   .gpick label.dim { opacity:.55; }
   .gpick small { margin-top:4px; }
+  .gpick .gp-grp { align-self:flex-start; margin-top:8px; }   /* Select all / Deselect all under each grader's list (2026-11-05) */
   #ggrades.gpick { max-height:210px; overflow:auto; }
   #ggrades.gpick > div { flex-direction:row; flex-wrap:wrap; gap:4px 12px; max-width:620px; }
   #ggrades.gpick h4 { width:100%; }

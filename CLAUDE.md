@@ -2253,6 +2253,21 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   eyes). The pane's Hold tints its hold: #fhg[data-hold] + .fhh-h1..6 on headers and cells (box-shadow, over fhr-on);
   fhgKey ignores h, so a Hold change does not rerun the replay. (4) Review's Trend opens over Review (#gov after #bov);
   ✕ / backdrop / Esc close Trend alone (a capture-phase Esc handler on window).
+- THE GRADED STATS FROM PRICECHARTING ONLY; TREND HOVER; GRADING BUTTONS (2026-11-05, Brett: "for the stats, i am thinking
+  we just use pc for all of them"; "i want to stop using cl in the futre and just use pc"). PriceCharting has a daily price
+  of its own only for PSA 10 and CGC 10 (manual-only-price / condition-17-price, the site's snapshots since 2026-09-28);
+  those rows keep series_stats (d7 d30 pos vol ts). Every other grade - and a CGC 10 that is the 0.40 x PSA 10 formula -
+  gets sales_stats(ps_list, asof) from PriceCharting's recorded sales of that grade and grader, as of the card's last page
+  read (pc_read): Δ7d / Δ30d = median of the last 7 / 30 days vs the 7 / 30 before (5+ / 3+ sales each), ts = Theil-Sen
+  through the last 90 days' sales (5+ over 30+ days); pos and vol stay None for them (no daily price: one-off copies).
+  Volume drift for every grade: sales_drift = [last 30 days, the 30 before, asof] only when cover (the row's existing
+  complete-from date) is 60+ days back - PriceCharting lists 30 sales a grade, and the collector's graded_due re-reads a
+  busy grade before any scroll off (since 2026-11-03 for all grades), so busy grades fill as the record grows. Row
+  columns vd (x[22]) and sx (x[23] = [asof, n7, n7 before, n30, n30 before, n90], 0 = none in 90 days, absent = daily).
+  Page: grBuildRow sets r[10] (%) / r[11] (difference) from vd, r.vd, r.sx; grStatCells draws the six cells with the
+  reason of every blank in its hover. The Trend chart's button is "% Change From First Month" (base: each line's first
+  month on the chart, as before); its hover adds each line's change from the month before (green up, red down). The
+  Grading popup has a Select all / Deselect all button under the PSA and the CGC list (on the grades shown).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
