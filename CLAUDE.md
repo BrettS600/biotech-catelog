@@ -2227,6 +2227,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   hidden until ticked; makeTable got cfg.onCols(hiddenSet) (toggleCol / setHidden) -> fcgColsTake; fcgColsApply on show;
   seeded once from hide-fcg. History's slab lists (FHR_COLS) render only the shown columns, the plan's own figures
   tinted blue (fhr-h), with their own Columns… picker on the same choice.
+- THE GRADED PANE ON A REFRESH (same night, Brett): only Capital to spend and Hold (and the Hide fold) survive a refresh
+  ('fcg-in' holds just {cap, h, fold}: FCG_KEEP / fcgInSave); every other box comes back at FCG_IN_DEFAULT. Within a visit
+  all of them stay shared by the four graded buttons (FCG_IN in memory).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

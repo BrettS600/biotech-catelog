@@ -17,7 +17,13 @@
 const FCG = {rows: [], src: null, key: '', plan: new Set(grLS('fcg-plan', [])), picks: [], spent: 0, mc: null, gated: false};
 const FCG_SEL_DEFAULT = ['psa|g10', 'psa|g9', 'psa|g8', 'psa|g7', 'cgc|g9_5', 'cgc|g9', 'cgc|g8', 'cgc|g7'];
 const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, copies: 1, gate: true, fold: false};   // rdisc: Recording's % under for new rows
-const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, grLS('fcg-in', {}));
+// what a refresh keeps (2026-11-04, Brett: "Capital to spend" and "Hold" "should hold the modification ... even at the expense
+// of a page refresh"; every other box of the pane returns to its default on a refresh). Within a visit every box stays
+// shared by Forecasting, Recording, Planning and History. The fold (Hide) is not a box: it is kept too.
+const FCG_KEEP = ['cap', 'h', 'fold'];
+const fcgKept = () => { const sv = grLS('fcg-in', {}) || {}, o = {}; FCG_KEEP.forEach(k => { if (sv[k] !== undefined) o[k] = sv[k]; }); return o; };
+const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, fcgKept());
+const fcgInSave = () => { const o = {}; FCG_KEEP.forEach(k => { o[k] = FCG_IN[k]; }); grSave('fcg-in', o); };
 GF.fc = grFilters('fcg-', {host: 'fcg-gmode', terms: 'fcg-gm-terms', grades: 'fcg-gm-grades', gn: 'fcg-gm-gn', title: 'Graded forecast'},
   () => { if (tables.fcg) tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }, FCG_SEL_DEFAULT);
 grDragInit(GF.fc);
@@ -337,13 +343,13 @@ function fcgChanged() {
   const I = fcgInputs(), dv = parseFloat($('fcg-disc').value), m = fcgMode();
   Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), copies: I.copies, gate: I.gate});
   if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
-  grSave('fcg-in', FCG_IN);
+  fcgInSave();
   fcgRegime(); if (GR.doc) { tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }
   if (m === 'hi' && typeof fhgRender === 'function') fhgRender();   // History: the replay follows the pane
 }
 $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
 $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
-const fcgFold = on => { FCG_IN.fold = !!on; grSave('fcg-in', FCG_IN); $('fcg').classList.toggle('folded', !!on); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !on; }); };
+const fcgFold = on => { FCG_IN.fold = !!on; fcgInSave(); $('fcg').classList.toggle('folded', !!on); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !on; }); };
 $('fcg-fold').addEventListener('click', () => fcgFold(true));
 document.querySelectorAll('#fcg .fcg-unfold').forEach(b => b.addEventListener('click', () => fcgFold(false)));
 // shown when the Forecast tab is on Graded cards > Forecasting: the graded data loads on first sight
