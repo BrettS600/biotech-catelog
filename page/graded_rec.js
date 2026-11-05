@@ -134,7 +134,7 @@ const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ?
   row: r => fcrRow(r, kind === 'pl'),
   after: t => {
     if (kind === 'pl') { FCR.res.pl = fcpFigures(t.view); fcpSummary(FCR.res.pl); }
-    else { FCR.res.rc = fcrAllocate(t.view); fcrRedraw(t, id); fcrSummary(FCR.res.rc); }
+    else { FCR.res.rc = fcrAllocate(t.view); fcgHitsView(t, 'fcr', FCR.rows.rc.length, 'recorded slabs', r => r.fcQ > 0 && r.rec.pur == null, FCR.res.rc.green.length); fcrRedraw(t, id); fcrSummary(FCR.res.rc); }
   }});
 tables.fcr = makeTable('fcr', FCR_CFG('fcr', 'rc'));
 tables.fcp = makeTable('fcp', FCR_CFG('fcp', 'pl'));

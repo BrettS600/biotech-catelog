@@ -2207,7 +2207,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   'fhr' over live.gplans + echo; Actual per hold = sum of slabs at PriceCharting's price of the month the hold ends
   (gtSeries 'pc|gk' point of that month, today's price while it is the newest) x (1 - fee) - ship - paid; trends loaded
   on demand (grTrendData). Opened rows insert tr.fhx (td data-ci="x", content in a sticky .fhx-in) after makeTable
-  draws; CSS keeps col-hidden / widths off them.
+  draws; CSS keeps col-hidden / widths off them. ONLY HITS (same day): #fcg-hits, first in the GF.fc button row
+  (grPaintTerms wrapped to keep it out of the redraw), localStorage 'fcg-hits', one switch for fcg and fcr (hidden on
+  Planning); fcgHitsView cuts t.view to the green rows AFTER the allocation ran on every row on view.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

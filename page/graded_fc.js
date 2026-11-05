@@ -200,6 +200,30 @@ function fcgChanceCell(r, I) {
 }
 const fcgPlusBtn = (k, on) => '<button type="button" class="gplb' + (on ? ' on' : '') + '" data-k="' + k + '" title="' + (on ? 'On your Looking for list (Graded > Recording) - click to take it off' : 'Put this card and grade on your Looking for list (Graded > Recording): the slabs you want at the show') + '">+</button>';
 const fcgMoneyS = v => '<span class="' + (v < 0 ? 'down' : v > 0 ? 'up' : '') + '">' + (v < 0 ? '−' : v > 0 ? '+' : '') + fmtMoneyPlain(Math.abs(v)) + '</span>';
+// Only Hits (2026-11-04, Brett: "under forcasting graded and record graded maybe have a "Only Hits" button to only show
+// the listings with the green tinted pastel color"): one switch for Forecasting and Recording, in the filter-button bar
+// (so it moves with it; not on Planning). The plan is worked out on every row on view first - the filters steer the money
+// as before - and then only its green rows are drawn.
+const FCG_HITS = {on: !!grLS('fcg-hits', false)};
+$('fcg-gmode').insertAdjacentHTML('afterbegin', '<button type="button" class="gm2 gtb fcg-hits" id="fcg-hits" title="On = show only the green rows: the slabs the plan buys with the capital (Recording: the open slabs it would buy with what is left). The plan is worked out on every row the other filters leave, then only its buys are listed.">Only Hits <span class="dim" id="fcg-hits-n"></span></button>');
+{ const pt = grPaintTerms; grPaintTerms = function (F) {   // the switch sits first in the row of filter buttons (kept out of their redraw, like Grading)
+  const b = $('fcg-hits'), box = $('fcg-gm-terms');
+  if (b && box && box.contains(b)) box.parentNode.insertBefore(b, box);
+  const out = pt.apply(this, arguments);
+  if ((F || GF.pc) === GF.fc && b && box && !box.hidden) box.insertBefore(b, box.firstChild);
+  return out;
+}; }
+function fcgHitsView(t, id, total, noun, isHit, n) {        // after a table's plan: the green count on the button, and the rows cut to them when on
+  $('fcg-hits').classList.toggle('on', FCG_HITS.on); $('fcg-hits-n').textContent = '(' + n + ')';
+  if (!FCG_HITS.on) return;
+  t.view = t.view.filter(isHit);
+  $('count-' + id).textContent = t.view.length.toLocaleString('en-US') + ' hits of ' + total.toLocaleString('en-US') + ' ' + noun;
+}
+$('fcg-hits').addEventListener('click', () => {
+  FCG_HITS.on = !FCG_HITS.on; grSave('fcg-hits', FCG_HITS.on); $('fcg-hits').classList.toggle('on', FCG_HITS.on);
+  if (!GR.doc) return;
+  if (fcgMode() === 'rc' && tables.fcr) tables.fcr.apply(); else if (fcgMode() === 'fc') tables.fcg.apply();
+});
 // the table: the PriceCharting tab's machinery (eyes, highlight, names, drag, Columns…, Filters…)
 const FCG_RANGES = ['fcS', 'fcSc', 'fcB', 'fcBc', 16, 37, 'fcP', 'fcN', 'fcNc', 'fcR', 'fcRc'];
 const FCG_LABELS = {fcS: 'Standard PC $', fcSc: 'Standard CL $', fcB: 'Buy price PC $', fcBc: 'Buy price CL $', 16: 'Sold PC (last mo)', 37: 'Sold CL (last mo)', fcP: 'Chance %', fcN: 'Net PC $', fcNc: 'Net CL $', fcR: 'ROI PC %', fcRc: 'ROI CL %'};
@@ -212,6 +236,7 @@ tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', range
   after: t => {                                         // the plan follows the rows on view; the Buy column is drawn again with it
     if (!FCG.I) return;
     fcgAllocate(t.view);
+    fcgHitsView(t, 'fcg', FCG.rows.length, 'graded rows', r => r.fcQ > 0, FCG.picks.length);
     if (t.sortKey === 'fcQ') t.view.sort((a, b) => (a.fcQ - b.fcQ) * t.sortDir);
     const n = t.shown; $('rows-fcg').innerHTML = ''; t.shown = 0; t.renderMore(Math.max(PAGE, n));
     fcgSummary();
@@ -304,6 +329,7 @@ Object.assign(HELP, {
   fcg_buy: {t: 'Buy Price', f: 'standard price x (1 - % under) - eBay Shipping Fee, for each side', m: 'The most to pay the vendor for the slab. Brett\'s rule: "the pc buy price would be 10% under minus $6".', e: 'PC $200, 14.1% under, $5.20: $166.60.'},
   fcg_sold: {t: 'Sold (last month)', f: 'CL: Card Ladder\'s recorded sales of the grade last month; PC: PriceCharting\'s recorded sales of the grade and grader last month', m: 'How liquid the slab is - what you would sell against. A ~ marks PriceCharting\'s estimate (its list of sales does not reach back to the start of the month); pending = Card Ladder has not read the card yet.', e: 'CL 12 / PC 9.'},
   fcg_chance: {t: 'Chance', f: 'how often slabs of the same rank group made money over your hold, in this kind of market, 2022 on, bought at your % under', m: 'The rank: how far the grade\'s PriceCharting price sits below its own 12-month mean, against every graded line $25+ (ten groups). The break-even is a price that does not move at 14.1% under (the shipping cancels out), so every slab of a group has the same chance; hover for the group. "no score": no line of its own, or not a full year of prices. At most 95%.', e: '62%: 62 of every 100 such slabs ended up.'},
+  fcg_hits: {t: 'Only Hits', f: 'on = only the green rows: the slabs the plan buys', m: 'One switch for Graded Forecasting and Recording (not on Planning, where every row is bought). The plan is still worked out on every row the other filters and the boxes leave, best chance first; Only Hits then lists just its buys, and the count beside the search box says how many. The number on the button is the green rows at these settings.', e: '$1,000 at 14.1% under: Only Hits lists the 15 slabs the plan buys.'},
   fcg_qty: {t: 'QTY', f: 'how many copies the plan buys', m: 'Best chance first among the rows on view, only at or above your bar, never more than the copies per card or the per-card share, until the capital runs out; nothing while the gate is red.', e: '1 on the first ten rows of a $1,000 plan.'},
   fcg_net: {t: 'Net', f: 'expected net per copy: standard x ((1 + the group\'s average return) x (1 - eBay\'s fee) - (1 - % under))', m: 'The average outcome of the group over the hold, after eBay\'s fee, the shipping and what you paid; for both sides\' standard prices. An average: the typical slab moves less, a few move a lot - the summary\'s range shows the spread.', e: 'PC $200, average return +12% over 3 months, 14.1% under: +$20.61.'},
   fcg_roi: {t: 'ROI %', f: 'Net / Buy price, over the hold, for each side', m: 'What the money spent on the slab earns over the hold.', e: '+$20.61 on $166.60: +12.4%.'}
