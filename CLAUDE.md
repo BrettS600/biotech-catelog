@@ -2240,6 +2240,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   Expected no-effects, by design: the gate while the market rises; % under on Recording rows (each keeps its own);
   shipping on bought slabs; share / bar / copies on Planning; hold on History (all six shown); the word / flag / CL
   buttons and the filters on History (the replay reads PriceCharting lines and the Grading ticks only).
+- THE GRADED + WENT; ONE FLAG EVERYWHERE; HISTORY'S HOLDS; TREND OVER REVIEW (2026-11-05, Brett). (1) The + column and
+  Recording's Looking for list are gone from graded Forecasting / Recording / Planning ("okay we can remove the + column";
+  the raw cards keep theirs); makeTable's inserted {v: 'noplus', at: 2, n: -1} moves saved orders / widths / highlights;
+  'fcg-plan' is no longer read. (2) grMark calls grPaintAllTerms at once, so the ⚑ Flags (and Unsure) counts follow a
+  flag - one number everywhere: every flagged graded row (GR.rows r[42]); "if i flag something in pricecharting graded,
+  and that listing appears in forcast, then it should also have the red flag" (one r[42] per card x grade); History's
+  slab lists have a Flag column (FHR_COLS 'k:42', grFlagPop from #rows-fhr; a grMark wrapper redraws them). (3) History's
+  hold bands: an eye on each band header (fhhInit), Holds… (fhhOpen) with each hold and its columns; ONE choice for the
+  replay and the recorded plans ("if i hide something in one, then it hides in the other"), by column key b|e|lo|p|a|r +
+  hold in 'fhg-hcols' (FHH; fhhTake from either table's onCols, fhhApply onto both; other columns keep each table's own
+  eyes). The pane's Hold tints its hold: #fhg[data-hold] + .fhh-h1..6 on headers and cells (box-shadow, over fhr-on);
+  fhgKey ignores h, so a Hold change does not rerun the replay. (4) Review's Trend opens over Review (#gov after #bov);
+  ✕ / backdrop / Esc close Trend alone (a capture-phase Esc handler on window).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

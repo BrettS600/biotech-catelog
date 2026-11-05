@@ -37,7 +37,7 @@ function fhgSettings() {
   for (const gk of GF.fc.gsel) { const l = FCG_LINE(gk); if (l && FHG.doc) { const i = FHG.doc.lines.indexOf(l); if (i >= 0) lines.add(i); } }
   return Object.assign({}, I, {fee: fcgFee(), lines});
 }
-const fhgKey = S => JSON.stringify(Object.assign({}, S, {lines: [...S.lines].sort()})) + '|' + (FHG.doc ? FHG.doc.t : '');
+const fhgKey = S => JSON.stringify(Object.assign({}, S, {lines: [...S.lines].sort(), h: 0})) + '|' + (FHG.doc ? FHG.doc.t : '');   // h: every hold is run, the pane's Hold only tints one
 // one month's plan at one hold: the candidates through the boxes, chance at the break-even, buy order, the greedy allocation
 function fhgPlan(mi, h, S) {
   const doc = FHG.doc, QD = {qs: doc.qs}, tabs = doc.tab[mi][h - 1], be = fcgBreak(S.disc, S.fee), rows = [], ts = {};
@@ -125,7 +125,7 @@ function fhgRow(r) {
   const doc = FHG.doc, mi = r.mi, first = doc.first && doc.first[mi];
   let s = '<td><b>' + esc(r.m) + '</b>' + (first ? ' <span class="dim" title="Too few outcomes were known yet: the odds of the whole period stand in (the chances here look a little back)">*</span>' : '') + '</td>' +
     '<td>' + r.g + (doc.reg3 && doc.reg3[mi] != null ? '<br><span class="dim">' + fcPct(doc.reg3[mi], 1) + '/mo</span>' : '') + '</td>';
-  for (let h = 1; h <= 6; h++) s += fhgHoldCells(FHG.cells[mi][h - 1], mi + h <= doc.months.length - 1, 'hold not up yet');
+  for (let h = 1; h <= 6; h++) s += fhgHoldCells(FHG.cells[mi][h - 1], mi + h <= doc.months.length - 1, 'hold not up yet').replace(/<td class="/g, '<td class="fhh-h' + h + ' ');
   return s;
 }
 const fhgName = cid => { const r = idRow.get(+cid); return r ? [r[1], String(r[2] || '').replace(/^Pokemon /, '')] : ['card ' + cid, '']; };   // the catalog's name and set
@@ -144,7 +144,63 @@ function fhxInsert(id, t, isOpen, detail) {               // the opened rows' de
   const tb = $('rows-' + id), n = fhxColspan(id);
   [...tb.children].forEach(tr => { if (!tr.classList.contains('fhx')) { const r = t.view.find(x => String(x.key) === tr.dataset.key); tr.classList.toggle('open', !!(r && isOpen(r))); if (r && isOpen(r)) { const x = document.createElement('tr'); x.className = 'fhx'; x.innerHTML = '<td data-ci="x" colspan="' + n + '"><div class="fhx-in">' + detail(r) + '</div></td>'; tr.after(x); } } });
 }
-tables.fhg = makeTable('fhg', {rows: fhgRowsData, noun: 'months', ranges: [], labels: {}, defaults: {}, root: '#fhg-rp', name: 'Forecast · graded history replay',
+/* ---- the holds (2026-11-05, Brett: "There should be an eye symbol for each to hide them. There should be a headers of a
+   headers button to toggle which ones we want to see"; "it should be applied to both tables, the recorded table and month
+   by month history table. if i hide something in one, then it hides in the other. if i want to show it again, then i go
+   to the holds buttons and toggle it back on"; and the pane's Hold tints its own hold). One choice for both tables, by
+   column key - b3 / e3 / lo3 / p3 / a3 / r3: the 3-month hold's Buys, Expected, Range, Chance, Actual, ROI - kept in
+   'fhg-hcols'; the eye on a hold's header hides all of its columns (the header goes with them), a column's own eye
+   hides that column in both tables, Holds… brings them back. The columns outside the holds keep each table's own eyes. ---- */
+const FHH_RE = /^(b|e|lo|p|a|r)([1-6])$/;
+const FHH_PARTS = [['b', 'Buys', 'the replay only: how many slabs were bought and what they cost'], ['e', 'Expected'], ['lo', 'Range'], ['p', 'Chance'], ['a', 'Actual'], ['r', 'ROI']];
+const FHH_ROOT = {fhg: '#fhg-rp', fhr: '#fhg-rec'};
+const FHH_NEW = grLS('fhg-hcols', null) == null;
+const FHH = new Set(grLS('fhg-hcols', []) || []);
+const FHH_EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3 8.5 1.5 12 3 15.5 7 19 12 19s9-3.5 10.5-7C21 8.5 17 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="currentColor"/></svg>';
+let FHH_LOCK = false;
+const fhhThs = id => [...document.querySelectorAll(FHH_ROOT[id] + ' thead tr:last-child th')];
+const fhhSave = () => grSave('fhg-hcols', [...FHH]);
+function fhhApply(id) {                                   // the shared choice onto one table (its other columns as they are)
+  const t = tables[id]; if (!t) return;
+  const hide = fhhThs(id).filter(th => { const k = th.dataset.k || ''; return FHH_RE.test(k) ? FHH.has(k) : th.classList.contains('col-hidden'); }).map(th => +th.dataset.ci);
+  FHH_LOCK = true; try { t.setHidden(hide); } finally { FHH_LOCK = false; }
+}
+const fhhBoth = () => { fhhSave(); fhhApply('fhg'); fhhApply('fhr'); };
+function fhhTake(id, hidden) {                            // a column's eye in one table: the same column in the other
+  if (FHH_LOCK) return;
+  fhhThs(id).forEach(th => { const k = th.dataset.k || ''; if (FHH_RE.test(k)) { if (hidden.has(+th.dataset.ci)) FHH.add(k); else FHH.delete(k); } });
+  fhhSave(); fhhApply(id === 'fhg' ? 'fhr' : 'fhg');
+}
+function fhhSetHold(h, on) { FHH_PARTS.forEach(([p]) => { if (on) FHH.delete(p + h); else FHH.add(p + h); }); fhhBoth(); }
+function fhhInit(id) {                                    // the hold classes on the headers, an eye on each hold's header
+  fhhThs(id).forEach(th => { const m = FHH_RE.exec(th.dataset.k || ''); if (m) th.classList.add('fhh-h' + m[2]); });
+  document.querySelectorAll(FHH_ROOT[id] + ' thead tr.grp th.band').forEach((th, i) => {
+    const h = i + 1, b = document.createElement('button');
+    th.classList.add('fhh-band', 'fhh-h' + h);
+    b.type = 'button'; b.className = 'eye fhh-eye'; b.innerHTML = FHH_EYE; b.title = 'Hide the ' + h + '-month hold, in both tables (the Holds… button brings it back)';
+    b.addEventListener('click', e => { e.stopPropagation(); fhhSetHold(h, false); });
+    th.appendChild(b);
+  });
+}
+function fhhOpen() {                                      // Holds…: the holds and their columns, one choice for both tables
+  const cur = fcgInputs().h, shownN = h => FHH_PARTS.filter(([p]) => !FHH.has(p + h)).length;
+  $('btitle').textContent = 'Holds · History (graded)';
+  $('bsub').textContent = 'Tick the holds, and the columns under them, that the replay and the recorded plans show - one choice for both tables. The eye on a hold’s header hides the whole hold; tick it here to bring it back. Your Hold (the plan pane) is tinted. Remembered in this browser.';
+  $('bbody').innerHTML = '<div class="fhh-pick">' + [1, 2, 3, 4, 5, 6].map(h => '<div class="fhh-row' + (h === cur ? ' fhh-cur' : '') + '"><label class="fhh-all"><input type="checkbox" data-h="' + h + '"' + (shownN(h) ? ' checked' : '') + '> <b>' + h + '-month hold</b>' + (h === cur ? ' <span class="dim">(your Hold)</span>' : '') + '</label>' +
+    '<span class="fhh-parts">' + FHH_PARTS.map(([p, l, tip]) => '<label' + (tip ? ' title="' + esc(tip) + '"' : '') + '><input type="checkbox" data-k="' + p + h + '"' + (FHH.has(p + h) ? '' : ' checked') + '> ' + l + '</label>').join('') + '</span></div>').join('') + '</div>' +
+    '<div class="pickbtns"><button class="reset" id="fhh-all">Show every hold</button><button class="reset" id="fhh-done">Done</button></div>';
+  $('bbody').querySelectorAll('input[data-h]').forEach(i => { const n = shownN(+i.dataset.h); i.indeterminate = n > 0 && n < FHH_PARTS.length; });
+  $('bbody').querySelector('.fhh-pick').addEventListener('input', e => {
+    const i = e.target;
+    if (i.dataset.h) fhhSetHold(+i.dataset.h, i.checked);
+    else if (i.dataset.k) { if (i.checked) FHH.delete(i.dataset.k); else FHH.add(i.dataset.k); fhhBoth(); }
+    fhhOpen();
+  });
+  $('fhh-all').addEventListener('click', () => { FHH.clear(); fhhBoth(); fhhOpen(); });
+  $('fhh-done').addEventListener('click', () => $('bov').classList.remove('open'));
+  $('bov').classList.add('open');
+}
+tables.fhg = makeTable('fhg', {rows: fhgRowsData, noun: 'months', ranges: [], labels: {}, defaults: {}, root: '#fhg-rp', name: 'Forecast · graded history replay', onCols: h => fhhTake('fhg', h),
   key: r => { r.key = r.m; return r.m; }, hay: r => r.m, row: fhgRow, rowClass: () => 'fhg-row',
   after: t => fhxInsert('fhg', t, r => FHG.open.has('m:' + r.m), fhgDetail)});
 
@@ -207,7 +263,7 @@ function fhrRow(r) {
     '<td>' + rec.h + ' mo</td><td class="num">' + fmtMoneyPlain(rec.spent) + '</td><td class="num">' + rec.slabs.length + '</td>';
   for (let h = 1; h <= 6; h++) {
     const x = (rec.holds || [])[h - 1], a = r.acts[h - 1], on = h === rec.h ? ' fhr-on' : '';
-    const td = (inner, cls) => '<td class="num' + on + (cls ? ' ' + cls : '') + '">' + inner + '</td>';
+    const td = (inner, cls) => '<td class="num fhh-h' + h + on + (cls ? ' ' + cls : '') + '">' + inner + '</td>';
     s += x ? td(fcMoney(x[0]) + '<br><span class="dim">' + fcPct(rec.spent ? x[0] / rec.spent : null, 1) + '</span>') + td(fcMoney(x[1]) + '<br><span class="dim">to ' + fcMoney(x[2]) + '</span>') + td(Math.round(x[3] * 100) + '%')
       : td('<span class="dim">-</span>') + td('<span class="dim">-</span>') + td('<span class="dim">-</span>');
     s += a.pending ? td('<span class="dim" title="' + esc('the hold is up on ' + fhrDate(a.due.getTime())) + '">hold not up yet</span>') + td('<span class="dim">-</span>')
@@ -222,7 +278,7 @@ function fhrRow(r) {
 // history button ... those columns toggles can work on. but may those column should be tinted a light pastel blue so i
 // know which columns related to history and which from pc reg listing attributes"): the plan's own figures are tinted
 // blue; which columns show is the graded pages' shared choice (FCG_COLS), set with this list's Columns… button too.
-const FHR_COLS = [{key: 'k:fav', label: '★'}, {key: 'l:Review', label: 'Review'}, {key: 'k:1', label: 'PC Card Name'}, {key: 'k:24', label: 'Grade'},
+const FHR_COLS = [{key: 'k:fav', label: '★'}, {key: 'k:42', label: 'Flag'}, {key: 'l:Review', label: 'Review'}, {key: 'k:1', label: 'PC Card Name'}, {key: 'k:24', label: 'Grade'},
   {key: 'k:fcPct', label: 'Rank', h: 1, num: 1}, {key: 'k:fcS', label: 'Standard Price', h: 1, num: 1}, {key: 'k:fcD', label: '% Under Paid', h: 1, num: 1}, {key: 'k:fcB', label: 'Price Paid', h: 1, num: 1},
   {key: 'k:16', label: 'Sold (last month)', num: 1}, {key: 'k:fcP', label: 'Chance', h: 1, num: 1}, {key: 'k:fcQ', label: 'QTY', h: 1, num: 1}, {key: 'k:fcN', label: 'Net', h: 1, num: 1},
   {key: 'k:fcR', label: 'ROI %', h: 1, num: 1}, {key: 'h:actual', label: 'Actual', h: 1, num: 1}, {key: 'k:fcU', label: 'Purchased', h: 1}]
@@ -239,6 +295,8 @@ function fhrDetail(r) {
     const pcx = cols.some(x => x.pc != null) ? fcgPcx(base) : [];
     const cell = {
       'k:fav': k => '<td class="favc' + k + '">' + favBtn('pc', cid, cid) + '</td>',
+      'k:42': k => { const fl = base && base[42], key = esc(cid + '|' + gk);   // the row's flag, the same as everywhere else (2026-11-05)
+        return '<td class="gflc' + k + '">' + (!base ? '<span class="dim">-</span>' : fl ? '<button class="gflag on" data-k="' + key + '" title="' + esc('Your flag: ' + fl + '. Click to change it or take it off.') + '">⚑ ' + esc(fl) + '</button>' : '<button class="gflag" data-k="' + key + '" title="Flag this slab with a reason - the same flag as on the PriceCharting tab and the other Forecast pages">⚐</button>') + '</td>'; },
       'l:Review': k => '<td class="' + k + '">' + (c.pid ? '<button class="rvb grvb' + (base && base[41] === 1 ? ' same' : base && base[41] === 0 ? ' diff' : '') + '" data-k="' + esc(cid + '|' + gk) + '">Review</button>' : '<span class="dim">-</span>') + '</td>',
       'k:1': k => '<td class="' + k + '">' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td>',
       'k:24': k => '<td class="' + k + '"><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td>',
@@ -278,7 +336,7 @@ function fhrOpenColumns() {                               // the slab lists' Col
   $('fhrc-done').addEventListener('click', () => $('bov').classList.remove('open'));
   $('bov').classList.add('open');
 }
-tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded plans', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded plans',
+tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded plans', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded plans', onCols: h => fhhTake('fhr', h),
   key: r => r.key, row: fhrRow, rowClass: () => 'fhr-row',
   hay: r => r.rec.slabs.map(s => { const b = GR.doc ? fcrMap().get(s[0] + '|' + s[1]) : null; return b ? b[1] + ' ' + b[2] + ' ' + b[25] : fhgName(s[0]).join(' ') + ' ' + grLabel(s[1]); }).join(' ') + ' ' + fhrDate(r.rec.t),
   after: t => {
@@ -290,6 +348,12 @@ for (const id of ['fhg', 'fhr']) {
   [...$('ranges-' + id).querySelectorAll('button.reset')].forEach(b => { if (b.textContent.trim() === 'Filters…') b.remove(); });
   $('rows-' + id).closest('table').id = id + '-t';
 }
+// the holds: a first visit takes the hold columns either table had hidden, then both tables get the one choice
+if (FHH_NEW) { for (const id of ['fhg', 'fhr']) fhhThs(id).forEach(th => { const k = th.dataset.k || ''; if (FHH_RE.test(k) && th.classList.contains('col-hidden')) FHH.add(k); }); fhhSave(); }
+fhhInit('fhg'); fhhInit('fhr'); fhhApply('fhg'); fhhApply('fhr');
+document.querySelectorAll('#fhg .fhh-btn').forEach(b => b.addEventListener('click', fhhOpen));
+// a flag set anywhere: the slab lists of the recorded plans show it
+{ const gm = grMark; grMark = async function () { const out = await gm.apply(this, arguments); if (!$('p-fc').hidden && NAV.fc === 'graded' && NAV.gm === 'hi') tables.fhr.apply(true); return out; }; }
 $('rows-fhg').addEventListener('click', e => {
   if (e.target.closest('button, a, input')) return;
   const tr = e.target.closest('tr'); if (!tr || tr.classList.contains('fhx') || tr.closest('tr.fhx')) return;
@@ -301,6 +365,7 @@ $('rows-fhr').addEventListener('click', e => {
   const hb = e.target.closest('th.pcx button.help'); if (hb) { e.stopPropagation(); openHelp(hb.dataset.h); return; }
   const gt = e.target.closest('.gtbtn'); if (gt) { grLoad().then(() => grOpenTrend(gt.dataset.k)); return; }
   const rv = e.target.closest('.grvb'); if (rv) { grLoad().then(() => grOpenReview(rv.dataset.k)); return; }
+  const fl = e.target.closest('.gflag'); if (fl) { grLoad().then(() => grFlagPop(fl)); return; }
   const del = e.target.closest('.fhr-del');
   if (del) {
     if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = 'Click again to remove it'; setTimeout(() => { if (del.isConnected) { del.classList.remove('arm'); del.textContent = 'Remove this recorded plan'; } }, 4000); return; }
@@ -326,6 +391,7 @@ function fhgPaint() {                                     // the cards and the r
   tables.fhg.apply(true);
 }
 function fhgRender() {
+  $('fhg').dataset.hold = String(fcgInputs().h);          // the pane's Hold: its hold's headers and columns are tinted (CSS)
   if ($('p-fc').hidden || NAV.fc !== 'graded' || NAV.gm !== 'hi') return;
   fhgNote();
   if (!GR.doc && !GR.loading) grLoad().then(() => { tables.fhr.apply(true); });
@@ -340,5 +406,5 @@ fhgRender();
 
 Object.assign(HELP, {
   fhg_replay: {t: 'The replay (graded)', f: 'Graded Forecasting’s plan run on every month since 2022, knowing only what was known that month, then scored at PriceCharting’s price when each hold was up', m: 'Each month: the PriceCharting graded lines (PSA 10, and the Grade 9.5 / 9 / 8 / 7 lines that blend every grader) ranked by how far each sits below its own 12-month mean; the odds of each rank group from the outcomes known by then (2022, marked *, had too few, so the whole period’s odds stand in); the market rising or falling; then your plan with Graded Forecasting’s boxes and Grading ticks - capital, % under, shipping, the price band, the share, the bar, the copies, the gate. Six holds side by side; the eyes and Columns… hide what you do not need. Click a month for its slabs. The file keeps each month’s best-ranked lines of each group and line in $50 - $5,000, so a band outside that, or a very large capital, sees fewer candidates.', e: '2025-03, 3-month hold: 12 slabs for $980, expected +$140; actual +$210 ✓.'},
-  fhg_recorded: {t: 'Recorded plans', f: 'one row per Record plan on Graded › Planning: the date, the hold set then, what was spent, the slabs', m: 'Each hold has its expected net, range and chance with the odds of the day it was recorded, and its actual once the hold is up: the slabs sold at PriceCharting’s price of that month (today’s price while the month is still running), after eBay’s fee and the shipping, less what was paid. The hold you had set is highlighted. Click a plan for its slabs; click again to close. Kept by the collector, so every device shows them.', e: ''}
+  fhg_recorded: {t: 'Recorded plans', f: 'one row per Record plan on Graded › Planning: the date, the hold set then, what was spent, the slabs', m: 'Each hold has its expected net, range and chance with the odds of the day it was recorded, and its actual once the hold is up: the slabs sold at PriceCharting’s price of that month (today’s price while the month is still running), after eBay’s fee and the shipping, less what was paid. The hold you had set is highlighted. Click a plan for its slabs; click again to close. Kept by the collector, so every device shows them. The eye on a hold’s header hides that hold here and in the replay (one choice for both tables); Holds… brings it back, column by column if you like. Your Hold (the plan pane) is tinted. Each slab list has a Flag column: the same flag as on the PriceCharting tab and the other Forecast pages.', e: ''}
 });

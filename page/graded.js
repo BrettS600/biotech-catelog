@@ -692,6 +692,7 @@ async function grMark(r, patch) {
   const key = r[0] + '|' + r[50], t = Date.now(), cur = Object.assign({}, GMARKS[key] || {}, patch, {t});
   GMARKS[key] = cur; grSave('gmarks', GMARKS);
   if ('v' in patch) r[41] = patch.v; if ('reason' in patch) r[42] = patch.reason || null;
+  grPaintAllTerms();                                       // the ⚑ Flags and Unsure counts on every graded button bar (2026-11-05, Brett: "it stays as Flag (0)")
   let sent = true;
   try { await alSend({type: 'gmark', t, c: r[0], g: r[50], p: r[49], v: cur.v === undefined ? null : cur.v, reason: cur.reason || null, note: cur.note || null}); } catch (e) { sent = false; }
   if (tables.pcg) tables.pcg.apply(true); if (tables.pca && PCMODE === 'all') tables.pca.apply(true);
@@ -817,7 +818,7 @@ function grOpenReview(key) {
   $('bbody').innerHTML = h;
   $('bov').classList.add('open');
   fitRows($('bbody'));
-  $('grv-trend').addEventListener('click', () => { $('bov').classList.remove('open'); grOpenTrend(key); });
+  $('grv-trend').addEventListener('click', () => grOpenTrend(key));   // Trend opens over Review; closing it returns to Review (2026-11-05, Brett)
   const answer = async val => { $('grv-msg').textContent = 'Saving…'; const ok = await grMarkCard(r[0], val); if (ok) $('bov').classList.remove('open'); else $('grv-msg').innerHTML = '<span class="down">Kept in this browser; the collector could not be told yet.</span>'; };
   $('grv-no').addEventListener('click', () => answer(0));
   $('grv-yes').addEventListener('click', () => answer(1));
@@ -1033,6 +1034,8 @@ function gtHover(e) {
   g.innerHTML = h; g.style.display = '';
 }
 if ($('gov')) {
+  // Esc closes the Trend popup alone when it is open (it sits over Review): the page's own Esc closes the rest
+  window.addEventListener('keydown', e => { if (e.key === 'Escape' && $('gov').classList.contains('open')) { $('gov').classList.remove('open'); e.stopPropagation(); } }, true);
   $('gclose').addEventListener('click', () => $('gov').classList.remove('open'));
   $('gov').addEventListener('click', e => { if (e.target.id === 'gov') $('gov').classList.remove('open'); });
   $('gsrc').addEventListener('click', e => { const b = e.target.closest('.zb'); if (!b) return; GT_SRC = b.dataset.s; grSave('gtr-src', GT_SRC); gtPaint(); });

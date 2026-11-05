@@ -662,13 +662,6 @@ tr.fcr-smp td.fcr-nm::after { content:'sample'; display:inline-block; margin-lef
 .fcr-pu button.yes.on { background:var(--up); border-color:var(--up); color:#fff; }
 .fcr-pu button.no.on { background:var(--down); border-color:var(--down); color:#fff; }
 input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); text-align:right; }
-.fcr-look { margin:2px 0 10px; font-size:13px; }
-.fcr-look summary { cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px; }
-.fcr-look .n { font-weight:600; font-size:11px; padding:0 6px; border-radius:999px; background:var(--band); }
-.fcr-look ul { margin:6px 0 0; padding-left:18px; }
-.fcr-look li { margin:2px 0; }
-.fcr-look li button { font:inherit; font-size:11px; border:none; background:none; color:var(--muted); cursor:pointer; }
-.fcr-look li.here { color:var(--up); }
 .fcr-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:2px 0 8px; }
 /* Forecast History > Graded cards */
 #fhg .fhg-note { margin:6px 0 2px; font-size:12px; }
@@ -680,6 +673,17 @@ input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:
 #fhg tr.open > td { font-weight:600; }
 #fhg td.fhr-on { background:rgba(34,197,94,.13); }
 #fhg th.fhr-on { background:rgba(34,197,94,.22); }
+/* History (graded): the pane's Hold tints its hold in both tables, over any other tint (2026-11-05) */
+#fhg[data-hold="1"] td.fhh-h1, #fhg[data-hold="2"] td.fhh-h2, #fhg[data-hold="3"] td.fhh-h3, #fhg[data-hold="4"] td.fhh-h4, #fhg[data-hold="5"] td.fhh-h5, #fhg[data-hold="6"] td.fhh-h6 { box-shadow:inset 0 0 0 999px rgba(234,179,8,.09); }
+#fhg[data-hold="1"] th.fhh-h1, #fhg[data-hold="2"] th.fhh-h2, #fhg[data-hold="3"] th.fhh-h3, #fhg[data-hold="4"] th.fhh-h4, #fhg[data-hold="5"] th.fhh-h5, #fhg[data-hold="6"] th.fhh-h6 { box-shadow:inset 0 0 0 999px rgba(234,179,8,.18); }
+#fhg[data-hold="1"] th.fhh-band.fhh-h1, #fhg[data-hold="2"] th.fhh-band.fhh-h2, #fhg[data-hold="3"] th.fhh-band.fhh-h3, #fhg[data-hold="4"] th.fhh-band.fhh-h4, #fhg[data-hold="5"] th.fhh-band.fhh-h5, #fhg[data-hold="6"] th.fhh-band.fhh-h6 { box-shadow:inset 0 -3px 0 rgb(234,179,8), inset 0 0 0 999px rgba(234,179,8,.22); }
+#fhg th.fhh-band .fhh-eye { margin-left:6px; }
+.fhh-pick { display:flex; flex-direction:column; gap:8px; }
+.fhh-row { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+.fhh-row.fhh-cur { border-color:rgb(234,179,8); background:rgba(234,179,8,.08); }
+.fhh-all { min-width:150px; }
+.fhh-parts { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:13px; }
+#fhg .fhh-btn { margin-left:8px; }
 #fhg tr.fhx > td, #fhg tr.fhx td.col-hidden, #fhg tr.fhx th.col-hidden { display:table-cell !important; }
 #fhg tr.fhx > td { white-space:normal; background:color-mix(in srgb, var(--link) 5%, transparent); width:auto !important; min-width:0 !important; max-width:none !important; padding:6px 10px 12px; }
 #fhg tr.fhx td, #fhg tr.fhx th { width:auto !important; min-width:0 !important; max-width:none !important; }
@@ -696,6 +700,3 @@ input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:
 #fhg .fhr-sw, .colpick label.fhr-h::before { display:inline-block; width:12px; height:12px; border-radius:3px; background:rgba(59,130,246,.35); vertical-align:-1px; }
 .colpick label.fhr-h::before { content:''; margin-right:5px; }
 .fhr-smp { display:inline-block; margin-left:6px; padding:0 5px; font-size:10px; line-height:15px; border:1px solid var(--line); border-radius:4px; color:var(--muted); }
-button.gplb { font:inherit; font-size:15px; font-weight:700; line-height:1; width:22px; height:22px; padding:0; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--muted); cursor:pointer; }
-button.gplb:hover { color:var(--fg); border-color:var(--link); }
-button.gplb.on { background:var(--up); border-color:var(--up); color:#fff; }

@@ -7,8 +7,8 @@
    depending capital" - the capital less what the Yes rows cost, best chance first among the open rows on view, under the
    per-card share and the copies per card, nothing while the gate is red. The scanning and the cert lookup come later
    ("we will get to that later"); until then 50 sample rows, 5 of them bought (Brett: "randomly choose some like 50
-   listings to go in recorded and 5 of the 50 to go into planened"), with Remove samples. Forecasting's + puts a card and
-   grade on Recording's Looking for list.
+   listings to go in recorded and 5 of the 50 to go into planened"), with Remove samples. (The + and the Looking for list went on
+   2026-11-05.)
    Planning: "it basically just show the same things as the graded recorded. But in this case, it will only show the
    listing that I marked as purchased" - each at what was paid and the % under it was paid at; Record plan (Planning
    only) keeps the plan, with the settings of the moment, on History, Graded cards (through the collector, so
@@ -25,7 +25,6 @@ function fcrCounts() {
   const recs = FCR.recs || [];
   $('nrc').textContent = String(recs.length);
   $('npl-g').textContent = String(recs.filter(x => x.pur === 1).length);
-  const ln = $('fcr-look-n'); if (ln) ln.textContent = String(FCG.plan.size);
 }
 function fcrMap() {
   if (FCR.mapSrc !== GR.rows) { FCR.map = new Map(GR.rows.map(r => [r[0] + '|' + r[50], r])); FCR.mapSrc = GR.rows; }
@@ -96,7 +95,7 @@ function fcrSummary(A) {
   if (!GR.doc) { box.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>' : 'Loading the graded data…'; return; }
   const recs = FCR.recs || [], nsmp = recs.filter(x => x.smp).length, I = A.I, D = fcgDoc(), cost = A.green.reduce((s, r) => s + r.fcB, 0);
   let s = '';
-  if (!recs.length) s = '<p><b>No slabs recorded yet.</b> At a show, the slabs you scan come here (the scanning comes next); Forecasting’s + puts the cards you are after on the Looking for list above.</p>';
+  if (!recs.length) s = '<p><b>No slabs recorded yet.</b> At a show, the slabs you scan come here (the scanning comes next); the star on Forecasting marks the cards you are after.</p>';
   else if (A.gated) s = '<p><b>Nothing to buy: the graded market is falling</b> and “Buy only when the market is rising” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
   else s = '<p>' + (A.bought.length ? 'Bought <b>' + A.bought.length + ' slab' + (A.bought.length > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(A.spent) + '</b> (Yes); ' : '') + '<b>' + fmtMoneyPlain(Math.max(0, I.cap - A.spent)) + '</b> of ' + fmtMoneyPlain(I.cap) + ' left. ' +
     (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best chance first among the open rows on view, each at its own % under. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance, ' + I.h + '-month hold). ') +
@@ -129,14 +128,14 @@ function fcrRow(r, pl) {
   const dv = Math.round((rec.d || 0) * 1000) / 10;
   const dCell = '<td class="num"><input type="number" class="fcr-d" data-id="' + id + '" min="0" max="60" step="0.1" value="' + dv + '" title="' + esc(pl ? 'The % under the standard price you paid. Change it and the price paid follows.' : 'What the vendor will take: % under the standard price. The buy price, chance, net and the green rows follow.') + '"></td>';
   const puCell = '<td><span class="fcr-pu"><button type="button" class="yes' + (pur === 1 ? ' on' : '') + '" data-id="' + id + '" data-v="1" title="' + (pur === 1 ? 'Bought - click to undo' : 'You bought it at its buy price: the money comes off the capital and it goes to Planning') + '">Yes</button><button type="button" class="no' + (pur === 0 ? ' on' : '') + '" data-id="' + id + '" data-v="0" title="' + (pur === 0 ? 'Not bought - click to undo' : 'The vendor wants more than the buy price: not bought, so its money goes to the next row') + '">No</button></span></td>';
-  return x.plus + x.flag + x.review + x.name + x.grade + fcrRankCell(r) + x.std + dCell + x.buy + x.sold + x.chance + x.qty + x.net + x.roi + puCell + fcgPcx(r).join('');
+  return x.flag + x.review + x.name + x.grade + fcrRankCell(r) + x.std + dCell + x.buy + x.sold + x.chance + x.qty + x.net + x.roi + puCell + fcgPcx(r).join('');
 }
 const fcrClass = r => (r.rec.pur === 1 ? 'fcr-yes' : r.rec.pur === 0 ? 'fcr-no' : r.fcQ ? 'fcg-buy' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '') + (r.rec.smp ? ' fcr-smp' : '');
 function fcrRedraw(t, id) {                               // the QTY column and the green follow the plan: draw the rows again
   if (t.sortKey === 'fcQ') t.view.sort((a, b) => (a.fcQ - b.fcQ) * t.sortDir);
   const n = t.shown; $('rows-' + id).innerHTML = ''; t.shown = 0; t.renderMore(Math.max(PAGE, n));
 }
-const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ? 'bought slabs' : 'recorded slabs', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#' + id + '-main', onCols: h => fcgColsTake(id, h),
+const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ? 'bought slabs' : 'recorded slabs', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#' + id + '-main', onCols: h => fcgColsTake(id, h), inserted: {v: 'noplus', at: 2, n: -1},
   name: kind === 'pl' ? 'Forecast · graded planning' : 'Forecast · graded recording',
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r.rec.id,
   extra: r => fcrInBand(r) && grPass(r, GF.fc), rowClass: fcrClass,
@@ -153,7 +152,7 @@ fcgColsApply('fcr'); fcgColsApply('fcp');
 function fcrApplyAll() {                                  // whatever changed (a box, a Yes, a filter): the page showing is drawn again
   if (!GR.doc || NAV.fc !== 'graded') return;
   const m = fcgMode();
-  if (m === 'rc') { tables.fcr.apply(true); fcrLookPaint(); } else if (m === 'pl') tables.fcp.apply(true);   // the Looking for list follows the pane's % under and shipping (2026-11-05)
+  if (m === 'rc') tables.fcr.apply(true); else if (m === 'pl') tables.fcp.apply(true);
   fcrCounts();
 }
 // the samples (until scanning): 50 real rows of the Forecasting list at random, 5 of them bought at 14.1% - 20% under
@@ -192,7 +191,6 @@ function fcrSetD(id, pct) {
 for (const id of ['fcr', 'fcp']) {
   const tb = $('rows-' + id);
   tb.addEventListener('click', e => {
-    const pl = e.target.closest('.gplb'); if (pl) { fcgPlusToggle(pl.dataset.k); return; }
     const fl = e.target.closest('.gflag'); if (fl) { grFlagPop(fl); return; }
     const rv = e.target.closest('.grvb'); if (rv) { grOpenReview(rv.dataset.k); return; }
     const gt = e.target.closest('.gtbtn'); if (gt) { grOpenTrend(gt.dataset.k); return; }   // PSA Trend (the PriceCharting columns)
@@ -212,19 +210,7 @@ $('fcr-main').addEventListener('click', e => {
     if (FCR.recs) { FCR.recs.forEach(x => { if (x.smp && x.pur !== 1) x.d = 0.141; }); FCR.recs = kept.concat(FCR.recs); } else FCR.recs = kept;
     fcrSave(); fcrApplyAll(); return;
   }
-  const lx = e.target.closest('.fcr-lx'); if (lx) { fcgPlusToggle(lx.dataset.k); return; }
 });
-// the Looking for list: the cards and grades Forecasting's + picked, with the most to pay at Recording's starting % under
-function fcrLookPaint() {
-  const box = $('fcr-look-list'); if (!box) return;
-  fcrCounts();
-  if (!FCG.plan.size) { box.innerHTML = '<p class="dim">Nothing yet: the + on a Graded Forecasting row puts its card and grade here - the slabs to look for at the show.</p>'; return; }
-  if (!GR.doc) { box.innerHTML = '<p class="dim">Loading…</p>'; return; }
-  const I = fcgInputs(), d = (+FCG_IN.rdisc || 14.1) / 100, have = new Set((FCR.recs || []).map(x => x.c + '|' + x.gk));
-  const items = [...FCG.plan].map(k => { const r = fcrMap().get(k); return {k, r, pc: r ? fcgStd(r)[0] : null}; }).sort((a, b) => (b.pc || 0) - (a.pc || 0));
-  box.innerHTML = '<ul>' + items.map(({k, r, pc}) => '<li' + (have.has(k) ? ' class="here" title="You recorded a slab of this card and grade"' : '') + '>' + (r ? esc(r[1]) + ' <span class="dim">' + esc(String(r[2] || '').replace(/^Pokemon /, '')) + '</span> · <b>' + esc(r[25]) + '</b>' + (pc != null ? ' · pay at most <b>' + fmtMoneyPlain(fcgBuy(pc, d, I.ship)) + '</b> <span class="dim">(' + fcgDiscWord(d) + ' under ' + fmtMoneyPlain(pc) + ', less the shipping)</span>' : '') : esc(k)) +
-    (have.has(k) ? ' ✓' : '') + ' <button type="button" class="fcr-lx" data-k="' + esc(k) + '" title="Take it off the list">✕</button></li>').join('') + '</ul>';
-}
 // the shared filters: the search, the set and the filter chips of the three tables follow each other
 const FCG_TABS = ['fcg', 'fcr', 'fcp'];
 function fcgSyncFrom(src) {
@@ -245,12 +231,11 @@ function fcrShowData() {
   const m = fcgMode(), id = m === 'pl' ? 'fcp' : 'fcr';
   if (m !== 'rc' && m !== 'pl') return;
   tables[id].resync(); fcgColsApply(id); tables[id].apply(true);
-  fcrLookPaint(); fcrCounts();
+  fcrCounts();
 }
 function fcrShowNow() {                                  // before the data: the summaries say what they wait for
   const m = fcgMode();
   if (m === 'rc' && !GR.doc) fcrSummary({I: fcgInputs(), green: [], bought: []}); else if (m === 'pl' && !GR.doc) fcpSummary({rows: [], I: fcgInputs()});
-  if (m === 'rc') fcrLookPaint();
 }
 { const fs = fcgShow; fcgShow = function () { fs.apply(this, arguments); if (!$('p-fc').hidden && NAV.fc === 'graded') fcrShowNow(); }; }
 
@@ -282,8 +267,6 @@ fcrCounts();
 /* ---- the help behind the new ? buttons ---- */
 Object.assign(HELP, {
   fcr_picks: {t: 'What to buy (Recording)', f: 'every slab you recorded at the show, one row each, best chance first; green = buy it', m: 'The green rows are what the capital still buys: the capital less what the Yes rows cost, best chance first among the open rows on view, at most the per-card share each and the copies per card, nothing while the gate is red - each at its own % under. A Yes takes its buy price off the capital; a No (the vendor wants more) gives its money to the next row. The filter buttons, Filters… and the boxes of the plan pane are shared with Forecasting and Planning. Until scanning brings the slabs in, 50 sample rows show how it works (Remove samples takes them away).', e: '$1,000, three slabs marked Yes for $420: the green rows share the $580 left.'},
-  fcr_look: {t: 'Looking for', f: 'the cards and grades you put on the list with the + on Graded Forecasting (or here)', m: 'The slabs to look for at the show, with the most to pay for each at Recording’s starting % under (less the shipping). A ✓: you recorded one. ✕ takes it off.', e: 'Umbreon VMAX · PSA 10 · pay at most $1,280.00.'},
-  fcr_plan: {t: '+ (Looking for)', f: 'green: the card and grade are on your Looking for list', m: 'The same list as Forecasting’s +: click to put the card and grade on it or take them off.', e: 'A green + on a recorded slab: it is one you were looking for.'},
   fcr_rank: {t: 'Rank', f: 'how far the grade’s PriceCharting price sits below its own 12-month mean, as a percentile among every graded line $25+', m: 'The model’s signal: the deeper below its own mean, the higher the rank (100th = furthest below). Ten groups; the chance is the group’s. The raw tab’s Rank, for slabs.', e: '97th, deepest 10%.'},
   fcr_disc: {t: '% Under', f: 'what the vendor will take, as % under the standard price', m: 'Starts at the plan pane’s % under (14.1% by default). A vendor may go lower: type it here and the row’s Buy price, Chance, Net, ROI and the green follow. Saved with the row.', e: '20: the buy price is 20% under the standard price, less the shipping.'},
   fcr_buy: {t: 'Buy Price', f: 'standard price x (1 - the row’s % under) - eBay Shipping Fee, for each side', m: 'The most to pay the vendor at the row’s % under. A Yes buys the slab at this price (the PriceCharting side).', e: 'PC $200 at 20% under, $5.20: $154.80.'},
