@@ -48,12 +48,17 @@ function fcrRows(kind) {
   const D = fcgDoc(), I = fcgInputs(), fee = fcgFee(), out = [];
   for (const rec of FCR.recs || []) { if (kind === 'pl' && rec.pur !== 1) continue; const r = fcrBuild(rec, D, I, fee); if (r) out.push(r); }
   out.sort(fcgOrder);
-  FCR.rows[kind] = out;
+  FCR.rows[kind] = out; FCR.band = [I.pmin, I.pmax];
   return out;
 }
-// green: the capital less what the Yes rows cost, best chance first among the open rows on view
+// the pane's "Card price between" on Recording and Planning (2026-11-05 control test: it listed every slab whatever the
+// band): like Forecasting, a slab whose standard price (PriceCharting's, else Card Ladder's; a bought one's at the moment
+// it was bought) is outside the band is not listed. Its money stays spent: the capital left counts every Yes.
+const fcrInBand = r => { const b = r.fcS != null ? r.fcS : r.fcSc, B = FCR.band || [0, Infinity]; return b != null && b >= B[0] && b <= B[1]; };
+// green: the capital less what the Yes rows cost, best chance first among the open rows on view. The expected figures are
+// the slabs on view: the bought ones the filters leave, and the green (2026-11-05: they followed only the green before)
 function fcrAllocate(view) {
-  const I = fcgInputs(), D = fcgDoc(), all = FCR.rows.rc;
+  const I = fcgInputs(), D = fcgDoc(), all = FCR.rows.rc, onView = new Set(view);
   const gated = !!(D && I.gate && !(D.regime && D.regime.up));
   const bought = all.filter(r => r.rec.pur === 1), used = new Map();
   const spent = bought.reduce((s, r) => s + (r.fcB || 0), 0);
@@ -66,15 +71,17 @@ function fcrAllocate(view) {
     if ((used.get(k) || 0) >= I.copies || r.fcB > I.cap * I.share || r.fcB > left) continue;
     r.fcQ = 1; left -= r.fcB; used.set(k, (used.get(k) || 0) + 1);
   }
-  const green = elig.filter(r => r.fcQ > 0);
-  return {I, gated, spent, left, bought, green, elig: elig.length, open: all.filter(r => r.rec.pur == null).length, no: all.filter(r => r.rec.pur === 0).length,
-          mc: D && (bought.length || green.length) ? fcgMonteCarlo(D, bought.concat(green), I, fcgFee()) : null};
+  const green = elig.filter(r => r.fcQ > 0), boughtV = bought.filter(r => onView.has(r)), spentV = boughtV.reduce((s, r) => s + (r.fcB || 0), 0);
+  return {I, gated, spent, left, bought, boughtV, spentV, green, elig: elig.length, open: all.filter(r => r.rec.pur == null).length, no: all.filter(r => r.rec.pur === 0).length,
+          mc: D && (boughtV.length || green.length) ? fcgMonteCarlo(D, boughtV.concat(green), I, fcgFee()) : null};
 }
+// Planning: the money is every bought slab's (the capital left); the expected figures are the slabs on view (2026-11-05:
+// the filters changed the list but not the figures)
 function fcpFigures(view) {
   const I = fcgInputs(), D = fcgDoc(), rows = FCR.rows.pl;
   rows.forEach(r => { r.fcQ = 1; });
-  const spent = rows.reduce((s, r) => s + (r.fcB || 0), 0), scored = rows.filter(r => r.fcT);
-  return {I, spent, left: I.cap - spent, rows, view, scored: scored.length, mc: D && scored.length ? fcgMonteCarlo(D, rows, I, fcgFee()) : null};
+  const spent = rows.reduce((s, r) => s + (r.fcB || 0), 0), spentV = view.reduce((s, r) => s + (r.fcB || 0), 0), scored = view.filter(r => r.fcT);
+  return {I, spent, spentV, left: I.cap - spent, rows, view, scored: scored.length, mc: D && scored.length ? fcgMonteCarlo(D, view, I, fcgFee()) : null};
 }
 const fcrStat = (k, v, d) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="d">' + d + '</div></div>';
 function fcrStats(mc, spent, I, what, left) {
@@ -93,8 +100,9 @@ function fcrSummary(A) {
   else if (A.gated) s = '<p><b>Nothing to buy: the graded market is falling</b> and “Buy only when the market is rising” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
   else s = '<p>' + (A.bought.length ? 'Bought <b>' + A.bought.length + ' slab' + (A.bought.length > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(A.spent) + '</b> (Yes); ' : '') + '<b>' + fmtMoneyPlain(Math.max(0, I.cap - A.spent)) + '</b> of ' + fmtMoneyPlain(I.cap) + ' left. ' +
     (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best chance first among the open rows on view, each at its own % under. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance, ' + I.h + '-month hold). ') +
-    'A No (the vendor wants more than the buy price) frees its money for the next row.</p>';
-  s += fcrStats(A.mc, A.spent + cost, I, 'the bought and the green slabs', [I.cap - A.spent, fmtMoneyPlain(A.spent) + ' spent on the slabs marked Yes' + (A.green.length ? '; the green ones take ' + fmtMoneyPlain(cost) + ' of it' : '')]);
+    'A No (the vendor wants more than the buy price) frees its money for the next row.' +
+    (A.boughtV.length < A.bought.length ? ' <span class="dim">The figures below count the ' + A.boughtV.length + ' bought slab' + (A.boughtV.length === 1 ? '' : 's') + ' the filters leave on view, and the green ones.</span>' : '') + '</p>';
+  s += fcrStats(A.mc, A.spentV + cost, I, 'the bought and the green slabs on view', [I.cap - A.spent, fmtMoneyPlain(A.spent) + ' spent on the slabs marked Yes' + (A.green.length ? '; the green ones take ' + fmtMoneyPlain(cost) + ' of it' : '')]);
   if (!nsmp) s += '<div class="fcr-tools"><button type="button" class="actbtn" id="fcr-smpback" title="50 sample slabs again, 5 of them bought (the slabs you recorded stay)">Bring the samples back</button></div>';
   if (nsmp) s += '<div class="fcr-tools"><button type="button" class="actbtn" id="fcr-nosmp" title="Take the sample rows away (Planning loses its sample purchases too)">Remove samples (' + nsmp + ')</button><span class="dim">' + nsmp + ' of the rows are samples - real slabs, picked at random, ' + recs.filter(x => x.smp && x.pur === 1).length + ' marked bought - until scanning brings in the slabs you record.</span></div>';
   if (!D) s += '<p class="dim">The graded model is not in this build of the graded data yet: the rows have their prices, not their chances.</p>';
@@ -105,8 +113,9 @@ function fcpSummary(F) {
   if (!GR.doc) { box.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>' : 'Loading the graded data…'; return; }
   const n = F.rows.length, I = F.I, nsmp = F.rows.filter(r => r.rec.smp).length;
   let s = !n ? '<p><b>Nothing bought yet.</b> Mark a slab <b>Yes</b> on Recording and it comes here, at what you paid.</p>'
-    : '<p>You bought <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(F.spent) + '</b>' + (I.cap ? ' (' + fmtMoneyPlain(Math.max(0, F.left)) + ' of ' + fmtMoneyPlain(I.cap) + ' left)' : '') + '. Held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' and sold on eBay at PriceCharting’s price then' + (F.scored < n ? '; ' + (n - F.scored) + ' of them have no score, so they are in the money spent but not in the expected figures' : '') + '. <b>Record plan</b> (the plan pane) keeps it on History.' + (nsmp ? ' <span class="dim">' + nsmp + ' are sample purchases (Recording’s Remove samples takes them away).</span>' : '') + '</p>';
-  s += fcrStats(F.mc, F.spent, I, 'the slabs you bought', [F.left, fmtMoneyPlain(F.spent) + ' of ' + fmtMoneyPlain(I.cap) + ' spent']);
+    : '<p>You bought <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(F.spent) + '</b>' + (I.cap ? ' (' + fmtMoneyPlain(Math.max(0, F.left)) + ' of ' + fmtMoneyPlain(I.cap) + ' left)' : '') + '. Held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' and sold on eBay at PriceCharting’s price then' + (F.scored < n ? '; ' + (n - F.scored) + ' of them have no score, so they are in the money spent but not in the expected figures' : '') + '. <b>Record plan</b> (the plan pane) keeps it on History.' + (nsmp ? ' <span class="dim">' + nsmp + ' are sample purchases (Recording’s Remove samples takes them away).</span>' : '') +
+    (F.view.length < n ? ' <span class="dim">The figures below are the ' + F.view.length + ' the filters leave on view (' + fmtMoneyPlain(F.spentV) + ' of it); the capital left counts all ' + n + '.</span>' : '') + '</p>';
+  s += fcrStats(F.mc, F.spentV, I, F.view.length < n ? 'the bought slabs on view' : 'the slabs you bought', [F.left, fmtMoneyPlain(F.spent) + ' of ' + fmtMoneyPlain(I.cap) + ' spent']);
   box.innerHTML = s;
 }
 // the cells: Forecasting's, plus Rank, % Under, Purchased (Planning: % Under Paid and Price Paid in the same places)
@@ -130,7 +139,7 @@ function fcrRedraw(t, id) {                               // the QTY column and 
 const FCR_CFG = (id, kind) => ({rows: () => fcrRows(kind), noun: kind === 'pl' ? 'bought slabs' : 'recorded slabs', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#' + id + '-main', onCols: h => fcgColsTake(id, h),
   name: kind === 'pl' ? 'Forecast · graded planning' : 'Forecast · graded recording',
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r.rec.id,
-  extra: r => grPass(r, GF.fc), rowClass: fcrClass,
+  extra: r => fcrInBand(r) && grPass(r, GF.fc), rowClass: fcrClass,
   hay: r => [r[1], r[2], r[3], r[25], r[29], r[30], r[53], r[54]].filter(Boolean).join(' '),
   row: r => fcrRow(r, kind === 'pl'),
   after: t => {
@@ -144,7 +153,7 @@ fcgColsApply('fcr'); fcgColsApply('fcp');
 function fcrApplyAll() {                                  // whatever changed (a box, a Yes, a filter): the page showing is drawn again
   if (!GR.doc || NAV.fc !== 'graded') return;
   const m = fcgMode();
-  if (m === 'rc') tables.fcr.apply(true); else if (m === 'pl') tables.fcp.apply(true);
+  if (m === 'rc') { tables.fcr.apply(true); fcrLookPaint(); } else if (m === 'pl') tables.fcp.apply(true);   // the Looking for list follows the pane's % under and shipping (2026-11-05)
   fcrCounts();
 }
 // the samples (until scanning): 50 real rows of the Forecasting list at random, 5 of them bought at 14.1% - 20% under

@@ -2230,6 +2230,16 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
 - THE GRADED PANE ON A REFRESH (same night, Brett): only Capital to spend and Hold (and the Hide fold) survive a refresh
   ('fcg-in' holds just {cap, h, fold}: FCG_KEEP / fcgInSave); every other box comes back at FCG_IN_DEFAULT. Within a visit
   all of them stay shared by the four graded buttons (FCG_IN in memory).
+- THE GRADED CONTROL TEST (2026-11-05, Brett asked for every pane box, filter and button tested against every column,
+  the market box and the summary boxes on the four graded buttons). Three fixes came out of it: (1) "Card price
+  between" did nothing on Recording / Planning - fcrInBand (FCR.band, set in fcrRows) now leaves out a slab whose
+  standard price (a bought one's at purchase) is outside the band, like Forecasting; its money stays spent. (2)
+  Planning's Expected / Likely range / Chance ignored every filter - fcpFigures now runs the basket on the rows on view
+  (spentV), the capital left still counts every bought slab; Recording's basket is likewise the bought slabs on view +
+  the green (boughtV). (3) The Looking for list did not follow the pane's % under / shipping - fcrApplyAll repaints it.
+  Expected no-effects, by design: the gate while the market rises; % under on Recording rows (each keeps its own);
+  shipping on bought slabs; share / bar / copies on Planning; hold on History (all six shown); the word / flag / CL
+  buttons and the filters on History (the replay reads PriceCharting lines and the Grading ticks only).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
