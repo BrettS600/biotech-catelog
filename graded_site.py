@@ -33,6 +33,7 @@ PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) a
 Writes, encrypted with the page's history key (PBKDF2 of SITE_PASSWORD, salt biotech-catalog-live-v1 - the key the
 Trend shards and the eBay live file use, so the page can read them):
   <out>/graded.bin        {v, built, gk: [grade keys], cards: {pc id: card meta}, rows: [[...]]} - the table
+  <out>/graded_hist.bin   the graded Forecast History's replay (graded_forecast.build_hist): months, odds known then, candidates
   <out>/gtrend/s<n>.bin   {pc id: {cl: {gk: [[YYYY-MM, n, avg]]}, pc: {gk: [[YYYY-MM, price]]}, ps: {gk: [[YYYY-MM, n, Hodges-Lehmann]]},
                           pd: [[date, PSA 10]]}} - 300 cards a file (cards[id].sh says which), loaded when a Trend popup opens
 
@@ -1057,6 +1058,18 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         print("graded: no SITE_PASSWORD - nothing written")
         return doc, trends
     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
+    # the graded Forecast History's replay (2026-11-04, Brett): each month since 2022 with the odds known at the time and
+    # its best-ranked lines with what they did next (graded_forecast.build_hist) - its own file, read when the page opens
+    try:
+        import graded_forecast
+        gh = graded_forecast.build_hist(cd, keep)
+        if gh.get("err"):
+            print("graded replay:", gh["err"])
+        else:
+            nh = write_enc(os.path.join(out_dir, "graded_hist.bin"), gh, key)
+            print(f"graded replay: {len(gh['months'])} months ({gh['months'][0]} to {gh['months'][-1]}), {sum(len(c) for c in gh['cands']):,} candidate lines -> graded_hist.bin ({nh / 1e3:.0f} KB gzip)")
+    except Exception as e:                                   # noqa: BLE001
+        print("graded replay failed:", f"{type(e).__name__}: {e}")
     shards = {}
     for cid, tr in trends.items():
         shards.setdefault(cards[str(cid)]["sh"], {})[str(cid)] = tr

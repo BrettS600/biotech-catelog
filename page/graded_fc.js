@@ -16,10 +16,10 @@
    same for both, the money is each side's. Lives in its own file, stitched after graded.js. */
 const FCG = {rows: [], src: null, key: '', plan: new Set(grLS('fcg-plan', [])), picks: [], spent: 0, mc: null, gated: false};
 const FCG_SEL_DEFAULT = ['psa|g10', 'psa|g9', 'psa|g8', 'psa|g7', 'cgc|g9_5', 'cgc|g9', 'cgc|g8', 'cgc|g7'];
-const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, copies: 1, gate: true, fold: false};
+const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, copies: 1, gate: true, fold: false};   // rdisc: Recording's % under for new rows
 const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, grLS('fcg-in', {}));
 GF.fc = grFilters('fcg-', {host: 'fcg-gmode', terms: 'fcg-gm-terms', grades: 'fcg-gm-grades', gn: 'fcg-gm-gn', title: 'Graded forecast'},
-  () => { if (tables.fcg) tables.fcg.apply(); }, FCG_SEL_DEFAULT);
+  () => { if (tables.fcg) tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }, FCG_SEL_DEFAULT);
 grDragInit(GF.fc);
 $('fcg-gm-terms').addEventListener('click', grTermsClick(GF.fc));
 $('fcg-gm-grades').addEventListener('click', () => grOpenGrades(GF.fc));
@@ -48,35 +48,46 @@ function fcgDraw(D, t, u) {                                // a return at probab
 const fcgBreak = (d, fee) => (1 - d) / (1 - fee) - 1;      // the return at which a slab nets $0 (the shipping cancels out)
 const fcgNet = (std, r, d, fee) => std == null ? null : std * ((1 + r) * (1 - fee) - (1 - d));
 const fcgBuy = (std, d, ship) => std == null ? null : std * (1 - d) - ship;
+// the plan pane's boxes: one pane for Forecasting, Recording and Planning (2026-11-04, Brett: shared "EXCEPT % under" - the
+// box shows Forecasting's own % under there, Recording's starting % for new rows there, and is not on Planning, whose
+// rows keep the % they were bought at). disc here is always Forecasting's.
 function fcgInputs() {
   const n = (id, dflt) => { const v = parseFloat($(id).value); return isNaN(v) ? dflt : v; };
-  return {cap: Math.max(0, n('fcg-cap', 1000)), h: Math.min(6, Math.max(1, +$('fcg-h').value || 3)), disc: Math.min(0.6, Math.max(0, n('fcg-disc', 14.1) / 100)),
+  return {cap: Math.max(0, n('fcg-cap', 1000)), h: Math.min(6, Math.max(1, +$('fcg-h').value || 3)), disc: Math.min(0.6, Math.max(0, (+FCG_IN.disc || 0) / 100)),
           ship: Math.max(0, n('fcg-ship', 5.2)), pmin: Math.max(0, n('fcg-pmin', 50)), pmax: Math.max(0, n('fcg-pmax', 5000)), share: Math.min(1, Math.max(0.05, n('fcg-share', 20) / 100)),
           minp: Math.min(0.95, Math.max(0, n('fcg-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fcg-copies', 1)))), gate: $('fcg-gate').checked};
 }
+// a row's standard prices today: PriceCharting's price of the grade (else last month's), Card Ladder's value (else last
+// month's average) when Card Ladder has read the card
+const fcgStd = r => [r[67] != null ? r[67] : r[6], r[75] === 'read' ? (r[68] != null ? r[68] : r[35]) : null];
+// a row's rank and odds, and its money at standard prices pc / cl bought d under less the shipping (Forecasting: the pane's
+// % under; Recording and Planning: the row's own)
+function fcgCalc(r, pc, cl, d, ship, D, I, fee) {
+  const line = FCG_LINE(r[50]), pv = D && line ? ((D.pct[String(r[0])] || [])[D.lines.indexOf(line)]) : null;
+  const pct = pv == null ? null : pv / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10));
+  const t = D && pc != null ? fcgTab(D, I.h, g) : null;
+  r.fcS = pc; r.fcSc = cl; r.fcD = d; r.fcB = fcgBuy(pc, d, ship); r.fcBc = fcgBuy(cl, d, ship);
+  r.fcPct = pct; r.fcG = g; r.fcT = t; r.fcQ = 0; r.fcPl = FCG.plan.has(r[0] + '|' + r[50]) ? 1 : 0;
+  r.fcP = t ? Math.round(Math.min(0.95, 1 - fcgCdf(D, t, fcgBreak(d, fee))) * 1000) / 10 : null;
+  r.fcN = t ? fcgNet(pc, t.mean, d, fee) : null; r.fcNc = t && cl != null ? fcgNet(cl, t.mean, d, fee) : null;
+  r.fcR = r.fcN != null && r.fcB > 0 ? Math.round(r.fcN / r.fcB * 1000) / 10 : null;
+  r.fcRc = r.fcNc != null && r.fcBc > 0 ? Math.round(r.fcNc / r.fcBc * 1000) / 10 : null;
+  return r;
+}
+const fcgOrder = (a, b) => (b.fcP == null ? -1 : Math.round(b.fcP)) - (a.fcP == null ? -1 : Math.round(a.fcP)) || (b.fcPct || 0) - (a.fcPct || 0) || (b.fcS || 0) - (a.fcS || 0);   // buy order: chance to the whole percent, then rank, then price
 // every row's figures, worked out again when the data, the rows or the plan's boxes change
 function fcgRows() {
   const D = fcgDoc(), I = fcgInputs(), fee = fcgFee();
   const key = JSON.stringify(I) + '|' + fee + '|' + (D ? D.t : '');
   if (FCG.src === GR.rows && FCG.key === key) return FCG.rows;
-  const be = fcgBreak(I.disc, fee), li = D ? D.lines : [], out = [];
+  const be = fcgBreak(I.disc, fee), out = [];
   for (const r of GR.rows) {
     if (r[48]) continue;
-    const pc = r[67] != null ? r[67] : r[6], clOk = r[75] === 'read', cl = clOk ? (r[68] != null ? r[68] : r[35]) : null;
-    const band = pc != null ? pc : cl;
+    const [pc, cl] = fcgStd(r), band = pc != null ? pc : cl;
     if (band == null || band < I.pmin || band > I.pmax) continue;
-    const line = FCG_LINE(r[50]), pv = D && line ? ((D.pct[String(r[0])] || [])[li.indexOf(line)]) : null;
-    const pct = pv == null ? null : pv / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10));
-    const t = D && pc != null ? fcgTab(D, I.h, g) : null;
-    r.fcS = pc; r.fcSc = cl; r.fcB = fcgBuy(pc, I.disc, I.ship); r.fcBc = fcgBuy(cl, I.disc, I.ship);
-    r.fcPct = pct; r.fcG = g; r.fcT = t; r.fcQ = 0; r.fcPl = FCG.plan.has(r[0] + '|' + r[50]) ? 1 : 0;
-    r.fcP = t ? Math.round(Math.min(0.95, 1 - fcgCdf(D, t, be)) * 1000) / 10 : null;
-    r.fcN = t ? fcgNet(pc, t.mean, I.disc, fee) : null; r.fcNc = t && cl != null ? fcgNet(cl, t.mean, I.disc, fee) : null;
-    r.fcR = r.fcN != null && r.fcB > 0 ? Math.round(r.fcN / r.fcB * 1000) / 10 : null;
-    r.fcRc = r.fcNc != null && r.fcBc > 0 ? Math.round(r.fcNc / r.fcBc * 1000) / 10 : null;
-    out.push(r);
+    out.push(fcgCalc(r, pc, cl, I.disc, I.ship, D, I, fee));
   }
-  out.sort((a, b) => (b.fcP == null ? -1 : Math.round(b.fcP)) - (a.fcP == null ? -1 : Math.round(a.fcP)) || (b.fcPct || 0) - (a.fcPct || 0) || (b.fcS || 0) - (a.fcS || 0));
+  out.sort(fcgOrder);
   FCG.rows = out; FCG.src = GR.rows; FCG.key = key; FCG.I = I; FCG.fee = fee; FCG.be = be;
   return out;
 }
@@ -86,8 +97,7 @@ function fcgAllocate(view) {
   FCG.rows.forEach(r => { r.fcQ = 0; });
   FCG.gated = !!(D && I.gate && !(D.regime && D.regime.up));
   let left = I.cap;
-  const elig = view.filter(r => r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0)
-    .sort((a, b) => Math.round(b.fcP) - Math.round(a.fcP) || (b.fcPct || 0) - (a.fcPct || 0) || (b.fcS || 0) - (a.fcS || 0));
+  const elig = view.filter(r => r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0).sort(fcgOrder);
   if (!FCG.gated) elig.forEach(r => {
     let q = Math.min(Math.floor(I.cap * I.share / r.fcB), I.copies, Math.floor(left / r.fcB));
     if (q > 0) { r.fcQ = q; left -= q * r.fcB; }
@@ -95,12 +105,15 @@ function fcgAllocate(view) {
   FCG.picks = elig.filter(r => r.fcQ > 0); FCG.spent = I.cap - left; FCG.elig = elig.length;
   FCG.mc = D && FCG.picks.length ? fcgMonteCarlo(D, FCG.picks, I, FCG.fee) : null;
 }
-function fcgMonteCarlo(D, picks, I, fee, n = 2000) {      // the basket: a market draw shared by every pick plus each pick's own (the raw tab's copula)
+// the basket: a market draw shared by every pick plus each pick's own (the raw tab's copula); each pick at its own % under
+// (r.fcD) and its odds table (tab(r): the pick's table at the pane's hold, or another hold's)
+function fcgMonteCarlo(D, picks, I, fee, n = 2000, tab) {
   let seed = 12345; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return (seed + 0.5) / 4294967296; };
   const gauss = () => Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd());
   const Phi = z => { const t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
   const wm = Math.sqrt(FC_RHO), wo = Math.sqrt(1 - FC_RHO), tot = new Float64Array(n);
-  for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; picks.forEach(r => { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += r.fcQ * fcgNet(r.fcS, fcgDraw(D, r.fcT, u), I.disc, fee); }); tot[k] = s; }
+  const T = tab || (r => r.fcT), P = picks.map(r => [r.fcQ, r.fcS, T(r), r.fcD != null ? r.fcD : I.disc]).filter(x => x[2] && x[1] != null);
+  for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; for (const [q, std, t, d] of P) { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += q * fcgNet(std, fcgDraw(D, t, u), d, fee); } tot[k] = s; }
   const a = Array.from(tot).sort((x, y) => x - y), at = p => a[Math.min(n - 1, Math.floor(p * n))];
   return {lo: at(0.1), med: at(0.5), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(FC_P_CAP, a.filter(v => v > 0).length / n)};
 }
@@ -115,7 +128,7 @@ function fcgSummary() {
   let s = '';
   if (FCG.gated) s = '<p><b>Nothing to buy: the graded market is falling</b> (the average graded line ' + fcgPct(D.regime.reg3) + ' a month over the last three months) and “Buy only when the market is rising” is on. ' + (FCG.elig ? FCG.elig + ' slab' + (FCG.elig > 1 ? 's' : '') + ' would clear your bar anyway - the list is in buy order; switch it off to see the plan.' : '') + '</p>';
   else if (!n) s = '<p><b>No slab clears your bar</b> (' + Math.round(I.minp * 100) + '% chance of a profit, ' + fcgDiscWord(I.disc) + ' under, a ' + unit + ' hold) among the rows on view. Lower the bar, buy deeper under, or hold longer.</p>';
-  else s = '<p>Spend <b>' + fmtMoneyPlain(FCG.spent) + '</b> of ' + fmtMoneyPlain(I.cap) + ' on <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> (' + copies + (copies === 1 ? ' copy' : ' copies') + '), each bought ' + fcgDiscWord(I.disc) + ' under its standard price less the shipping, hold ' + unit + ', sell on eBay at PriceCharting’s price then. Every listed slab is assumed for sale; the rows in bold are the buys.</p>';
+  else s = '<p>Spend <b>' + fmtMoneyPlain(FCG.spent) + '</b> of ' + fmtMoneyPlain(I.cap) + ' on <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> (' + copies + (copies === 1 ? ' copy' : ' copies') + '), each bought ' + fcgDiscWord(I.disc) + ' under its standard price less the shipping, hold ' + unit + ', sell on eBay at PriceCharting’s price then. Every listed slab is assumed for sale; the green rows are the buys.</p>';
   s += '<div class="stats fc-stats">' +
     '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + (mc ? fcMoney(mc.mean) + (FCG.spent > 0 ? ' <span class="fc-roi ' + (mc.mean < 0 ? 'down' : 'up') + '">' + fcgPct(mc.mean / FCG.spent) + '</span>' : '') : '-') + '</div><div class="d">average of the basket, after fees and shipping</div></div>' +
     '<div class="stat"><div class="k">Likely range</div><div class="v">' + (mc ? fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) : '-') + '</div><div class="d">10th to 90th percentile' + (mc ? '; median ' + fcMoney(mc.med) : '') + '</div></div>' +
@@ -129,7 +142,8 @@ function fcgRegime() {
   if (!D) { box.textContent = GR.doc ? 'The graded model is not in this build yet.' : 'Waiting for the graded data…'; return; }
   const R = D.regime || {}, up = !!R.up, confirm = !!R.confirm, light = !up ? 'red' : confirm ? 'green' : 'amber';
   const head = !up ? 'Falling graded market — the gate is red.' : confirm ? 'Rising graded market — the gate is green.' : 'Rising graded market, but last month turned down — amber.';
-  const pn = R.p_next || [], be = fcgBreak(I.disc, fee), dw = fcgDiscWord(I.disc);
+  const dsc = NAV.gm === 'rc' ? (+FCG_IN.rdisc || 0) / 100 : I.disc;   // the % under the pane shows: Recording's own there
+  const pn = R.p_next || [], be = fcgBreak(dsc, fee), dw = fcgDiscWord(dsc);
   const line = h => { const t = D.tables[h + '|' + fcgReg(D) + '|9']; if (!t) return '<tr><td>' + h + '&nbsp;mo</td><td class="num" colspan="3"><span class="dim">too few cases</span></td></tr>';
     return '<tr><td>' + h + '&nbsp;mo</td><td class="num">' + fcgPct(t.q[D.qs.indexOf(0.5)]) + '</td><td class="num">' + (t.p_up * 100).toFixed(0) + '%</td><td class="num">' + (Math.min(0.95, 1 - fcgCdf(D, t, be)) * 100).toFixed(0) + '%</td></tr>'; };
   box.innerHTML = '<p><b class="fc-light fc-light-' + light + '">' + head + '</b> The average graded line moved <b>' + fcgPct(R.reg3) + ' a month</b> over the last three months (' + fcgPct(R.reg1) + ' last month' + (R.breadth3 != null ? '; ' + (R.breadth3 * 100).toFixed(0) + '% of lines up' : '') + '). ' +
@@ -143,7 +157,10 @@ function fcgRegime() {
 function fcgMeta() {
   const m = $('meta-fcg'); if (!m) return;
   const D = fcgDoc();
-  m.textContent = NAV.gm === 'pl' ? 'Forecast · graded cards (PSA and CGC)' : 'Forecast · graded cards (PSA and CGC) · which slabs to buy at a vendor and sell on eBay, every listed slab assumed for sale, ranked like the raw tab: how far each grade’s PriceCharting price sits below its own 12-month mean' + (D ? ' · ' + D.model : '');
+  const md = typeof fcgMode === 'function' ? fcgMode() : 'fc';
+  m.textContent = md === 'rc' ? 'Forecast · graded cards (PSA and CGC) · Recording: the slabs you recorded at a card show, best chance first - green: buy it with the capital left; Yes: you bought it at its buy price; No: the vendor wanted more'
+    : md === 'pl' ? 'Forecast · graded cards (PSA and CGC) · Planning: the slabs you bought (marked Yes on Recording), what you paid and what they are expected to make; Record plan keeps them on Forecast History'
+    : 'Forecast · graded cards (PSA and CGC) · which slabs to buy at a vendor and sell on eBay, every listed slab assumed for sale, ranked like the raw tab: how far each grade’s PriceCharting price sits below its own 12-month mean' + (D ? ' · ' + D.model : '');
 }
 // the cells
 const fcgM = v => v == null ? '<span class="dim">-</span>' : fmtMoney(v);
@@ -151,33 +168,42 @@ function fcg2(cl, pc, clTip, pcTip, r) {                  // a two-line cell: Ca
   const clw = r[75] === 'pending' ? '<span class="dim">pending</span>' : r[75] === 'no match' ? '<span class="dim">no match</span>' : cl;
   return '<td class="num fcg2"><span title="' + esc(clTip) + '"><i>CL</i> ' + clw + '</span><span title="' + esc(pcTip) + '"><i>PC</i> ' + pc + '</span></td>';
 }
-function fcgRow(r) {
-  const k = r[0] + '|' + esc(r[50]), c = (GR.doc.cards || {})[String(r[0])] || {}, I = FCG.I, on = r.fcPl === 1;
+// a row's cells by name (Recording and Planning use the same ones in their own order, with their own columns between)
+function fcgCells(r, I) {
+  const k = r[0] + '|' + esc(r[50]), c = (GR.doc.cards || {})[String(r[0])] || {}, on = r.fcPl === 1, d = r.fcD != null ? r.fcD : I.disc;
   const pcFrom = r[67] != null ? 'PriceCharting’s price of this grade today' : 'PriceCharting’s price of this grade last month (none today)';
   const clFrom = r[68] != null ? 'Card Ladder’s value of this grade today' : 'Card Ladder’s average of this grade’s sales last month (no value today)';
-  const buyTip = side => side + ' standard price x (1 - ' + fcgDiscWord(I.disc) + ') - ' + fmtMoneyPlain(I.ship) + ' shipping: the most to pay the vendor';
-  const grp = r.fcG == null ? '' : r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10 (1 = deepest)';
+  const buyTip = side => side + ' standard price x (1 - ' + fcgDiscWord(d) + ') - ' + fmtMoneyPlain(I.ship) + ' shipping: the most to pay the vendor';
   const pcSold = r[76] && r[16] != null ? '~' + fmtInt(r[16]) : r[16] == null && (r[69] || [])[2] === 'not_read' ? '<span class="dim">not read</span>' : r[16] == null ? '<span class="dim">-</span>' : fmtInt(r[16]);
-  return '<td><button type="button" class="gplb' + (on ? ' on' : '') + '" data-k="' + k + '" title="' + (on ? 'On your graded plan - click to take it off' : 'Add this slab to your graded plan (the Graded Planning page, to come)') + '">' + (on ? '−' : '+') + '</button></td>' +
-    '<td class="gflc">' + (r[42] ? '<button class="gflag on" data-k="' + k + '" title="' + esc('Your flag: ' + r[42] + '. Click to change it or take it off.') + '">⚑ ' + esc(r[42]) + '</button>' : '<button class="gflag" data-k="' + k + '" title="Flag this row with a reason - the same flags as the PriceCharting tab’s graded rows">⚐</button>') + '</td>' +
-    (!c.pid ? '<td><span class="dim" title="Review puts PriceCharting’s card beside Card Ladder’s - this card has no Card Ladder card yet">-</span></td>'
-      : '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + k + '" title="Compare PriceCharting’s card with Card Ladder’s">Review</button></td>') +
-    '<td>' + esc(r[1]) + '<br><span class="dim">' + esc(String(r[2] || '').replace(/^Pokemon /, '')) + (r[3] ? ' · #' + esc(r[3]) : '') + '</span></td>' +
-    '<td><b>' + esc(r[25]) + '</b></td>' +
-    fcg2(fcgM(r.fcSc), fcgM(r.fcS), clFrom, pcFrom, r) +
-    fcg2(fcgM(r.fcBc), fcgM(r.fcB), buyTip('Card Ladder’s'), buyTip('PriceCharting’s'), r) +
-    fcg2(r[37] == null ? '<span class="dim">-</span>' : fmtInt(r[37]), pcSold, 'Card Ladder’s recorded sales of this grade last month', 'PriceCharting’s recorded sales of this grade and grader last month' + (r[76] ? ' (an estimate: its list of sales does not reach back to the start of the month)' : ''), r) +
-    (r.fcP == null ? '<td class="num"><span class="dim" title="' + esc(FCG_LINE(r[50]) ? 'No rank for this line today: PriceCharting needs a full year of prices of this grade, $' + ((fcgDoc() || {}).rank_min || 25) + '+' : 'PriceCharting has no price line of its own for ' + r[25] + ' (the model reads its PSA 10 line and its Grade 9.5 / 9 / 8 / 7 lines)') + '">no score</span></td>'
-      : '<td class="num" title="' + esc('Rank: ' + grp + ' (' + fcOrd(Math.round(r.fcPct * 100)) + ' percentile, furthest below its own 12-month mean = 100th). How often slabs of that group made money over ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' in this kind of market, 2022 on (' + Number(r.fcT.n).toLocaleString('en-US') + ' cases), bought ' + fcgDiscWord(I.disc) + ' under') + '">' + r.fcP.toFixed(0) + '%</td>') +
-    '<td class="num">' + (r.fcQ ? '<b>' + r.fcQ + '</b>' : '<span class="dim">—</span>') + '</td>' +
-    fcg2(r.fcNc == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcNc), r.fcN == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcN), 'Expected net per copy at Card Ladder’s value, after eBay’s fee and the shipping', 'Expected net per copy at PriceCharting’s price: standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - ' + fcgDiscWord(I.disc) + '))', r) +
-    fcg2(r.fcRc == null ? '<span class="dim">-</span>' : fcgPct(r.fcRc / 100), r.fcR == null ? '<span class="dim">-</span>' : fcgPct(r.fcR / 100), 'Net / buy price, over the hold (Card Ladder)', 'Net / buy price, over the hold (PriceCharting)', r);
+  return {plus: '<td>' + fcgPlusBtn(k, on) + '</td>',
+    flag: '<td class="gflc">' + (r[42] ? '<button class="gflag on" data-k="' + k + '" title="' + esc('Your flag: ' + r[42] + '. Click to change it or take it off.') + '">⚑ ' + esc(r[42]) + '</button>' : '<button class="gflag" data-k="' + k + '" title="Flag this row with a reason - the same flags as the PriceCharting tab’s graded rows">⚐</button>') + '</td>',
+    review: (!c.pid ? '<td><span class="dim" title="Review puts PriceCharting’s card beside Card Ladder’s - this card has no Card Ladder card yet">-</span></td>'
+      : '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + k + '" title="Compare PriceCharting’s card with Card Ladder’s">Review</button></td>'),
+    name: '<td class="fcr-nm">' + esc(r[1]) + '<br><span class="dim">' + esc(String(r[2] || '').replace(/^Pokemon /, '')) + (r[3] ? ' · #' + esc(r[3]) : '') + '</span></td>',
+    grade: '<td><b>' + esc(r[25]) + '</b></td>',
+    std: fcg2(fcgM(r.fcSc), fcgM(r.fcS), clFrom, pcFrom, r),
+    buy: fcg2(fcgM(r.fcBc), fcgM(r.fcB), buyTip('Card Ladder’s'), buyTip('PriceCharting’s'), r),
+    sold: fcg2(r[37] == null ? '<span class="dim">-</span>' : fmtInt(r[37]), pcSold, 'Card Ladder’s recorded sales of this grade last month', 'PriceCharting’s recorded sales of this grade and grader last month' + (r[76] ? ' (an estimate: its list of sales does not reach back to the start of the month)' : ''), r),
+    chance: fcgChanceCell(r, I),
+    qty: '<td class="num">' + (r.fcQ ? '<b>' + r.fcQ + '</b>' : '<span class="dim">—</span>') + '</td>',
+    net: fcg2(r.fcNc == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcNc), r.fcN == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcN), 'Expected net per copy at Card Ladder’s value, after eBay’s fee and the shipping', 'Expected net per copy at PriceCharting’s price: standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - ' + fcgDiscWord(d) + '))', r),
+    roi: fcg2(r.fcRc == null ? '<span class="dim">-</span>' : fcgPct(r.fcRc / 100), r.fcR == null ? '<span class="dim">-</span>' : fcgPct(r.fcR / 100), 'Net / buy price, over the hold (Card Ladder)', 'Net / buy price, over the hold (PriceCharting)', r)};
 }
+function fcgRow(r) {
+  const x = fcgCells(r, FCG.I);
+  return x.plus + x.flag + x.review + x.name + x.grade + x.std + x.buy + x.sold + x.chance + x.qty + x.net + x.roi;
+}
+function fcgChanceCell(r, I) {
+  const grp = r.fcG == null ? '' : r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10 (1 = deepest)', d = r.fcD != null ? r.fcD : I.disc;
+  return r.fcP == null ? '<td class="num"><span class="dim" title="' + esc(FCG_LINE(r[50]) ? 'No rank for this line today: PriceCharting needs a full year of prices of this grade, $' + ((fcgDoc() || {}).rank_min || 25) + '+' : 'PriceCharting has no price line of its own for ' + r[25] + ' (the model reads its PSA 10 line and its Grade 9.5 / 9 / 8 / 7 lines)') + '">no score</span></td>'
+    : '<td class="num" title="' + esc('Rank: ' + grp + ' (' + fcOrd(Math.round(r.fcPct * 100)) + ' percentile, furthest below its own 12-month mean = 100th). How often slabs of that group made money over ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' in this kind of market, 2022 on (' + Number(r.fcT.n).toLocaleString('en-US') + ' cases), bought ' + fcgDiscWord(d) + ' under') + '">' + r.fcP.toFixed(0) + '%</td>';
+}
+const fcgPlusBtn = (k, on) => '<button type="button" class="gplb' + (on ? ' on' : '') + '" data-k="' + k + '" title="' + (on ? 'On your Looking for list (Graded > Recording) - click to take it off' : 'Put this card and grade on your Looking for list (Graded > Recording): the slabs you want at the show') + '">+</button>';
 const fcgMoneyS = v => '<span class="' + (v < 0 ? 'down' : v > 0 ? 'up' : '') + '">' + (v < 0 ? '−' : v > 0 ? '+' : '') + fmtMoneyPlain(Math.abs(v)) + '</span>';
 // the table: the PriceCharting tab's machinery (eyes, highlight, names, drag, Columns…, Filters…)
 const FCG_RANGES = ['fcS', 'fcSc', 'fcB', 'fcBc', 16, 37, 'fcP', 'fcN', 'fcNc', 'fcR', 'fcRc'];
 const FCG_LABELS = {fcS: 'Standard PC $', fcSc: 'Standard CL $', fcB: 'Buy price PC $', fcBc: 'Buy price CL $', 16: 'Sold PC (last mo)', 37: 'Sold CL (last mo)', fcP: 'Chance %', fcN: 'Net PC $', fcNc: 'Net CL $', fcR: 'ROI PC %', fcRc: 'ROI CL %'};
-tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg', name: 'Forecast · graded',
+tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg-main', name: 'Forecast · graded',
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r[0] + '|' + r[50],
   extra: r => grPass(r, GF.fc),
   rowClass: r => r.fcQ ? 'fcg-buy' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
@@ -190,44 +216,63 @@ tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', range
     const n = t.shown; $('rows-fcg').innerHTML = ''; t.shown = 0; t.renderMore(Math.max(PAGE, n));
     fcgSummary();
   }});
-// the + (Brett: "the cards that i can will populate graded>planning, but lets not build that yet"): kept in this browser
-$('rows-fcg').addEventListener('click', e => {
-  const b = e.target.closest('.gplb'); if (!b) return;
-  const k = b.dataset.k, on = !FCG.plan.has(k);
+// the + (2026-11-04, Brett: "when its toggled on, the + will turn green, so i know which have been added from forcast"):
+// the card x grade goes on the Looking for list of Graded > Recording - the slabs to look for at the show. Kept in this
+// browser; the same + on Recording's rows
+function fcgPlusToggle(k) {
+  const on = !FCG.plan.has(k);
   if (on) FCG.plan.add(k); else FCG.plan.delete(k);
   grSave('fcg-plan', [...FCG.plan]);
-  const r = FCG.rows.find(x => x[0] + '|' + x[50] === k); if (r) r.fcPl = on ? 1 : 0;
-  b.classList.toggle('on', on); b.textContent = on ? '−' : '+'; b.title = on ? 'On your graded plan - click to take it off' : 'Add this slab to your graded plan (the Graded Planning page, to come)';
+  for (const r of FCG.rows) if (r[0] + '|' + r[50] === k) r.fcPl = on ? 1 : 0;
+  document.querySelectorAll('#fcg button.gplb').forEach(b => { if (b.dataset.k === k) { b.outerHTML = fcgPlusBtn(k, on); } });
   fcgPlanCount();
-});
-function fcgPlanCount() { const n = $('npl-g'); if (n) n.textContent = String(FCG.plan.size); }
+  if (typeof fcrLookPaint === 'function') fcrLookPaint();
+}
+$('rows-fcg').addEventListener('click', e => { const b = e.target.closest('.gplb'); if (b) fcgPlusToggle(b.dataset.k); });
+function fcgPlanCount() { if (typeof fcrCounts === 'function') fcrCounts(); }
 // the plan's boxes: remembered in this browser, every change worked out again
+const fcgMode = () => NAV.gm === 'rc' ? 'rc' : NAV.gm === 'pl' ? 'pl' : 'fc';
+function fcgDiscPaint() {                                  // the % under box: Forecasting's own, Recording's starting %, none on Planning
+  const m = fcgMode(); $('fcg-disc').value = m === 'rc' ? FCG_IN.rdisc : FCG_IN.disc;
+  $('fcg-disc-note').textContent = m === 'rc' ? 'Recording: the % a newly recorded slab starts at - each row has its own % Under box (what the vendor will take). Forecasting keeps its own % under.' : '';
+}
 function fcgInputsPaint() {
   const I = FCG_IN;
-  $('fcg-cap').value = I.cap; $('fcg-h').value = String(I.h); $('fcg-disc').value = I.disc; $('fcg-ship').value = I.ship;
+  $('fcg-cap').value = I.cap; $('fcg-h').value = String(I.h); fcgDiscPaint(); $('fcg-ship').value = I.ship;
   $('fcg-pmin').value = I.pmin; $('fcg-pmax').value = I.pmax; $('fcg-share').value = I.share; $('fcg-minp').value = I.minp;
   $('fcg-copies').value = I.copies; $('fcg-gate').checked = !!I.gate;
-  $('fcg').classList.toggle('folded', !!I.fold); $('fcg-unfold').hidden = !I.fold;
+  $('fcg').classList.toggle('folded', !!I.fold); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !I.fold; });
 }
 function fcgChanged() {
-  const I = fcgInputs();
-  Object.assign(FCG_IN, {cap: I.cap, h: I.h, disc: Math.round(I.disc * 1000) / 10, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), copies: I.copies, gate: I.gate});
+  const I = fcgInputs(), dv = parseFloat($('fcg-disc').value), m = fcgMode();
+  Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), copies: I.copies, gate: I.gate});
+  if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
   grSave('fcg-in', FCG_IN);
-  fcgRegime(); if (GR.doc) tables.fcg.apply();
+  fcgRegime(); if (GR.doc) { tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }
 }
 $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
 $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
-const fcgFold = on => { FCG_IN.fold = !!on; grSave('fcg-in', FCG_IN); $('fcg').classList.toggle('folded', !!on); $('fcg-unfold').hidden = !on; };
+const fcgFold = on => { FCG_IN.fold = !!on; grSave('fcg-in', FCG_IN); $('fcg').classList.toggle('folded', !!on); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !on; }); };
 $('fcg-fold').addEventListener('click', () => fcgFold(true));
-$('fcg-unfold').addEventListener('click', () => fcgFold(false));
+document.querySelectorAll('#fcg .fcg-unfold').forEach(b => b.addEventListener('click', () => fcgFold(false)));
 // shown when the Forecast tab is on Graded cards > Forecasting: the graded data loads on first sight
+// the filter buttons (Grading, the word buttons ...) are one set for the three pages: the bar moves to the page showing
+function fcgMoveChips(m) {
+  const card = $(m === 'rc' ? 'fcr-main' : m === 'pl' ? 'fcp-main' : 'fcg-main'), bar = $('fcg-gmode');
+  if (card && bar && bar.parentNode !== card) card.insertBefore(bar, card.querySelector('.controls'));
+}
 function fcgShow() {
   fcgMeta();
-  if ($('p-fc').hidden || NAV.fc !== 'graded' || NAV.gm !== 'fc') return;
-  fcgRegime(); fcgSummary(); grPaintGrades(GF.fc);
-  grLoad().then(() => { grPaintTerms(GF.fc); grPaintGrades(GF.fc); fcgRegime(); fcgMeta(); tables.fcg.resync(); tables.fcg.apply(); });
+  if ($('p-fc').hidden || NAV.fc !== 'graded') return;
+  const m = fcgMode(); fcgMoveChips(m);
+  fcgRegime(); if (m === 'fc') fcgSummary(); grPaintGrades(GF.fc);
+  grLoad().then(() => {
+    grPaintTerms(GF.fc); grPaintGrades(GF.fc); fcgRegime(); fcgMeta();
+    if (fcgMode() === 'fc') { tables.fcg.resync(); tables.fcg.apply(); } else if (typeof fcrShowData === 'function') fcrShowData();
+  });
 }
-{ const na = navApply; navApply = function () { na.apply(this, arguments); $('p-fc').classList.toggle('gpl', NAV.gm === 'pl'); fcgShow(); }; }
+function fcgModeClass() { const m = fcgMode(); ['fc', 'rc', 'pl'].forEach(x => $('p-fc').classList.toggle('gm-' + x, x === m)); }
+{ const na = navApply; navApply = function () { na.apply(this, arguments); fcgModeClass(); fcgDiscPaint(); fcgShow(); }; }
 { const st = showTab; showTab = function () { st.apply(this, arguments); fcgShow(); }; }
 // the table scrolls in its own box (it is wider than the card; the header row sticks to the box's top): more rows as the
 // box nears its bottom
@@ -235,8 +280,8 @@ document.querySelector('#fcg .wrap').addEventListener('scroll', e => {
   const w = e.currentTarget, t = tables.fcg;
   if (t && !$('more-fcg').hidden && w.scrollTop + w.clientHeight > w.scrollHeight - 600) t.renderMore();
 }, {passive: true});
-fcgInputsPaint(); fcgPlanCount();
-$('p-fc').classList.toggle('gpl', NAV.gm === 'pl');
+fcgInputsPaint();
+fcgModeClass();
 fcgShow();
 
 /* ---- the help behind the page's ? buttons ---- */
@@ -251,15 +296,15 @@ Object.assign(HELP, {
   fcg_copies: {t: 'Copies per card', f: 'the most copies of one slab the plan buys (1-5)', m: 'One by default, as the raw tab.', e: '2: the plan may buy two PSA 10s of the same card.'},
   fcg_gate: {t: 'Buy only when the market is rising', f: 'on (the default): nothing is bought while the graded market is falling', m: 'The graded market (the box below): the average monthly move of PriceCharting\'s graded lines over the last three months. Since 2022, when it was positive the next quarter was up about 8 times in 10; when negative, about 1 in 4. Off: the plan buys in a falling market too, with the falling-market odds.', e: 'Falling market, switch on: every Buy is 0 and the summary says why.'},
   fcg_regime: {t: 'The market now (graded)', f: 'the average monthly move of PriceCharting\'s graded lines over the last three months; up or down sets which odds are used and the gate', m: 'The raw tab reads the median move; most graded lines do not move at all in a month, which made the median 0 every month, so the graded market is the average move (each line clipped to plus or minus 50%). The table: what the deepest-dip slabs (the top 10% of the rank) did over 1 to 6 months in this kind of market - the median move, how often the price was up, and how often one bought at your % under (the shipping in the buy price) netted a profit.', e: 'Rising, +4% a month: the plan may buy, with the rising-market odds.'},
-  fcg_picks: {t: 'What to buy (graded)', f: 'every graded row of the PriceCharting tab in your price band, assumed for sale, best chance first; the rows in bold are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, Auth read, CL read, CL To PC Match), with this page\'s own settings; Filters… and Columns… and the headers work as on the other tabs. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
-  fcg_plan: {t: '+ (graded plan)', f: 'a click puts the slab on your graded plan; it turns into a − that takes it off', m: 'For the Graded Planning page, to come: the slabs you mean to buy. Kept in this browser for now; the count shows on the Planning button.', e: '+ on a PSA 10 Umbreon: Planning (graded) shows 1.'},
+  fcg_picks: {t: 'What to buy (graded)', f: 'every graded row of the PriceCharting tab in your price band, assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, Auth read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Planning (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
+  fcg_plan: {t: '+ (Looking for)', f: 'a click puts the card and grade on the Looking for list of Graded > Recording; the + turns green', m: 'The slabs to look for at the show, with the most to pay for each. Click the green + again to take it off. Kept in this browser.', e: '+ on a PSA 10 Umbreon: Recording\'s Looking for list shows it.'},
   fcg_name: {t: 'PC Card Name', f: 'PriceCharting\'s name of the card, with its set and number under it', m: 'Not a link (Brett). Review compares it with Card Ladder\'s card.', e: 'Umbreon VMAX #215 · Evolving Skies.'},
   fcg_grade: {t: 'Grade', f: 'the grader and grade of the row: one row per card per grade', m: 'The model reads PriceCharting\'s PSA 10 line for PSA 10, and its Grade 9.5 / 9 / 8 / 7 lines (every grader blended) for those grades; other grades show no score.', e: 'PSA 9 and CGC 9 read the same Grade 9 line.'},
   fcg_std: {t: 'Standard Price', f: 'CL: Card Ladder\'s value of the grade today (else last month\'s average); PC: PriceCharting\'s price of the grade today (else last month\'s)', m: 'The price a slab is bought under and sold at. The model\'s history is PriceCharting\'s, so the chance is worked out on the PC side; Net and ROI are shown for both. Sorting and the filter chip use the PC figure.', e: 'CL $185.00 / PC $200.00.'},
   fcg_buy: {t: 'Buy Price', f: 'standard price x (1 - % under) - eBay Shipping Fee, for each side', m: 'The most to pay the vendor for the slab. Brett\'s rule: "the pc buy price would be 10% under minus $6".', e: 'PC $200, 14.1% under, $5.20: $166.60.'},
   fcg_sold: {t: 'Sold (last month)', f: 'CL: Card Ladder\'s recorded sales of the grade last month; PC: PriceCharting\'s recorded sales of the grade and grader last month', m: 'How liquid the slab is - what you would sell against. A ~ marks PriceCharting\'s estimate (its list of sales does not reach back to the start of the month); pending = Card Ladder has not read the card yet.', e: 'CL 12 / PC 9.'},
   fcg_chance: {t: 'Chance', f: 'how often slabs of the same rank group made money over your hold, in this kind of market, 2022 on, bought at your % under', m: 'The rank: how far the grade\'s PriceCharting price sits below its own 12-month mean, against every graded line $25+ (ten groups). The break-even is a price that does not move at 14.1% under (the shipping cancels out), so every slab of a group has the same chance; hover for the group. "no score": no line of its own, or not a full year of prices. At most 95%.', e: '62%: 62 of every 100 such slabs ended up.'},
-  fcg_qty: {t: 'Buy', f: 'how many copies the plan buys', m: 'Best chance first among the rows on view, only at or above your bar, never more than the copies per card or the per-card share, until the capital runs out; nothing while the gate is red.', e: '1 on the first ten rows of a $1,000 plan.'},
+  fcg_qty: {t: 'QTY', f: 'how many copies the plan buys', m: 'Best chance first among the rows on view, only at or above your bar, never more than the copies per card or the per-card share, until the capital runs out; nothing while the gate is red.', e: '1 on the first ten rows of a $1,000 plan.'},
   fcg_net: {t: 'Net', f: 'expected net per copy: standard x ((1 + the group\'s average return) x (1 - eBay\'s fee) - (1 - % under))', m: 'The average outcome of the group over the hold, after eBay\'s fee, the shipping and what you paid; for both sides\' standard prices. An average: the typical slab moves less, a few move a lot - the summary\'s range shows the spread.', e: 'PC $200, average return +12% over 3 months, 14.1% under: +$20.61.'},
   fcg_roi: {t: 'ROI %', f: 'Net / Buy price, over the hold, for each side', m: 'What the money spent on the slab earns over the hold.', e: '+$20.61 on $166.60: +12.4%.'}
 });

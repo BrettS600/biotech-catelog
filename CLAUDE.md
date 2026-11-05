@@ -2179,8 +2179,35 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the rows are drawn again. The chips: graded.js state moved into per-view objects GF.pc / GF.fc (grFilters; fc keys
   behind "fcg-"); every chip function takes F. + = localStorage fcg-plan (Graded Planning to come; count on #npl-g).
   Defaults: 14.1% under, $5.20 shipping, $50-$5,000, 3 months, gate on, Grading PSA 10/9/8/7 + CGC 9.5/9/8/7. The table
-  scrolls in its own box (#fcg .wrap, sticky header inside; more rows on the box's scroll). The graded Planning page is
-  still the blank (#fc-graded, class gpl on #p-fc).
+  scrolls in its own box (#fcg .wrap, sticky header inside; more rows on the box's scroll). Header sort keys that are
+  words ('fcS' ...) sort by that row property since 2026-11-04 (makeTable used +th.dataset.k, so they sorted as NaN).
+- GRADED RECORDING / PLANNING / FORECAST HISTORY (2026-11-04, Brett; one build). NAV.gm = 'fc' | 'rc' | 'pl', addresses
+  #forecast/graded/forecasting|recording|planning; #fc-rc (Recording chip) only on graded; #p-fc gets gm-fc / gm-rc /
+  gm-pl (graded_fc.js fcgModeClass). ONE #fcg: one plan pane (#fcg-side) + three cards #fcg-main / #fcr-main / #fcp-main;
+  the filter-button bar #fcg-gmode MOVES into the card showing (fcgMoveChips); fcg's makeTable root is '#fcg-main' (with
+  '#fcg' it bound the other tables' headers). The pane's % under: FCG_IN.disc = Forecasting's, FCG_IN.rdisc = Recording's
+  start for new rows, hidden on Planning; fcgInputs().disc is always Forecasting's. Search, set and the range chips are
+  copied across fcg / fcr / fcp on input (fcgSyncFrom); the chip buttons are GF.fc for all three. graded_rec.js:
+  records in localStorage 'fcg-rec' [{id, c, gk, d, pur null/1/0, smp, t, and on Yes std, stdc, ship, paid, pt}] (no
+  scanning yet; 50 samples made once while 'fcg-rec' is null - affordable rows of fcgRows, 5 of 10 random cheapest bought
+  at 14.1-20% under); a row = GR row .slice() + fcgCalc at the record's d (a Yes row at its stored prices); green =
+  fcrAllocate (cap - Yes paid, best chance first among open rows on view, share, copies across the same card x grade);
+  Yes/No on the row (.fcr-pu), % under box input.fcr-d. + (fcgPlusToggle) = 'fcg-plan' = Recording's Looking for list.
+  grMark / grMarkCard wrapped to redraw. Record plan (Planning) -> alSend {type 'gplan', t, id, k, n, s: 20 slabs per
+  part [cid, gk, d x1000, std, stdc, paid, chance x10, net, rank x1000]; part 0 + h, cap, disc, ship, fee, month, reg,
+  spent, model, smp, holds [[exp, lo, hi, p] x 6]} (each part its own nextT() t: the collector drops t <= its last);
+  collector.gplan_record assembles parts -> v["gplans"] (100) -> live["gplans"] {t, recs}; {type 'gplan_del', id}
+  removes. The page echoes a sent plan ('fcg-gplan-echo', 2 days) until live has it. graded_fh.js: replay from
+  graded_hist.bin (graded_forecast.build_hist, written by graded_site.py; ~17 s, ~0.8 MB gz): per month since 2022 the
+  odds known then (pairs decided >= h months before; < 30 cases or 2022 -> the whole period, first[] = 1), 19-point
+  grids [mean, q5..q95] per hold x group in that month's regime, and candidates per group x line (24 deepest in groups
+  6-10, 8 in 1-5) in $50-$5,000: [cid, line, std, rank x1000, y1..y6 x1000 | null]. The page runs Graded Forecasting's
+  boxes + Grading ticks (lines via FCG_LINE) on each month, 1,000-draw baskets, in slices (fhgRun); makeTable 'fhg' with
+  a tr.grp band; hold cards = mean ROI (scored months) and mean chance (months with buys). Recorded plans: makeTable
+  'fhr' over live.gplans + echo; Actual per hold = sum of slabs at PriceCharting's price of the month the hold ends
+  (gtSeries 'pc|gk' point of that month, today's price while it is the newest) x (1 - fee) - ship - paid; trends loaded
+  on demand (grTrendData). Opened rows insert tr.fhx (td data-ci="x", content in a sticky .fhx-in) after makeTable
+  draws; CSS keeps col-hidden / widths off them.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

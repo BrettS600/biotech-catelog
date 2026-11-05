@@ -624,19 +624,67 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
 .gblank strong { color:var(--fg); font-size:18px; }
 #p-fc:not(.graded) #meta-fcg, #p-fc:not(.graded) #fc-graded, #p-fc:not(.graded) #npl-g,
 #p-fc.graded #meta-fc, #p-fc.graded #fc-al, #p-fc.graded #npl, #p-fc.graded #fc-unfold, #p-fc.graded .fc-tools,
-#p-fh:not(.graded) #meta-fhg, #p-fh:not(.graded) #fh-graded, #p-fh.graded #meta-fh, #p-fh.graded > .fh { display:none !important; }
+#p-fh:not(.graded) #meta-fhg, #p-fh:not(.graded) #fhg, #p-fh.graded #meta-fh, #p-fh.graded > .fh:not(#fhg) { display:none !important; }
+#p-fc:not(.graded) #fc-rc { display:none !important; }
 
 /* Graded cards > Forecasting (2026-11-04): shown on that page only; the two-line CL / PC cells; the buys in bold */
-#p-fc:not(.graded) #fcg, #p-fc.gpl #fcg, #p-fc.graded:not(.gpl) #fc-graded { display:none !important; }
+#p-fc:not(.graded) #fcg, #fc-graded { display:none !important; }
+/* Graded > Forecasting / Recording / Planning (2026-11-04): one plan pane, each page its own card; gm-fc / gm-rc / gm-pl on #p-fc */
+#p-fc:not(.gm-fc) #fcg-main, #p-fc:not(.gm-rc) #fcr-main, #p-fc:not(.gm-pl) #fcp-main { display:none !important; }
+#p-fc:not(.gm-pl) .fcg-only-pl, #p-fc.gm-pl #fcg-disc-row { display:none !important; }
+.fcg-disc-note { font-size:12px; margin:-2px 0 4px; }
+.fcg-disc-note:empty { display:none; }
 .al.fc.folded #fcg-side { display:none; }
 #fcg-main { min-width:0; }
-#fcg .wrap { overflow:auto; max-height:calc(100vh - 90px); border:1px solid var(--line); border-radius:8px; }
-#fcg-main .fc-unfold { float:right; }
+#fcg .wrap, #fhg .fhg-wrap { overflow:auto; max-height:calc(100vh - 90px); border:1px solid var(--line); border-radius:8px; }
+#fcg .fcg-main .fc-unfold { float:right; }
+#fcg .fcg-main { min-width:0; }
+#fcg .fcg-main > h3 { margin-top:0; padding-top:0; border-top:0; }
 .fcg-gmode { padding:4px 0 8px; }
 #fcg .controls, #fcg .ranges { padding-left:0; padding-right:0; }
 td.fcg2 > span { display:block; white-space:nowrap; line-height:1.35; }
 td.fcg2 i { font-style:normal; font-size:10px; color:var(--muted); margin-right:4px; }
-tr.fcg-buy > td { font-weight:600; }
+/* the buys: a light pastel green (Brett, 2026-11-04: "highlighted a light pastel tint green"); bought: a light blue; No: greyed */
+tr.fcg-buy > td { background:rgba(34,197,94,.16); }
+tr.fcg-buy:hover > td { background:rgba(34,197,94,.24); }
+tr.fcr-yes > td { background:rgba(59,130,246,.10); }
+tr.fcr-no > td { opacity:.45; }
+tr.fcr-no:hover > td { opacity:.75; }
+tr.fcr-smp td.fcr-nm::after { content:'sample'; display:inline-block; margin-left:6px; padding:0 5px; font-size:10px; line-height:15px; border:1px solid var(--line); border-radius:4px; color:var(--muted); vertical-align:1px; }
+.fcr-pu { display:inline-flex; gap:4px; }
+.fcr-pu button { font:inherit; font-size:12px; font-weight:600; padding:2px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--muted); cursor:pointer; }
+.fcr-pu button:hover { border-color:var(--link); color:var(--fg); }
+.fcr-pu button.yes.on { background:var(--up); border-color:var(--up); color:#fff; }
+.fcr-pu button.no.on { background:var(--down); border-color:var(--down); color:#fff; }
+input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); text-align:right; }
+.fcr-look { margin:2px 0 10px; font-size:13px; }
+.fcr-look summary { cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px; }
+.fcr-look .n { font-weight:600; font-size:11px; padding:0 6px; border-radius:999px; background:var(--band); }
+.fcr-look ul { margin:6px 0 0; padding-left:18px; }
+.fcr-look li { margin:2px 0; }
+.fcr-look li button { font:inherit; font-size:11px; border:none; background:none; color:var(--muted); cursor:pointer; }
+.fcr-look li.here { color:var(--up); }
+.fcr-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:2px 0 8px; }
+/* Forecast History > Graded cards */
+#fhg .fhg-note { margin:6px 0 2px; font-size:12px; }
+#fhg .fc-stats { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+#fhg .controls, #fhg .ranges { padding-left:0; padding-right:0; }
+#fhg table td, #fhg table th { white-space:nowrap; }
+#fhg table td.fhg-none { white-space:nowrap; }
+#fhg tr.fhg-row, #fhg tr.fhr-row { cursor:pointer; }
+#fhg tr.open > td { font-weight:600; }
+#fhg td.fhr-on { background:rgba(34,197,94,.13); }
+#fhg th.fhr-on { background:rgba(34,197,94,.22); }
+#fhg tr.fhx > td, #fhg tr.fhx td.col-hidden, #fhg tr.fhx th.col-hidden { display:table-cell !important; }
+#fhg tr.fhx > td { white-space:normal; background:color-mix(in srgb, var(--link) 5%, transparent); width:auto !important; min-width:0 !important; max-width:none !important; padding:6px 10px 12px; }
+#fhg tr.fhx td, #fhg tr.fhx th { width:auto !important; min-width:0 !important; max-width:none !important; }
+#fhg tr.fhx:hover td { background:color-mix(in srgb, var(--link) 5%, transparent); }
+#fhg tr.fhx table { margin:4px 0 6px; font-size:12px; width:auto; }
+#fhg .fhx-in { position:sticky; left:10px; width:max-content; max-width:calc(100vw - 120px); overflow-x:auto; }
+#fhg tr.fhx h4 { margin:8px 0 2px; font-size:13px; }
+#fhg .fhr-del { font:inherit; font-size:12px; padding:3px 10px; border-radius:6px; border:1px solid var(--line); background:none; color:var(--muted); cursor:pointer; margin-top:6px; }
+#fhg .fhr-del.arm { border-color:var(--down); color:var(--down); }
+.fhr-smp { display:inline-block; margin-left:6px; padding:0 5px; font-size:10px; line-height:15px; border:1px solid var(--line); border-radius:4px; color:var(--muted); }
 button.gplb { font:inherit; font-size:15px; font-weight:700; line-height:1; width:22px; height:22px; padding:0; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--muted); cursor:pointer; }
 button.gplb:hover { color:var(--fg); border-color:var(--link); }
 button.gplb.on { background:var(--up); border-color:var(--up); color:#fff; }

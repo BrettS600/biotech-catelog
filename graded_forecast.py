@@ -87,11 +87,12 @@ def _roll(W, k, need):
     return out
 
 
-def build(cd, keep_ids=None, today=None):
-    t0 = datetime.now(timezone.utc)
+def _prep(cd, today=None):
+    """The matrices both builds use: prices W, buy (max of the price and its 3-month average), the rank pct and group,
+    the market (reg1 / reg3 / breadth3 / fwd3), the month "now" and the last complete month."""
     got = load_lines(cd)
     if got is None:
-        return {"err": "no pc_graded_monthly files in card-data"}
+        return None
     keys, W, m0 = got
     T = W.shape[1]
     m12 = _roll(W, 12, 12)
@@ -126,21 +127,43 @@ def build(cd, keep_ids=None, today=None):
         j_now -= 1
     j_last = j_now - 1 if m0 + j_now >= cur else j_now
     j_start = max(0, _mi(CALIB_START) - m0)
+    grp = np.minimum(GROUPS - 1, np.floor(np.nan_to_num(pct, nan=-1) * GROUPS)).astype(int)
+    return dict(keys=keys, W=W, m0=m0, T=T, buy=buy, pct=pct, grp=grp, reg1=reg1, reg3=reg3, breadth3=breadth3, fwd3=fwd3,
+                nreg=nreg, j_now=j_now, j_last=j_last, j_start=j_start)
+
+
+def _pairs(P, h):
+    """Every (decision month, group, regime, realized return) of the ranked lines for a hold of h months."""
+    W, buy, pct, grp, reg3 = P["W"], P["buy"], P["pct"], P["grp"], P["reg3"]
+    Ms, Ys, Gs, Rs = [], [], [], []
+    for j in range(P["j_start"], P["j_last"] - h + 1):
+        with np.errstate(invalid="ignore", divide="ignore"):
+            y = W[:, j + h] / buy[:, j] - 1
+        sel = np.isfinite(y) & np.isfinite(pct[:, j])
+        if not sel.any() or not np.isfinite(reg3[j]):
+            continue
+        n = int(sel.sum())
+        Ms.append(np.full(n, j)); Ys.append(np.clip(y[sel], *CLIP)); Gs.append(grp[sel, j]); Rs.append(np.full(n, reg3[j] > 0))
+    if not Ys:
+        return None
+    return np.concatenate(Ms), np.concatenate(Gs), np.concatenate(Rs), np.concatenate(Ys)
+
+
+def build(cd, keep_ids=None, today=None):
+    t0 = datetime.now(timezone.utc)
+    P = _prep(cd, today)
+    if P is None:
+        return {"err": "no pc_graded_monthly files in card-data"}
+    keys, W, m0, T, pct = P["keys"], P["W"], P["m0"], P["T"], P["pct"]
+    reg1, reg3, breadth3, fwd3, nreg = P["reg1"], P["reg3"], P["breadth3"], P["fwd3"], P["nreg"]
+    j_now, j_last, j_start = P["j_now"], P["j_last"], P["j_start"]
     # the odds tables
     tables = {}
-    grp = np.minimum(GROUPS - 1, np.floor(np.nan_to_num(pct, nan=-1) * GROUPS)).astype(int)
     for h in HORIZONS:
-        Ys, Gs, Rs = [], [], []
-        for j in range(j_start, j_last - h + 1):
-            with np.errstate(invalid="ignore", divide="ignore"):
-                y = W[:, j + h] / buy[:, j] - 1
-            sel = np.isfinite(y) & np.isfinite(pct[:, j])
-            if not sel.any() or not np.isfinite(reg3[j]):
-                continue
-            Ys.append(np.clip(y[sel], *CLIP)); Gs.append(grp[sel, j]); Rs.append(np.full(int(sel.sum()), reg3[j] > 0))
-        if not Ys:
+        got = _pairs(P, h)
+        if got is None:
             continue
-        Y, G, R = np.concatenate(Ys), np.concatenate(Gs), np.concatenate(Rs)
+        _, G, R, Y = got
         def cell(y):
             return {"n": int(len(y)), "mean": round(float(y.mean()), 4), "p_up": round(float((y > 0).mean()), 3),
                     "q": [round(float(v), 4) for v in np.quantile(y, QS)]}
@@ -169,6 +192,87 @@ def build(cd, keep_ids=None, today=None):
             "start": CALIB_START, "qs": QS, "lines": LINES, "groups": GROUPS, "horizons": list(HORIZONS), "regime": R,
             "tables": tables, "pct": out, "n_lines": int(W.shape[0]), "n_ranked": int(np.isfinite(pn).sum()),
             "rank_min": RANK_MIN_PRICE}
+
+
+
+# ---------------- the replay (2026-11-04, Brett: the graded Forecast History - "known-at-the-time", all six holds) ----------------
+HIST_QS = [round(i / 20, 2) for i in range(1, 20)]    # the replay's odds grids: 5% .. 95% (smaller file)
+HIST_K = (8, 24)                                      # candidates kept per month per group and line, deepest first: groups 1-5 / 6-10 of the rank
+HIST_BAND = (50.0, 5000.0)                            # the replay's candidates: buy price inside the page's default band
+HIST_MIN = 30                                         # an odds cell needs this many realized cases, else the whole-period cell
+
+
+def build_hist(cd, keep_ids=None, today=None):
+    """graded_hist.bin: for every month from 2022-01 to the last complete month, the odds each group would have shown
+    THAT month (the realized returns of the decision months whose hold was over by then - in 2022, too few, so the whole
+    period's tables are used, marked first) for holds 1-6 in that month's market, and the month's best-ranked lines of
+    each group and line in the $50 - $5,000 band with what they went on to do: [card id, line (index into lines), standard
+    price, rank x 1000, return after 1..6 months x 1000 (null while not over)].
+    The page runs the plan for each month with Graded Forecasting's capital, % under and the other boxes."""
+    P = _prep(cd, today)
+    if P is None:
+        return {"err": "no pc_graded_monthly files in card-data"}
+    keys, W, m0, buy, pct, grp, reg3 = P["keys"], P["W"], P["m0"], P["buy"], P["pct"], P["grp"], P["reg3"]
+    j_start, j_last = P["j_start"], P["j_last"]
+    keep = None if keep_ids is None else {int(k) for k in keep_ids}
+    cid = keys["card_id"].astype(int).values
+    lix = keys["line"].map({l: i for i, l in enumerate(LINES)}).values
+    kept = np.ones(len(cid), dtype=bool) if keep is None else np.isin(cid, list(keep))
+    first_honest = max(j_start, _mi("2023-01") - m0)
+    cells = {}                                        # (h, reg, g) -> (decision months sorted, returns in that order)
+    whole = {}
+    for h in HORIZONS:
+        got = _pairs(P, h)
+        if got is None:
+            continue
+        M, G, R, Y = got
+        for reg in (True, False):
+            for g in range(GROUPS):
+                sel = (R == reg) & (G == g)
+                o = np.argsort(M[sel], kind="stable")
+                cells[(h, reg, g)] = (M[sel][o], Y[sel][o])
+                if sel.sum() >= HIST_MIN:
+                    whole[(h, reg, g)] = Y[sel]
+    def grid(y):
+        return [round(float(y.mean()), 4)] + [round(float(v), 4) for v in np.quantile(y, HIST_QS)]
+    months, ups, regs, firsts, tabs, cands = [], [], [], [], [], []
+    for j in range(j_start, j_last + 1):
+        if not np.isfinite(reg3[j]):
+            continue
+        up = bool(reg3[j] > 0)
+        tab = []
+        for h in HORIZONS:
+            row = []
+            for g in range(GROUPS):
+                c = cells.get((h, up, g))
+                y = None
+                if j >= first_honest and c is not None:
+                    k = int(np.searchsorted(c[0], j - h, side="right"))   # decided at least h months before j: over by j
+                    if k >= HIST_MIN:
+                        y = c[1][:k]
+                if y is None and (h, up, g) in whole:
+                    y = whole[(h, up, g)]
+                row.append(grid(y) if y is not None else None)
+            tab.append(row)
+        # the candidates: each group's deepest-ranked lines of the month in the band, on the site's cards
+        ok = kept & np.isfinite(pct[:, j]) & (buy[:, j] >= HIST_BAND[0]) & (buy[:, j] <= HIST_BAND[1])
+        out = []
+        for g in range(GROUPS):
+            for li in range(len(LINES)):
+                idx = np.where(ok & (grp[:, j] == g) & (lix == li))[0]
+                idx = idx[np.argsort(-pct[idx, j])][:HIST_K[1] if g >= GROUPS // 2 else HIST_K[0]]
+                for i in idx:
+                    ys = []
+                    for h in HORIZONS:
+                        if j + h > j_last or not np.isfinite(W[i, j + h]):
+                            ys.append(None)
+                        else:
+                            ys.append(int(round(float(np.clip(W[i, j + h] / buy[i, j] - 1, *CLIP)) * 1000)))
+                    out.append([int(cid[i]), li, round(float(buy[i, j]), 2), int(round(float(pct[i, j]) * 1000))] + ys)
+        months.append(_ym(m0 + j)); ups.append(1 if up else 0); regs.append(round(float(reg3[j]), 4)); firsts.append(1 if j < first_honest else 0); tabs.append(tab); cands.append(out)
+    return {"model": VERSION, "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "qs": HIST_QS, "lines": LINES,
+            "groups": GROUPS, "horizons": list(HORIZONS), "band": list(HIST_BAND), "k": list(HIST_K), "yscale": 1000, "last": _ym(m0 + j_last),
+            "months": months, "up": ups, "reg3": regs, "first": firsts, "tab": tabs, "cands": cands}
 
 
 if __name__ == "__main__":

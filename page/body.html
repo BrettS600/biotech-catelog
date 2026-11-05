@@ -511,11 +511,11 @@
 <!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
 <!-- ============ Tab: Forecast (Brett, 2026-10-17: capital in, cards + quantities + net profit range + confidence out) ============ -->
 <section class="panel" id="p-fc" hidden>
-<div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting and Planning as they were"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): blank for now"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
+<div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting and Planning as they were"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): Forecasting, Recording and Planning"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
 <div class="meta" id="meta-fcg">Forecast &middot; graded cards (PSA and CGC)</div>
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
 <div class="actbar fc-bar">
-  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
+  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button class="help" data-h="fc_modes">?</button></span>
   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
   <span class="fc-tools"><button class="actbtn" id="fc-flags" title="The Flags archive: cards held for a PC gap, listings far from PriceCharting or the anchor - review and mark them">Flags (<span class="nfg">0</span>)</button><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>
@@ -575,18 +575,21 @@
     <h3>Your plan<button type="button" class="fc-fold" id="fcg-fold" title="Hide the inputs so the table has the whole width (the summary shows a button to bring them back)">&#9666; Hide</button></h3>
     <div class="al-row"><span class="lab">Capital to spend<button class="help" data-h="fcg_cap">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-cap" min="0" step="50" value="1000"></span></div>
     <div class="al-row"><span class="lab">Hold for<button class="help" data-h="fcg_hold">?</button></span><span><select id="fcg-h"><option value="1">1 month</option><option value="2">2 months</option><option value="3" selected>3 months</option><option value="4">4 months</option><option value="5">5 months</option><option value="6">6 months</option></select></span></div>
-    <div class="al-row"><span class="lab">I buy at<button class="help" data-h="fcg_disc">?</button></span><span><input type="number" id="fcg-disc" min="0" max="60" step="0.1" value="14.1"><span class="unit">%</span><span class="dim"> Under The Standard Grade Price</span></span></div>
+    <div class="al-row" id="fcg-disc-row"><span class="lab">I buy at<button class="help" data-h="fcg_disc">?</button></span><span><input type="number" id="fcg-disc" min="0" max="60" step="0.1" value="14.1"><span class="unit">%</span><span class="dim"> Under The Standard Grade Price</span></span></div>
+    <div class="dim fcg-disc-note" id="fcg-disc-note"></div>
     <div class="al-row"><span class="lab">eBay Shipping Fee<button class="help" data-h="fcg_ship">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-ship" min="0" step="0.1" value="5.2"></span></div>
     <div class="al-row"><span class="lab">Card price between<button class="help" data-h="fcg_price">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-pmin" min="0" step="5" value="50"> <span class="dim">and</span> <span class="unit">$</span><input type="number" id="fcg-pmax" min="0" step="50" value="5000"></span></div>
     <div class="al-row"><span class="lab">At most per card<button class="help" data-h="fcg_share">?</button></span><span><input type="number" id="fcg-share" min="5" max="100" step="5" value="20"><span class="unit">%</span><span class="dim"> of the capital</span></span></div>
     <div class="al-row"><span class="lab">Buy only at<button class="help" data-h="fcg_conf">?</button></span><span><input type="number" id="fcg-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span><span class="dim"> or better chance of a profit</span></span></div>
     <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fcg_copies">?</button></span><span><input type="number" id="fcg-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
     <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is rising<button class="help" data-h="fcg_gate">?</button></label>
+    <div class="al-actions fcg-only-pl"><button class="al-save" id="fcp-record" title="Save these purchased slabs, with the settings of the moment, to Forecast History (Graded cards)">Record plan</button><button class="help" data-h="fcp_record">?</button></div>
+    <div class="al-status fcg-only-pl" id="fcp-status"></div>
     <h3>The market now<button class="help" data-h="fcg_regime">?</button></h3>
     <div class="al-now" id="fcg-regime">Waiting for the graded data&hellip;</div>
   </div>
-  <div class="al-card" id="fcg-main">
-    <button type="button" class="actbtn fc-unfold" id="fcg-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+  <div class="al-card fcg-main" id="fcg-main">
+    <button type="button" class="actbtn fc-unfold fcg-unfold" id="fcg-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
     <h3>What to buy<button class="help" data-h="fcg_picks">?</button></h3>
     <div id="fcg-summary" class="al-now"></div>
     <div class="gmode fcg-gmode" id="fcg-gmode"><button type="button" class="gm2" id="fcg-gm-grades" title="Which grades and graders to list (this page's own ticks)">Grading <span id="fcg-gm-gn"></span> &#9662;</button><span class="gterms" id="fcg-gm-terms" hidden></span></div>
@@ -612,7 +615,7 @@
     <th data-k="fcB" class="num">Buy Price<span class="s">⇅</span><button class="help" data-h="fcg_buy">?</button></th>
     <th data-k="16" class="num">Sold (last month)<span class="s">⇅</span><button class="help" data-h="fcg_sold">?</button></th>
     <th data-k="fcP" class="num">Chance<span class="s">⇅</span><button class="help" data-h="fcg_chance">?</button></th>
-    <th data-k="fcQ" class="num">Buy<span class="s">⇅</span><button class="help" data-h="fcg_qty">?</button></th>
+    <th data-k="fcQ" class="num">QTY<span class="s">⇅</span><button class="help" data-h="fcg_qty">?</button></th>
     <th data-k="fcN" class="num">Net<span class="s">⇅</span><button class="help" data-h="fcg_net">?</button></th>
     <th data-k="fcR" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="fcg_roi">?</button></th>
   </tr></thead>
@@ -621,15 +624,115 @@
     </div>
     <button class="more" id="more-fcg" hidden>Show more</button>
   </div>
+  <div class="al-card fcg-main" id="fcr-main">
+    <button type="button" class="actbtn fc-unfold fcg-unfold" id="fcr-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <h3>What to buy (the slabs you recorded)<button class="help" data-h="fcr_picks">?</button></h3>
+    <div id="fcr-summary" class="al-now"></div>
+    <details class="fcr-look" id="fcr-look"><summary title="The cards and grades you put on the list with the + on Graded Forecasting: the slabs to look for at the show">Looking for <span class="n" id="fcr-look-n">0</span></summary><div id="fcr-look-list"></div></details>
+    <div class="controls">
+      <input type="search" id="q-fcr" placeholder="Search card, set or grade&hellip;">
+      <select id="set-fcr"><option value="">All sets (release order)</option></select>
+      <span class="count" id="count-fcr"></span>
+    </div>
+    <div class="ranges" id="ranges-fcr">
+      <button class="reset" id="reset-fcr">Reset filters</button>
+    </div>
+    <div class="wrap">
+<table class="wide gtable fcgt fcrt">
+  <thead><tr>
+    <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts the card on the Favorites tab">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th data-k="fcPl">+<span class="s">⇅</span><button class="help" data-h="fcr_plan">?</button></th>
+    <th data-k="42">Flag<span class="s">⇅</span><button class="help" data-h="g_flag">?</button></th>
+    <th>Review<button class="help" data-h="g_review">?</button></th>
+    <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="fcg_name">?</button></th>
+    <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="fcg_grade">?</button></th>
+    <th data-k="fcPct" class="num">Rank<span class="s">⇅</span><button class="help" data-h="fcr_rank">?</button></th>
+    <th data-k="fcS" class="num">Standard Price<span class="s">⇅</span><button class="help" data-h="fcg_std">?</button></th>
+    <th data-k="fcD" class="num">% Under<span class="s">⇅</span><button class="help" data-h="fcr_disc">?</button></th>
+    <th data-k="fcB" class="num">Buy Price<span class="s">⇅</span><button class="help" data-h="fcr_buy">?</button></th>
+    <th data-k="16" class="num">Sold (last month)<span class="s">⇅</span><button class="help" data-h="fcg_sold">?</button></th>
+    <th data-k="fcP" class="num">Chance<span class="s">⇅</span><button class="help" data-h="fcg_chance">?</button></th>
+    <th data-k="fcQ" class="num">QTY<span class="s">⇅</span><button class="help" data-h="fcr_qty">?</button></th>
+    <th data-k="fcN" class="num">Net<span class="s">⇅</span><button class="help" data-h="fcr_net">?</button></th>
+    <th data-k="fcR" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="fcg_roi">?</button></th>
+    <th data-k="fcU">Purchased<span class="s">⇅</span><button class="help" data-h="fcr_purchased">?</button></th>
+  </tr></thead>
+  <tbody id="rows-fcr"></tbody>
+</table>
+    </div>
+    <button class="more" id="more-fcr" hidden>Show more</button>
+  </div>
+  <div class="al-card fcg-main" id="fcp-main">
+    <button type="button" class="actbtn fc-unfold fcg-unfold" id="fcp-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <h3>What you bought<button class="help" data-h="fcp_picks">?</button></h3>
+    <div id="fcp-summary" class="al-now"></div>
+    <div class="controls">
+      <input type="search" id="q-fcp" placeholder="Search card, set or grade&hellip;">
+      <select id="set-fcp"><option value="">All sets (release order)</option></select>
+      <span class="count" id="count-fcp"></span>
+    </div>
+    <div class="ranges" id="ranges-fcp">
+      <button class="reset" id="reset-fcp">Reset filters</button>
+    </div>
+    <div class="wrap">
+<table class="wide gtable fcgt fcrt">
+  <thead><tr>
+    <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts the card on the Favorites tab">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th data-k="fcPl">+<span class="s">⇅</span><button class="help" data-h="fcr_plan">?</button></th>
+    <th data-k="42">Flag<span class="s">⇅</span><button class="help" data-h="g_flag">?</button></th>
+    <th>Review<button class="help" data-h="g_review">?</button></th>
+    <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="fcg_name">?</button></th>
+    <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="fcg_grade">?</button></th>
+    <th data-k="fcPct" class="num">Rank<span class="s">⇅</span><button class="help" data-h="fcr_rank">?</button></th>
+    <th data-k="fcS" class="num">Standard Price<span class="s">⇅</span><button class="help" data-h="fcg_std">?</button></th>
+    <th data-k="fcD" class="num">% Under Paid<span class="s">⇅</span><button class="help" data-h="fcp_disc">?</button></th>
+    <th data-k="fcB" class="num">Price Paid<span class="s">⇅</span><button class="help" data-h="fcp_paid">?</button></th>
+    <th data-k="16" class="num">Sold (last month)<span class="s">⇅</span><button class="help" data-h="fcg_sold">?</button></th>
+    <th data-k="fcP" class="num">Chance<span class="s">⇅</span><button class="help" data-h="fcg_chance">?</button></th>
+    <th data-k="fcQ" class="num">QTY<span class="s">⇅</span><button class="help" data-h="fcr_qty">?</button></th>
+    <th data-k="fcN" class="num">Net<span class="s">⇅</span><button class="help" data-h="fcr_net">?</button></th>
+    <th data-k="fcR" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="fcg_roi">?</button></th>
+    <th data-k="fcU">Purchased<span class="s">⇅</span><button class="help" data-h="fcr_purchased">?</button></th>
+  </tr></thead>
+  <tbody id="rows-fcp"></tbody>
+</table>
+    </div>
+    <button class="more" id="more-fcp" hidden>Show more</button>
+  </div>
 </div>
 </section>
 
 <section class="panel" id="p-fh" hidden>
-<div class="kindbar" id="fh-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: the Forecast tab’s record, as it was"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): blank for now"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
+<div class="kindbar" id="fh-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: the Forecast tab’s record, as it was"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): the graded replay and your recorded graded plans"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
 <div class="meta" id="meta-fh">Forecast History &middot; the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
-<div class="meta" id="meta-fhg">Forecast History &middot; graded cards (PSA and CGC)</div>
+<div class="meta" id="meta-fhg">Forecast History &middot; graded cards (PSA and CGC) &middot; Graded Forecasting&rsquo;s plan run on every month since 2022 with only what was known then, and the plans you recorded on Graded &rsaquo; Planning</div>
 <div class="fc fh"><div class="al-card fh-card" id="fh-body"></div></div>
-<div class="gblank" id="fh-graded"><strong>Graded forecast history</strong><span>Blank for now. The graded forecasts’ month-by-month record goes here once graded forecasting is built.</span></div>
+<div class="fc fh" id="fhg"><div class="al-card fh-card">
+  <div class="dim fhg-note" id="fhg-note"></div>
+  <div id="fhg-cards"></div>
+  <div id="fhg-rp">
+  <h3>The replay<button class="help" data-h="fhg_replay">?</button></h3>
+  <div class="controls fhg-ctl"><input type="search" id="q-fhg" hidden><select id="set-fhg" hidden><option value=""></option></select><span class="count" id="count-fhg"></span><span class="dim" id="fhg-run"></span></div>
+  <div class="ranges" id="ranges-fhg"><button class="reset" id="reset-fhg" hidden>Reset filters</button></div>
+  <div class="wrap fhg-wrap"><table class="wide fhgt">
+  <thead><tr class="grp"><th colspan="3"></th><th colspan="6" class="band">1-month hold</th><th colspan="6" class="band">2-month hold</th><th colspan="6" class="band">3-month hold</th><th colspan="6" class="band">4-month hold</th><th colspan="6" class="band">5-month hold</th><th colspan="6" class="band">6-month hold</th></tr><tr><th class="rn" title="Row number in the current sort">Row</th><th data-k="m">Month<span class="s">⇅</span></th><th data-k="g">Market<span class="s">⇅</span></th><th data-k="b1" class="num" title="slabs, and what they cost">Buys<span class="s">⇅</span></th><th data-k="e1" class="num" title="the expected net and its ROI on the money spent">Expected<span class="s">⇅</span></th><th data-k="lo1" class="num" title="the likely range: the 10th to the 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p1" class="num" title="the chance the basket nets a profit">Chance<span class="s">⇅</span></th><th data-k="a1" class="num" title="what the basket made when the hold was up, at PriceCharting's price; ✓ inside the range">Actual<span class="s">⇅</span></th><th data-k="r1" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th><th data-k="b2" class="num" title="slabs, and what they cost">Buys<span class="s">⇅</span></th><th data-k="e2" class="num" title="the expected net and its ROI on the money spent">Expected<span class="s">⇅</span></th><th data-k="lo2" class="num" title="the likely range: the 10th to the 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p2" class="num" title="the chance the basket nets a profit">Chance<span class="s">⇅</span></th><th data-k="a2" class="num" title="what the basket made when the hold was up, at PriceCharting's price; ✓ inside the range">Actual<span class="s">⇅</span></th><th data-k="r2" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th><th data-k="b3" class="num" title="slabs, and what they cost">Buys<span class="s">⇅</span></th><th data-k="e3" class="num" title="the expected net and its ROI on the money spent">Expected<span class="s">⇅</span></th><th data-k="lo3" class="num" title="the likely range: the 10th to the 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p3" class="num" title="the chance the basket nets a profit">Chance<span class="s">⇅</span></th><th data-k="a3" class="num" title="what the basket made when the hold was up, at PriceCharting's price; ✓ inside the range">Actual<span class="s">⇅</span></th><th data-k="r3" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th><th data-k="b4" class="num" title="slabs, and what they cost">Buys<span class="s">⇅</span></th><th data-k="e4" class="num" title="the expected net and its ROI on the money spent">Expected<span class="s">⇅</span></th><th data-k="lo4" class="num" title="the likely range: the 10th to the 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p4" class="num" title="the chance the basket nets a profit">Chance<span class="s">⇅</span></th><th data-k="a4" class="num" title="what the basket made when the hold was up, at PriceCharting's price; ✓ inside the range">Actual<span class="s">⇅</span></th><th data-k="r4" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th><th data-k="b5" class="num" title="slabs, and what they cost">Buys<span class="s">⇅</span></th><th data-k="e5" class="num" title="the expected net and its ROI on the money spent">Expected<span class="s">⇅</span></th><th data-k="lo5" class="num" title="the likely range: the 10th to the 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p5" class="num" title="the chance the basket nets a profit">Chance<span class="s">⇅</span></th><th data-k="a5" class="num" title="what the basket made when the hold was up, at PriceCharting's price; ✓ inside the range">Actual<span class="s">⇅</span></th><th data-k="r5" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th><th data-k="b6" class="num" title="slabs, and what they cost">Buys<span class="s">⇅</span></th><th data-k="e6" class="num" title="the expected net and its ROI on the money spent">Expected<span class="s">⇅</span></th><th data-k="lo6" class="num" title="the likely range: the 10th to the 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p6" class="num" title="the chance the basket nets a profit">Chance<span class="s">⇅</span></th><th data-k="a6" class="num" title="what the basket made when the hold was up, at PriceCharting's price; ✓ inside the range">Actual<span class="s">⇅</span></th><th data-k="r6" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th></tr></thead>
+  <tbody id="rows-fhg"></tbody></table></div>
+  <button class="more" id="more-fhg" hidden>Show more</button>
+  </div>
+  <div id="fhg-rec">
+  <h3>Recorded plans<button class="help" data-h="fhg_recorded">?</button></h3>
+  <div class="controls fhg-ctl"><input type="search" id="q-fhr" placeholder="Search the plans' slabs&hellip; (e.g. umbreon psa 10)"><select id="set-fhr" hidden><option value=""></option></select><span class="count" id="count-fhr"></span></div>
+  <div class="ranges" id="ranges-fhr"><button class="reset" id="reset-fhr" hidden>Reset filters</button></div>
+  <div class="wrap fhg-wrap"><table class="wide fhgt fhrt">
+  <thead><tr class="grp"><th colspan="5"></th><th colspan="5" class="band">1-month hold</th><th colspan="5" class="band">2-month hold</th><th colspan="5" class="band">3-month hold</th><th colspan="5" class="band">4-month hold</th><th colspan="5" class="band">5-month hold</th><th colspan="5" class="band">6-month hold</th></tr><tr><th class="rn" title="Row number in the current sort">Row</th><th data-k="t">Date of purchase<span class="s">⇅</span></th><th data-k="h">Hold<span class="s">⇅</span></th><th data-k="sp" class="num">Purchased<span class="s">⇅</span></th><th data-k="n" class="num">Buys<span class="s">⇅</span></th><th data-k="e1" class="num" title="the expected net of the slabs bought, held 1 month, with the odds of the day it was recorded">Expected<span class="s">⇅</span></th><th data-k="lo1" class="num" title="10th to 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p1" class="num" title="the chance of a profit, with the odds of the day it was recorded">Chance<span class="s">⇅</span></th><th data-k="a1" class="num" title="what the slabs would have made sold at PriceCharting's price when this hold is up">Actual<span class="s">⇅</span></th><th data-k="r1" class="num">ROI<span class="s">⇅</span></th><th data-k="e2" class="num" title="the expected net of the slabs bought, held 2 months, with the odds of the day it was recorded">Expected<span class="s">⇅</span></th><th data-k="lo2" class="num" title="10th to 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p2" class="num" title="the chance of a profit, with the odds of the day it was recorded">Chance<span class="s">⇅</span></th><th data-k="a2" class="num" title="what the slabs would have made sold at PriceCharting's price when this hold is up">Actual<span class="s">⇅</span></th><th data-k="r2" class="num">ROI<span class="s">⇅</span></th><th data-k="e3" class="num" title="the expected net of the slabs bought, held 3 months, with the odds of the day it was recorded">Expected<span class="s">⇅</span></th><th data-k="lo3" class="num" title="10th to 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p3" class="num" title="the chance of a profit, with the odds of the day it was recorded">Chance<span class="s">⇅</span></th><th data-k="a3" class="num" title="what the slabs would have made sold at PriceCharting's price when this hold is up">Actual<span class="s">⇅</span></th><th data-k="r3" class="num">ROI<span class="s">⇅</span></th><th data-k="e4" class="num" title="the expected net of the slabs bought, held 4 months, with the odds of the day it was recorded">Expected<span class="s">⇅</span></th><th data-k="lo4" class="num" title="10th to 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p4" class="num" title="the chance of a profit, with the odds of the day it was recorded">Chance<span class="s">⇅</span></th><th data-k="a4" class="num" title="what the slabs would have made sold at PriceCharting's price when this hold is up">Actual<span class="s">⇅</span></th><th data-k="r4" class="num">ROI<span class="s">⇅</span></th><th data-k="e5" class="num" title="the expected net of the slabs bought, held 5 months, with the odds of the day it was recorded">Expected<span class="s">⇅</span></th><th data-k="lo5" class="num" title="10th to 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p5" class="num" title="the chance of a profit, with the odds of the day it was recorded">Chance<span class="s">⇅</span></th><th data-k="a5" class="num" title="what the slabs would have made sold at PriceCharting's price when this hold is up">Actual<span class="s">⇅</span></th><th data-k="r5" class="num">ROI<span class="s">⇅</span></th><th data-k="e6" class="num" title="the expected net of the slabs bought, held 6 months, with the odds of the day it was recorded">Expected<span class="s">⇅</span></th><th data-k="lo6" class="num" title="10th to 90th percentile of the basket's net">Range<span class="s">⇅</span></th><th data-k="p6" class="num" title="the chance of a profit, with the odds of the day it was recorded">Chance<span class="s">⇅</span></th><th data-k="a6" class="num" title="what the slabs would have made sold at PriceCharting's price when this hold is up">Actual<span class="s">⇅</span></th><th data-k="r6" class="num">ROI<span class="s">⇅</span></th></tr></thead>
+  <tbody id="rows-fhr"></tbody></table></div>
+  <button class="more" id="more-fhr" hidden>Show more</button>
+  <p class="dim" id="fhr-none"></p>
+  </div>
+</div></div>
+
 </section>
 <section class="panel" id="p-al" hidden>
 <div class="meta" id="meta-al">Notification Settings · these settings decide which listings are sent to your phone. The Confidence, Window, Margin and Buy tax boxes on the eBay Raw Data tab only change what the tables show.</div>

@@ -1192,7 +1192,7 @@ function makeTable(id, cfg) {
   place(headRow);
   const ths = document.querySelectorAll(root + ' th[data-k]');
   ths.forEach(th => th.addEventListener('click', () => {
-    const k = ['fav', 'plan', 'flag', 'state'].includes(th.dataset.k) ? th.dataset.k : +th.dataset.k;   // 'fav' / 'plan' / 'flag' / 'state': the star, the +, the flag and the State columns sort their rows first
+    const k = ['fav', 'plan', 'flag', 'state'].includes(th.dataset.k) || isNaN(+th.dataset.k) ? th.dataset.k : +th.dataset.k;   // 'fav' / 'plan' / 'flag' / 'state': the star, the +, the flag and the State columns sort their rows first; a word (the graded forecast's 'fcS' ...) names a row property
     if (t.sortKey === k) { if (t.sortDir === 1) t.sortDir = -1; else { t.sortKey = null; t.sortDir = 1; } } else { t.sortKey = k; t.sortDir = 1; }
     ths.forEach(x => { x.classList.remove('on'); x.querySelector('.s').textContent = '⇅'; });
     if (t.sortKey != null) { th.classList.add('on'); th.querySelector('.s').textContent = t.sortDir === 1 ? ' ▲' : ' ▼'; }
@@ -1528,11 +1528,12 @@ const TAB_HASH = {pc: '', ec: 'ebay-catalog', er: 'ebay-raw', fc: 'forecast', fh
    address is read at load: rm = the raw side's Forecasting / Planning (FC.mode follows it), gm = the graded side's. */
 $('npl').insertAdjacentHTML('afterend', '<span class="n" id="npl-g">0</span>');   // the graded side's plan count (none yet)
 const NAV = (() => { const g = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
-  return {fc: g('fc-kind') === 'graded' ? 'graded' : 'raw', rm: g('fc-mode') === 'pl' ? 'pl' : 'fc', gm: g('fc-gmode') === 'pl' ? 'pl' : 'fc', fh: g('fh-kind') === 'graded' ? 'graded' : 'raw'}; })();
+  return {fc: g('fc-kind') === 'graded' ? 'graded' : 'raw', rm: g('fc-mode') === 'pl' ? 'pl' : 'fc', gm: ['pl', 'rc'].includes(g('fc-gmode')) ? g('fc-gmode') : 'fc', fh: g('fh-kind') === 'graded' ? 'graded' : 'raw'}; })();
 function navSave() { try { localStorage.setItem('fc-kind', NAV.fc); localStorage.setItem('fc-mode', NAV.rm); localStorage.setItem('fc-gmode', NAV.gm); localStorage.setItem('fh-kind', NAV.fh); } catch (e) {} }
-const navMode = () => NAV.fc === 'graded' ? NAV.gm : NAV.rm;   // the Forecasting / Planning button lit on the Forecast tab
+const navMode = () => NAV.fc === 'graded' ? NAV.gm : NAV.rm;   // the Forecasting / (Recording /) Planning button lit on the Forecast tab
+const NAV_WORD = {fc: 'forecasting', rc: 'recording', pl: 'planning'};   // the graded side's Recording (2026-11-04, Brett): the slabs scanned at a card show
 function navHash(id) {
-  if (id === 'fc') return 'forecast/' + NAV.fc + '/' + (navMode() === 'pl' ? 'planning' : 'forecasting');
+  if (id === 'fc') return 'forecast/' + NAV.fc + '/' + NAV_WORD[navMode()];
   if (id === 'fh') return 'forecast-history/' + NAV.fh;
   return TAB_HASH[id];
 }
@@ -1551,7 +1552,7 @@ function navAddr() {                                      // the address follows
 (() => {                                                  // an address that names a page opens it, and it becomes the one remembered
   const h = location.hash.slice(1).split('/');
   if (h[0] === 'forecast' && (h[1] === 'raw' || h[1] === 'graded')) {
-    NAV.fc = h[1]; if (h[2] === 'planning' || h[2] === 'forecasting') NAV[h[1] === 'raw' ? 'rm' : 'gm'] = h[2] === 'planning' ? 'pl' : 'fc'; navSave();
+    NAV.fc = h[1]; if (h[2] === 'planning' || h[2] === 'forecasting' || (h[2] === 'recording' && h[1] === 'graded')) NAV[h[1] === 'raw' ? 'rm' : 'gm'] = h[2] === 'planning' ? 'pl' : h[2] === 'recording' ? 'rc' : 'fc'; navSave();
   }
   if (h[0] === 'forecast-history' && (h[1] === 'raw' || h[1] === 'graded')) { NAV.fh = h[1]; navSave(); }
 })();
@@ -3420,8 +3421,9 @@ function fcModeApply() {                                 // Forecasting shows th
   if (FC.mode === 'pl') plRender();
 }
 $('fc-modes').addEventListener('click', e => {
-  const b = e.target.closest('.fvchip'); if (!b) return; const m = b.dataset.m === 'pl' ? 'pl' : 'fc';
-  if (NAV.fc === 'graded') { NAV.gm = m; navSave(); navApply(); navAddr(); return; }   // the graded pages: blank for now
+  const b = e.target.closest('.fvchip'); if (!b) return; const m = b.dataset.m === 'pl' ? 'pl' : b.dataset.m === 'rc' ? 'rc' : 'fc';
+  if (NAV.fc === 'graded') { NAV.gm = m; navSave(); navApply(); navAddr(); return; }   // the graded pages (graded_fc.js / graded_rec.js)
+  if (m === 'rc') return;                                // Recording is the graded side's only
   FC.mode = NAV.rm = m; navSave(); fcModeApply(); navAddr();
 });
 fcModeApply();
