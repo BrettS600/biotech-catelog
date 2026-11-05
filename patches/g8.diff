@@ -1,0 +1,208 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index c9e83ef..1986f7a 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2299,2 +2299,12 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   build_catalog does) and real pc_graded_monthly files; ntfy stubbed.
++- THE GRADED FORECAST README (2026-11-05, Brett: "a README button that's shared between all of them ... resizable ...
++  similar to like Word or like Google Docs ... Command B for bold, Command U for underline, maybe adjust the size of the
++  text"): a README button beside the graded Forecast chips (#fcg-readme, graded side only) opens #gdov, one README for
++  Forecasting / Recording / Purchases / History, always editable: toolbar (B I U, A- / A+, Normal / Heading /
++  Subheading, bullet / numbered lists, Clear) and ⌘B ⌘I ⌘U, ⌘⇧. / ⌘⇧, (size), ⌘⇧8 / ⌘⇧7 (lists), ⌘\ (clear), ⌘S
++  (save), Esc (close). Saved through the collector as help key r:fcg (HELP_KEY now allows it; live.help), so every
++  device shows it; unsaved typing stays in this browser (fcg-readme-draft) and comes back next time. Sizes: edited as
++  <font size=1-7> (the browser's own size command; gdSizeNow reads the current one from the DOM - queryCommandValue
++  maps computed px and is wrong here), stored as <span class="fs-N"> (cleanHtml keeps classes only; 3 = normal, not
++  stored). The box is CSS resize: both; its size is kept in fcg-readme-size. The original text: README_FCG.
+ - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
+diff --git a/collector.py b/collector.py
+index 85f476b..2959668 100644
+--- a/collector.py
++++ b/collector.py
+@@ -881,3 +881,3 @@ def alert_channel():
+ WRONG_KEEP_D = 365               # "not the same card" answers on clean listings are kept this long
+-HELP_KEY = re.compile(r"^(h:[A-Za-z0-9_]{1,40}|r:(pc|ec|er|al|rv))$")
++HELP_KEY = re.compile(r"^(h:[A-Za-z0-9_]{1,40}|r:(pc|ec|er|al|rv|fcg))$")   # r:fcg: the graded Forecast README (2026-11-05)
+ 
+diff --git a/page/body.html b/page/body.html
+index 9b1b7a8..2802498 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -407,2 +407,22 @@
+ 
++<!-- the graded Forecast README (2026-11-05, Brett: "a README button that's shared between all of them ... resizable ...
++     similar to like Word or like Google Docs ... Command B for bold, Command U for underline, maybe adjust the size of the text") -->
++<div class="ov" id="gdov">
++  <div class="modal rd gdoc" id="gdbox" role="dialog" aria-labelledby="gdtitle">
++    <button class="close" id="gdclose" title="Close (Esc) - unsaved changes stay in this browser">✕</button>
++    <h2 id="gdtitle">README · Graded Forecast</h2>
++    <div class="gdtools" id="gdtools">
++      <button type="button" data-c="bold" title="Bold (⌘B)"><b>B</b></button><button type="button" data-c="italic" title="Italic (⌘I)"><i>I</i></button><button type="button" data-c="underline" title="Underline (⌘U)"><u>U</u></button>
++      <span class="gdsep"></span>
++      <button type="button" data-c="smaller" title="Smaller text (⌘⇧,)">A<span class="gdminus">−</span></button><button type="button" data-c="bigger" title="Bigger text (⌘⇧.)">A<span class="gdplus">+</span></button>
++      <select id="gdblock" title="Paragraph style"><option value="p">Normal text</option><option value="h3">Heading</option><option value="h4">Subheading</option></select>
++      <span class="gdsep"></span>
++      <button type="button" data-c="insertUnorderedList" title="Bulleted list (⌘⇧8)">• List</button><button type="button" data-c="insertOrderedList" title="Numbered list (⌘⇧7)">1. List</button><button type="button" data-c="removeFormat" title="Clear formatting (⌘\)">Clear</button>
++      <span class="gdstat" id="gdstat"></span>
++      <button type="button" class="gdgo" id="gdsave" title="Save for every device (⌘S)">Save</button><button type="button" id="gdrestore" hidden title="Put the original README back">Restore the original</button>
++    </div>
++    <div id="gdbody" class="gdbody" contenteditable="true" spellcheck="true"></div>
++  </div>
++</div>
++
+ <div class="ov" id="bov">
+@@ -517,3 +537,3 @@
+ <div class="actbar fc-bar">
+-  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button></span>
++  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button><button type="button" class="readme fcg-readme" id="fcg-readme" title="The graded Forecast pages' own README - one for Forecasting, Recording, Purchases and History; edit it like a document">README</button></span>
+   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
+diff --git a/page/graded_fh.js b/page/graded_fh.js
+index 8416bec..6b05125 100644
+--- a/page/graded_fh.js
++++ b/page/graded_fh.js
+@@ -640 +640,116 @@ Object.assign(HELP, {
+ });
++
++/* ---- the graded Forecast README (2026-11-05, Brett: "For the four buttons in the forecast tab, can we have a README button
++   that's shared between all of them? ... I would want the pop-up to be resizable ... similar to like Word or like Google
++   Docs ... Command B for bold, Command U for underline, maybe adjust the size of the text. I don't care about the font
++   options"). One README for Forecasting, Recording, Purchases and History (graded), always editable: a toolbar (bold,
++   italic, underline, smaller / bigger, paragraph style, lists, clear) and the Docs shortcuts; Save (or ⌘S) sends it
++   through the collector like the other READMEs (key r:fcg, live.help), so every device shows it. Unsaved typing is kept
++   in this browser as a draft. Text sizes are stored as <span class="fs-1..7"> (the cleaner keeps only classes) and
++   edited as <font size> (what the browser's own size command makes); 3 is normal. The box's size is remembered. ---- */
++const GD = {dirty: false, tm: null, base: ''};
++const GD_KEY = 'r:fcg';
++const README_FCG = '<h3>Graded Forecast · how the four pages fit together</h3>' +
++  '<p>Every page here works on PSA and CGC slabs with the same plan pane on the left (capital, hold, % under, shipping, the price band, the per-card share, the bar, the copies, the gate) and the same filter buttons.</p>' +
++  '<h4>Forecasting</h4><p>Every graded row of the PriceCharting tab, assumed for sale, best to buy first. The green rows are what your capital buys. Use it before a show to see what is worth looking for.</p>' +
++  '<h4>Recording</h4><p>The slabs you record at a show, one row each. Type the vendor’s price (or their % under) into the row: its chance and its place follow, and the green rows re-plan. Mark <b>Yes</b> when you buy (the money comes off the capital), <b>No</b> when the vendor wants more (the row drops to the bottom).</p>' +
++  '<h4>Purchases</h4><p>The slabs you marked Yes, at what you paid. <b>Record Purchases</b> keeps them on History.</p>' +
++  '<h4>History</h4><ul><li><b>Forecasting Replay</b>: the plan run on every month since 2022 with only what was known then.</li><li><b>Recorded Purchases</b>: your records, scored when each hold is up.</li><li><b>Pre-Sales Spotcheck</b>: the green rows you sent with Add to Pre-Sales Spotcheck, each slab looked back on month by month.</li></ul>' +
++  '<h4>At a show</h4><ol><li>Record the slabs you see.</li><li>Ask each vendor; type their price into the row.</li><li>Check the green rows (and Add to Pre-Sales Spotcheck if you want the look back first).</li><li>Mark Yes or No as you go; Record Purchases at the end.</li></ol>' +
++  '<p><i>Edit this page like a document: select text and use the toolbar or ⌘B / ⌘I / ⌘U, ⌘⇧. / ⌘⇧, for size, then Save.</i></p>';
++const gdSaved = () => { const o = ovr(GD_KEY); return o ? cleanHtml(o) : README_FCG; };
++const gdDraft = () => { const d = grLS('fcg-readme-draft', null); return d && typeof d.html === 'string' ? d : null; };
++// sizes: stored as span.fs-N, edited as font[size=N]
++function gdToEdit(html) {
++  const t = document.createElement('template'); t.innerHTML = html;
++  t.content.querySelectorAll('span[class*="fs-"]').forEach(sp => { const m = /(?:^|\s)fs-([1-7])(?:\s|$)/.exec(sp.className); if (!m) return; const f = document.createElement('font'); f.setAttribute('size', m[1]); f.append(...sp.childNodes); sp.replaceWith(f); });
++  return t.innerHTML;
++}
++function gdFromEdit(html) {
++  const t = document.createElement('template'); t.innerHTML = html;
++  t.content.querySelectorAll('font').forEach(f => { const n = +f.getAttribute('size'); if (n >= 1 && n <= 7 && n !== 3) { const sp = document.createElement('span'); sp.className = 'fs-' + n; sp.append(...f.childNodes); f.replaceWith(sp); } else f.replaceWith(...f.childNodes); });
++  t.content.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'));
++  t.content.querySelectorAll('span').forEach(sp => { if (!sp.className) sp.replaceWith(...sp.childNodes); });   // a plain span says nothing
++  return cleanHtml(t.innerHTML);
++}
++function gdSay(txt, cls) { const s = $('gdstat'); s.textContent = txt; s.className = 'gdstat ' + (cls || ''); }
++function gdPaintTools() {
++  const box = $('gdbody'), sel = document.getSelection(); if (!sel || !sel.rangeCount || !box.contains(sel.anchorNode)) return;
++  ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'].forEach(c => { const b = $('gdtools').querySelector('[data-c="' + c + '"]'); if (b) b.classList.toggle('on', document.queryCommandState(c)); });
++  const blk = String(document.queryCommandValue('formatBlock') || '').toLowerCase(); $('gdblock').value = blk === 'h3' || blk === 'h4' ? blk : 'p';
++}
++function gdOpen() {
++  const saved = gdSaved(), d = gdDraft();
++  GD.base = saved;
++  const useDraft = d && d.html !== saved;
++  $('gdbody').innerHTML = gdToEdit(useDraft ? d.html : saved);
++  GD.dirty = !!useDraft;
++  gdSay(useDraft ? 'Unsaved changes from ' + fhrDate(d.t) + ' (kept in this browser) - Save to keep them' : ovr(GD_KEY) ? 'Saved' : 'The original README', useDraft ? 'warn' : '');
++  $('gdrestore').hidden = !ovr(GD_KEY); $('gdrestore').classList.remove('arm'); $('gdrestore').textContent = 'Restore the original';
++  const sz = grLS('fcg-readme-size', null), box = $('gdbox');
++  if (sz && sz.w && sz.h) { box.style.width = Math.min(sz.w, innerWidth - 24) + 'px'; box.style.height = Math.min(sz.h, innerHeight - 24) + 'px'; }
++  $('gdov').classList.add('open');
++  try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
++  setTimeout(() => $('gdbody').focus(), 0);
++}
++function gdClose() { gdKeepDraft(); $('gdov').classList.remove('open'); }
++function gdKeepDraft() {
++  clearTimeout(GD.tm);
++  if (!GD.dirty) return;
++  grSave('fcg-readme-draft', {html: gdFromEdit($('gdbody').innerHTML), t: Date.now()});
++}
++async function gdSave() {
++  const html = gdFromEdit($('gdbody').innerHTML);
++  if (await sendEdit(GD_KEY, html, gdSay)) {
++    GD.dirty = false; GD.base = html; try { localStorage.removeItem('fcg-readme-draft'); } catch (e) {}
++    gdSay('Saved - it shows on every device in a minute or two', 'ok'); $('gdrestore').hidden = false;
++  }
++}
++function gdCmd(c) {
++  const box = $('gdbody'); box.focus();
++  if (c === 'bigger' || c === 'smaller') {
++    const n = Math.min(7, Math.max(1, gdSizeNow() + (c === 'bigger' ? 1 : -1)));
++    document.execCommand('fontSize', false, String(n));
++  } else document.execCommand(c, false, null);
++  gdChanged(); gdPaintTools();
++}
++function gdSizeNow() {                                    // the selection's text size, 1-7 (3 = normal): from the <font size> it sits in or holds
++  const sel = document.getSelection(); if (!sel || !sel.rangeCount) return 3;
++  const r = sel.getRangeAt(0), el = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
++  const up = el && el.closest('#gdbody font[size]'); if (up) return +up.getAttribute('size') || 3;
++  const inside = r.cloneContents().querySelector('font[size]'); return inside ? +inside.getAttribute('size') || 3 : 3;
++}
++function gdChanged() {
++  GD.dirty = true; gdSay('Unsaved changes', 'warn');
++  clearTimeout(GD.tm); GD.tm = setTimeout(gdKeepDraft, 800);
++}
++$('fcg-readme').addEventListener('click', gdOpen);
++$('gdclose').addEventListener('click', gdClose);
++$('gdsave').addEventListener('click', gdSave);
++$('gdrestore').addEventListener('click', async () => {
++  const b = $('gdrestore');
++  if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = 'Click again: your edits go'; setTimeout(() => { if (b.isConnected) { b.classList.remove('arm'); b.textContent = 'Restore the original'; } }, 4000); return; }
++  if (await sendEdit(GD_KEY, null, gdSay)) { try { localStorage.removeItem('fcg-readme-draft'); } catch (e) {} GD.dirty = false; $('gdbody').innerHTML = gdToEdit(README_FCG); b.hidden = true; gdSay('Restored the original', 'ok'); }
++});
++$('gdtools').addEventListener('mousedown', e => { if (e.target.closest('button[data-c]')) e.preventDefault(); });   // the selection stays in the text
++$('gdtools').addEventListener('click', e => { const b = e.target.closest('button[data-c]'); if (b) gdCmd(b.dataset.c); });
++$('gdblock').addEventListener('change', () => { $('gdbody').focus(); document.execCommand('formatBlock', false, $('gdblock').value); gdChanged(); gdPaintTools(); });
++$('gdbody').addEventListener('input', gdChanged);
++$('gdbody').addEventListener('keydown', e => {
++  const mod = e.metaKey || e.ctrlKey; if (!mod) return;
++  const k = e.key.toLowerCase(), code = e.code;
++  let c = null;
++  if (!e.shiftKey && !e.altKey && k === 'b') c = 'bold'; else if (!e.shiftKey && !e.altKey && k === 'i') c = 'italic'; else if (!e.shiftKey && !e.altKey && k === 'u') c = 'underline';
++  else if (e.shiftKey && code === 'Period') c = 'bigger'; else if (e.shiftKey && code === 'Comma') c = 'smaller';
++  else if (e.shiftKey && code === 'Digit8') c = 'insertUnorderedList'; else if (e.shiftKey && code === 'Digit7') c = 'insertOrderedList';
++  else if (code === 'Backslash') c = 'removeFormat';
++  else if (!e.shiftKey && k === 's') { e.preventDefault(); gdSave(); return; }
++  if (c) { e.preventDefault(); gdCmd(c); }
++});
++document.addEventListener('selectionchange', () => { if ($('gdov').classList.contains('open')) gdPaintTools(); });
++document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('gdov').classList.contains('open')) { e.stopPropagation(); gdClose(); } }, true);
++$('gdbody').addEventListener('click', e => { const a = e.target.closest('a[href]'); if (a && (e.metaKey || e.ctrlKey)) window.open(a.href, '_blank', 'noopener'); });   // ⌘-click opens a link (a plain click edits it)
++if (typeof ResizeObserver === 'function') new ResizeObserver(() => {   // the box's size, remembered
++  const b = $('gdbox'); if (!$('gdov').classList.contains('open') || !b.style.width && !b.style.height && b.offsetWidth < 10) return;
++  clearTimeout(GD.rz); GD.rz = setTimeout(() => grSave('fcg-readme-size', {w: b.offsetWidth, h: b.offsetHeight}), 300);
++}).observe($('gdbox'));
+diff --git a/page/style.css b/page/style.css
+index 8655a54..57daf1a 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -739 +739,24 @@ input.fcr-px:focus, input.fcr-d:focus { border-color:var(--link); outline:none;
+ #fhg tr.fhx .fhs-slabs th.fhr-on, #fhg tr.fhx .fhs-slabs td.fhr-on { background:rgba(34,197,94,.10); }
++/* the graded Forecast README (2026-11-05): a resizable document with a toolbar */
++#p-fc:not(.graded) .fcg-readme { display:none; }
++.fc-modes .fcg-readme { margin-left:6px; padding:4px 11px; font-size:13px; }
++.modal.gdoc { width:min(900px, calc(100vw - 24px)); height:min(80vh, 760px); min-width:380px; min-height:280px; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); resize:both; overflow:hidden; display:flex; flex-direction:column; position:relative; }
++.gdoc h2 { margin-right:40px; }
++.gdtools { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:6px 0 8px; border-bottom:1px solid var(--line); margin-bottom:6px; }
++.gdtools button, .gdtools select { font:inherit; font-size:13px; min-width:30px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--head); color:var(--fg); cursor:pointer; }
++.gdtools button:hover, .gdtools select:hover { border-color:var(--link); }
++.gdtools button.on { background:color-mix(in srgb, var(--link) 22%, transparent); border-color:var(--link); }
++.gdtools .gdminus, .gdtools .gdplus { font-size:10px; vertical-align:super; margin-left:1px; }
++.gdtools .gdsep { width:1px; align-self:stretch; background:var(--line); margin:0 4px; }
++.gdtools .gdstat { margin-left:auto; font-size:12px; color:var(--muted); }
++.gdtools .gdstat.warn { color:#d97706; } .gdtools .gdstat.ok { color:var(--up); }
++.gdtools button.gdgo { background:var(--link); border-color:var(--link); color:#fff; font-weight:600; }
++.gdtools #gdrestore.arm { border-color:var(--down); color:var(--down); }
++.gdbody { flex:1 1 auto; overflow:auto; padding:6px 10px 24px; outline:none; font-size:14px; line-height:1.6; }
++.gdbody:focus { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--link) 35%, transparent); border-radius:6px; }
++.gdbody h3 { font-size:19px; margin:14px 0 6px; } .gdbody h4 { font-size:15.5px; margin:12px 0 4px; }
++.gdbody p { margin:6px 0; } .gdbody ul, .gdbody ol { margin:4px 0 8px; padding-left:24px; }
++.gdbody font[size="3"] { font-size:14px; } .gdbody font[size="1"], .gdbody .fs-1, .rd .fs-1 { font-size:11px; } .gdbody font[size="2"], .gdbody .fs-2, .rd .fs-2 { font-size:12.5px; }
++.gdbody font[size="4"], .gdbody .fs-4, .rd .fs-4 { font-size:17px; } .gdbody font[size="5"], .gdbody .fs-5, .rd .fs-5 { font-size:20px; }
++.gdbody font[size="6"], .gdbody .fs-6, .rd .fs-6 { font-size:25px; } .gdbody font[size="7"], .gdbody .fs-7, .rd .fs-7 { font-size:32px; }
++.modal.gdoc > .close { position:absolute; top:10px; right:12px; float:none; margin:0; }
