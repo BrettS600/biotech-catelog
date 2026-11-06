@@ -14,10 +14,28 @@
    each month here, in the page, with that page's boxes (capital, % under, shipping, the price band, the share, the bar,
    the copies, the gate) and its Grading ticks, then scored at PriceCharting's price when the hold was up.
    The recorded plans: Graded > Planning's Record plan, kept by the collector (live.gplans); Actual = the slabs sold at
-   PriceCharting's price of the month each hold ends (today's price while that month is still running). */
+   PriceCharting's price of the month each hold ends (today's price while that month is still running).
+   ON CARD LADDER SINCE 2026-11-06 (Brett, 2026-11-05): the replay is Card Ladder's (graded_forecast.py v2: every PSA and
+   CGC grade a line of its own, lines = grade keys); Recorded Purchases' Actual and Pre-Sales Spotcheck use each line's
+   own month-by-month figures from the model (the trend file's cf: the price then, the buy price, the month's median, the
+   sales), so a slab is looked back exactly as the replay does. A plan recorded before the switch (its model is
+   PriceCharting's) froze PriceCharting's price as std and Card Ladder's value as stdc; one after, Card Ladder's
+   standard as std and PriceCharting's price as stdc - fhrBasis() tells them apart. */
 const FHG = {doc: null, err: null, loaded: null, key: '', cells: null, todo: 0, busy: null, open: new Set(), trendBusy: false, trendMiss: new Set(),
   win: ['rp', 'rec', 'sc'].includes(grLS('fhg-win', 'rp')) ? grLS('fhg-win', 'rp') : 'rp'};   // History's window: Forecasting Replay / Recorded Purchases / Pre-Sales Spotcheck
 const FHG_LINE = {psa_10: 'PSA 10', grade_9_5: 'Grade 9.5', grade_9: 'Grade 9', grade_8: 'Grade 8', grade_7: 'Grade 7'};
+const fhgLineName = l => FHG_LINE[l] || (/\|/.test(String(l)) ? grLabel(l) : String(l));
+// a line's month-by-month figures from the model (trend file cf[gk] = [first YYYY-MM, price then, buy, month's median,
+// sales]): {ym: {p, buy, w, n}}; undefined while the trend file loads, null when none, 'old' before the Card Ladder build
+function fhCf(cid, gk) {
+  const tr = GR.trend.get(+cid);
+  if (!tr) { if (!FHG.trendMiss.has(+cid)) { fhrWantTrend(+cid); return undefined; } return FHG.trendBusy ? undefined : null; }
+  if (!tr.cf) return 'old';
+  const x = tr.cf[gk]; if (!x) return null;
+  const m = new Map(); let i = fhsYi(x[0]);
+  for (let k = 0; k < x[1].length; k++, i++) m.set(fhsYm(i), {p: x[1][k], buy: x[2][k], w: x[3][k], n: x[4][k]});
+  return m;
+}
 async function fhgLoad() {
   const b = Math.floor(Date.now() / 3600000);
   if (FHG.loaded === b) return;
@@ -119,7 +137,7 @@ function fhgHoldCells(c, done, pendWord) {
     '<td class="num">' + fcMoney(c.exp) + '<br><span class="dim">' + fcPct(roiE, 1) + '</span></td>' +
     '<td class="num">' + fcMoney(c.lo) + '<br><span class="dim">to ' + fcMoney(c.hi) + '</span></td>' +
     '<td class="num">' + Math.round((c.p || 0) * 100) + '%</td>' +
-    (c.actual != null ? '<td class="num" title="' + esc((c.inside ? 'inside' : 'outside') + ' the 10-90% range' + (c.priced < c.n ? '; ' + c.priced + ' of ' + c.n + ' slabs had a PriceCharting price when the hold was up' : '')) + '"><b class="' + (c.actual > 0 ? 'up' : c.actual < 0 ? 'down' : '') + '">' + fcMoney(c.actual) + '</b> <span class="dim">' + (c.inside ? '✓' : '✗') + '</span></td><td class="num ' + (c.roi > 0 ? 'up' : c.roi < 0 ? 'down' : '') + '">' + fcPct(c.roi, 1) + '</td>'
+    (c.actual != null ? '<td class="num" title="' + esc((c.inside ? 'inside' : 'outside') + ' the 10-90% range' + (c.priced < c.n ? '; ' + c.priced + ' of ' + c.n + ' slabs had a Card Ladder price when the hold was up' : '')) + '"><b class="' + (c.actual > 0 ? 'up' : c.actual < 0 ? 'down' : '') + '">' + fcMoney(c.actual) + '</b> <span class="dim">' + (c.inside ? '✓' : '✗') + '</span></td><td class="num ' + (c.roi > 0 ? 'up' : c.roi < 0 ? 'down' : '') + '">' + fcPct(c.roi, 1) + '</td>'
       : '<td class="num"><span class="dim">' + (done ? 'no price' : pendWord) + '</span></td>' + fhgD);
 }
 function fhgRow(r) {
@@ -137,8 +155,8 @@ function fhgDetail(r) {                                  // a month opened: each
     if (!c || !c.n) return '<h4>' + h + '-month hold</h4><p class="dim">No buys' + (c && c.gated ? ' (the market was falling and the gate is on)' : '') + (c && c.best ? '; best chance ' + Math.round(c.best * 100) + '%' : '') + '.</p>';
     return '<h4>' + h + '-month hold · ' + c.n + ' slab' + (c.n > 1 ? 's' : '') + ', ' + fcMoney(c.spent) + ' spent</h4><table><thead><tr><th>Card</th><th>Grade</th><th class="num">Copies</th><th class="num">Standard</th><th class="num">Paid</th><th class="num">Chance</th><th class="num">Expected net</th><th class="num">Actual net</th></tr></thead><tbody>' +
       c.picks.map(p => { const [cid, li, std, buy, q, ch, en, y] = p, nm = fhgName(cid), real = y == null ? null : fcgNet(std, y, S.disc, S.fee);
-        return '<tr><td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td>' + esc(FHG_LINE[doc.lines[li]] || doc.lines[li]) + '</td><td class="num">' + q + '</td><td class="num">' + fmtMoneyPlain(std) + '</td><td class="num">' + fmtMoneyPlain(buy) + '</td><td class="num">' + Math.round(ch * 100) + '%</td><td class="num">' + fcMoney2(en) + '</td><td class="num">' + (real == null ? '<span class="dim">' + (mi + h <= doc.months.length - 1 ? 'no price' : 'hold not up yet') + '</span>' : '<b class="' + (real > 0 ? 'up' : real < 0 ? 'down' : '') + '">' + fcMoney2(real) + '</b> <span class="dim">(' + fcPct(y, 0) + ')</span>') + '</td></tr>'; }).join('') + '</tbody></table>';
-  }).join('') + '<p class="dim">Graded lines: PriceCharting’s PSA 10 line, and its Grade 9.5 / 9 / 8 / 7 lines (every grader blended). Standard = the line’s price that month or its 3-month average, whichever is higher.</p>';
+        return '<tr><td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td>' + esc(fhgLineName(doc.lines[li])) + '</td><td class="num">' + q + '</td><td class="num">' + fmtMoneyPlain(std) + '</td><td class="num">' + fmtMoneyPlain(buy) + '</td><td class="num">' + Math.round(ch * 100) + '%</td><td class="num">' + fcMoney2(en) + '</td><td class="num">' + (real == null ? '<span class="dim">' + (mi + h <= doc.months.length - 1 ? 'no price' : 'hold not up yet') + '</span>' : '<b class="' + (real > 0 ? 'up' : real < 0 ? 'down' : '') + '">' + fcMoney2(real) + '</b> <span class="dim">(' + fcPct(y, 0) + ')</span>') + '</td></tr>'; }).join('') + '</tbody></table>';
+  }).join('') + '<p class="dim">Lines: Card Ladder’s sales of each card at each PSA and CGC grade. Standard = the line’s price that month (the middle of its sales; 2 or 3 months when there were fewer than 3) or its 3-month price, whichever is higher.</p>';
 }
 const fhxColspan = id => [...document.querySelectorAll('#' + id + '-t thead tr:last-child th')].filter(th => !th.classList.contains('col-hidden')).length || 40;
 function fhxInsert(id, t, isOpen, detail) {               // the opened rows' details, under each
@@ -216,17 +234,20 @@ function fhrRecs() {
 }
 const fhrDue = (t, h) => { const d = new Date(t); d.setMonth(d.getMonth() + h); return d; };
 const fhrYm = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-// a slab's PriceCharting price in the month its hold ends: the month's point in its trend line, today's price while that
-// month is the newest; null = not loaded yet (a load is started) or no price
+// a slab's Card Ladder price in the month its hold ends (2026-11-06; it was PriceCharting's): the model's price of that
+// month (the line's own figures, as the replay prices a hold), else the latest month before it; the standard price
+// today while that month is past the card's Card Ladder read; undefined = not loaded yet (a load is started)
 function fhrPrice(cid, gk, ym) {
-  const tr = GR.trend.get(+cid);
-  if (!tr) { if (!FHG.trendMiss.has(+cid)) fhrWantTrend(+cid); return undefined; }
-  const pts = gtSeries(tr, 'pc|' + gk).pts.filter(p => p[1] != null), base = fcrMap().get(cid + '|' + gk);
-  const at = pts.find(p => p[0] === ym); if (at) return at[1];
-  const last = pts.length ? pts[pts.length - 1][0] : '';
+  const m = fhCf(cid, gk), base = fcrMap().get(cid + '|' + gk);
+  if (m === undefined) return undefined;
+  if (!m || m === 'old') return base ? fcgStd(base)[0] : null;
+  const at = m.get(ym); if (at && at.p != null) return at.p;
+  const yms = [...m.keys()].filter(k => m.get(k).p != null), last = yms.length ? yms[yms.length - 1] : '';
   if (ym > last) return base ? fcgStd(base)[0] : null;
-  const before = pts.filter(p => p[0] < ym); return before.length ? before[before.length - 1][1] : null;
+  const before = yms.filter(k => k < ym); return before.length ? m.get(before[before.length - 1]).p : null;
 }
+// a recorded plan's basis: Card Ladder (the model says so) or PriceCharting (recorded before 2026-11-06)
+const fhrBasis = rec => /Card Ladder/i.test(String(rec.model || '')) ? 'cl' : 'pc';
 function fhrWantTrend(cid) {
   FHG.trendMiss.add(cid);
   if (FHG.trendBusy) return;
@@ -293,10 +314,12 @@ function fhrDetail(r) {
   const rec = r.rec, h = rec.h, due = fhrDue(rec.t, h), up = Date.now() >= due.getTime(), ym = fhrYm(due);
   const cols = FHR_COLS.filter(c => !fcgColHidden(c.key)), hc = c => c.h ? ' fhr-h' : '';
   const rows = rec.slabs.map(s => {
-    const [cid, gk, dk, std, stdc, paid, pk, net, rk] = s, base = GR.doc ? fcrMap().get(cid + '|' + gk) : null, c = GR.doc ? (GR.doc.cards || {})[String(cid)] || {} : {};
+    const [cid, gk, dk, s3, s4, paid, pk, net, rk] = s, base = GR.doc ? fcrMap().get(cid + '|' + gk) : null, c = GR.doc ? (GR.doc.cards || {})[String(cid)] || {} : {};
+    const clb = fhrBasis(rec) === 'cl', std = clb ? s4 : s3, stdc = clb ? s3 : s4;   // std = PriceCharting's, stdc = Card Ladder's (as drawn: CL on top)
     const nm = base ? [base[1], String(base[2] || '').replace(/^Pokemon /, '') + (base[3] ? ' · #' + base[3] : '')] : fhgName(cid), d = dk / 1000;
     const p1 = up ? fhrPrice(cid, gk, ym) : null, real = p1 == null ? null : p1 * (1 - rec.fee) - rec.ship - paid;
     const cl = stdc == null ? null : stdc * (1 - d) - rec.ship, two = (a, b, k) => '<td class="num fcg2' + k + '"><span><i>CL</i> ' + a + '</span><span><i>PC</i> ' + b + '</span></td>';
+    const pcb = std == null ? null : std * (1 - d) - rec.ship;
     const pct = rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10)), dash = k => '<td class="num' + k + '"><span class="dim">-</span></td>';
     const pcx = cols.some(x => x.pc != null) ? fcgPcx(base) : [];
     const cell = {
@@ -309,7 +332,7 @@ function fhrDetail(r) {
       'k:fcPct': k => pct == null ? dash(k) : '<td class="num' + k + '">' + fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + '</span></td>',
       'k:fcS': k => two(stdc == null ? '<span class="dim">-</span>' : fmtMoney(stdc), std == null ? '<span class="dim">-</span>' : fmtMoney(std), k),
       'k:fcD': k => '<td class="num' + k + '">' + (Math.round(d * 1000) / 10) + '%</td>',
-      'k:fcB': k => two(cl == null ? '<span class="dim">-</span>' : fmtMoney(cl), fmtMoney(paid), k),
+      'k:fcB': k => clb ? two(fmtMoney(paid), pcb == null ? '<span class="dim">-</span>' : fmtMoney(pcb), k) : two(cl == null ? '<span class="dim">-</span>' : fmtMoney(cl), fmtMoney(paid), k),
       'k:16': k => two(base && base[37] != null ? fmtInt(base[37]) : '<span class="dim">-</span>', base && base[16] != null ? fmtInt(base[16]) : '<span class="dim">-</span>', k),
       'k:fcP': k => '<td class="num' + k + '">' + (pk == null ? '<span class="dim">no score</span>' : (pk / 10).toFixed(0) + '%') + '</td>',
       'k:fcQ': k => '<td class="num' + k + '">1</td>',
@@ -321,7 +344,7 @@ function fhrDetail(r) {
   }).join('');
   const head = cols.map(x => {
     if (x.pc != null) { const th = x.th.cloneNode(true); th.querySelectorAll('.s').forEach(n => n.remove()); th.removeAttribute('data-k'); return th.outerHTML; }
-    const tip = x.key === 'k:fcP' ? ' title="the chance for the ' + h + '-month hold, the day it was recorded"' : x.key === 'k:fcN' ? ' title="expected net for the ' + h + '-month hold, the day it was recorded"' : x.key === 'h:actual' ? ' title="sold at PriceCharting’s price in the month the ' + h + '-month hold is up, after eBay’s fee and the shipping"' : '';
+    const tip = x.key === 'k:fcP' ? ' title="the chance for the ' + h + '-month hold, the day it was recorded"' : x.key === 'k:fcN' ? ' title="expected net for the ' + h + '-month hold, the day it was recorded"' : x.key === 'h:actual' ? ' title="sold at Card Ladder’s price in the month the ' + h + '-month hold is up, after eBay’s fee and the shipping"' : '';
     return '<th class="' + (x.num ? 'num' : '') + hc(x) + '"' + tip + '>' + (x.key === 'h:actual' ? 'Actual (' + h + ' mo)' : x.label) + '</th>';
   }).join('');
   return '<h4>' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' bought ' + fhrDate(rec.t) + ' for ' + fmtMoneyPlain(rec.spent) + ' · held ' + h + ' month' + (h > 1 ? 's' : '') + ' (up ' + fhrDate(due.getTime()) + ') · ' + (Math.round(rec.disc * 1000) / 10) + '% under by default, ' + fmtMoneyPlain(rec.ship) + ' shipping, eBay’s fee ' + (Math.round(rec.fee * 1000) / 10) + '% · capital ' + fmtMoneyPlain(rec.cap) + (rec.reg ? ' · market ' + esc(rec.reg) : '') + '</h4>' +
@@ -369,48 +392,44 @@ function fhsRecs() {
   if (FHS.gone.size && live.t) { for (const id of [...FHS.gone]) if (!have.has(id)) FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); }
   return recs.filter(r => !FHS.gone.has(r.id)).sort((a, b) => b.t - a.t);
 }
-// a slab's PriceCharting line, {YYYY-MM: price}: undefined while its trend file loads, null when there is none to read,
-// 'old' when the trend file predates the blended lines
-function fhsLine(cid, gk) {
-  const line = FCG_LINE(gk); if (!line) return null;
-  const tr = GR.trend.get(+cid);
-  if (!tr) { if (!FHG.trendMiss.has(+cid)) { fhrWantTrend(+cid); return undefined; } return FHG.trendBusy ? undefined : null; }
-  const m = new Map();
-  if (line === 'psa_10') { for (const [ym, p] of ((tr.pc || {})['psa|g10'] || [])) if (p != null) m.set(String(ym).slice(0, 7), +p); }
-  else { const x = (tr.pm || {})[line]; if (!x) return tr.pm ? null : 'old'; let i = fhsYi(x[0]); for (const p of x[1]) { if (p != null) m.set(fhsYm(i), p); i++; } }
-  return m.size ? m : null;
-}
 const FHS_T0 = () => Array.from({length: 6}, () => ({n: 0, nb: 0, nd: 0, win: 0, sp: 0, se: 0, sa: 0}));
-// one slab looked back: the months it was ranked, each hold's chance / expected / actual, and the totals per hold
+const fhsMedian = a => { const b = a.slice().sort((x, y) => x - y), n = b.length; return n ? (n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2) : null; };
+// one slab looked back (2026-11-06: on Card Ladder): month by month since 2022 with the model as it stood that month - its
+// line's own figures (fhCf: the price then, the buy price, the month's median and its sales) give the 12-month level (the
+// median of the monthly medians, 3+ sales in the 12 months), the dip and so the rank among every line that month (the
+// replay's cut points, rq); the odds known that month (tab) give its chance and expected ROI for each hold; "bought" =
+// the chance at or above the set's bar, and the market rising if the gate was on; the actual = the line's price when the
+// hold was up, after eBay's fee and the shipping (bought at the replay's buy price: the higher of the price then and the
+// 3-month price)
 function fhsSlab(s, rec) {
   const doc = FHG.doc, [cid, gk] = s, d = s[2] / 1000, ship = rec.ship || 0, fee = rec.fee || fcgFee();
-  const minp = rec.minp != null ? rec.minp : 0.5, gate = rec.gate == null ? 1 : rec.gate;
-  if (!FCG_LINE(gk)) return {why: 'PriceCharting has no price line of its own for ' + grLabel(gk) + ', so the model cannot score it (as on Forecasting)'};
-  const W = fhsLine(cid, gk);
-  if (W === undefined) return {loading: true};
-  if (W === 'old') return {why: 'its Grade line arrives with the next site build'};
-  if (!W) return {why: 'no PriceCharting line for it'};
+  const minp = rec.minp != null ? rec.minp : 0.5, gate = rec.gate == null ? 1 : rec.gate, floor = doc.floor || 3;
+  if (!FCG_LINE(gk)) return {why: 'not a PSA or CGC grade'};
+  const M = fhCf(cid, gk);
+  if (M === undefined) return {loading: true};
+  if (M === 'old') return {why: 'its Card Ladder figures arrive with the next site build'};
+  if (!M) return {why: 'no Card Ladder sales of it on file (Card Ladder has not read the card, or no ' + grLabel(gk) + ' sale)'};
   const be = fcgBreak(d, fee), QD = {qs: doc.qs}, RQ = {qs: doc.rqs}, lastI = fhsYi(doc.last || doc.months[doc.months.length - 1]);
   const months = [], tot = FHS_T0();
   doc.months.forEach((ym, mi) => {
-    const j = fhsYi(ym), p = W.get(ym), cuts = doc.rq[mi];
-    if (p == null || !cuts || p < (doc.rank_min || 25)) return;
-    let s12 = 0, n12 = 0, s3 = 0, n3 = 0;
-    for (let k = 0; k < 12; k++) { const v = W.get(fhsYm(j - k)); if (v != null) { s12 += v; n12++; if (k < 3) { s3 += v; n3++; } } }
-    if (n12 < 12) return;                                  // the model ranks a line once it has a full year of prices
-    const std = n3 >= 2 ? Math.max(p, s3 / n3) : p, buy = std * (1 - d) - ship;
-    const pct = Math.min(1, Math.max(0, fcgCdf(RQ, {q: cuts.map(v => v / 10000)}, -(p / (s12 / 12) - 1)))), g = Math.min(9, Math.floor(pct * 10));
+    const j = fhsYi(ym), x = M.get(ym), cuts = doc.rq[mi];
+    if (!x || x.p == null || !cuts || x.p < (doc.rank_min || 25)) return;
+    const ws = []; let n12 = 0;
+    for (let k = 0; k < 12; k++) { const v = M.get(fhsYm(j - k)); if (v) { if (v.w != null) ws.push(v.w); n12 += v.n || 0; } }
+    if (n12 < floor || !ws.length) return;                 // the model ranks a line with 3+ sales in its last 12 months
+    const L = fhsMedian(ws), p = x.p, std = x.buy != null ? x.buy : p, buy = std * (1 - d) - ship;
+    const pct = Math.min(1, Math.max(0, fcgCdf(RQ, {q: cuts.map(v => v / 10000)}, -(p / L - 1)))), g = Math.min(9, Math.floor(pct * 10));
     const row = {ym, up: !!doc.up[mi], p, std, pct, g, h: []};
     for (let h = 1; h <= 6; h++) {
       const grid = ((doc.tab[mi] || [])[h - 1] || [])[g];
       if (!grid || !(buy > 0)) { row.h.push(null); continue; }
       const t = {mean: grid[0], q: grid.slice(1)}, ch = Math.min(0.95, 1 - fcgCdf(QD, t, be)), bought = ch >= minp && (!gate || !!doc.up[mi]);
       let act = null;
-      if (j + h <= lastI) { const p2 = W.get(fhsYm(j + h)); if (p2 != null) act = fcgNet(std, Math.min(5, Math.max(-0.95, p2 / std - 1)), d, fee); }
-      const x = {p: ch, e: fcgNet(std, t.mean, d, fee) / buy, a: act == null ? null : act / buy, bought};
-      row.h.push(x);
+      if (j + h <= lastI) { const p2 = (M.get(fhsYm(j + h)) || {}).p; if (p2 != null) act = fcgNet(std, Math.min(5, Math.max(-0.95, p2 / std - 1)), d, fee); }
+      const xh = {p: ch, e: fcgNet(std, t.mean, d, fee) / buy, a: act == null ? null : act / buy, bought};
+      row.h.push(xh);
       const T = tot[h - 1]; T.n++;
-      if (bought) { T.nb++; T.sp += x.p; T.se += x.e; if (act != null) { T.nd++; T.sa += x.a; if (act > 0) T.win++; } }
+      if (bought) { T.nb++; T.sp += xh.p; T.se += xh.e; if (act != null) { T.nd++; T.sa += xh.a; if (act > 0) T.win++; } }
     }
     months.push(row);
   });
@@ -570,7 +589,7 @@ $('rows-fhr').addEventListener('click', e => {
 function fhgNote() {
   const el = $('fhg-note'); if (!el) return;
   const I = fcgInputs(), grades = [...GF.fc.gsel].filter(gk => FCG_LINE(gk)).map(grLabel);
-  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.join(', ')) : 'no grade with a PriceCharting line ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.';
+  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.length > 8 ? grades.length + ' grades ticked' : grades.join(', ')) : 'no PSA or CGC grade ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.';
 }
 function fhgPaint() {                                     // the cards and the replay table, once its cells are in
   if (FHG.win !== 'rp') return;
@@ -606,20 +625,20 @@ $('fhg-wins').addEventListener('click', e => {
 fhgRender();
 
 Object.assign(HELP, {
-  fhg_replay: {t: 'Forecasting Replay', f: 'Graded Forecasting’s plan run on every month since 2022, knowing only what was known that month, then scored at PriceCharting’s price when each hold was up', m: 'Each month: the PriceCharting graded lines (PSA 10, and the Grade 9.5 / 9 / 8 / 7 lines that blend every grader) ranked by how far each sits below its own 12-month mean; the odds of each rank group from the outcomes known by then (2022, marked *, had too few, so the whole period’s odds stand in); the market rising or falling; then your plan with Graded Forecasting’s boxes and Grading ticks - capital, % under, shipping, the price band, the share, the bar, the copies, the gate. Six holds side by side; the eyes and Holds… hide what you do not need (one choice for the three History windows). Click a month for its slabs. The file keeps each month’s best-ranked lines of each group and line in $50 - $5,000, so a band outside that, or a very large capital, sees fewer candidates.', e: '2025-03, 3-month hold: 12 slabs for $980, expected +$140; actual +$210 ✓.'},
-  fhg_recorded: {t: 'Recorded Purchases', f: 'one row per Record Purchases on Graded › Purchases: the date, the hold set then, what was spent, the slabs', m: 'Each hold has its expected net, range and chance with the odds of the day it was recorded, and its actual once the hold is up: the slabs sold at PriceCharting’s price of that month (today’s price while the month is still running), after eBay’s fee and the shipping, less what was paid. The hold you had set is highlighted. Click a record for its slabs; click again to close. Kept by the collector, so every device shows them. The eye on a hold’s header hides that hold in all three History windows; Holds… brings it back, column by column if you like. Your Hold (the plan pane) is tinted. Each slab list has a Flag column: the same flag as on the PriceCharting tab and the other Forecast pages.', e: ''}
+  fhg_replay: {t: 'Forecasting Replay', f: 'Graded Forecasting’s plan run on every month since 2022, knowing only what was known that month, then scored at Card Ladder’s price when each hold was up', m: 'Each month: every Card Ladder line (one card at one PSA or CGC grade, priced from its own sales) ranked by how far it sits below its own 12-month level; the odds of each rank group from the outcomes known by then (2022, marked *, had too few, so the whole period’s odds stand in); the market rising or falling; then your plan with Graded Forecasting’s boxes and Grading ticks - capital, % under, shipping, the price band, the share, the bar, the copies, the gate. Six holds side by side; the eyes and Holds… hide what you do not need (one choice for the three History windows). Click a month for its slabs. The file keeps each month’s best-ranked lines of each group and grade in $50 - $5,000, so a band outside that, or a very large capital, sees fewer candidates. Only the cards Card Ladder has read are in it (the busiest first), so its results may run a little high until the quieter cards are read.', e: '2025-03, 3-month hold: 12 slabs for $980, expected +$140; actual +$210 ✓.'},
+  fhg_recorded: {t: 'Recorded Purchases', f: 'one row per Record Purchases on Graded › Purchases: the date, the hold set then, what was spent, the slabs', m: 'Each hold has its expected net, range and chance with the odds of the day it was recorded, and its actual once the hold is up: the slabs sold at Card Ladder’s price of that month (the standard price while the month is past the card’s Card Ladder read), after eBay’s fee and the shipping, less what was paid. A record made before Nov 6 was planned on PriceCharting’s prices; its actuals are Card Ladder’s too. The hold you had set is highlighted. Click a record for its slabs; click again to close. Kept by the collector, so every device shows them. The eye on a hold’s header hides that hold in all three History windows; Holds… brings it back, column by column if you like. Your Hold (the plan pane) is tinted. Each slab list has a Flag column: the same flag as on the PriceCharting tab and the other Forecast pages.', e: ''}
 });
 Object.assign(HELP, {
   fhs_spot: {t: 'Pre-Sales Spotcheck', md: 1, m: [
     '> Before you buy: how would the model have done on these exact slabs? Each set is the green rows you sent with Add to Pre-Sales Spotcheck, each slab looked back on month by month since 2022.',
     '## How each slab is looked back on',
-    '1. **Its own PriceCharting line, month by month:** the price, its 12-month average and its 3-month average.',
-    '2. **Its rank that month:** its dip below the 12-month average, placed among every graded line that month (the same cut points the model used then).',
+    '1. **Its own Card Ladder line, month by month:** the price then (the middle of its sales), its 12-month level and its 3-month price.',
+    '2. **Its rank that month:** its dip below the 12-month level, placed among every Card Ladder line that month (the same cut points the model used then).',
     '3. **The odds known that month:** its group, that month’s market (rising or falling), only outcomes already over by then - for each hold, 1 to 6 months.',
     '4. **Its chance and expected ROI** at the % under it was sent with:',
     '   `chance = share of those cases above the break-even`',
     '5. **“Bought”** when the chance was at least the set’s bar - and the market was rising, if the gate was on.',
-    '6. **The actual:** bought at the higher of the price and its 3-month average, sold at PriceCharting’s price when the hold was up, after eBay’s fee and the shipping (the replay’s rules).',
+    '6. **The actual:** bought at the higher of the price and its 3-month price, sold at Card Ladder’s price when the hold was up, after eBay’s fee and the shipping (the replay’s rules).',
     '## The columns, per hold',
     '| Column | What it is |',
     '|---|---|',
@@ -632,8 +651,8 @@ Object.assign(HELP, {
     '## How to read it',
     'If the model’s buys on these cards won about as often as it said, and made about the ROI it expected, its chances on them today deserve trust. Far less: be careful with these cards.',
     '## Keep in mind',
-    '- A slab needs a PriceCharting line of its own (no CGC 10 or half grades) and a full year of prices before its first month.',
-    '- The Grade 9.5 / 9 / 8 / 7 lines blend every grader, as in the model.',
+    '- A slab needs Card Ladder to have read its card, and 3+ sales of its grade in the 12 months before a month for that month to count.',
+    '- Every PSA and CGC grade is its own line, as in the model.',
     '- The months overlap (a 6-month hold bought in March and in April share four months), so the buys are not 100 separate tests.',
     '- The sets are kept by the collector: every device shows them. Remove this set takes one away.'].join('\n'),
     now: () => { const n = fhsRecs().length, d = FHG.doc; return n + ' set' + (n === 1 ? '' : 's') + (d && d.months ? ' · months ' + esc(d.months[0]) + ' to ' + esc(d.last || d.months[d.months.length - 1]) : '') + (d && !d.rq ? ' · <b>waiting for the next site build</b> (the rank cut points)' : ''); }}
@@ -651,8 +670,8 @@ const GD = {dirty: false, tm: null, base: ''};
 const GD_KEY = 'r:fcg';
 const README_FCG = '<h3>Graded Forecast · how the four pages fit together</h3>' +
   '<p>Every page here works on PSA and CGC slabs with the same plan pane on the left (capital, hold, % under, shipping, the price band, the per-card share, the bar, the copies, the gate) and the same filter buttons.</p>' +
-  '<h4>Forecasting</h4><p>Every graded row of the PriceCharting tab, assumed for sale, best to buy first. The green rows are what your capital buys. Use it before a show to see what is worth looking for.</p>' +
-  '<h4>Recording</h4><p>The slabs you record at a show, one row each. Type the vendor’s price (or their % under) into the row: its chance and its place follow, and the green rows re-plan. Mark <b>Yes</b> when you buy (the money comes off the capital), <b>No</b> when the vendor wants more (the row drops to the bottom).</p>' +
+  '<h4>Forecasting</h4><p>Every slab Card Ladder prices (each card at each PSA and CGC grade), assumed for sale, best to buy first. The green rows are what your capital buys. Prices, chances and the money are Card Ladder’s; PriceCharting’s price and sales are shown under them for reference. Use it before a show to see what is worth looking for.</p>' +
+  '<h4>Recording</h4><p>The slabs you record at a show, one row each. Type the vendor’s price (or their % under Card Ladder’s price) into the row: its chance and its place follow, and the green rows re-plan. Mark <b>Yes</b> when you buy (the money comes off the capital), <b>No</b> when the vendor wants more (the row drops to the bottom).</p>' +
   '<h4>Purchases</h4><p>The slabs you marked Yes, at what you paid. <b>Record Purchases</b> keeps them on History.</p>' +
   '<h4>History</h4><ul><li><b>Forecasting Replay</b>: the plan run on every month since 2022 with only what was known then.</li><li><b>Recorded Purchases</b>: your records, scored when each hold is up.</li><li><b>Pre-Sales Spotcheck</b>: the green rows you sent with Add to Pre-Sales Spotcheck, each slab looked back on month by month.</li></ul>' +
   '<h4>At a show</h4><ol><li>Record the slabs you see.</li><li>Ask each vendor; type their price into the row.</li><li>Check the green rows (and Add to Pre-Sales Spotcheck if you want the look back first).</li><li>Mark Yes or No as you go; Record Purchases at the end.</li></ol>' +

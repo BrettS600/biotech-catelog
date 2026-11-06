@@ -98,6 +98,7 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import pandas as pd
 
+import cl_sales
 import graded_terms as gt
 
 SHARD = 300
@@ -127,6 +128,12 @@ def hodges_lehmann(xs):
     if n == 1:
         return xs[0]
     return statistics.median((xs[i] + xs[j]) / 2 for i in range(n) for j in range(i, n))
+
+
+def cl_page(pid):
+    """A Card Ladder page id as one key: matched-<spec> and psa-<spec> are the same page."""
+    pid = str(pid or "")
+    return "psa-" + pid.split("-", 1)[1] if pid.startswith("matched-") else pid
 
 
 def money(v):
@@ -552,12 +559,17 @@ MIN_CARD_VALUE = 50.0
 
 
 def card_values(rows):
-    """{card id: the highest PriceCharting value of its graded rows} (x[2] the price today, else x[18][0] last month's)."""
+    """{card id: the highest value of its graded rows} - PriceCharting's (x[2] the price today, else x[18][0] last
+    month's) or, since 2026-11-05, Card Ladder's (the standard price x[24][0], else its value x[6]): a card Card Ladder
+    prices at $50+ is listed whatever PriceCharting says."""
     val = {}
     for x in rows:
         v = x[2] if x[2] is not None else (x[18] or [None])[0]
-        if v is not None and v > val.get(x[0], -1):
-            val[x[0]] = v
+        c = (x[24] or [None])[0] if len(x) > 24 and x[24] else None
+        c = c if c is not None else x[6]
+        for w in (v, c):
+            if w is not None and w > val.get(x[0], -1):
+                val[x[0]] = w
     return val
 
 
@@ -902,6 +914,12 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     first_seen = {cid: min(d for v in m.values() for d, _ in v) for cid, m in psales.items() if m}
     snaps = load_snap_history(snap_dir, ids, pw) if snap_dir and os.path.isdir(snap_dir) else {}
     print(f"graded: PriceCharting pop {len(pop)}, graded sales {len(psales)}, monthly {len(pmon)}, daily history {len(snaps)} cards")
+    # Card Ladder's own sales (2026-11-05, Brett: "Moving forward card ladder will be used as the primary reference point"):
+    # card-data data/cardladder/lines (cl_sales.py) - the statistics columns, the standard price and the Forecast use them
+    lines_dir = os.path.join(cd, "cardladder", "lines")
+    clp = cl_sales.load(lines_dir) if os.path.isdir(lines_dir) else {}
+    clk = {cl_page(pid): P for pid, P in clp.items()}
+    print(f"graded: Card Ladder sales of {len(clp):,} pages ({sum(len(v[0]) for P in clp.values() for v in P['s'].values()):,} PSA / CGC sales)")
     cards, rows, trends = {}, [], {}
     for cid, rank in base:
         r = matched.get(cid) or {}                          # {} = not matched to Card Ladder (yet)
@@ -915,6 +933,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                     if k in GI:
                         clg[k] = [x[2], x[3], x[4]]
         mon = (pr or {}).get("monthly") or {}
+        Pg = clk.get(cl_page(r.get("cl_profile_id", ""))) if pr else None   # Card Ladder's sales of the card's page
+        rday = cl_sales.day_no(Pg["read"]) if Pg and Pg.get("read") else None
         slabs = (matches.get(str(cid)) or {}).get("slabs", {})
         recs = {}                                           # (grader, cert) -> the slab as the grader says
         for g, card_cert in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
@@ -932,6 +952,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         stats_by_col = {col: series_stats(pts, today) for col, pts in (snaps.get(cid) or {}).items()}
         pcrow = pc.loc[cid] if cid in pc.index else None
         keys = set(clg) | {k for k in mon if k in GI} | set((psales.get(cid) or {}).keys()) | set(pop.get(cid, {}).keys())
+        if Pg:
+            keys |= {k for k in Pg["s"] if k in GI}
         keys |= {k for k, (col, _) in PC_COL.items() if pcrow is not None and money(pcrow.get(col, "")) and k.startswith("psa|g10")}
         for k in sorted(keys, key=lambda x: GI.get(x, 99)):
             col, kind = PC_COL.get(k, (None, None))
@@ -963,19 +985,32 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                 pc_n1 = None
             pc_n1e = est_last_month(ps_list, last_m) if pc_n1 is None else None
             asof = (pc_read.get(cid) or today.isoformat())[:10]   # the stats from sales: as of the card's last read
-            vd = sales_drift(ps_list, asof, cover)
             cl = clg.get(k, [None, None, None])
             m = {x[0]: x for x in mon.get(k, [])}
             cl_n1 = m[last_m][1] if last_m in m else (0 if mon.get(k) else None)
             cl_avg1 = m[last_m][2] if last_m in m else None
-            st = stats_by_col.get(col, {}) if col and col_ok else {}    # the daily moves of a blended column are not this grade's
-            sx = None
-            if not (col and col_ok):                        # no daily price of its own: Δ7d / Δ30d / slope from its own sales
-                sst, sn = sales_stats(ps_list, asof)
+            # THE ANALYSIS COLUMNS ARE CARD LADDER'S (2026-11-05, Brett: "we need to change statistics to be based on card
+            # ladder, the stats columns"): Δ7d / Δ30d / Range 90d / Volatility / slope / volume drift from Card Ladder's own
+            # sales of this grade, as of the page's last read (cl_sales.stats); a card Card Ladder has not read has none.
+            # CL Graded (last month) is now the Hodges-Lehmann middle of last month's sales (it was Card Ladder's average),
+            # and the row carries the standard price (cl_sales.standard: 30 / 60 / 90 days, 3 sales) and the sales in the
+            # 12 months to the read (CL Sales/yr)
+            st, sx, vd, clstd, cln12, clconf = {}, None, None, None, None, None
+            if Pg:
+                dd, pp = Pg["s"].get(k, (np.zeros(0, np.int32), np.zeros(0)))
+                sst, sn = cl_sales.stats(dd, pp, rday)
                 st = sst
-                sx = [asof] + sn if sn[-1] else 0       # [as of, n7, n7 before, n30, n30 before, n90]; 0 = no sale in 90 days
+                sx = [Pg["read"]] + sn if sn[-1] else 0     # [as of, n7, n7 before, n30, n30 before, n90]; 0 = no sale in 90 days
+                vd = [cl_sales.count(dd, rday, 30), cl_sales.count(dd, rday - 30, 30), Pg["read"]]
+                c1, n1c = cl_sales.last_month(dd, pp, last_m)
+                cl_avg1, cl_n1 = c1, n1c
+                sp_, span_, nsp_ = cl_sales.standard(dd, pp, rday)
+                clstd = [sp_, span_, nsp_, Pg["read"]]
+                cln12 = cl_sales.count(dd, rday, 365)
+                cvn = cl_sales.value_now(Pg, k)
+                clconf = cvn[1] if cvn else None
             mk = marks.get((str(cid), k))
-            if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list):
+            if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list or (Pg and k in Pg["s"])):
                 continue                                    # a grade with a population and no price or sale anywhere: no row
             # last month's PriceCharting price of this grade and grader: the Hodges-Lehmann estimate of the sales it
             # recorded of it, else (PSA 10 only) its monthly PSA 10 chart value. Its 9 / 9.5 / 8 / 7 chart lines blend
@@ -1003,7 +1038,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
                          (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e,
-                         vd, sx])
+                         vd, sx, clstd, cln12, clconf])
         if not r and len(rows) == nrow0:
             continue                                        # no PriceCharting price or sale of any PSA / CGC grade: no rows
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
@@ -1100,7 +1135,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             ma = None
         if ma and ma.get("v") in (0, 1):
             cards[str(cid)]["ma"] = {"v": ma["v"], "t": ma["t"], "note": (ma.get("note") or "")[:300]}
-        tr = {"cl": {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI},
+        tr = {"cl": ({k: cl_sales.monthly(*v) for k, v in Pg["s"].items() if k in GI} if Pg else   # [YYYY-MM, n, Hodges-Lehmann]
+                     {k: [[x[0], x[1], x[2]] for x in v] for k, v in mon.items() if k in GI}),          # (no sales on file: CL's averages)
               "pc": {PC_LINES[c]: v for c, v in (pmon.get(cid) or {}).items() if c == "psa_10"},   # the 9 / 9.5 / 8 / 7 lines blend every grader
               "ps": {}, "pm": pm_lines(pmon.get(cid))}           # ... kept apart for Pre-Sales Spotcheck (not drawn)
         for k, sl in (psales.get(cid) or {}).items():
@@ -1128,22 +1164,30 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     rows = [x for x in rows if x[0] in keep]
     cards = {k: v for k, v in cards.items() if int(k) in keep}
     trends = {cid: tr for cid, tr in trends.items() if cid in keep}
-    print(f"graded: {len(cards):,} of {n_before:,} cards worth ${MIN_CARD_VALUE:.0f}+ on PriceCharting (any grade) are listed")
+    print(f"graded: {len(cards):,} of {n_before:,} cards worth ${MIN_CARD_VALUE:.0f}+ on PriceCharting or Card Ladder (any grade) are listed")
     doc = {"v": 2, "built": today.isoformat(), "lastm": last_m, "gk": GK, "cards": cards, "rows": rows,
            "terms": tally.lists(), "dict": {"n": dic.n}, "canon": dic.canon(), "dect": decisions_t(cd),
            "markt": max((m["t"] for m in marks.values()), default=0), "mcfit": mcfit,
            "shard": SHARD, "cols": ["pc", "gi", "pcp", "src", "pcn1", "pcpop", "clv", "cll", "cln1", "clavg1", "clpop",
                                     "d7", "d30", "pos", "vol", "ts", "mark", "reason", "pc1", "auth", "grades", "pcn1e",
-                                    "vd", "sx"],
+                                    "vd", "sx", "clstd", "cln12", "clconf"], "stats": "cl",
            "cls": {k: sum(1 for c in cards.values() if c.get("cls") == k) for k in ("read", "pending", "nomatch")},
            "certs_read": {"psa": sum(1 for x in psa_c.values() if x.get("status") == "ok"), "ch": sum(1 for x in ch_c.values() if x.get("status") in ("ok", "no_card"))}}
     # the Forecast tab's Graded cards > Forecasting (2026-11-04): the raw model's method on PriceCharting's graded lines
     # (graded_forecast.py) - its odds tables and today's rank of each listed card's lines; a failure leaves the page an
     # error to show, never the build broken
+    # 2026-11-05: on Card Ladder's own sales - the cards whose Card Ladder page is read and not answered "Not the same card"
+    # (Brett: no PriceCharting fallback while a card waits for the Card Ladder run)
+    link = {int(k): c["pid"] for k, c in cards.items() if c.get("cls") == "read" and c.get("pid") and (c.get("ma") or {}).get("v") != 0}
+    FP = None
     try:
         import graded_forecast
-        doc["fc"] = graded_forecast.build(cd, keep)
-        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} lines ranked, month {doc['fc'].get('month')}, market {'up' if (doc['fc'].get('regime') or {}).get('up') else 'down'}")
+        FP = graded_forecast._prep(cd, keep, today, pages=clp, link=link)
+        doc["fc"] = graded_forecast.build(cd, keep, today, P=FP) if FP is not None else {"err": "no Card Ladder sales for the listed cards yet"}
+        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} of {doc['fc'].get('n_lines', 0):,} Card Ladder lines ranked "
+              f"({doc['fc'].get('n_cards', 0):,} cards), month {doc['fc'].get('month')}, market {'up' if (doc['fc'].get('regime') or {}).get('up') else 'down'}")
+        if FP is not None:                                   # each line's month-by-month figures for Pre-Sales Spotcheck and the
+            add_cf(trends, FP, graded_forecast)              # Recorded Purchases' actuals (the model's own numbers)
     except Exception as e:                                   # noqa: BLE001
         doc["fc"] = {"err": f"{type(e).__name__}: {e}"}
         print("graded forecast failed:", doc["fc"]["err"])
@@ -1155,7 +1199,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     # its best-ranked lines with what they did next (graded_forecast.build_hist) - its own file, read when the page opens
     try:
         import graded_forecast
-        gh = graded_forecast.build_hist(cd, keep)
+        gh = graded_forecast.build_hist(cd, keep, today, P=FP) if FP is not None else {"err": "no Card Ladder sales for the listed cards yet"}
         if gh.get("err"):
             print("graded replay:", gh["err"])
         else:
@@ -1172,6 +1216,25 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
           + f") -> {out_dir}/graded.bin ({n / 1e3:.0f} KB gzip), "
           f"{len(shards)} trend file(s); {grade_diff} rows where PriceCharting's grade is not Card Ladder's (not compared)")
     return doc, trends
+
+
+def add_cf(trends, P, F):
+    """trends[cid]["cf"][gk] = [first YYYY-MM, price then, buy, the month's median, sales that month] month by month (the
+    model's own figures, graded_forecast._prep; None where none / not known) - Pre-Sales Spotcheck ranks a slab from them
+    and Recorded Purchases prices a hold from them, exactly as the replay does."""
+    kd = P["keys"]
+    rnd = lambda a: [None if not np.isfinite(v) else round(float(v), 2) for v in a]
+    for i, (cid, gk) in enumerate(kd[["card_id", "line"]].itertuples(index=False, name=None)):
+        tr = trends.get(int(cid))
+        if tr is None:
+            continue
+        N = P["N"][i]
+        has = np.flatnonzero(np.nan_to_num(N, nan=0) > 0)
+        if not len(has):
+            continue
+        a, b = int(has[0]), int(np.flatnonzero(np.isfinite(N))[-1]) + 1
+        tr.setdefault("cf", {})[gk] = [F._ym(P["m0"] + a), rnd(P["Pn"][i, a:b]), rnd(P["buy"][i, a:b]), rnd(P["W"][i, a:b]),
+                                       [None if not np.isfinite(v) else int(v) for v in N[a:b]]]
 
 
 def write_card_data(cd, tally, checks, today, cards=None):

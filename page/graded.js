@@ -124,9 +124,16 @@ function grBuildRow(d, x) {
     // the analysis columns from PriceCharting's own sales (2026-11-05): volume drift [last 30 days, the 30 before, as of]
     // for every grade; r.sx = [as of, n7, n7 before, n30, n30 before, n90] behind a grade's Δ7d / Δ30d / slope when it has
     // no daily price of its own (all but PSA 10 and a real CGC 10)
-    const vd = x[22] || null;
-    r.vd = vd; r.sx = x[23] === undefined ? null : x[23];   // 0: a grade without a daily price and no sale in 90 days
+    const vd = ns ? null : x[22] || null;
+    r.vd = vd; r.sx = ns ? null : x[23] === undefined ? null : x[23];   // 0: no sale in 90 days
     if (vd) { r[11] = vd[0] - vd[1]; r[10] = vd[1] ? Math.round((vd[0] / vd[1] - 1) * 1000) / 10 : null; }
+    if (ns) { r[7] = r[8] = r[9] = r[12] = r[13] = null; }
+    // Card Ladder's figures (2026-11-05): 79 the standard price (the Hodges-Lehmann middle of the grade's sales in the 30 /
+    // 60 / 90 days to the read, 3 sales), 80 [window days, sales in it, the read], 81 sales in the 12 months to the read
+    // (CL Sales/yr - Sales/yr is Card Ladder's now), 82 Card Ladder's value confidence (1-5)
+    const cs = ns || cls !== 'read' ? null : x[24] || null;
+    r[79] = cs ? cs[0] : null; r[80] = cs ? cs.slice(1) : null; r[81] = ns || cls !== 'read' ? null : (x[25] != null ? x[25] : null); r[82] = ns ? null : x[26] != null ? x[26] : null;
+    r[5] = r[81];
     return r;
 }
 function grRebuildCard(cid) {                               // after a Review answer: the card's rows as they now read
@@ -247,33 +254,31 @@ const grPct = (v, signed = true, nd = 1) => v == null ? gdash : '<td class="num"
 const grDay = s => s ? MONTHS_S[+s.slice(5, 7) - 1] + ' ' + (+s.slice(8, 10)) : '';
 const grStatDash = t => '<td class="ctr"><span class="dim" title="' + esc(t) + '">-</span></td>';
 const grStatVal = (v, t, signed = true, nd = 1) => '<td class="num" title="' + esc(t) + '">' + fmtPct(v, signed, nd) + '</td>';
+/* The analysis columns are Card Ladder's (2026-11-05, Brett: "we need to change statistics to be based on card ladder, the
+   stats columns"): every figure from Card Ladder's own sales of this grade (no qualifier / autograph slabs), as of the day
+   the card's Card Ladder page was last read (graded_site.py / cl_sales.stats). A card Card Ladder has not read has none. */
 function grStatCells(r) {
-  const g = r[25], gk = r[50], sx = r.sx || null, vd = r.vd;
-  const daily = (gk === 'psa|g10' || gk === 'cgc|g10') && r.sx == null;   // a CGC 10 that is PriceCharting's formula comes with sx
-  const asof = sx ? grDay(sx[0]) : '', read = asof ? ' (as of the card’s last page read, ' + asof + ')' : '';
-  const own = 'PriceCharting has a daily price of its own only for PSA 10 and CGC 10';
-  const noSales = 'No ' + g + ' sale on record in the last 90 days' + read + ' - ' + own + ', so this grade’s figures come from its own sales.';
-  const win = (v, i, n, mn) => {                            // Δ7d / Δ30d from the sales: i = the counts' place in sx
+  const g = r[25], sx = r.sx || null, vd = r.vd, cls = r[75];
+  if (cls !== 'read') { const w = cls === 'no match' ? 'No Card Ladder page for this card' : 'Card Ladder has not read this card yet'; const d = grStatDash(w + ' - these figures come from Card Ladder’s own sales (since Nov 6).'); return d + d + d + d + d + d; }
+  const asof = sx ? grDay(sx[0]) : vd ? grDay(vd[2]) : '', read = asof ? ' (as of the card’s Card Ladder read, ' + asof + ')' : '';
+  const noSales = 'No ' + g + ' sale on Card Ladder in the 90 days to the card’s read' + (asof ? ' (' + asof + ')' : '') + '.';
+  const win = (v, i, n, mn) => {                            // Δ7d / Δ30d: i = the counts' place in sx
     if (!sx) return grStatDash(noSales);
     const a = sx[i], b = sx[i + 1], span = n === 7 ? 'week' : '30 days';
-    if (v == null) return grStatDash('Fewer than ' + mn + ' ' + g + ' sales in one of the two ' + (n === 7 ? 'weeks' : '30-day spans') + ' to ' + asof + ' (' + a + ' in the last ' + span + ', ' + b + ' in the ' + span + ' before) - too few for a steady median. ' + own + '.');
-    return grStatVal(v, 'The median of the ' + a + ' ' + g + ' sales of the ' + n + ' days to ' + asof + ' against the median of the ' + b + ' of the ' + n + ' days before (PriceCharting’s recorded sales of this grade and grader)' + read + '.');
+    if (v == null) return grStatDash('Fewer than ' + mn + ' ' + g + ' sales on Card Ladder in one of the two ' + (n === 7 ? 'weeks' : '30-day spans') + ' to ' + asof + ' (' + a + ' in the last ' + span + ', ' + b + ' in the ' + span + ' before) - too few for a steady median.');
+    return grStatVal(v, 'The median of the ' + a + ' ' + g + ' sales of the ' + n + ' days to ' + asof + ' against the median of the ' + b + ' of the ' + n + ' days before (Card Ladder’s sales of this grade)' + read + '.');
   };
-  const d7 = daily ? (r[7] == null ? grStatDash('Needs 7 days of PriceCharting’s daily ' + g + ' price.') : grStatVal(r[7], 'PriceCharting’s ' + g + ' price today against 7 days ago (the site’s daily prices).'))
-    : win(r[7], 1, 7, 5);
-  const d30 = daily ? (r[8] == null ? grStatDash('Needs 30 days of PriceCharting’s daily ' + g + ' price.') : grStatVal(r[8], 'PriceCharting’s ' + g + ' price today against 30 days ago (the site’s daily prices).'))
-    : win(r[8], 3, 30, 3);
-  const pos = daily ? (r[9] == null ? grStatDash('Needs 60 days of PriceCharting’s daily ' + g + ' price: the site saves it daily since Sep 28, so this fills from about Nov 27.') : grStatVal(r[9], 'Where today’s PriceCharting ' + g + ' price sits in its 90-day low-high range (0% = the low, 100% = the high).', false, 0))
-    : grStatDash('No daily ' + g + ' price of its own (' + own + '): the low and the high of single sales are one-off copies, not the market.');
-  const vdc = !vd ? grStatDash('Our record of the ' + g + ' sales does not reach back 60 days yet: PriceCharting lists only its latest 30 sales of a grade. The collector now re-reads a busy grade before any scroll off, so this fills as the record grows.')
-    : !vd[0] && !vd[1] ? grStatDash('No ' + g + ' sale in the last 60 days (as of ' + grDay(vd[2]) + ').')
-    : '<td class="num" title="' + esc(vd[0] + ' ' + g + ' sale' + (vd[0] === 1 ? '' : 's') + ' in the 30 days to ' + grDay(vd[2]) + ' against ' + vd[1] + ' in the 30 days before (PriceCharting’s recorded sales of this grade and grader; the count of every grade together is all PriceCharting’s own volume gives).') + '"><span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + (r[10] != null ? ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)' : vd[0] ? ' (new)' : '') + '</span></td>';
-  const vol = daily ? (r[12] == null ? grStatDash('PriceCharting’s ' + g + ' price changed on fewer than 3 days in the last 90 - too few moves to measure.') : grStatVal(r[12], 'The median size of the day-to-day moves of PriceCharting’s ' + g + ' price over 90 days.', false, 2))
-    : grStatDash('No daily ' + g + ' price of its own (' + own + '): the spread between single sales reflects the copies (centering, auction or Buy It Now), not the market moving.');
-  const ts = daily ? (r[13] == null ? grStatDash('Needs 10 days of PriceCharting’s daily ' + g + ' price in the last 30.') : grStatVal(r[13], 'Theil-Sen slope of PriceCharting’s daily ' + g + ' price over 30 days, % a month.'))
-    : !sx ? grStatDash(noSales)
-    : r[13] == null ? grStatDash('Fewer than 5 ' + g + ' sales over the 90 days to ' + asof + ' (' + sx[5] + '), or spread over less than 30 days - too few for a trend line. ' + own + '.')
-    : grStatVal(r[13], 'Theil-Sen slope through the ' + sx[5] + ' ' + g + ' sales of the 90 days to ' + asof + ' (the median of the slopes between every two sales, so one odd copy barely moves it), % a month' + read + '.');
+  const d7 = win(r[7], 1, 7, 5), d30 = win(r[8], 3, 30, 3);
+  const pos = !sx ? grStatDash(noSales) : r[9] == null ? grStatDash('Needs a 30-day price (3+ sales) at 4 or more of the weekly points over the 90 days to ' + asof + ', with a gap between the lowest and the highest.')
+    : grStatVal(r[9], 'Where the standard price (the 30-day price of Card Ladder’s sales) sits between the lowest and the highest 30-day price of the 90 days to ' + asof + ', taken a week apart: 0% = the low, 100% = the high.', false, 0);
+  const vdc = !vd ? grStatDash('Card Ladder has not read this card yet.')
+    : !vd[0] && !vd[1] ? grStatDash('No ' + g + ' sale on Card Ladder in the 60 days to ' + grDay(vd[2]) + '.')
+    : '<td class="num" title="' + esc(vd[0] + ' ' + g + ' sale' + (vd[0] === 1 ? '' : 's') + ' in the 30 days to ' + grDay(vd[2]) + ' against ' + vd[1] + ' in the 30 days before (Card Ladder’s sales of this grade; its record is complete, every platform).') + '"><span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + (r[10] != null ? ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)' : vd[0] ? ' (new)' : '') + '</span></td>';
+  const vol = !sx ? grStatDash(noSales) : r[12] == null ? grStatDash('Fewer than 5 ' + g + ' sales on Card Ladder in the 90 days to ' + asof + ' (' + sx[5] + ').')
+    : grStatVal(r[12], 'How far a typical ' + g + ' sale of the 90 days to ' + asof + ' sits from their middle (the median distance, ' + sx[5] + ' sales on Card Ladder): small = the copies sell close together, large = prices are all over the place.', false, 2);
+  const ts = !sx ? grStatDash(noSales)
+    : r[13] == null ? grStatDash('Fewer than 5 ' + g + ' sales on Card Ladder over the 90 days to ' + asof + ' (' + sx[5] + '), or spread over less than 30 days - too few for a trend line.')
+    : grStatVal(r[13], 'Theil-Sen slope through the ' + sx[5] + ' ' + g + ' sales on Card Ladder of the 90 days to ' + asof + ' (the median of the slopes between every two sales, so one odd copy barely moves it), % a month' + read + '.');
   return d7 + d30 + pos + vdc + vol + ts;
 }
 const grText = v => v == null || v === '' ? gdash : '<td>' + esc(v) + '</td>';
@@ -919,7 +924,7 @@ for (const id of ['pcg', 'pca', 'fcg']) {
    far apart in price. */
 const GT_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#a855f7'];
 const GT_MAX = 4;
-let GT_SEL = grLS('gtr-sel', ['pc|psa|g10', 'cl|psa|g10']);
+let GT_SEL = grLS('gtr-sel', ['cl|psa|g10', 'pc|psa|g10']);
 let GT_LOG = grLS('gtr-log', false);
 /* % change (2026-11-03, Brett: "a delta % increase in value toggle ... may even be more insightful than the log toggle. We
    can still keep log toggle"): every line divided by its own first price in the window, so all lines start at 0% and

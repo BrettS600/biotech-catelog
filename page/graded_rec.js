@@ -27,7 +27,12 @@ const FCR = {recs: grLS('fcg-rec', null), map: null, mapSrc: null, rows: {rc: []
    standard. Whichever you typed last is kept as typed: a typed price stays $49.50 when PriceCharting's price moves (its
    % under follows), a typed % stays put (its price follows). Card Ladder's side is the same dollars against its own value
    (its % under shown, read-only); the model's history is PriceCharting's, so only the PC % under moves the Chance, the
-   order and the green rows. A Yes freezes the standard prices of that moment; its price stays editable. */
+   order and the green rows. A Yes freezes the standard prices of that moment; its price stays editable.
+   ON CARD LADDER SINCE 2026-11-06 (Brett, 2026-11-05: PriceCharting "out of the calculations for the forecast"): the box is
+   % Under (CL) - the price against Card Ladder's standard price (r[79]) - and PriceCharting's % under at the same dollars
+   is the one shown read-only. A record's std / stdc are the standard and the other side of the moment: a Yes from now on
+   carries sb: 'cl' (std = Card Ladder's standard, stdc = PriceCharting's price); an older Yes froze PriceCharting's price
+   as std and Card Ladder's value as stdc, so for it the two are read the other way round. */
 function fcrSave() { grSave('fcg-rec', FCR.recs || []); fcrCounts(); }
 function fcrCounts() {
   const recs = FCR.recs || [];
@@ -41,21 +46,18 @@ function fcrMap() {
 const fcrRec = id => (FCR.recs || []).find(x => x.id === id);
 // a record's row: the graded row of its card and grade, worked out at the record's own % under (a bought slab at what it
 // was bought at: its standard prices and shipping of that moment)
+const fcrFrozen = rec => rec.sb === 'cl' ? [rec.std, rec.stdc] : [rec.stdc, rec.std];   // a Yes's [Card Ladder, PriceCharting] (older ones the other way round)
 function fcrBuild(rec, D, I, fee) {
   const base = fcrMap().get(rec.c + '|' + rec.gk); if (!base) return null;
   const r = base.slice(); r.rec = rec;
-  let pc, cl, ship, d = rec.d || 0;
-  if (rec.pur === 1 && rec.std !== undefined) { pc = rec.std; cl = rec.stdc; ship = rec.ship; } else { [pc, cl] = fcgStd(base); ship = I.ship; }
-  const b0 = pc != null ? pc : cl, px = rec.pur === 1 && rec.std !== undefined ? rec.paid : rec.px;
-  if (px != null && b0) d = 1 - (px + ship) / b0;            // a price typed (or paid): its % under follows today's standard
-  fcgCalc(r, pc, cl, d, ship, D, I, fee);
-  const price = pc != null ? r.fcB : r.fcBc;                // the one price paid; Card Ladder's side at the same dollars
-  r.fcPx = price; r.fcDc = null;
-  if (cl != null && price != null) {
-    r.fcDc = 1 - (price + ship) / cl; r.fcBc = price;
-    r.fcNc = r.fcT ? fcgNet(cl, r.fcT.mean, r.fcDc, fee) : null;
-    r.fcRc = r.fcNc != null && price > 0 ? Math.round(r.fcNc / price * 1000) / 10 : null;
-  }
+  let std, pcRef, ship, d = rec.d || 0;
+  const frozen = rec.pur === 1 && rec.std !== undefined;
+  if (frozen) { [std, pcRef] = fcrFrozen(rec); ship = rec.ship; } else { [std, pcRef] = fcgStd(base); ship = I.ship; }
+  const px = frozen ? rec.paid : rec.px;
+  if (px != null && std) d = 1 - (px + ship) / std;          // a price typed (or paid): its % under follows today's standard
+  fcgCalc(r, std, pcRef, d, ship, D, I, fee);
+  r.fcPx = r.fcB != null ? r.fcB : px != null ? px : null;   // the one price paid (typed, or the most to pay at the % under)
+  r.fcDc = pcRef != null && r.fcPx != null ? 1 - (r.fcPx + ship) / pcRef : null;   // PriceCharting's % under at the same dollars (shown only)
   r.fcShip = ship; r.fcU = rec.pur == null ? null : rec.pur; r.fcQ = rec.pur === 1 ? 1 : 0;
   return r;
 }
@@ -72,8 +74,9 @@ function fcrRows(kind) {
   return out;
 }
 // the pane's "Card price between" on Recording and Planning (2026-11-05 control test: it listed every slab whatever the
-// band): like Forecasting, a slab whose standard price (PriceCharting's, else Card Ladder's; a bought one's at the moment
-// it was bought) is outside the band is not listed. Its money stays spent: the capital left counts every Yes.
+// band): like Forecasting, a slab whose standard price (Card Ladder's; a bought one's at the moment it was bought) is
+// outside the band is not listed - a slab you recorded that Card Ladder does not price yet is listed by PriceCharting's
+// price (it gets no chance). Its money stays spent: the capital left counts every Yes.
 const fcrInBand = r => { const b = r.fcS != null ? r.fcS : r.fcSc, B = FCR.band || [0, Infinity]; return b != null && b >= B[0] && b <= B[1]; };
 // green: the capital less what the Yes rows cost, best chance first among the open rows on view. The expected figures are
 // the slabs on view: the bought ones the filters leave, and the green (2026-11-05: they followed only the green before)
@@ -133,7 +136,7 @@ function fcpSummary(F) {
   if (!GR.doc) { box.innerHTML = GR.err ? '<span class="warn">' + esc(GR.err) + '</span>' : 'Loading the graded data…'; return; }
   const n = F.rows.length, I = F.I, nsmp = F.rows.filter(r => r.rec.smp).length;
   let s = !n ? '<p><b>Nothing bought yet.</b> Mark a slab <b>Yes</b> on Recording and it comes here, at what you paid.</p>'
-    : '<p>You bought <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(F.spent) + '</b>' + (I.cap ? ' (' + fmtMoneyPlain(Math.max(0, F.left)) + ' of ' + fmtMoneyPlain(I.cap) + ' left)' : '') + '. Held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' and sold on eBay at PriceCharting’s price then' + (F.scored < n ? '; ' + (n - F.scored) + ' of them have no score, so they are in the money spent but not in the expected figures' : '') + '. <b>Record Purchases</b> (the plan pane) keeps them on History.' + (nsmp ? ' <span class="dim">' + nsmp + ' are sample purchases (Recording’s Remove samples takes them away).</span>' : '') +
+    : '<p>You bought <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(F.spent) + '</b>' + (I.cap ? ' (' + fmtMoneyPlain(Math.max(0, F.left)) + ' of ' + fmtMoneyPlain(I.cap) + ' left)' : '') + '. Held ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' and sold on eBay at Card Ladder’s price then' + (F.scored < n ? '; ' + (n - F.scored) + ' of them have no score, so they are in the money spent but not in the expected figures' : '') + '. <b>Record Purchases</b> (the plan pane) keeps them on History.' + (nsmp ? ' <span class="dim">' + nsmp + ' are sample purchases (Recording’s Remove samples takes them away).</span>' : '') +
     (F.view.length < n ? ' <span class="dim">The figures below are the ' + F.view.length + ' the filters leave on view (' + fmtMoneyPlain(F.spentV) + ' of it); the capital left counts all ' + n + '.</span>' : '') + '</p>';
   s += fcrStats(F.mc, F.spentV, I, F.view.length < n ? 'the bought slabs on view' : 'the slabs you bought', [F.left, fmtMoneyPlain(F.spent) + ' of ' + fmtMoneyPlain(I.cap) + ' spent']);
   box.innerHTML = s;
@@ -142,14 +145,14 @@ function fcpSummary(F) {
 function fcrRankCell(r) {
   if (r.fcPct == null) return '<td class="num"><span class="dim" title="No rank for this line today">-</span></td>';
   const p = Math.round(r.fcPct * 100), grp = r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10';
-  return '<td class="num" title="' + esc('How far this grade’s PriceCharting price sits below its own 12-month mean, against every graded line $25+: the ' + fcOrd(p) + ' percentile (100th = furthest below); ' + grp + ' (1 = deepest)') + '">' + fcOrd(p) + '<br><span class="dim">' + grp + '</span></td>';
+  return '<td class="num" title="' + esc('How far this grade’s Card Ladder price sits below its own 12-month level, against every Card Ladder line $25+: the ' + fcOrd(p) + ' percentile (100th = furthest below); ' + grp + ' (1 = deepest)') + '">' + fcOrd(p) + '<br><span class="dim">' + grp + '</span></td>';
 }
 function fcrRow(r, pl) {
   const x = fcgCells(r, Object.assign({}, fcgInputs(), {ship: r.fcShip})), rec = r.rec, id = esc(rec.id), pur = rec.pur;
   const dv = r.fcD == null ? '' : Math.round(r.fcD * 1000) / 10, pv = r.fcPx == null ? '' : r.fcPx.toFixed(2);
-  const dCell = '<td class="num"><input type="number" class="fcr-d" data-id="' + id + '" min="-100" max="95" step="0.1" value="' + dv + '" title="' + esc((pl ? 'The % under PriceCharting’s standard price you paid.' : 'What the vendor will take, as % under PriceCharting’s standard price.') + ' Type it and the price follows; type a price and this follows. Chance, the order and the green rows follow this one.') + '"></td>';
-  const cl = r.fcDc == null ? '<span class="dim">CL -</span>' : '<span class="dim" title="' + esc('The same price against Card Ladder’s value of ' + fmtMoneyPlain(r.fcSc) + ' (shown only; the chance uses PriceCharting’s)') + '">CL ' + (Math.round(r.fcDc * 1000) / 10) + '% under</span>';
-  const pxCell = '<td class="num fcr-pxc"><span class="fcr-pxw"><span class="unit">$</span><input type="number" class="fcr-px" data-id="' + id + '" min="0" step="0.01" value="' + pv + '" title="' + esc(pl ? 'What you paid the vendor. Change it and the % under follows.' : 'The vendor’s price: type it and the % under (PC) follows - as do the chance, the order and the green rows. The most to pay at your % under, until you type one.') + '"></span>' + cl + '</td>';
+  const dCell = '<td class="num"><input type="number" class="fcr-d" data-id="' + id + '" min="-100" max="95" step="0.1" value="' + dv + '" title="' + esc((pl ? 'The % under Card Ladder’s standard price you paid.' : 'What the vendor will take, as % under Card Ladder’s standard price.') + ' Type it and the price follows; type a price and this follows. Chance, the order and the green rows follow this one.') + '"></td>';
+  const cl = r.fcDc == null ? '<span class="dim">PC -</span>' : '<span class="dim" title="' + esc('The same price against PriceCharting’s price of ' + fmtMoneyPlain(r.fcSc) + ' (shown only; the chance uses Card Ladder’s)') + '">PC ' + (Math.round(r.fcDc * 1000) / 10) + '% under</span>';
+  const pxCell = '<td class="num fcr-pxc"><span class="fcr-pxw"><span class="unit">$</span><input type="number" class="fcr-px" data-id="' + id + '" min="0" step="0.01" value="' + pv + '" title="' + esc(pl ? 'What you paid the vendor. Change it and the % under follows.' : 'The vendor’s price: type it and the % under (CL) follows - as do the chance, the order and the green rows. The most to pay at your % under, until you type one.') + '"></span>' + cl + '</td>';
   const puCell = '<td><span class="fcr-pu"><button type="button" class="yes' + (pur === 1 ? ' on' : '') + '" data-id="' + id + '" data-v="1" title="' + (pur === 1 ? 'Bought - click to undo' : 'You bought it at this price: the money comes off the capital and it goes to Purchases') + '">Yes</button><button type="button" class="no' + (pur === 0 ? ' on' : '') + '" data-id="' + id + '" data-v="0" title="' + (pur === 0 ? 'Not bought - click to undo' : 'The vendor wants more: not bought - the row goes to the bottom and its money to the next row') + '">No</button></span></td>';
   return x.flag + x.review + x.name + x.grade + fcrRankCell(r) + x.std + dCell + pxCell + x.sold + x.chance + (pl ? '' : x.bb + x.bc) + x.qty + x.net + x.roi + puCell + fcgPcx(r).join('');
 }
@@ -191,8 +194,8 @@ function fcrEnsureSamples() {
   const yes = [...ten].sort((a, b) => recs[a].b - recs[b].b).slice(0, 5);   // five of ten at random, the cheaper half: the capital keeps room for green rows
   recs.forEach(x => { delete x.b; });
   const ds = [0.141, 0.15, 0.17, 0.2, 0.2];
-  yes.forEach((i, j) => { const rec = recs[i], base = fcrMap().get(rec.c + '|' + rec.gk), [pc, cl] = fcgStd(base); rec.d = ds[j];
-    Object.assign(rec, {pur: 1, std: pc, stdc: cl, ship: I.ship, paid: r2(fcgBuy(pc, rec.d, I.ship)), pt: now}); });
+  yes.forEach((i, j) => { const rec = recs[i], base = fcrMap().get(rec.c + '|' + rec.gk), [std, pcRef] = fcgStd(base); rec.d = ds[j];
+    Object.assign(rec, {pur: 1, std, stdc: pcRef, sb: 'cl', ship: I.ship, paid: r2(fcgBuy(std, rec.d, I.ship)), pt: now}); });
   FCR.recs = recs; fcrSave();
 }
 // Yes / No, and the row's % under
@@ -202,28 +205,28 @@ function fcrSetPur(id, v) {
   if (rec.pur === 1 && rec.paid != null) rec.px = rec.paid;   // leaving Yes: the price paid stays the row's price
   rec.pur = nv;
   if (nv === 1) {
-    const base = fcrMap().get(rec.c + '|' + rec.gk), I = fcgInputs(), [pc, cl] = base ? fcgStd(base) : [null, null], b0 = pc != null ? pc : cl;
-    const paid = rec.px != null ? rec.px : r2(fcgBuy(b0, rec.d, I.ship));
-    Object.assign(rec, {std: pc, stdc: cl, ship: I.ship, paid, pt: Date.now()});
-    if (b0) rec.d = Math.round((1 - (paid + I.ship) / b0) * 100000) / 100000;
-  } else { delete rec.std; delete rec.stdc; delete rec.ship; delete rec.paid; delete rec.pt; }
+    const base = fcrMap().get(rec.c + '|' + rec.gk), I = fcgInputs(), [std, pcRef] = base ? fcgStd(base) : [null, null];
+    const paid = rec.px != null ? rec.px : std != null ? r2(fcgBuy(std, rec.d, I.ship)) : null;
+    Object.assign(rec, {std, stdc: pcRef, sb: 'cl', ship: I.ship, paid, pt: Date.now()});
+    if (std && paid != null) rec.d = Math.round((1 - (paid + I.ship) / std) * 100000) / 100000;
+  } else { delete rec.std; delete rec.stdc; delete rec.sb; delete rec.ship; delete rec.paid; delete rec.pt; }
   fcrSave(); fcrApplyAll();
 }
 function fcrSetD(id, pct) {                               // a % typed: it is kept, the price follows
   const rec = fcrRec(id); if (!rec || isNaN(pct)) return;
   rec.d = Math.round(Math.min(95, Math.max(-100, pct)) * 10) / 1000;
   delete rec.px;
-  if (rec.pur === 1 && rec.std !== undefined) rec.paid = r2(fcgBuy(rec.std != null ? rec.std : rec.stdc, rec.d, rec.ship));
+  if (rec.pur === 1 && rec.std !== undefined) { const b0 = fcrFrozen(rec)[0]; if (b0 != null) rec.paid = r2(fcgBuy(b0, rec.d, rec.ship)); }
   fcrSave(); fcrApplyAll();
 }
 function fcrSetPx(id, v) {                                // a price typed: it is kept, the % under follows
   const rec = fcrRec(id); if (!rec || isNaN(v) || v < 0) return;
   const p = r2(v);
   if (rec.pur === 1 && rec.std !== undefined) {
-    rec.paid = p; const b0 = rec.std != null ? rec.std : rec.stdc;
+    rec.paid = p; const b0 = fcrFrozen(rec)[0];
     if (b0) rec.d = Math.round((1 - (p + rec.ship) / b0) * 100000) / 100000;
   } else {
-    rec.px = p; const base = fcrMap().get(rec.c + '|' + rec.gk), [pc, cl] = base ? fcgStd(base) : [null, null], b0 = pc != null ? pc : cl;
+    rec.px = p; const base = fcrMap().get(rec.c + '|' + rec.gk), b0 = base ? fcgStd(base)[0] : null;
     if (b0) rec.d = Math.round((1 - (p + fcgInputs().ship) / b0) * 100000) / 100000;
   }
   fcrSave(); fcrApplyAll();
@@ -308,45 +311,47 @@ fcrCounts();
 Object.assign(HELP, {
   fcr_picks: {t: 'What to buy (Recording)', f: 'every slab you recorded at the show, one row each, best to buy first; green = buy it; No rows at the bottom', m: 'The green rows are what the capital still buys: the capital less what the Yes rows cost, best to buy first among the open rows on view, at most the per-card share each and the copies per card, nothing while the gate is red - each at its own price (type the vendor’s price or % under in the row). A Yes takes its price off the capital and keeps its place; a No (the vendor wants more) sends the row to the bottom and gives its money to the next row. The filter buttons, Filters… and the boxes of the plan pane are shared with Forecasting and Purchases. Until scanning brings the slabs in, 50 sample rows show how it works (Remove samples takes them away).', e: '$1,000, three slabs marked Yes for $420: the green rows share the $580 left.'},
   fcr_qty: {t: 'QTY', f: '1: buy this slab (the green rows); a bought slab shows 1 too', m: 'Each row is one slab, so 1 or nothing: the capital left, best chance first, the share and copies limits.', e: ''},
-  fcr_net: {t: 'Net', f: 'expected net of the slab at its own % under: standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - % under))', m: 'After eBay’s fee, the shipping and what you pay; for both sides’ standard prices.', e: ''},
+  fcr_net: {t: 'Net', f: 'expected net of the slab at its own % under: standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - % under))', m: 'After eBay’s fee, the shipping and what you pay; on Card Ladder’s standard price.', e: ''},
   fcr_purchased: {t: 'Purchased', f: 'Yes: you bought it; No: you did not (the vendor wanted more); neither: still open', m: 'Yes takes the price off the capital and puts the slab on Purchases, at what you paid; the row keeps its place. No greys the row, sends it to the very bottom and gives its money to the next row, so new rows may turn green. Click the lit button again to undo.', e: ''},
-  fcp_picks: {t: 'What you bought (Purchases)', f: 'the slabs marked Yes on Recording, at what you paid', m: 'Each at the standard prices and shipping of the moment you marked it; its Price Paid and % Under Paid (PC) are linked (change one and the other follows). The summary is the basket: what it cost and what it is expected to make over the hold in the pane (a simulation drawing each slab from its group). Record Purchases keeps it on History.', e: ''},
-  fcp_record: {t: 'Record Purchases', f: 'saves the slabs you bought, with the date, the hold and the other settings, to History › Recorded Purchases', m: 'Through the collector, so it is there on every device. It keeps each slab’s price paid and standard prices, and the odds of the day for all six holds; History scores each hold at PriceCharting’s price when it is up.', e: ''}
+  fcp_picks: {t: 'What you bought (Purchases)', f: 'the slabs marked Yes on Recording, at what you paid', m: 'Each at the standard prices and shipping of the moment you marked it; its Price Paid and % Under Paid (CL) are linked (change one and the other follows). The summary is the basket: what it cost and what it is expected to make over the hold in the pane (a simulation drawing each slab from its group). Record Purchases keeps it on History.', e: ''},
+  fcp_record: {t: 'Record Purchases', f: 'saves the slabs you bought, with the date, the hold and the other settings, to History › Recorded Purchases', m: 'Through the collector, so it is there on every device. It keeps each slab’s price paid and standard prices, and the odds of the day for all six holds; History scores each hold at Card Ladder’s price when it is up.', e: ''}
 });
 /* ---- the laid-out ? popups for Recording and Purchases (2026-11-05) ---- */
 const FCR_PRICE_MD = pl => [
-  pl ? '> What you paid the vendor for the slab. It is linked to the % Under Paid (PC) box: change one and the other follows.'
-     : '> The vendor’s price for the slab: type it, or the % Under (PC), and the other follows - and so do the Chance, the order and the green rows.',
+  pl ? '> What you paid the vendor for the slab. It is linked to the % Under Paid (CL) box: change one and the other follows.'
+     : '> The vendor’s price for the slab: type it, or the % Under (CL), and the other follows - and so do the Chance, the order and the green rows.',
   '## How the two boxes are linked',
-  '`Buy price = PC standard × (1 − % under) − shipping`',
-  '`% under = 1 − (price + shipping) ÷ PC standard`',
-  'The shipping is taken off the price because you pay it again as the label when the slab sells, so it cancels out of the profit.',
+  '`Buy price = CL standard × (1 − % under) − shipping`',
+  '`% under = 1 − (price + shipping) ÷ CL standard`',
+  'The CL standard is the middle of Card Ladder’s recent sales of the grade (30 days, else 60 or 90; 3 sales at least). The shipping is taken off the price because you pay it again as the label when the slab sells, so it cancels out of the profit.',
   '## Which one is kept',
-  '- **A price you type stays as typed** ($49.50 stays $49.50 when PriceCharting’s price moves; its % under follows).',
-  '- **A % you type stays as typed** (its price follows PriceCharting’s price).',
+  '- **A price you type stays as typed** ($49.50 stays $49.50 when Card Ladder’s price moves; its % under follows).',
+  '- **A % you type stays as typed** (its price follows Card Ladder’s price).',
   pl ? '- A bought slab keeps the standard prices of the moment you marked it Yes.' : '- Until you type either, the row starts at the plan pane’s % under (14.1% by default) and the price is the most to pay at it.',
   '## Example',
-  'PC standard $65.00, the vendor says $49.50, shipping $5.20:',
+  'CL standard $65.00, the vendor says $49.50, shipping $5.20:',
   '`% under = 1 − (49.50 + 5.20) ÷ 65.00 = 15.8%`',
-  'The vendor says “20% under” instead (meaning PriceCharting’s price):',
+  'The vendor says “20% under” instead (meaning Card Ladder’s price):',
   '`price = 65.00 × (1 − 0.20) − 5.20 = $46.80`',
-  '## Card Ladder’s line',
-  'Under the price: the same dollars against Card Ladder’s value of the slab (here $60.00 → 8.8% under). It is shown only: the model’s history is PriceCharting’s, so only the PC % under moves the Chance and the green rows. It goes away with the Card Ladder cleanup.',
+  '## PriceCharting’s line',
+  'Under the price: the same dollars against PriceCharting’s price of the slab (here $60.00 → 8.8% under). It is for reference only: the Chance, the order and the green rows use Card Ladder’s.',
   '## Keep in mind',
-  '- A vendor’s “% off” is usually off their sticker price, not PriceCharting’s: type the dollar price it comes to.',
+  '- A vendor’s “% off” is usually off their sticker price: type the dollar price it comes to.',
   '- A price above the standard gives a negative % under; allowed, and the Chance drops.',
+  '- A slab Card Ladder does not price yet (not read, or fewer than 3 sales in 90 days) has no standard: its price counts against the capital, but it gets no Chance.',
   pl ? '- A change here changes the capital left on Recording, so its green rows re-plan.' : '- Saved with the row in this browser; a refresh keeps it.'].join('\n');
 const fcrNowFees = () => 'shipping <b>' + fmtMoneyPlain(fcgInputs().ship) + '</b> (the plan pane) · eBay’s fee <b>' + (fcgFee() * 100).toFixed(1) + '%</b> · new rows start at <b>' + (+FCG_IN.rdisc || 14.1) + '%</b> under';
 Object.assign(HELP, {
   fcr_rank: {t: 'Rank', md: 1, m: [
-    '> How far the slab’s price sits below its own normal price, compared with every other graded line this month. The model’s way of finding slabs that are “on sale” against their own history.',
-    '## How it’s worked out, each month',
-    '1. **Its normal price:** the line’s average PriceCharting price over the last 12 months, this one included. The line needs a price in all 12 months, or no rank.',
-    '2. **Its dip:**',
-    '   `dip = today’s price ÷ 12-month average − 1`',
-    '3. **Line them all up:** every graded line priced $25+ with a full year of prices, from the deepest dip to the furthest above normal.',
-    '4. **Percentile:** its place in that line-up, 0 to 100th; the deepest dip is the 100th.',
-    '5. **Group:** the percentiles cut into 10 equal groups.',
+    '> How far the slab’s Card Ladder price sits below its own normal price, compared with every other Card Ladder line (card × grade) this month. The model’s way of finding slabs that are “on sale” against their own history.',
+    '## How it’s worked out',
+    '1. **Its price now:** the standard price - the middle of Card Ladder’s sales of the grade in the 30 days to the card’s read (60 or 90 days when there are fewer than 3).',
+    '2. **Its normal price:** the middle of its monthly prices over the last 12 months (each month’s middle sale). It needs 3+ sales in those 12 months, or no rank.',
+    '3. **Its dip:**',
+    '   `dip = price now ÷ normal price − 1`',
+    '4. **Line them all up:** every Card Ladder line priced $25+ with 3+ sales a year, from the deepest dip to the furthest above normal.',
+    '5. **Percentile:** its place in that line-up, 0 to 100th; the deepest dip is the 100th.',
+    '6. **Group:** the percentiles cut into 10 equal groups.',
     '| Percentile | Shown as |',
     '|---|---|',
     '| 90th–100th | deepest 10% (group 1) |',
@@ -354,19 +359,19 @@ Object.assign(HELP, {
     '| … | … |',
     '| 0–10th | group 10: furthest above its normal price |',
     '## Example',
-    'PSA 10 with a 12-month average of $200, today $150:',
+    'PSA 10 with a normal price of $200, selling at $150 now:',
     '`dip = 150 ÷ 200 − 1 = −25%`',
-    'Deeper than 92% of all lines → the 92nd percentile → deepest 10%. A Grade 9 at $84 against an $80 average (+5%) ranks far lower.',
+    'Deeper than 92% of all lines → the 92nd percentile → deepest 10%. A PSA 9 at $84 against an $80 normal price (+5%) ranks far lower.',
     '## What it means',
-    'The idea is buying the dip. The rank doesn’t assume it works; it only sorts. The history then measures, for each group, how often its slabs made money: that is the Chance. If deep dips didn’t recover, the deepest group’s chance would show it.',
+    'The rank only sorts; the history then measures, for each group, how often its slabs made money: that is the Chance. On Card Ladder the deepest 10% has not been the best group - slabs moderately below their normal price have done better - and the Chance shows that.',
     '## Keep in mind',
     '- **Relative to the market:** a −25% dip is the deepest 10% in a calm month, maybe only group 3 when everything fell.',
-    '- **Monthly and PriceCharting-only:** a slab that crashed last week shows once the month’s price updates.',
-    '- **Grade 9.5, 9, 8 and 7 blend graders:** PSA 9 and CGC 9 of a card share one line and one rank.',
-    '- **No rank, no Chance:** CGC 10, half grades, grades 1–6, lines under $25 or with less than a year of prices show “no score”.'].join('\n'),
-    now: () => { const D = fcgDoc(); return D ? 'data month <b>' + esc(D.month || '') + '</b> · <b>' + Number(D.n_ranked || 0).toLocaleString('en-US') + '</b> graded lines ranked' : ''; }},
-  fcr_disc: {t: '% Under (PC)', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
+    '- **As of the card’s Card Ladder read:** the run reads up to 900 cards a night; a card read weeks ago shows the price of then.',
+    '- **Every PSA and CGC grade is its own line** (CGC 10 Pristine and CGC 10 too).',
+    '- **No rank, no Chance:** a card Card Ladder has not read, a grade with fewer than 3 sales in 90 days, under $25 or with fewer than 3 sales a year shows “no score”.'].join('\n'),
+    now: () => { const D = fcgDoc(); return D ? 'data month <b>' + esc(D.month || '') + '</b> · <b>' + Number(D.n_ranked || 0).toLocaleString('en-US') + '</b> Card Ladder lines ranked' : ''; }},
+  fcr_disc: {t: '% Under (CL)', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
   fcr_buy: {t: 'Buy Price', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
-  fcp_disc: {t: '% Under Paid (PC)', md: 1, m: FCR_PRICE_MD(true), now: fcrNowFees},
+  fcp_disc: {t: '% Under Paid (CL)', md: 1, m: FCR_PRICE_MD(true), now: fcrNowFees},
   fcp_paid: {t: 'Price Paid', md: 1, m: FCR_PRICE_MD(true), now: fcrNowFees}
 });

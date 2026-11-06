@@ -2307,6 +2307,51 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   <font size=1-7> (the browser's own size command; gdSizeNow reads the current one from the DOM - queryCommandValue
   maps computed px and is wrong here), stored as <span class="fs-N"> (cleanHtml keeps classes only; 3 = normal, not
   stored). The box is CSS resize: both; its size is kept in fcg-readme-size. The original text: README_FCG.
+- CARD LADDER IS THE GRADED PRICE SOURCE (2026-11-05/06, g9; Brett: "Moving forward card ladder will be used as the
+  primary reference point, and PC will be there to confirm matching"; "we need to change statistics to be based on card
+  ladder, the stats columns"; "id rather keep PC out completely of forcast, but only as it applies to the calculations.
+  i still want to see the pc price and sales in the rows"; "I also cant stop collecting from CL, we must continue").
+  DECISIONS (2026-11-05): (1) the standard price = the Hodges-Lehmann middle of Card Ladder's sales of the grade in the
+  30 days to the card's Card Ladder read, 3 sales, else 60, else 90 days, else none; Card Ladder's value is shown beside
+  it (≠CLV when 25%+ apart; at confidence 5 the value is the last sale: within 2% of it 78% of the time); (2) a card
+  Card Ladder has not read is off Forecasting entirely - no PriceCharting fallback and no "scout" reordering of the run;
+  (3) no match-status rules (review cards buyable as before; Not the same card has no CL side, so it drops out); (4)
+  every PSA and CGC grade is a line; Brett adds a Card Ladder min-sales filter later - the odds are already measured at
+  3+ (the floor), 6+, 12+, 24+ sales in the last 12 months (doc.fc.tables / tiers["6"|"12"|"24"]; rows carry r[81]).
+  DATA: card-data data/cardladder/lines/ (card-data tools/clingest/cl_lines.py): every page read cut to [minutes as
+  gaps, price, kind] per grader|grade + Card Ladder's value per grade per read; base_0..3 made once from sales/ (4.4M
+  sales, 4,549 pages, 22 MB), then cl_ingest.py files each run's pages there with ONLY the sales not on file (and keeps
+  them out of the full pages in sales/ too: known_sales = rows left out; any failure files the full page whole). The
+  site's sparse checkout already holds data/cardladder/ minus sales/, so lines/ comes with it. cl_sales.py here reads it
+  (keep load() in step with cl_lines.py). ~49 cards read on Oct 27/28 (the browser summarised them; no full pages) have
+  no lines until re-read.
+  BUILD (graded_site.py): each matched card's page (cl_page: matched-<spec> = psa-<spec>) -> per row x[24] [standard,
+  window days, sales in it, read], x[25] sales in the 12 months to the read, x[26] Card Ladder's value confidence;
+  x[8] / x[9] = last month's CL sales count / Hodges-Lehmann (was CL's average); x[11..15] d7 / d30 / pos / vol / ts and
+  x[22] / x[23] (drift, counts) from Card Ladder's sales (cl_sales.stats; pos = the standard's place among the weekly
+  30-day prices of 90 days; vol = the median log distance of a sale from the median sale, 90 days); PriceCharting's stats
+  are no longer computed. Trend shards: cl = cl_sales.monthly [YYYY-MM, n, HL]; cf[gk] = the model's own month-by-month
+  [first YYYY-MM, price then, buy, month's median, sales] (add_cf) for Spotcheck and Recorded Purchases. The $50 listing
+  rule counts Card Ladder's standard / value too. doc.stats = "cl".
+  MODEL (graded_forecast.py v2): lines = (card, gk) of read, linked cards; per month: price then = HL of the month's sales
+  (3+), else 2, else 3 months; buy = max(that, the 3-month HL); W = the month's median; L12 = median of W over 12 months
+  (3+ sales in them = FLOOR); dev12 = price / L12 - 1; rank among lines $25+; market = mean clipped move of lines with 3+
+  sales both months, $10+; odds h = 1..6 by market x group, 2022-01 on; months after a page's read are unknown, not
+  empty. Today's rank = the live standard (as of the read) against L12 at the read month. pct is sparse {cid: {line
+  index: pct x 1000}}. First run (4,660 cards): 20,678 lines ranked; next-quarter-up after up / down readings 76% / 73%
+  (PriceCharting's was 79% / 26%); groups 6-9 beat the deepest 10% (3 mo, up market, 14.1% under: 65-67% vs 59%). The
+  read cards are the busiest ones, so the odds run high until quieter cards are read (told Brett).
+  PAGE: fcgStd = [Card Ladder standard r[79] (read cards only), PriceCharting price (reference)]; fcgRows lists only rows
+  with a standard; fcS / fcB / fcN / fcR are Card Ladder's; fcSc = PriceCharting's price (reference); fcBc / fcNc / fcRc
+  gone. Cells: Standard and Sold two-line (CL on top, PC reference under); Buy / Net / ROI CL only (fcg1). FCG_LINE(gk) =
+  gk. The Grading default ticks every PSA / CGC grade (a browser holding the old 8-grade default is reset). Recording /
+  Purchases: % Under (CL) is the box, PC % under read-only (fcDc); a Yes stores sb: 'cl' (std = CL standard, stdc = PC);
+  an older Yes is read the other way round (fcrFrozen). History: Recorded Purchases tells a plan's basis by its model
+  string (fhrBasis: /Card Ladder/); Actual and Spotcheck read cf (fhCf). Stats cells (grStatCells) are Card Ladder's;
+  r[5] Sales/yr = r[81]; pending / no match cards show none.
+  RUN (still to do when the first pass ends, ~44 nights): the refresh loop (recorded / spotchecked slabs, green rows,
+  busiest lines, rotation, within 900 a night) needs a refresh list the Card Ladder tab can read (card-inbox) and a
+  cl_tab.js change applied in a daytime restart; the ~49 cards without lines go first.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
