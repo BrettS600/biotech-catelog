@@ -2735,6 +2735,24 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   list [format, text, dots/bar, reads, first second, whole/enlarged]); Clear resets it all. On the simulated sheet 14 of
   the 50 were found only by the enlarged reads. Scandit (asked 2026-11-09): reads the live camera video too, many codes a
   frame with tracking (MatrixScan); its native SDK controls the camera (focus, lens), its web SDK is a browser like ours.
+  OTHER READERS BRETT FOUND (2026-11-09), tried on the simulated pictures: tapirscan (npm 1.5.0, Rust/WASM, MIT/Apache,
+  EAN-13-first; Code 128 / ITF selectable) - per picture, straight sheet 48 vs our 50 (whole + enlarged pieces), 45
+  degrees 4-19 vs our 30.5, 40-slab 4K frame 39 vs our 38, blurred 0 vs 0; 530 ms a 4K pass vs zxing-cpp's 61; both
+  together added at most one code - not adopted. react-native-qr-camera-pro: a React Native module (needs a native app);
+  its iOS code is AVCaptureMetadataOutput on the plain wide camera, FIRST code per frame only, 500 ms throttle - built for
+  one QR at a time; not useful. Test harness: /tmp/claude-0/ga/tapirbench (bench*.mjs, vid.mjs).
+  BRETT'S THIRD TEST (2026-11-09): 1x about a foot, 38 of 50 in 54 s; 3x at ~2.5 ft (whole sheet in view) 0 - blurry (the
+  3x at that distance has no more detail than 1x at a foot, and shake is magnified). He felt the Camera app's video was
+  "far better ... in terms of how clear it was" and attached one (IMG_0518.mov): 1080p HEVC HDR (his Camera app records
+  1080p, not 4K), sheet ~85 px per barcode = ~1 dot per bar - ZERO codes with zxing (whole, pieces, 2x) and tapirscan:
+  it looks clear because the printed numbers are big and Apple's processing is clean, but the bars aren't resolved.
+  The two levers are DISTANCE (slab barcodes need ~8-10 in with 1x in 4K) and MOTION BLUR. g11g: WANT frameRate ideal 60
+  (a frame can't be exposed longer than its duration; if 4K60 isn't offered the browser keeps 4K30 - fitness distance
+  0.5 vs 1.0 for 1080p60); a "Light" button when the track offers torch (WebKit bug 280970: torch works on iOS 17/18;
+  kept across lens changes, off at Stop - camOff); the vf hint and Test note say 8-10 inches; the report gains
+  cameraDetails (device label, width/height, frameRate, light, zoom, zoomRange, lightAvailable, maxFrameRate,
+  focusModes, lenses = every camera label) so the next test shows what Safari actually gives on his phone. The camera
+  label (size, lens, fps) moved to the bottom-left of the picture. Recordings in the app are never saved anywhere.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
