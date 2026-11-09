@@ -1,0 +1,181 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 9f3b668..baa8dcd 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2710,6 +2710,19 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   + 13, numeric = pairs; ITF 9 x digits + 9; QR 17 + 4 x version per side) = "dots/bar"; plus the camera size, lens and
+   frames read a second. Brett's Staples sheets: test with these, then the K&F magnetic polarizer (6.7" MagSafe mount, 67 mm
+   CPL - covers all three lenses) once it ships.
++  BRETT'S FIRST SHEET TEST (2026-11-09, iPhone 13 Pro Max, the badge said 4K): sheets in plastic sleeves, true slab sizes
++  (PSA 9-digit Code 128 / 8-digit ITF 17.5 x 3.2 mm, CGC 10-digit Code 128 18.4 x 2.0 mm - bars ~0.2 mm); about a foot
++  straight down: 40 of the sheet's 50 in 33 s; at 45 degrees: 23 in 37 s, all in the nearer rows ("results weren't that
++  great"). Why: at a foot the main lens in 4K gives ~9 dots per mm, so ~1.7-1.9 dots per bar - the reader's edge; at 45
++  degrees the far rows are farther and squashed. ENLARGED READS (g11e): scan-worker.js draws a piece of the frame 1.5x
++  bigger (OffscreenCanvas, imageSmoothingQuality 'high') before reading it and maps positions back (so Test mode's
++  dots/bar still means the camera's detail). Plans from the page: live, livePlan(k) - even frames the whole frame, odd
++  frames one enlarged piece: the middle (0.2/0.2/0.6/0.6) every second time, the four overlapping corners (0.56 square)
++  in turn; binarizer by (k >> 2) & 1. Video, videoPlan(k): the whole frame AND one piece (middle, then the corners) every
++  frame, binarizer k & 1. Only when the worker has the ImageBitmap (OffscreenCanvas); raw pixels / no worker = whole
++  frames as before. Measured: PIL bicubic 1.5x took a 1.45 dots/bar row from 0/10 to 9/10 (2x: 7/10); in Chromium on a
++  simulated sheet at a foot (Brett's layout, true sizes, blur, noise, glare): straight 36 -> 50 of 50 in 12 s, 45 degrees
++  30 -> 39; the 40-slab 4K frame 27 -> 38 of 40; no misreads. Next on the phone: the same runs, 3x at ~2 ft, a video.
+ - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
+   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
+   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
+diff --git a/page/app/app.js b/page/app/app.js
+index a5fd576..c2efc56 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -17,7 +17,8 @@
+    up during the recording"): the camera at the most it gives (4K where it can), every frame read at full size in a worker
+    (scan-worker.js), the two zxing binarizers by turns (the second copes better with glare and uneven light), the main or
+    the 3x telephoto lens, boxes on what was read, a beep, the screen kept awake; a video from the Camera app read frame by
+-   frame; Test mode (nothing saved, looked up or sent; every code with its detail in camera dots per bar). Every real slab
++   frame; Test mode (nothing saved, looked up or sent; every code with its detail in camera dots per bar); enlarged reads
++   for the smallest codes (a piece of the frame drawn 1.5x bigger, after Brett's first sheet test). Every real slab
+    read goes to the collector ('scan') and on into card-data's data/scans/scans.csv as its PSA / CGC cert link. */
+ 'use strict';
+ const $ = id => document.getElementById(id);
+@@ -351,10 +352,20 @@ const SCAN = {stream: null, timer: null, busy: false, canvas: document.createEle
+ const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
+ const TEST = {reads: new Map(), frames: 0};
+ const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
+-// zxing's options for frame k: slab codes only (any code in Test mode, so printed samples count too); the default
+-// LocalAverage binarizer and the GlobalHistogram one by turns - a glare patch or a dark corner defeats one more than the other
+-const readerOpts = k => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 32, tryHarder: true, tryRotate: true, tryInvert: false,
+-  binarizer: k % 2 ? 'GlobalHistogram' : 'LocalAverage'});
++// zxing's options: slab codes only (any code in Test mode, so printed samples count too); the default LocalAverage
++// binarizer or the GlobalHistogram one (b = 1) by turns - a glare patch or a dark corner defeats one more than the other
++const readerOpts = b => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 32, tryHarder: true, tryRotate: true, tryInvert: false,
++  binarizer: b ? 'GlobalHistogram' : 'LocalAverage'});
++// ENLARGED READS (Brett's first test, 2026-11-09: "results weren't that great" - at a foot the 4K camera gives the slab
++// barcodes' ~0.2 mm bars only ~1.7 dots each, at 45 degrees less): a piece of the frame is drawn 1.5x bigger before it is
++// read (scan-worker.js); on a test frame the codes at 1.45 dots per bar went from 0 of 10 to 9 of 10. Live, every other
++// frame is read whole and the others as an enlarged piece - the middle every second time (a sweep carries every slab
++// through it), the four corners by turns. A video (no hurry) gets both every frame, the middle and the corners in turn.
++const CENTER = {x: 0.2, y: 0.2, w: 0.6, h: 0.6};
++const QUADS = [{x: 0, y: 0, w: 0.56, h: 0.56}, {x: 0.44, y: 0, w: 0.56, h: 0.56}, {x: 0, y: 0.44, w: 0.56, h: 0.56}, {x: 0.44, y: 0.44, w: 0.56, h: 0.56}];
++const LIVE_UP = [CENTER, QUADS[0], CENTER, QUADS[1], CENTER, QUADS[2], CENTER, QUADS[3]], VIDEO_UP = [CENTER].concat(QUADS);
++const livePlan = k => k % 2 ? {full: false, up: LIVE_UP[(k >> 1) % LIVE_UP.length]} : {full: true, up: null};
++const videoPlan = k => ({full: true, up: VIDEO_UP[k % VIDEO_UP.length]});
+ function zxReady() {
+   if (!SCAN.zx && window.ZXingWASM) SCAN.zx = ZXingWASM.prepareZXingModule({overrides: {locateFile: (p, prefix) => p.endsWith('.wasm') ? 'zxing/' + p : prefix + p}, fireImmediately: true});
+   return SCAN.zx;
+@@ -379,15 +390,15 @@ function grab(src, w, h) {                   // a frame's pixels at full size
+   return ctx.getImageData(0, 0, w, h);
+ }
+ const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version});
+-async function readImage(src, w, h, opts) {   // -> {res: [{text, format, pos, version}], ms}
++async function readImage(src, w, h, opts, plan) {   // -> {res: [{text, format, pos, version}], ms}
+   const wk = workerReady();
+   if (wk) {
+     const id = ++SCAN.wid;
+     const p = new Promise((res, rej) => { SCAN.pend.set(id, {res, rej}); setTimeout(() => { if (SCAN.pend.delete(id)) rej(new Error('the reader took too long')); }, 20000); });
+     let bm = null;
+     if (SCAN.offscreen && window.createImageBitmap) { try { bm = await createImageBitmap(src); } catch (e) { bm = null; } }
+-    if (bm) wk.postMessage({id, bm, opts}, [bm]);
+-    else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts}, [img.data.buffer]); }
++    if (bm) wk.postMessage({id, bm, opts, plan}, [bm]);
++    else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts, plan}, [img.data.buffer]); }   // raw pixels: the whole frame only
+     return p;
+   }
+   await zxReady();
+@@ -492,7 +503,7 @@ async function scanFrame() {
+   if (!UI.rec || SCAN.busy || !SCAN.stream || !VIDEO.videoWidth) return;
+   SCAN.busy = true;
+   try {
+-    const w = VIDEO.videoWidth, h = VIDEO.videoHeight, out = await readImage(VIDEO, w, h, readerOpts(SCAN.k++));
++    const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, out = await readImage(VIDEO, w, h, readerOpts((k >> 2) & 1), livePlan(k));
+     if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable);
+     if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
+   } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
+@@ -627,7 +638,7 @@ async function readVideo(file) {
+     if (!w || !h) throw new Error('no picture in this file');
+     for (let t = 0, k = 0; t < dur && !VREAD.stop; t += VIDEO_STEP_S, k++) {
+       await seekTo(fv, Math.min(t, Math.max(0, dur - 0.01)));
+-      const out = await readImage(fv, w, h, readerOpts(k));
++      const out = await readImage(fv, w, h, readerOpts(k & 1), videoPlan(k));
+       gotReads(out.res, out.w || w, out.h || h, out.ms, tid);
+       VREAD.frames++; VREAD.pct = Math.min(1, (t + VIDEO_STEP_S) / dur); paintScan();
+     }
+diff --git a/page/app/scan-worker.js b/page/app/scan-worker.js
+index 6732ead..e1d4053 100644
+--- a/page/app/scan-worker.js
++++ b/page/app/scan-worker.js
+@@ -1,6 +1,11 @@
+ /* Slab Show Scanner's barcode reader, off the page's own thread (2026-11-09, the scanner upgrade): the camera's frames
+    arrive here at full size - an ImageBitmap when this browser can draw one in a worker (OffscreenCanvas), else the raw
+-   pixels - and zxing reads every barcode in them. The page stays smooth while a 4K frame is read. */
++   pixels - and zxing reads every barcode in them. The page stays smooth while a 4K frame is read.
++   ENLARGED READS (2026-11-09, after Brett's first test on the Staples sheets: slab barcodes are ~17.5 mm wide with bars
++   ~0.2 mm, so at a foot the 4K camera gives only ~1.7 dots per bar and 45 degrees far less): a piece of the frame drawn
++   1.5x bigger with smooth scaling before it is read. On a test frame the codes at 1.45 dots per bar went from 0 of 10
++   read to 9 of 10 that way. The page says which piece (plan.up, fractions of the frame) and whether to read the whole
++   frame too (plan.full); positions found in the enlarged piece are mapped back to the frame. */
+ 'use strict';
+ importScripts('zxing/reader.js');
+ const READY = ZXingWASM.prepareZXingModule({
+@@ -8,22 +13,41 @@ const READY = ZXingWASM.prepareZXingModule({
+   fireImmediately: true
+ });
+ const OFFSCREEN = typeof OffscreenCanvas !== 'undefined';
+-let CV = null, CX = null;
+-function pixels(bm) {                         // an ImageBitmap -> ImageData, on one reused canvas
++const UP = 1.5;                               // how much bigger a piece is drawn
++let CV = null, CX = null, UV = null, UX = null;
++function draw(bm) {                           // the frame on one reused canvas
+   if (!CV || CV.width !== bm.width || CV.height !== bm.height) { CV = new OffscreenCanvas(bm.width, bm.height); CX = CV.getContext('2d', {willReadFrequently: true}); }
+   CX.drawImage(bm, 0, 0);
+-  bm.close();
+-  return CX.getImageData(0, 0, CV.width, CV.height);
+ }
+-const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version});
++function enlarged(x0, y0, w, h) {             // a piece of the frame, UP times bigger, smoothly scaled
++  const W = Math.round(w * UP), H = Math.round(h * UP);
++  if (!UV || UV.width !== W || UV.height !== H) { UV = new OffscreenCanvas(W, H); UX = UV.getContext('2d', {willReadFrequently: true}); }
++  UX.imageSmoothingEnabled = true; UX.imageSmoothingQuality = 'high';
++  UX.drawImage(CV, x0, y0, w, h, 0, 0, W, H);
++  return UX.getImageData(0, 0, W, H);
++}
++const slim = (r, x0, y0, k) => {
++  const p = r.position, at = q => ({x: x0 + q.x / k, y: y0 + q.y / k});
++  return {text: r.text, format: r.format, version: r.version, pos: p && p.topLeft ? {topLeft: at(p.topLeft), topRight: at(p.topRight), bottomRight: at(p.bottomRight), bottomLeft: at(p.bottomLeft)} : p};
++};
+ self.onmessage = async e => {
+-  const m = e.data;
++  const m = e.data, plan = m.plan || {full: true, up: null};
+   try {
+     await READY;
+-    const img = m.bm ? pixels(m.bm) : new ImageData(new Uint8ClampedArray(m.buf), m.w, m.h);
++    const W = m.bm ? m.bm.width : m.w, H = m.bm ? m.bm.height : m.h, out = [], seen = new Set();
++    const keep = rs => { for (const r of rs) { const k = r.format + '|' + r.text; if (!seen.has(k)) { seen.add(k); out.push(r); } } };
++    if (m.bm) draw(m.bm);
+     const t0 = performance.now();
+-    const res = await ZXingWASM.readBarcodes(img, m.opts);
+-    self.postMessage({id: m.id, w: img.width, h: img.height, ms: performance.now() - t0, res: res.filter(r => r.isValid !== false).map(slim)});
++    if (plan.full !== false || !m.bm) {
++      const img = m.bm ? CX.getImageData(0, 0, W, H) : new ImageData(new Uint8ClampedArray(m.buf), W, H);
++      keep((await ZXingWASM.readBarcodes(img, m.opts)).filter(r => r.isValid !== false).map(r => slim(r, 0, 0, 1)));
++    }
++    if (plan.up && m.bm) {
++      const x0 = Math.round(plan.up.x * W), y0 = Math.round(plan.up.y * H), w = Math.round(plan.up.w * W), h = Math.round(plan.up.h * H);
++      keep((await ZXingWASM.readBarcodes(enlarged(x0, y0, w, h), m.opts)).filter(r => r.isValid !== false).map(r => slim(r, x0, y0, UP)));
++    }
++    if (m.bm) m.bm.close();
++    self.postMessage({id: m.id, w: W, h: H, ms: performance.now() - t0, res: out});
+   } catch (err) {
+     self.postMessage({id: m.id, err: String(err && err.message || err)});
+   }
+diff --git a/page/app/sw.js b/page/app/sw.js
+index caacbf6..eee72e2 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v2';
++const CACHE = 'ssc-v3';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
