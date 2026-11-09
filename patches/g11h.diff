@@ -1,0 +1,38 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 822a6ee..d1b6e7f 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2755,2 +2755,8 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   label (size, lens, fps) moved to the bottom-left of the picture. Recordings in the app are never saved anywhere.
++  g11h (2026-11-09, a code review before Brett's fourth test): readerOpts maxNumberOfSymbols 32 -> 255. With the whole
++  50-code sheet in view each pass stopped at its first 32 codes, the same ones every frame (simulated straight sheet: 32
++  a pass before, 35-37 after, same time) - part of why his runs stalled at 38. Also looked at (not adopted):
++  Yukaii/barbarcode (Quagga 0.12, 640x480, half-sampled, one code a frame, types into a computer over a WebSocket) and
++  bau70/claude-camera (a Claude skill: photos shrunk to 1600 px or one frame every 3-10 s for Claude to look at; its
++  live view is the same browser camera). The Camera app's own video already has a way in: "Read a video" (4K 60).
+ - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
+diff --git a/page/app/app.js b/page/app/app.js
+index 6dcbc24..f05b66a 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -357,3 +357,5 @@ const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
+ // binarizer or the GlobalHistogram one (b = 1) by turns - a glare patch or a dark corner defeats one more than the other
+-const readerOpts = b => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 32, tryHarder: true, tryRotate: true, tryInvert: false,
++// maxNumberOfSymbols 255 (2026-11-09; it was 32): with a whole 50-code sheet in view a pass stopped at its first 32 codes -
++// the same 32 every frame; on the simulated sheet one pass now gives 35-37 instead of 32, at the same speed.
++const readerOpts = b => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 255, tryHarder: true, tryRotate: true, tryInvert: false,
+   binarizer: b ? 'GlobalHistogram' : 'LocalAverage'});
+@@ -572,3 +574,3 @@ function testReport() {
+   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
+-  return {report: 'Slab Show Scanner test', version: 'g11g', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
++  return {report: 'Slab Show Scanner test', version: 'g11h', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
+diff --git a/page/app/sw.js b/page/app/sw.js
+index 6edc77b..432995a 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -3,3 +3,3 @@
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v5';
++const CACHE = 'ssc-v6';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
