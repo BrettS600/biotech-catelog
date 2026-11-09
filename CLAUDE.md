@@ -2637,7 +2637,7 @@ pushed through the connector has backslash-u escapes UNESCAPED (`\u2019` in a JS
 itself - harmless there, but the blob sha differs from the local file, so compare and re-align the local copy), and
 long lines with non-ASCII characters (help.js) are safer through the editor, where the ops are small.
 
-## SLAB SHOW SCANNER - THE PHONE APP (2026-11-09, g10)
+## SLAB SHOW SCANNER - THE PHONE APP (2026-11-09, g10; the scanner upgrade and scans.csv: g11)
 Brett: "I walk into a vendor show ... I press a video record button ... the bardcodes of the graded slabs are read ...
 records categorized as table 1 ... I record the 13% number ... I see a summary of which cards to buy and at which table".
 Designed first as a Design-canvas prototype (claude.ai artifact "Slab Show Scanner", 2026-11-06), approved 2026-11-09 with
@@ -2668,7 +2668,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   website's "Sold CL (last mo)", graded.bin x[8]) - below it a slab stays on its table dimmed, never in Buys; the market
   gate (Show: "Buy only when the market is rising", on by default as on the website) holds real slabs back when the
   regime is down. A slab whose card is only guessed ("Check it") stays out of Buys until confirmed in Review.
-- Scanning: getUserMedia (back camera) -> canvas (<= 1600 px) -> ZXingWASM.readBarcodes (QRCode, Code128, ITF,
+- Scanning (g10; g11's upgrade below replaced the 1600 px / 220 ms path): getUserMedia (back camera) -> canvas (<= 1600 px) -> ZXingWASM.readBarcodes (QRCode, Code128, ITF,
   DataMatrix; 16 a frame) every 220 ms; certOf() = card-data pc_tab.js S1.kind (PSA: QR psacard.com/cert/<n>, 8-9
   digits; CGC: 10 digits Code128 starting 3-9, 13 starting 1401) plus CGC's QR cgccards.com/certlookup/<n>. One slab
   per cert per table. No camera + no data = the prototype's simulated reads; "Add a slab by its cert number" on a table.
@@ -2686,6 +2686,46 @@ no Apple account, no Xcode), "everything now", the sample show kept.
 - Tests (local): serve a copy of page/app with a test data.bin (site2 harness mk3.py, password testpw) on 127.0.0.1;
   Playwright iPhone 13; ntfy.sh and api.psacard.com ROUTED to stubs (never the real channel); a fake camera:
   Chromium --use-file-for-fake-video-capture=<y4m of slab labels made with zxing's writer> read all four kinds in ~6 s.
+- THE SCANNER UPGRADE (2026-11-09, g11; Brett: "I want to maximize my depth for actually reading the barcode scanners ...
+  different angles ... lighting ... a little bit of glare ... glass paneled showcase box"; Scandit is "super expensive",
+  so our own reader first, compared with Scandit's free trial on his Staples test sheets before paying for anything).
+  DEPTH IS DETAIL: zxing needs about 2 camera dots per thin bar (1.5 is the edge). The old path asked for 1080p and shrank
+  frames to 1600 px; now getUserMedia asks for 3840x2160 (iOS gives what the lens can) and EVERY FRAME IS READ WHOLE AT
+  FULL SIZE in scan-worker.js (importScripts zxing/reader.js; an ImageBitmap drawn on an OffscreenCanvas there, else the
+  raw pixels; no worker = the page's own thread). Options: slab formats only (any format in Test mode), 32 a frame,
+  tryHarder, tryRotate, tryInvert off, binarizer LocalAverage / GlobalHistogram BY TURNS (glare and uneven light). On a
+  4K test frame of 40 slabs at 2.4 / 2.0 / 1.7 / 1.45 dots per bar (blur, noise, a glare patch): old path 5 of 40, new
+  28 of 40 (every row down to 1.7 read; 1.45 is past the limit) at ~130 ms a frame on the build box.
+  Lenses: after the first camera grant, enumerateDevices names the iPhone's lenses ("Back Camera", "Back Telephoto
+  Camera", ...); the app opens "Back Camera" (no automatic lens switching) or, on the 3x button, the telephoto
+  (S.settings.lens 'main' / 'tele'; elsewhere a 2x zoom when the track offers zoom - never on iOS, where digital zoom adds
+  nothing over reading the full frame). Continuous focus where offered. The preview is object-fit: contain (what you see
+  is what is read); green boxes on every code read (zxing's position, fading over 1.4 s); a beep per new slab (Show:
+  "Beep for each new slab read", WebAudio made on the record tap; iOS's silent switch mutes it); navigator.wakeLock while
+  recording or reading a video (a sweep has no taps; iOS would lock the screen and end the camera).
+  READ A VIDEO: a clip from the Camera app (its focus, steadying, 4K) picked with <input type=file accept=video/*>, seeked
+  6 frames a second and read like the camera, into a new table; the rec button stops it.
+  TEST MODE (Scan tab): nothing saved, looked up (no PSA quota) or sent; every distinct code with its format and the
+  finest detail it was still read at - detailOf(): the code's length in the frame / its modules (Code 128: 11 x (chars + 2)
+  + 13, numeric = pairs; ITF 9 x digits + 9; QR 17 + 4 x version per side) = "dots/bar"; plus the camera size, lens and
+  frames read a second. Brett's Staples sheets: test with these, then the K&F magnetic polarizer (6.7" MagSafe mount, 67 mm
+  CPL - covers all three lenses) once it ships.
+- SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
+  (private), data/scans/scans.csv - one cert link a line (https://www.psacard.com/cert/<n>,
+  https://www.cgccards.com/certlookup/<n>/), each slab once, no header (until Brett gives links.csv's exact format - the
+  file he got in an earlier chat; DON'T look for links.csv in his repos or Downloads). Every real slab put on a table (read
+  or typed; never sample slabs, never Test mode) is queued on the phone (localStorage ssc-scan-q; ssc-scan-n = sent) and
+  sent {type 'scan', t, c: [[grader, cert], ...]} (80 a message) 8 s after the last read, at Stop, after an unlock, on
+  'online', at start; no signal = again in 30 s. Collector: scan_record() -> v["scan_q"] (links; saved with the state),
+  scans_flush() every cycle starts scans_push() in a thread: a sparse (data/scans), shallow, blob-less clone at
+  data/card-data-scans, fetch + reset to origin/main, add the links not in the file, commit "scans: N slab link(s) from
+  Slab Show Scanner", push (3 tries; the other card-data writers - data_archive.yml, research.yml, update_catalog.yml -
+  all pull --rebase before pushing, and this touches only scans.csv). card-data is reached with ITS OWN DEPLOY KEY,
+  /opt/pokemon-collector/.ssh/card_data_ed25519 (owned by collector; made by Brett in the DO console on 2026-11-09 with
+  `sudo -u collector ssh-keygen -t ed25519 -N "" -C "pokemon-collector card-data" -f ...`, its .pub added at card-data >
+  Settings > Deploy keys "pokemon-collector (scans)", Allow write access; setup.sh makes and prints it too). No key =
+  the links wait (logged hourly); a failed try waits 10 minutes. Tested against a local bare repo (file:// remote,
+  uploadpack.allowfilter): duplicates skipped, a concurrent push rebased over, no key = waiting.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

@@ -51,6 +51,10 @@ if [ ! -f "$BASE/.ssh/id_ed25519" ]; then
   sudo -u collector ssh-keygen -q -t ed25519 -N "" -C "pokemon-collector" -f "$BASE/.ssh/id_ed25519"
 fi
 sudo -u collector bash -c "ssh-keyscan -t ed25519 github.com 2>/dev/null > '$BASE/.ssh/known_hosts'"
+# a second key for card-data (private): the phone app's scans go to its data/scans/scans.csv (2026-11-09)
+if [ ! -f "$BASE/.ssh/card_data_ed25519" ]; then
+  sudo -u collector ssh-keygen -q -t ed25519 -N "" -C "pokemon-collector card-data" -f "$BASE/.ssh/card_data_ed25519"
+fi
 
 echo "== Service"
 cat > /etc/systemd/system/$SVC.service <<EOF
@@ -89,5 +93,12 @@ echo
 cat "$BASE/.ssh/id_ed25519.pub"
 echo
 echo "Until the key is added the collector runs but cannot publish (it will say 'Publish failed')."
+echo
+echo "And this one to card-data, also WITH write access (the phone app's scans.csv):"
+echo "  https://github.com/BrettS600/card-data/settings/keys/new"
+echo "  Title: pokemon-collector (scans)    Tick: Allow write access"
+echo
+cat "$BASE/.ssh/card_data_ed25519.pub"
+echo
 echo "Watch it:   journalctl -u $SVC -f      Status:   systemctl status $SVC"
 echo "=================================================================="
