@@ -36,7 +36,6 @@ import math
 import os
 import queue
 import re
-import shutil
 import statistics
 import subprocess
 import sys
@@ -54,6 +53,7 @@ import forecast_math as fm          # the Forecast tab's arithmetic (the alerts'
 import ebay_sweep as es
 import account
 import pchist                                                # PriceCharting's own monthly history, off each card's page
+import scans                                                 # Slab Show Scanner's slabs -> card-data data/scans/scans.csv
 
 # ---------------- layout ----------------
 BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")
@@ -190,6 +190,10 @@ def log(*a):
             _log_file = open(LOG_PATH, "a", encoding="utf-8")
     except Exception:
         pass
+
+
+scans.log = log                  # scans.py writes into this log too
+scans.DRY_RUN = DRY_RUN
 
 
 def clock(state):
@@ -1626,8 +1630,8 @@ def read_requests(state, cat=None, cards=None):
             gplan_record(v, msg, t)
         elif msg.get("type") in ("gspot", "gspot_del"):             # Graded > Forecasting / Recording: Add to Pre-Sales Spotcheck (2026-11-05)
             gplan_record(v, msg, t, "gspot")
-        elif msg.get("type") == "scan":                              # Slab Show Scanner's reads -> card-data scans.csv (2026-11-09)
-            scan_record(v, msg, t)
+        elif msg.get("type") == "scan":                              # Slab Show Scanner's reads -> card-data scans.csv (scans.py)
+            scans.record(v, msg, t)
         elif msg.get("type") == "read" and msg.get("i"):            # Review pressed on a listing with an incomplete eBay record
             q = v.setdefault("site_read_q", [])
             if str(msg["i"])[:60] not in q:
@@ -1637,155 +1641,6 @@ def read_requests(state, cat=None, cards=None):
         elif msg.get("type") == "plan" and msg.get("i") is not None:   # a + / - clicked on a listing (Planning)
             plan_set(state, msg, t)
 
-
-
-# ---------------- scans.csv (Brett, 2026-11-09): the slabs the phone app reads, as cert links in card-data ----------------
-# "I want to have one called scans. And when I scan a barcode, the link will appear in the CSV file" - BrettS600/card-data
-# (private), data/scans/scans.csv, each slab once, in the format of Brett's links.csv (his screenshot, 2026-11-09): a
-# "Cert ID" header, then one cell a slab, =HYPERLINK("<the cert's page>","<cert>"), CSV-quoted:
-#   Cert ID
-#   "=HYPERLINK(""https://www.psacard.com/cert/46790116/psa"",""46790116"")"
-#   "=HYPERLINK(""https://www.cgccards.com/certlookup/6153192005/"",""6153192005"")"
-# The phone sends its reads over the
-# signed channel ({type: 'scan', t, c: [[grader, cert], ...]}); they wait in v["scan_q"] (saved with the state) until a
-# push to card-data goes through. card-data is reached with its own deploy key (write access, card-data only), made on
-# this machine and added by Brett - the live branch's key opens biotech-catelog only. A sparse, shallow checkout keeps
-# just data/scans on the disk.
-CARD_DATA_REMOTE = os.environ.get("CARD_DATA_REMOTE", "git@github.com:BrettS600/card-data.git")
-SCANS_KEY = os.path.join(BASE, ".ssh", "card_data_ed25519")
-SCANS_DIR = os.path.join(DATA, "card-data-scans")
-SCANS_FILE = "data/scans/scans.csv"
-SCANS_MAX_Q = 20000              # links held while card-data can't be reached
-_scans = {"thread": None, "done": None, "added": 0, "err": None, "logged": 0.0, "err_logged": 0.0, "next": 0.0, "checked": False}
-SCANS_RETRY_S = 600              # after a failed try (card-data unreachable, the key not added yet)
-SCANS_HEADER = "Cert ID"
-_SCAN_KEY = re.compile(r"(psacard\.com/cert|cgccards\.com/certlookup)/(\d{7,13})")
-
-
-def scan_link(grader, cert):
-    return f"https://www.cgccards.com/certlookup/{cert}/" if grader == "cgc" else f"https://www.psacard.com/cert/{cert}/psa"
-
-
-def scan_keys(text):
-    """The slabs named in a text (a link, a row, the whole file): {(grader, cert)}."""
-    return {("cgc" if "cgc" in d else "psa", c) for d, c in _SCAN_KEY.findall(text or "")}
-
-
-def scan_row(grader, cert):
-    """One line of scans.csv in links.csv's format: the cert's page as a clickable cell showing the cert number."""
-    return f'"=HYPERLINK(""{scan_link(grader, cert)}"",""{cert}"")"'
-
-
-def scan_record(v, msg, t):
-    """Slab Show Scanner's reads: queue each slab's cert link for scans.csv (new ones only; the file is checked again
-    when it is written)."""
-    q = v.setdefault("scan_q", [])
-    have, n = set(q), 0
-    for x in (msg.get("c") or [])[:200]:
-        try:
-            g, c = str(x[0]).lower(), str(x[1])
-        except (TypeError, IndexError, KeyError):
-            continue
-        if (g == "psa" and re.fullmatch(r"\d{7,10}", c)) or (g == "cgc" and re.fullmatch(r"\d{7,13}", c)):
-            link = scan_link(g, c)
-            if link not in have:
-                q.append(link)
-                have.add(link)
-                n += 1
-    del q[:-SCANS_MAX_Q]
-    v["scan_t"] = t
-    if n:
-        log(f"Scans: {n} slab link(s) from the phone app queued for card-data scans.csv ({len(q)} waiting)")
-
-
-def scans_git(*args, cwd=None, check=True, timeout=120):
-    env = dict(os.environ)
-    env["GIT_SSH_COMMAND"] = f"ssh -i {SCANS_KEY} -o UserKnownHostsFile={KNOWN_HOSTS} -o IdentitiesOnly=yes -o BatchMode=yes"
-    r = subprocess.run(["git", *args], cwd=cwd or SCANS_DIR, capture_output=True, text=True, env=env, timeout=timeout)
-    if check and r.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args[:3])}: {r.stderr.strip()[:300]}")
-    return r
-
-
-def scans_push(snap, check=False):
-    """In its own thread: add the slabs not yet in scans.csv (the Cert ID header first if the file has none), commit,
-    push to card-data's main (again from the top when someone else pushed in between). check (once a start): with
-    nothing to add, a dry-run push proves the key may write - so a newly added key shows in the log at once."""
-    try:
-        if not os.path.isdir(os.path.join(SCANS_DIR, ".git")):
-            shutil.rmtree(SCANS_DIR, ignore_errors=True)
-            scans_git("clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", "--branch", "main", CARD_DATA_REMOTE, SCANS_DIR, cwd=DATA, timeout=300)
-            scans_git("sparse-checkout", "set", "data/scans")
-            scans_git("config", "user.name", "pokemon-collector")
-            scans_git("config", "user.email", "collector@users.noreply.github.com")
-        path = os.path.join(SCANS_DIR, SCANS_FILE)
-        for _ in range(3):
-            scans_git("fetch", "-q", "--depth", "1", "origin", "main", timeout=300)
-            scans_git("reset", "-q", "--hard", "FETCH_HEAD")
-            old = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
-            have = scan_keys(old)
-            new = []
-            for x in snap:
-                for k in sorted(scan_keys(x)):
-                    if k not in have:
-                        have.add(k)
-                        new.append(k)
-            lines = old.splitlines()
-            head = not lines or lines[0].strip().lstrip(chr(0xFEFF)) != SCANS_HEADER
-            if not new and not head:
-                if check:
-                    scans_git("push", "--dry-run", "-q", "origin", "HEAD:main", timeout=300)
-                    log(f"Scans: card-data's key works (read and write); {SCANS_FILE} is ready ({len(have)} slab(s) in it)")
-                _scans["added"], _scans["done"] = 0, list(snap)
-                return
-            body = old if not old or old.endswith("\n") else old + "\n"
-            if head:
-                body = SCANS_HEADER + "\n" + body
-            body += "".join(scan_row(g, c) + "\n" for g, c in new)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8", newline="\n") as f:
-                f.write(body)
-            scans_git("add", SCANS_FILE)
-            scans_git("commit", "-q", "-m", f"scans: {len(new)} slab link(s) from Slab Show Scanner" if new else "scans: the Cert ID header (links.csv's format)")
-            if scans_git("push", "-q", "origin", "HEAD:main", check=False, timeout=300).returncode == 0:
-                _scans["added"], _scans["done"] = len(new), list(snap)
-                log(f"Scans: {len(new)} slab link(s) added to card-data {SCANS_FILE} ({len(have)} in the file)" if new else
-                    f"Scans: card-data's key works (read and write); the Cert ID header is in {SCANS_FILE}")
-                return
-        raise RuntimeError("card-data refused the push three times")
-    except Exception as e:
-        _scans["err"] = str(e)[:300]
-
-
-def scans_flush(v):
-    """Every cycle: settle the last push, then start one for whatever is waiting (never two at once)."""
-    th = _scans["thread"]
-    if th is not None and th.is_alive():
-        return
-    if _scans["done"] is not None:
-        done = set(_scans["done"])
-        v["scan_q"] = [x for x in v.get("scan_q", []) if x not in done]
-        v["scan_n"] = v.get("scan_n", 0) + _scans["added"]
-        _scans["done"], _scans["added"] = None, 0
-    if _scans["err"]:
-        _scans["next"] = time.time() + SCANS_RETRY_S
-        if time.time() - _scans["err_logged"] > 3600:
-            _scans["err_logged"] = time.time()
-            log(f"Scans: card-data could not be written ({_scans['err']}); {len(v.get('scan_q', []))} link(s) wait for the next try")
-        _scans["err"] = None
-    q = v.get("scan_q") or []
-    check = not _scans["checked"]                            # once a start: try the key even with nothing waiting
-    if (not q and not check) or DRY_RUN or time.time() < _scans["next"]:
-        return
-    if not os.path.exists(SCANS_KEY):
-        if time.time() - _scans["logged"] > 3600:
-            _scans["logged"] = time.time()
-            log(f"Scans: {len(q)} slab link(s) waiting - card-data's key ({SCANS_KEY}) is not on this machine yet (CLAUDE.md: Slab Show Scanner, scans.csv)")
-        _scans["checked"] = True
-        return
-    _scans["checked"] = True
-    _scans["thread"] = threading.Thread(target=scans_push, args=(list(q), check), daemon=True)
-    _scans["thread"].start()
 
 # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
 FORECAST_KEEP = 100              # records kept (newest), each with its picks and, once mature, the realized result
@@ -3711,7 +3566,7 @@ def code_update():
 def cycle(state, cat, sched, counters):
     read_requests(state, cat, counters.get("_cards"))
     try:
-        scans_flush(state.setdefault("vps", {}))             # the phone app's cert links on to card-data (in the background)
+        scans.flush(state.setdefault("vps", {}))             # the phone app's slabs on to card-data's scans.csv (scans.py)
     except Exception as e:
         log(f"Scans: {str(e)[:200]}")
     cfg = apply_settings(state)

@@ -2716,12 +2716,15 @@ no Apple account, no Xcode), "everything now", the sample show kept.
     Cert ID
     "=HYPERLINK(""https://www.psacard.com/cert/46790116/psa"",""46790116"")"
     "=HYPERLINK(""https://www.cgccards.com/certlookup/6153192005/"",""6153192005"")"
-  (PSA's link ends in /psa, CGC's in a slash; scan_row(); dedupe by (grader, cert) read out of the file with scan_keys,
+  (PSA's link ends in /psa, CGC's in a slash; scans.row(); dedupe by (grader, cert) read out of the file with scans.slabs_in,
   so any link spelling counts). Don't look for links.csv in his repos or Downloads. Every real slab put on a table (read
   or typed; never sample slabs, never Test mode) is queued on the phone (localStorage ssc-scan-q; ssc-scan-n = sent) and
   sent {type 'scan', t, c: [[grader, cert], ...]} (80 a message) 8 s after the last read, at Stop, after an unlock, on
-  'online', at start; no signal = again in 30 s. Collector: scan_record() -> v["scan_q"] (links; saved with the state),
-  scans_flush() every cycle starts scans_push() in a thread: a sparse (data/scans), shallow, blob-less clone at
+  'online', at start; no signal = again in 30 s. THE SERVER SIDE IS ITS OWN FILE, scans.py (top level, next to collector.py;
+  Brett 2026-11-09: "take the scans part of the code out of collector.py, and put it into a new py ... scans py ... perform
+  the same functions"): collector.py only imports it, sets scans.log / scans.DRY_RUN, hands {type 'scan'} messages to
+  scans.record() (-> v["scan_q"], links, saved with the state) and calls scans.flush() every cycle, which starts
+  scans.push() in a thread: a sparse (data/scans), shallow, blob-less clone at
   data/card-data-scans, fetch + reset to origin/main, add the links not in the file, commit "scans: N slab link(s) from
   Slab Show Scanner", push (3 tries; the other card-data writers - data_archive.yml, research.yml, update_catalog.yml -
   all pull --rebase before pushing, and this touches only scans.csv). card-data is reached with ITS OWN DEPLOY KEY,
