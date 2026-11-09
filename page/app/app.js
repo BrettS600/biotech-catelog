@@ -350,7 +350,8 @@ const SCAN = {stream: null, timer: null, busy: false, canvas: document.createEle
   worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
   fpsN: 0, fpsT: 0, fps: 0, ms: 0};
 const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
-const TEST = {reads: new Map(), frames: 0};
+const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: ''};
+function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: ''}); TEST.reads.clear(); }
 const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
 // zxing's options: slab codes only (any code in Test mode, so printed samples count too); the default LocalAverage
 // binarizer or the GlobalHistogram one (b = 1) by turns - a glare patch or a dark corner defeats one more than the other
@@ -480,6 +481,7 @@ function lensChoices() {                     // [value, label]: the iPhone's 3x 
 async function setLens(v) {
   if (S.settings.lens === v) return;
   S.settings.lens = v; save();
+  if (v === 'tele') toast('3x: hold about 2 feet away - it cannot focus closer.');
   if (UI.rec && SCAN.stream) { camStop(); try { await camStart(); } catch (e) { UI.camErr = 'That lens did not open: ' + (e.message || e); } }
   paintScan();
 }
@@ -504,17 +506,21 @@ async function scanFrame() {
   SCAN.busy = true;
   try {
     const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, out = await readImage(VIDEO, w, h, readerOpts((k >> 2) & 1), livePlan(k));
-    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable);
+    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp);
     if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
   } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
   SCAN.busy = false;
 }
 // what one frame gave: slabs for the table (or Test mode's list), boxes on the picture, the reading speed
-function gotReads(res, w, h, ms, tid) {
+function gotReads(res, w, h, ms, tid, sharp) {
   const now = performance.now();
   SCAN.ms = ms; SCAN.fpsN++;
   if (now - SCAN.fpsT > 2000) { SCAN.fps = SCAN.fpsT ? SCAN.fpsN * 1000 / (now - SCAN.fpsT) : 0; SCAN.fpsN = 0; SCAN.fpsT = now; }
-  if (UI.test) TEST.frames++;
+  if (UI.test) {                             // what the report needs: frames, how sharp, how long each read took
+    if (!TEST.t0) TEST.t0 = Date.now();
+    TEST.last = Date.now(); TEST.frames++; TEST.ms.push(Math.round(ms || 0)); if (sharp != null) TEST.sharps.push(sharp);
+    Object.assign(TEST, {mode: VREAD.on ? 'video' : 'live', w, h, lens: VREAD.on ? 'video' : lensLabel()});
+  }
   for (const r of res) {
     const kc = certOf(r.text, r.format);
     if (UI.test) testRead(r);
@@ -526,8 +532,33 @@ function gotReads(res, w, h, ms, tid) {
 }
 function testRead(r) {
   const key = r.format + '|' + r.text, dt = detailOf(r), have = TEST.reads.get(key);
-  if (!have) { TEST.reads.set(key, {format: r.format, text: r.text, n: 1, min: dt, last: dt, at: Date.now()}); beep(); setTimeout(paintScan, 0); }
-  else { have.n++; have.last = dt; have.at = Date.now(); if (dt != null && (have.min == null || dt < have.min)) have.min = dt; }
+  if (!have) {
+    TEST.reads.set(key, {format: r.format, text: r.text, n: 1, min: dt, last: dt, at: Date.now(), first: Math.round((Date.now() - (TEST.t0 || Date.now())) / 100) / 10, full: !r.up});
+    beep(); setTimeout(paintScan, 0);
+  } else { have.n++; have.last = dt; have.at = Date.now(); if (!r.up) have.full = true; if (dt != null && (have.min == null || dt < have.min)) have.min = dt; }
+}
+// Brett, 2026-11-09: "something where your feedback is more reliable than some screenshots" - Test mode's numbers as text
+// to paste into the chat: the camera, the speed, how sharp the frames were (blur vs too little detail), every code with
+// its finest detail, how often and when it was read, and whether only the enlarged reads found it.
+function testStats() {
+  const sh = TEST.sharps.slice().sort((a, b) => a - b), q = p => sh.length ? sh[Math.min(sh.length - 1, Math.floor(p * sh.length))] : null;
+  const best = q(0.9), rows = [...TEST.reads.values()];
+  return {sh, q, best, sharpPct: best ? Math.round(100 * sh.filter(v => v >= best / 2).length / sh.length) : null, onlyUp: rows.filter(r => !r.full).length, rows};
+}
+function testReport() {
+  const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
+  return {report: 'Slab Show Scanner test', version: 'g11f', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+    mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, seconds: Math.round(secs), frames: TEST.frames,
+    framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
+    sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.rows.length, onlyEnlarged: st.onlyUp,
+    list: st.rows.sort((a, b) => a.first - b.first).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.full ? 'whole' : 'enlarged'])};
+}
+async function copyReport() {
+  if (!TEST.frames) return toast('Record a test first, then copy its report.');
+  const txt = JSON.stringify(testReport());
+  try { await navigator.clipboard.writeText(txt); UI.reportText = null; toast('Report copied - paste it into the chat.'); }
+  catch (e) { UI.reportText = txt; toast('Copy was blocked - select the report below and copy it.'); }
+  paintScan();
 }
 function drawBoxes() {                       // green boxes on each code read, fading over a second and a half
   SCAN.raf = 0;
@@ -639,7 +670,7 @@ async function readVideo(file) {
     for (let t = 0, k = 0; t < dur && !VREAD.stop; t += VIDEO_STEP_S, k++) {
       await seekTo(fv, Math.min(t, Math.max(0, dur - 0.01)));
       const out = await readImage(fv, w, h, readerOpts(k & 1), videoPlan(k));
-      gotReads(out.res, out.w || w, out.h || h, out.ms, tid);
+      gotReads(out.res, out.w || w, out.h || h, out.ms, tid, out.sharp);
       VREAD.frames++; VREAD.pct = Math.min(1, (t + VIDEO_STEP_S) / dur); paintScan();
     }
   } catch (e) { err = e; }
@@ -806,12 +837,16 @@ function testHtml() {
   const cam = UI.rec && SCAN.stream && VIDEO.videoWidth ? 'Camera ' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' (' + VIDEO.videoWidth + '×' + VIDEO.videoHeight + '), ' + lensLabel() + ' lens'
     : VREAD.on && VREAD.w ? 'Video ' + VREAD.w + '×' + VREAD.h : '';
   const speed = (UI.rec || VREAD.on) && SCAN.fps ? ', ' + SCAN.fps.toFixed(1) + ' frames read a second' : '';
-  return '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Test mode</span>' + (rows.length ? '<button class="linkbtn" style="min-height:0;padding:0" data-a="testclear">Clear</button>' : '') + '</div>' +
+  const st = testStats();
+  return '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Test mode</span>' + (rows.length || TEST.frames ? '<button class="linkbtn" style="min-height:0;padding:0" data-a="testclear">Clear</button>' : '') + '</div>' +
     '<div class="tbig"><b>' + rows.length + '</b>different code' + (rows.length === 1 ? '' : 's') + ' read</div>' +
     (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
+    (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (rows.length ? ', ' + st.onlyUp + ' code' + (st.onlyUp === 1 ? '' : 's') + ' found only by the enlarged reads' : '') + '</div>' : '') +
+    (TEST.frames && !(UI.rec || VREAD.on) ? '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
+    (UI.reportText ? '<textarea class="input" style="height:120px;font-size:12px" readonly>' + esc(UI.reportText) + '</textarea>' : '') +
     rows.slice(0, 60).map(r => '<div class="trow"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
       (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
-    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge. Try your printed sheet at different distances and angles, and through glass. Record, or read a video.</p></div>';
+    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge. Tap Clear before each run; after it, Copy report and paste it into the chat - it also says how sharp the frames were.</p></div>';
 }
 function paintScan() {
   if (UI.tab !== 'scan' || !$('rec-btn')) return;
@@ -833,7 +868,7 @@ function paintScan() {
   $('vf-hint').hidden = cam || VREAD.on;
   $('rec-btn').classList.toggle('on', busy);
   $('rec-btn').setAttribute('aria-label', VREAD.on ? 'Stop reading the video' : UI.rec ? 'Stop recording' : 'Start recording');
-  $('rec-hint').textContent = VREAD.on ? 'Tap to stop reading the video' : UI.rec ? (UI.test ? 'Tap to stop the test' : 'Tap to stop - the slabs go to this table') : UI.test ? 'Tap to test the reader' : 'Tap to record this table';
+  $('rec-hint').textContent = VREAD.on ? 'Tap to stop reading the video' : UI.rec ? (lensLabel() === '3x' ? '3x focuses from about 2 feet away - tap to stop' : UI.test ? 'Tap to stop the test' : 'Tap to stop - the slabs go to this table') : UI.test ? 'Tap to test the reader' : 'Tap to record this table';
   $('toolrow').hidden = busy;
   $('test-btn').textContent = 'Test mode: ' + (UI.test ? 'On' : 'Off'); $('test-btn').classList.toggle('on', UI.test); $('test-btn').setAttribute('aria-pressed', UI.test ? 'true' : 'false');
   $('vid-prog').innerHTML = VREAD.on ? '<div class="progress" style="margin-top:2px"><span style="width:' + Math.round(VREAD.pct * 100) + '%"></span></div>' : '';
@@ -1074,7 +1109,8 @@ async function act(a, ds, el) {
     case 'tab': if ((UI.rec || VREAD.on) && ds.v !== 'scan') return toast(VREAD.on ? 'Stop reading the video first.' : 'Stop recording first.'); UI.tab = ds.v; UI.openTable = null; break;
     case 'rec': if (VREAD.on) { VREAD.stop = true; return; } if (UI.rec) return stopRec(); return startRec(null);
     case 'test': if (UI.rec || VREAD.on) return; UI.test = !UI.test; UI.scanMsg = null; UI.camErr = null; break;
-    case 'testclear': TEST.reads.clear(); TEST.frames = 0; return paintScan();
+    case 'testclear': testClear(); UI.reportText = null; return paintScan();
+    case 'testcopy': return copyReport();
     case 'lens': return setLens(ds.v);
     case 'beep': s.beep = !s.beep; save(); if (s.beep) { audioOn(); beep(); } break;
     case 'table': UI.openTable = ds.id; break;

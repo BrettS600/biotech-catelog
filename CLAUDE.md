@@ -2723,6 +2723,18 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   frames as before. Measured: PIL bicubic 1.5x took a 1.45 dots/bar row from 0/10 to 9/10 (2x: 7/10); in Chromium on a
   simulated sheet at a foot (Brett's layout, true sizes, blur, noise, glare): straight 36 -> 50 of 50 in 12 s, 45 degrees
   30 -> 39; the 40-slab 4K frame 27 -> 38 of 40; no misreads. Next on the phone: the same runs, 3x at ~2 ft, a video.
+  BRETT'S SECOND TEST (2026-11-09, g11e on the phone): 1x about a foot straight down, 38 of 50 in 65 s; 3x held at ABOUT
+  A FOOT over a few codes, 2-6 codes - the screenshots are badly out of focus: the 3x telephoto cannot focus that close
+  (the Camera app quietly switches to the main lens when too close; a web page that opened "Back Telephoto Camera" can't),
+  and most 1x frames were blurry too (hand movement, indoor light). Blur, not just detail, is now the limit - enlarging
+  can't fix blur. g11f: the 3x button toasts "hold about 2 feet away" and the rec hint says so while on 3x;
+  scan-worker.js scores every frame's sharpness (variance of the Laplacian of a 512 x 512 middle patch; on the simulated
+  sheet sharp ~770, blurred ~6) and marks codes found in the enlarged piece (up: true); TEST AND ITS REPORT: Test mode
+  keeps frames, read times and sharpness; after a run "Copy report for Claude" copies a JSON for the chat (version,
+  phone, mode, camera, lens, seconds, frames, framesPerSecond, msPerRead, sharpness low/median/high, codes, onlyEnlarged,
+  list [format, text, dots/bar, reads, first second, whole/enlarged]); Clear resets it all. On the simulated sheet 14 of
+  the 50 were found only by the enlarged reads. Scandit (asked 2026-11-09): reads the live camera video too, many codes a
+  frame with tracking (MatrixScan); its native SDK controls the camera (focus, lens), its web SDK is a browser like ours.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
