@@ -179,3 +179,6 @@ a{color:var(--blt)}
 .tdet{flex:none;font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;font-variant-numeric:tabular-nums}
 .lightbtn{position:absolute;top:10px;right:10px;min-height:34px;padding:0 12px;border-radius:17px;border:0;background:rgba(6,9,13,.72);color:var(--tx);font:700 12px Inter,sans-serif;cursor:pointer}
 .lightbtn.on{background:var(--am);color:#1A1204}
+.photobtn{top:52px}
+.vfcoach{position:absolute;left:50%;transform:translateX(-50%);bottom:62px;max-width:92%;background:rgba(6,9,13,.78);color:var(--tx);font:600 12px Inter,sans-serif;padding:6px 10px;border-radius:8px;white-space:nowrap;pointer-events:none}
+.photobtn:disabled{opacity:.6}

@@ -2759,6 +2759,51 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   Yukaii/barbarcode (Quagga 0.12, 640x480, half-sampled, one code a frame, types into a computer over a WebSocket) and
   bau70/claude-camera (a Claude skill: photos shrunk to 1600 px or one frame every 3-10 s for Claude to look at; its
   live view is the same browser camera). The Camera app's own video already has a way in: "Read a video" (4K 60).
+  g11i (2026-11-09, Brett: "are you sure thats only patch that is required ... is there anything else we can do to improve
+  it? if so then please adjust the build/code"). What the review measured, and what changed:
+  - SMEAR IS THE LIMIT, AND ITS DIRECTION DECIDES (/tmp/claude-0/ga/blur: a 4K frame of 40 codes at 2.4/2.0/1.7/1.45 dots
+    per bar, box-smeared). ACROSS the bars: 2 dots -> 28 of 35 read, 3 -> 16, 4 dots (two bars' width) -> NOTHING, at
+    every detail level. ALONG the bars: up to 12 dots -> 34-35 of 35. In real units a readable frame needs the phone to
+    move less than ~0.2-0.4 mm across the bars during the exposure, whatever the distance: at 1/60 s that is 12-24 mm a
+    second, so a hand sweeping sideways only reads in the moments it pauses. Levers a web page has: the Light (a shorter
+    exposure - a page cannot set shutter speed; WebKit offers no exposure constraint), 60 fps (caps it at 1/60), and how
+    the phone is moved: hold still over each group, or move the way the bars point. A native app's one real advantage
+    is a fixed fast shutter (1/500 or so).
+  - THE READ PLAN (app.js liveTiles / scanFrame, scan-worker.js): every frame is read whole AND as enlarged quarters
+    (QUADS, 0.56 of each side, 1.5x), where before a corner got an enlarged look once in 16 frames. One simulated frame
+    of the straight sheet now gives all 50 (whole + middle before: 43-46); time to every code on the fake cameras:
+    straight 50 in 1.0 s (was 4.5), 45 degrees 39 in 2-2.5 s (was 5.0), 40 slabs in 4K 37 in 1.5 s (was 35 after 4 s; the
+    38th, a small QR, comes with the middle piece, 1.5-4.5 s). Facts behind
+    it: zxing reads LINEAR codes identically with either binarizer (linear-only pass 33 ms, either one; with QR + Data
+    Matrix 82-118 ms LocalAverage, 34-73 GlobalHistogram); a QR needs LocalAverage (QR read in 8 frames of 8 against 3 of
+    8) and a small one needs an enlarged piece (15 of 16 against 1 of 8 whole). So: quarters = LINEAR_FORMATS; whole pass
+    = SLAB_FORMATS with GlobalHistogram two frames in three, LocalAverage every third; every sixth frame the MIDDLE piece
+    replaces the quarters and gets LocalAverage + SLAB_FORMATS (and Test mode's whole pass looks for any format only
+    then - "any" doubles a pass). The dear part of a quarter is drawing it bigger (desktop Chromium: draw ~46 ms, read
+    back ~15, zxing ~30); imageSmoothingQuality 'high' is needed ('medium'/'low' lost 2-8 codes), widening only (x 1.5,
+    y 1) lost 4-6, 1.75x and 2x were far worse than 1.5x, and a 1-dot shift of a piece changes which marginal codes
+    read (sampling phase) - a hand's own movement varies that. BUDGET_MS = 220: the worker reports t.full and t.up and
+    the page reads 4, 2 (diagonal pairs by turns) or 1 quarter a frame to fit; tune it from Brett's report (timing:
+    wholeMs, quarterMs, quartersPerFrame, framesPerSecond). A video file: whole + all four quarters every frame.
+  - TEST MODE'S "PHOTO TEST" BUTTON (photoTest): one tap reads a video frame, a still photo (ImageCapture.takePhoto) and,
+    when the camera offers a bigger one, a still at the largest size - each whole + four quarters - and notes the counts
+    (report: photoTests). Why: Brett keeps asking to use "my actual ios camera". A page cannot reach the Camera app;
+    WebKit's ImageCapture (UnifiedWebPreferences ImageCaptureEnabled: stable, on for Cocoa) takes a real still through
+    AVCapturePhotoOutput (JPEG, quality 1); with no size asked it uses the active video format's smallest
+    supportedMaxPhotoDimensions and the stream keeps running; with imageWidth/imageHeight bigger than the current preset
+    it MUTES the track, switches preset, takes the photo and switches back (RealtimeVideoCaptureSource
+    dispatchNextOperation). Expect a shutter sound. If stills read clearly more than frames, the next step is an
+    automatic still every second or so; if not, stills are ruled out and the web app's limit is the exposure.
+  - The report also gains mostCodesInOneFrame and cameraDetails maxSize / closestFocusMeters (WebKit gives
+    focusDistance.min) / photoButton / photoSizes. A line on the picture after 3 s with nothing read: "Nothing readable -
+    hold still, 8-10 inches away". Hints say to pause over each group.
+  - "Read a video" on an iPhone: the input is accept="video/*", so WebKit's picker asks Photos for the "compatible"
+    representation (WKFileUploadPanel _preferredAssetRepresentationMode) - an HEVC clip is transcoded on the way in, and
+    a recorded clip is compressed twice where the live camera's frames are not compressed at all. "Choose File" (the
+    Files app) hands over the original. The label on the picture shows the size that arrived.
+  - Not done, waiting for his report: choosing the sharpest of several frames; measuring movement to say "too fast";
+    requiring two sightings of an ITF code (no checksum) before a table takes it - check every code in his report
+    against the PDF's list first; keeping the Light on between recordings.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

@@ -348,27 +348,48 @@ const VIDEO = document.createElement('video');
 VIDEO.setAttribute('playsinline', ''); VIDEO.setAttribute('muted', ''); VIDEO.muted = true; VIDEO.autoplay = true;
 const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null,
   worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
-  fpsN: 0, fpsT: 0, fps: 0, ms: 0};
+  fpsN: 0, fpsT: 0, fps: 0, ms: 0, tFull: 0, tUp: 0, tiles: 0, kn: 0, lastHit: 0, photoBusy: false, photoCaps: null};
 const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
-const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: ''};
-function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null}); TEST.reads.clear(); }
+const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], maxPer: 0, photos: []};
+function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], maxPer: 0, photos: []}); TEST.reads.clear(); }
 const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
-// zxing's options: slab codes only (any code in Test mode, so printed samples count too); the default LocalAverage
-// binarizer or the GlobalHistogram one (b = 1) by turns - a glare patch or a dark corner defeats one more than the other
+// zxing's options: which codes to look for, and the LocalAverage binarizer (b = 0) or the GlobalHistogram one (b = 1).
 // maxNumberOfSymbols 255 (2026-11-09; it was 32): with a whole 50-code sheet in view a pass stopped at its first 32 codes -
 // the same 32 every frame; on the simulated sheet one pass now gives 35-37 instead of 32, at the same speed.
-const readerOpts = b => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 255, tryHarder: true, tryRotate: true, tryInvert: false,
-  binarizer: b ? 'GlobalHistogram' : 'LocalAverage'});
+// WHAT EACH BINARIZER IS FOR (measured 2026-11-09 on the simulated 4K pictures): zxing reads the linear codes (Code 128,
+// ITF - what a slab's front label carries) the same way whichever is named, so LINEAR_FORMATS with either takes a third of
+// the time of a pass that also searches for QR and Data Matrix (33 ms against 82-118 ms). A QR needs LocalAverage: in
+// uneven light it read the QR codes in 8 frames of 8, GlobalHistogram in 3 of 8. Looking for every format there is (Test
+// mode's "any code", so other printed samples count too) doubles a pass again, so that is only done now and then.
+const LINEAR_FORMATS = ['Code128', 'ITF'];
+const wideFormats = () => UI.test ? [] : SLAB_FORMATS;
+const readerOpts = (b, formats) => ({formats, maxNumberOfSymbols: 255, tryHarder: true, tryRotate: true, tryInvert: false, binarizer: b ? 'GlobalHistogram' : 'LocalAverage'});
 // ENLARGED READS (Brett's first test, 2026-11-09: "results weren't that great" - at a foot the 4K camera gives the slab
 // barcodes' ~0.2 mm bars only ~1.7 dots each, at 45 degrees less): a piece of the frame is drawn 1.5x bigger before it is
-// read (scan-worker.js); on a test frame the codes at 1.45 dots per bar went from 0 of 10 to 9 of 10. Live, every other
-// frame is read whole and the others as an enlarged piece - the middle every second time (a sweep carries every slab
-// through it), the four corners by turns. A video (no hurry) gets both every frame, the middle and the corners in turn.
-const CENTER = {x: 0.2, y: 0.2, w: 0.6, h: 0.6};
+// read (scan-worker.js); on a test frame the codes at 1.45 dots per bar went from 0 of 10 to 9 of 10.
+// EVERY FRAME, WHOLE AND ENLARGED (2026-11-09, a code review before Brett's fourth test). Until now every other frame was
+// read whole and the others as one enlarged piece, so a corner of the picture got its enlarged look once in 16 frames -
+// two or three seconds, while a hand holds still for a moment at most. Now every frame is read whole AND as its four
+// quarters (overlapping by more than a barcode's width), each drawn 1.5x bigger: on the simulated sheet one frame gives all
+// 50 codes (the old whole + middle pair gave 43-46). The quarters look for the linear slab codes only. The whole pass
+// looks for every slab format: two frames in three with the quick GlobalHistogram binarizer (with no QR in view that costs
+// no more than a linear-only pass), every third frame with LocalAverage for the QR codes. Every sixth frame, instead of
+// the quarters, the middle of the picture is enlarged and given that LocalAverage search too (a QR too small for the whole
+// pass was read in an enlarged piece 15 times in 16, in the whole frame once in 8 - so a small QR is read when it is held
+// in the middle), and in Test mode that frame's whole pass looks for any code at all. Drawing a quarter bigger
+// with the smooth scaling the smallest codes need is the dear part (in a desktop browser ~60 ms of a quarter's ~90;
+// cheaper scaling or widening only lost 3-8 codes on the test pictures), so a phone gets as many quarters a frame as fit
+// BUDGET_MS: four, two (diagonal pairs by turns) or one - the worker says how long each pass took.
 const QUADS = [{x: 0, y: 0, w: 0.56, h: 0.56}, {x: 0.44, y: 0, w: 0.56, h: 0.56}, {x: 0, y: 0.44, w: 0.56, h: 0.56}, {x: 0.44, y: 0.44, w: 0.56, h: 0.56}];
-const LIVE_UP = [CENTER, QUADS[0], CENTER, QUADS[1], CENTER, QUADS[2], CENTER, QUADS[3]], VIDEO_UP = [CENTER].concat(QUADS);
-const livePlan = k => k % 2 ? {full: false, up: LIVE_UP[(k >> 1) % LIVE_UP.length]} : {full: true, up: null};
-const videoPlan = k => ({full: true, up: VIDEO_UP[k % VIDEO_UP.length]});
+const MIDDLE = {x: 0.22, y: 0.22, w: 0.56, h: 0.56};
+// 220 ms: frames still come often enough to catch the moments a hand holds still (in a desktop browser: two quarters a
+// frame at ~4.5 frames a second - as many whole-frame looks as before, and five times the enlarged looks at the corners).
+const BUDGET_MS = 220;                       // the reading time one frame may take
+function liveTiles() {                       // this frame's quarters (i counts the frames that get quarters)
+  const a = SCAN.tFull, b = SCAN.tUp, n = !b ? 2 : a + 4 * b <= BUDGET_MS ? 4 : a + 2 * b <= BUDGET_MS ? 2 : 1, i = SCAN.kn++;
+  SCAN.tiles = n;
+  return n === 4 ? QUADS : n === 2 ? (i % 2 ? [QUADS[1], QUADS[2]] : [QUADS[0], QUADS[3]]) : [QUADS[i % 4]];
+}
 function zxReady() {
   if (!SCAN.zx && window.ZXingWASM) SCAN.zx = ZXingWASM.prepareZXingModule({overrides: {locateFile: (p, prefix) => p.endsWith('.wasm') ? 'zxing/' + p : prefix + p}, fireImmediately: true});
   return SCAN.zx;
@@ -393,14 +414,14 @@ function grab(src, w, h) {                   // a frame's pixels at full size
   return ctx.getImageData(0, 0, w, h);
 }
 const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version});
-async function readImage(src, w, h, opts, plan) {   // -> {res: [{text, format, pos, version}], ms}
+async function readImage(src, w, h, opts, plan, optsUp) {   // -> {res: [{text, format, pos, version}], ms, t}; optsUp: the enlarged pieces' own options
   const wk = workerReady();
   if (wk) {
     const id = ++SCAN.wid;
     const p = new Promise((res, rej) => { SCAN.pend.set(id, {res, rej}); setTimeout(() => { if (SCAN.pend.delete(id)) rej(new Error('the reader took too long')); }, 20000); });
     let bm = null;
-    if (SCAN.offscreen && window.createImageBitmap) { try { bm = await createImageBitmap(src); } catch (e) { bm = null; } }
-    if (bm) wk.postMessage({id, bm, opts, plan}, [bm]);
+    if (SCAN.offscreen && window.createImageBitmap) { try { bm = window.ImageBitmap && src instanceof ImageBitmap ? src : await createImageBitmap(src); } catch (e) { bm = null; } }
+    if (bm) wk.postMessage({id, bm, opts, optsUp, plan}, [bm]);
     else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts, plan}, [img.data.buffer]); }   // raw pixels: the whole frame only
     return p;
   }
@@ -477,6 +498,10 @@ async function camStart() {
   SCAN.label = tr.label || '';
   if (SCAN.torch) { try { await tr.applyConstraints({advanced: [{torch: true}]}); } catch (e) { SCAN.torch = false; } }   // a lens change keeps the light on
   try { SCAN.settings = tr.getSettings ? tr.getSettings() : null; } catch (e) { SCAN.settings = null; }
+  SCAN.photoCaps = null;                     // the sizes of still photo this camera says it can take (Test mode's Photo button)
+  if (window.ImageCapture) {
+    try { new ImageCapture(tr).getPhotoCapabilities().then(c => { const r = x => x && x.max ? [x.min, x.max] : null; SCAN.photoCaps = {w: r(c.imageWidth), h: r(c.imageHeight)}; }).catch(() => {}); } catch (e) {}
+  }
   VIDEO.srcObject = SCAN.stream;
   try { await VIDEO.play(); } catch (e) {}
 }
@@ -493,10 +518,65 @@ function camInfo() {
   const st = SCAN.settings || {}, c = SCAN.caps || {}, rng = x => x && x.max != null ? [x.min, x.max] : null;
   return {device: SCAN.label || '', width: st.width || null, height: st.height || null, frameRate: st.frameRate ? Math.round(st.frameRate) : null,
     light: !!SCAN.torch, zoom: st.zoom != null ? st.zoom : null, zoomRange: rng(c.zoom), lightAvailable: !!c.torch,
-    maxFrameRate: c.frameRate && c.frameRate.max ? Math.round(c.frameRate.max) : null, focusModes: c.focusMode || null, lenses: (SCAN.cams && SCAN.cams.labels) || []};
+    maxFrameRate: c.frameRate && c.frameRate.max ? Math.round(c.frameRate.max) : null, maxSize: c.width && c.height && c.width.max ? [c.width.max, c.height.max] : null,
+    focusModes: c.focusMode || null, closestFocusMeters: c.focusDistance && c.focusDistance.min != null ? c.focusDistance.min : null,
+    photoButton: !!window.ImageCapture, photoSizes: SCAN.photoCaps || null, lenses: (SCAN.cams && SCAN.cams.labels) || []};
 }
 function camStop() { if (SCAN.stream) SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; VIDEO.srcObject = null; }
 function camOff() { camStop(); SCAN.torch = false; }   // the recording is over: the light goes off with the camera
+// TEST MODE'S PHOTO BUTTON (2026-11-09; Brett, more than once: "my actual ios camera is better" - can the scanner use it?).
+// A web page can't reach the Camera app, but Safari lets a page ask the camera for a real still photo instead of a video
+// frame (ImageCapture.takePhoto - WebKit takes it with the phone's photo output, JPEG at full quality). Whether a still
+// reads more slab barcodes than a video frame from the same spot is the question, so one tap reads three pictures the
+// same thorough way (whole, every format; then the four quarters enlarged) and notes each: a video frame; a photo as the
+// camera gives it; a photo at the largest size the camera offers (WebKit switches the camera over for that one and back,
+// so the picture may pause for a moment). The counts go on the screen and into the report (photoTests).
+const waitMax = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' took too long')), ms))]);
+async function photoTest() {
+  const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0];
+  if (!UI.rec || !UI.test || !tr || !window.ImageCapture || SCAN.photoBusy) return;
+  SCAN.photoBusy = true; paintScan();
+  const at = () => Math.round((Date.now() - (TEST.t0 || Date.now())) / 100) / 10, r2 = v => Math.round(v * 100) / 100;
+  const thorough = async (src, w, h) => {    // one picture, read as hard as a video file's frames - never while a live frame is being read
+    while (SCAN.busy) await new Promise(r => setTimeout(r, 15));
+    SCAN.busy = true;
+    try { const o = readerOpts(0, wideFormats()); return await readImage(src, w, h, o, {full: true, up: QUADS}, o); } finally { SCAN.busy = false; }
+  };
+  const note = (kind, out, w, h, more) => {
+    let fresh = 0, min = null;
+    for (const r of out.res) { if (!TEST.reads.has(r.format + '|' + r.text)) fresh++; const d = detailOf(r); if (d != null && (min == null || d < min)) min = d; testRead(r); }
+    TEST.photos.push(Object.assign({kind, at: at(), size: (out.w || w) + 'x' + (out.h || h), codes: out.res.length, newCodes: fresh, finest: min == null ? null : r2(min), sharp: out.sharp == null ? null : out.sharp, readMs: Math.round(out.ms || 0)}, more || {}));
+    return out.res.length;
+  };
+  const shot = async (kind, settings) => {
+    const t0 = performance.now(), blob = await waitMax(new ImageCapture(tr).takePhoto(settings), 12000, 'the photo'), takeMs = Math.round(performance.now() - t0);
+    const bm = await createImageBitmap(blob), w = bm.width, h = bm.height;
+    return [note(kind, await thorough(bm, w, h), w, h, {takeMs, kb: Math.round(blob.size / 1024), type: blob.type || ''}), w, h];
+  };
+  const said = [];
+  try {
+    if (!TEST.t0) TEST.t0 = Date.now();
+    const vw = VIDEO.videoWidth, vh = VIDEO.videoHeight;
+    said.push('video frame ' + note('frame', await thorough(VIDEO, vw, vh), vw, vh));
+    const [n1, pw, ph] = await shot('photo');
+    said.push('photo ' + pw + '×' + ph + ' ' + n1);
+    const pc = SCAN.photoCaps, bw = pc && pc.w ? pc.w[1] : 0, bh = pc && pc.h ? pc.h[1] : 0;
+    if (bw && bh && bw * bh > pw * ph * 1.04) {            // a bigger still is on offer: ask for it too
+      try {
+        const [n2, w2, h2] = await shot('bigPhoto', {imageWidth: bw, imageHeight: bh});
+        said.push('big photo ' + w2 + '×' + h2 + ' ' + n2);
+      } catch (e) { TEST.photos.push({kind: 'bigPhoto', at: at(), asked: bw + 'x' + bh, error: String(e && e.message || e).slice(0, 140)}); }
+      try { SCAN.settings = tr.getSettings ? tr.getSettings() : SCAN.settings; } catch (e) {}
+      const st = SCAN.settings || {};
+      TEST.photos.push({kind: 'cameraAfter', at: at(), size: (st.width || 0) + 'x' + (st.height || 0), frameRate: st.frameRate ? Math.round(st.frameRate) : null, live: tr.readyState, muted: !!tr.muted});
+    }
+    toast('Codes read - ' + said.join(' · '));
+  } catch (e) {
+    TEST.photos.push({kind: 'photo', at: at(), error: String(e && e.message || e).slice(0, 140)});
+    toast('The camera gave no photo (' + String(e && e.message || e).slice(0, 60) + ').');
+  }
+  SCAN.photoBusy = false; paintScan();
+}
 function lensChoices() {                     // [value, label]: the iPhone's 3x telephoto by name; elsewhere a 2x zoom when the camera offers one
   if (SCAN.cams && SCAN.cams.tele) return [['main', '1x'], ['tele', '3x']];
   if (!isIOS() && SCAN.caps && SCAN.caps.zoom && SCAN.caps.zoom.max >= 2) return [['main', '1x'], ['zoom2', '2x']];
@@ -529,22 +609,29 @@ async function scanFrame() {
   if (!UI.rec || SCAN.busy || !SCAN.stream || !VIDEO.videoWidth) return;
   SCAN.busy = true;
   try {
-    const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, out = await readImage(VIDEO, w, h, readerOpts((k >> 2) & 1), livePlan(k));
-    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp);
+    const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, quick = k % 3 !== 2, deep = k % 6 === 5, ema = (a, v) => a ? a * 0.7 + v * 0.3 : v;
+    const opts = quick ? readerOpts(1, SLAB_FORMATS) : readerOpts(0, deep ? wideFormats() : SLAB_FORMATS);
+    const out = await readImage(VIDEO, w, h, opts, {full: true, up: deep ? [MIDDLE] : liveTiles()}, deep ? readerOpts(0, SLAB_FORMATS) : readerOpts(1, LINEAR_FORMATS));
+    if (out.t && k) { if (!deep && out.t.up != null) SCAN.tUp = ema(SCAN.tUp, out.t.up); if (quick && out.t.full != null) SCAN.tFull = ema(SCAN.tFull, out.t.full); }   // not the first frame ever: the reader is still warming up
+    if (out.t && deep) out.t.deep = true;
+    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t);
     if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
   } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
   SCAN.busy = false;
 }
 // what one frame gave: slabs for the table (or Test mode's list), boxes on the picture, the reading speed
-function gotReads(res, w, h, ms, tid, sharp) {
+function gotReads(res, w, h, ms, tid, sharp, tm) {
   const now = performance.now();
-  SCAN.ms = ms; SCAN.fpsN++;
+  SCAN.ms = ms; SCAN.fpsN++; if (res.length) SCAN.lastHit = now;
   if (now - SCAN.fpsT > 2000) { SCAN.fps = SCAN.fpsT ? SCAN.fpsN * 1000 / (now - SCAN.fpsT) : 0; SCAN.fpsN = 0; SCAN.fpsT = now; }
   if (UI.test) {                             // what the report needs: frames, how sharp, how long each read took
     if (!TEST.t0) TEST.t0 = Date.now();
     TEST.last = Date.now(); TEST.frames++; TEST.ms.push(Math.round(ms || 0)); if (sharp != null) TEST.sharps.push(sharp);
     Object.assign(TEST, {mode: VREAD.on ? 'video' : 'live', w, h, lens: VREAD.on ? 'video' : lensLabel()});
     if (!VREAD.on && TEST.frames % 10 === 1) TEST.cam = camInfo();
+    if (tm && tm.full != null) TEST.tw.push(Math.round(tm.full));
+    if (tm && tm.up != null && !tm.deep) TEST.tu.push(Math.round(tm.up));
+    if (res.length > TEST.maxPer) TEST.maxPer = res.length;
   }
   for (const r of res) {
     const kc = certOf(r.text, r.format);
@@ -572,10 +659,13 @@ function testStats() {
 }
 function testReport() {
   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
-  return {report: 'Slab Show Scanner test', version: 'g11h', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+  const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
+  return {report: 'Slab Show Scanner test', version: 'g11i', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
+    timing: {wholeMs: med(TEST.tw), quarterMs: med(TEST.tu), quartersPerFrame: TEST.mode === 'live' ? SCAN.tiles : 4}, mostCodesInOneFrame: TEST.maxPer,
     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.rows.length, onlyEnlarged: st.onlyUp,
+    photoTests: TEST.photos.length ? TEST.photos : null,
     list: st.rows.sort((a, b) => a.first - b.first).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.full ? 'whole' : 'enlarged'])};
 }
 async function copyReport() {
@@ -632,6 +722,7 @@ async function startRec(tableId) {
   const now = Date.now();
   const id = UI.test ? null : (tableId || newTable());
   Object.assign(UI, {rec: true, recTable: id, recStart: now, feed: [], dup: null, tab: 'scan', openTable: null, camErr: null});
+  SCAN.lastHit = performance.now();
   audioOn(); wakeOn();
   render();
   try { workerReady(); zxReady(); await camStart(); SCAN.timer = setInterval(scanFrame, 50); }
@@ -694,8 +785,9 @@ async function readVideo(file) {
     if (!w || !h) throw new Error('no picture in this file');
     for (let t = 0, k = 0; t < dur && !VREAD.stop; t += VIDEO_STEP_S, k++) {
       await seekTo(fv, Math.min(t, Math.max(0, dur - 0.01)));
-      const out = await readImage(fv, w, h, readerOpts(k & 1), videoPlan(k));
-      gotReads(out.res, out.w || w, out.h || h, out.ms, tid, out.sharp);
+      const opts = readerOpts(k & 1, wideFormats());       // no hurry: both binarizers by turns, all four quarters - with the QR search too on the LocalAverage frames
+      const out = await readImage(fv, w, h, opts, {full: true, up: QUADS}, k & 1 ? readerOpts(1, LINEAR_FORMATS) : opts);
+      gotReads(out.res, out.w || w, out.h || h, out.ms, tid, out.sharp, out.t);
       VREAD.frames++; VREAD.pct = Math.min(1, (t + VIDEO_STEP_S) / dur); paintScan();
     }
   } catch (e) { err = e; }
@@ -848,7 +940,7 @@ function scanHtml() {
     '<label class="field" id="vendor-field"><span class="label">Vendor or booth</span><input class="input" type="text" placeholder="Optional - e.g. Booth 214" value="' + esc(UI.draftVendor) + '" data-in="draftVendor"></label>' +
     '<div class="viewfinder" id="vf"><div class="vfslabs" id="vfslabs">' + '<div class="fslab"><div class="flabel"><div class="fbar"></div></div><div class="fart"></div></div>'.repeat(8) + '</div>' +
     '<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div><canvas class="vfboxes" id="vf-boxes"></canvas>' +
-    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Hold 8–10 inches above the slabs and sweep slowly</div></div>' +
+    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Hold 8–10 inches away and pause over each group of slabs</div></div>' +
     '<div id="vid-prog"></div>' +
     '<div class="recwrap"><button class="recbtn" id="rec-btn" data-a="rec" aria-label="Start recording"><span class="core"></span></button><span class="small muted" id="rec-hint">Tap to record this table</span></div>' +
     '<div class="toolrow" id="toolrow"><label class="btn" id="vid-btn">Read a video<input class="vh" type="file" accept="video/*" id="vid-in"></label>' +
@@ -867,11 +959,12 @@ function testHtml() {
     '<div class="tbig"><b>' + rows.length + '</b>different code' + (rows.length === 1 ? '' : 's') + ' read</div>' +
     (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
     (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (rows.length ? ', ' + st.onlyUp + ' code' + (st.onlyUp === 1 ? '' : 's') + ' found only by the enlarged reads' : '') + '</div>' : '') +
+    (TEST.photos.length ? '<div class="small muted">Photo test - codes read: ' + esc(TEST.photos.filter(x => x.codes != null).slice(-6).map(x => (x.kind === 'frame' ? 'video frame' : x.kind === 'bigPhoto' ? 'big photo' : 'photo') + ' ' + x.codes).join(' · ') || 'no photo came back') + '</div>' : '') +
     (TEST.frames && !(UI.rec || VREAD.on) ? '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
     (UI.reportText ? '<textarea class="input" style="height:120px;font-size:12px" readonly>' + esc(UI.reportText) + '</textarea>' : '') +
     rows.slice(0, 60).map(r => '<div class="trow"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
       (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
-    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge - slab barcodes need the phone about 8–10 inches away with 1x. Tap Clear before each run; after it, Copy report and paste it into the chat - it also says how sharp the frames were and what the camera gave.</p></div>';
+    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge - slab barcodes need the phone about 8–10 inches away with 1x. Movement across the bars smears them (a smear of two bars’ width and nothing reads): hold still over each group, or move the way the bars point, and try the Light. Photo test (while a test records) reads a still photo and a video frame from the same spot, to compare them. Tap Clear before each run; after it, Copy report and paste it into the chat - it also says how sharp the frames were and what the camera gave.</p></div>';
 }
 function paintScan() {
   if (UI.tab !== 'scan' || !$('rec-btn')) return;
@@ -888,8 +981,13 @@ function paintScan() {
     : VREAD.on ? '<div class="recbadge"><span class="recdot"></span>VIDEO ' + Math.round(VREAD.pct * 100) + '% · ' + cnt + what + '</div>' : '';
   const ch = lensChoices(), cur = S.settings.lens;
   const fr = SCAN.settings && SCAN.settings.frameRate ? ' · ' + Math.round(SCAN.settings.frameRate) + 'fps' : '';
+  // Nothing read for three seconds while the camera runs: say what makes a frame readable (2026-11-09 - on the simulated
+  // frames a sideways smear of 4 camera dots, two bars' width, read nothing at all; the same smear along the bars cost nothing).
+  const idle = cam && VIDEO.videoWidth && performance.now() - (SCAN.lastHit || 0) > 3000;
   $('vf-tools').innerHTML = cam && VIDEO.videoWidth ? '<div class="vfinfo">' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' · ' + lensLabel() + fr + '</div>' +
       (SCAN.caps && SCAN.caps.torch ? '<button class="lightbtn' + (SCAN.torch ? ' on' : '') + '" data-a="light" aria-pressed="' + (SCAN.torch ? 'true' : 'false') + '">Light ' + (SCAN.torch ? 'on' : 'off') + '</button>' : '') +
+      (UI.test && window.ImageCapture ? '<button class="lightbtn photobtn" data-a="photo"' + (SCAN.photoBusy ? ' disabled' : '') + '>' + (SCAN.photoBusy ? 'Photo…' : 'Photo test') + '</button>' : '') +
+      (idle && !SCAN.photoBusy ? '<div class="vfcoach">Nothing readable - hold still, 8–10 inches away</div>' : '') +
       (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
     : VREAD.on && VREAD.w ? '<div class="vfinfo">' + resLabel(VREAD.w, VREAD.h) + ' video</div>' : '';
   $('vf-hint').hidden = cam || VREAD.on;
@@ -1140,6 +1238,7 @@ async function act(a, ds, el) {
     case 'testcopy': return copyReport();
     case 'lens': return setLens(ds.v);
     case 'light': return setTorch(!SCAN.torch);
+    case 'photo': return photoTest();
     case 'beep': s.beep = !s.beep; save(); if (s.beep) { audioOn(); beep(); } break;
     case 'table': UI.openTable = ds.id; break;
     case 'back': UI.openTable = null; break;

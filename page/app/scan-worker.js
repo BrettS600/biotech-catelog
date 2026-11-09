@@ -8,7 +8,11 @@
    frame too (plan.full); positions found in the enlarged piece are mapped back to the frame.
    SHARPNESS (2026-11-09, Brett's second test - most frames blurry, 3x held too close to focus): every frame gets a score,
    the variance of the Laplacian of a 512 x 512 patch from its middle (sharp edges -> high); Test mode's report uses it to
-   tell blur apart from too little detail. A code first found in the enlarged piece is marked up: true. */
+   tell blur apart from too little detail. A code first found in the enlarged piece is marked up: true.
+   EVERY FRAME, WHOLE AND ENLARGED (2026-11-09, a code review before Brett's fourth test): plan.up may be a list of pieces,
+   read one after the other with their own options (optsUp - the linear slab codes only, three times quicker than a pass
+   that also looks for QR codes); the answer says how long the whole-frame pass and each piece took (t.full, t.up) so the
+   page can fit as many pieces into a frame as this phone has time for. */
 'use strict';
 importScripts('zxing/reader.js');
 const READY = ZXingWASM.prepareZXingModule({
@@ -47,7 +51,7 @@ self.onmessage = async e => {
   const m = e.data, plan = m.plan || {full: true, up: null};
   try {
     await READY;
-    const W = m.bm ? m.bm.width : m.w, H = m.bm ? m.bm.height : m.h, out = [], seen = new Set();
+    const W = m.bm ? m.bm.width : m.w, H = m.bm ? m.bm.height : m.h, out = [], seen = new Set(), t = {};
     const keep = rs => { for (const r of rs) { const k = r.format + '|' + r.text; if (!seen.has(k)) { seen.add(k); out.push(r); } } };
     if (m.bm) draw(m.bm);
     const n = Math.min(512, W, H), sx = Math.round((W - n) / 2), sy = Math.round((H - n) / 2);
@@ -56,13 +60,19 @@ self.onmessage = async e => {
     if (plan.full !== false || !m.bm) {
       const img = m.bm ? CX.getImageData(0, 0, W, H) : new ImageData(new Uint8ClampedArray(m.buf), W, H);
       keep((await ZXingWASM.readBarcodes(img, m.opts)).filter(r => r.isValid !== false).map(r => slim(r, 0, 0, 1)));
+      t.full = performance.now() - t0;
     }
-    if (plan.up && m.bm) {
-      const x0 = Math.round(plan.up.x * W), y0 = Math.round(plan.up.y * H), w = Math.round(plan.up.w * W), h = Math.round(plan.up.h * H);
-      keep((await ZXingWASM.readBarcodes(enlarged(x0, y0, w, h), m.opts)).filter(r => r.isValid !== false).map(r => slim(r, x0, y0, UP)));
+    const ups = m.bm && plan.up ? (Array.isArray(plan.up) ? plan.up : [plan.up]) : [];
+    if (ups.length) {
+      const t1 = performance.now(), o = m.optsUp || m.opts;
+      for (const u of ups) {
+        const x0 = Math.round(u.x * W), y0 = Math.round(u.y * H), w = Math.round(u.w * W), h = Math.round(u.h * H);
+        keep((await ZXingWASM.readBarcodes(enlarged(x0, y0, w, h), o)).filter(r => r.isValid !== false).map(r => slim(r, x0, y0, UP)));
+      }
+      t.up = (performance.now() - t1) / ups.length;
     }
     if (m.bm) m.bm.close();
-    self.postMessage({id: m.id, w: W, h: H, ms: performance.now() - t0, sharp, res: out});
+    self.postMessage({id: m.id, w: W, h: H, ms: performance.now() - t0, sharp, res: out, t});
   } catch (err) {
     self.postMessage({id: m.id, err: String(err && err.message || err)});
   }
