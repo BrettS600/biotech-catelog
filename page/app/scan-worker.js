@@ -12,7 +12,10 @@
    EVERY FRAME, WHOLE AND ENLARGED (2026-11-09, a code review before Brett's fourth test): plan.up may be a list of pieces,
    read one after the other with their own options (optsUp - the linear slab codes only, three times quicker than a pass
    that also looks for QR codes); the answer says how long the whole-frame pass and each piece took (t.full, t.up) so the
-   page can fit as many pieces into a frame as this phone has time for. */
+   page can fit as many pieces into a frame as this phone has time for.
+   A SMEARED FRAME IS DROPPED EARLY (plan.gate, set by the page while whole-frame passes have been reading codes): when the
+   whole pass of such a frame reads nothing, the frame is smeared - on the test pictures a smear that empties the whole pass
+   empties the enlarged pieces too - so they are skipped (t.skipped) and the next frame comes sooner. */
 'use strict';
 importScripts('zxing/reader.js');
 const READY = ZXingWASM.prepareZXingModule({
@@ -60,9 +63,10 @@ self.onmessage = async e => {
     if (plan.full !== false || !m.bm) {
       const img = m.bm ? CX.getImageData(0, 0, W, H) : new ImageData(new Uint8ClampedArray(m.buf), W, H);
       keep((await ZXingWASM.readBarcodes(img, m.opts)).filter(r => r.isValid !== false).map(r => slim(r, 0, 0, 1)));
-      t.full = performance.now() - t0;
+      t.full = performance.now() - t0; t.nFull = out.length;
     }
-    const ups = m.bm && plan.up ? (Array.isArray(plan.up) ? plan.up : [plan.up]) : [];
+    if (plan.gate && t.nFull === 0 && m.bm && plan.up) t.skipped = true;
+    const ups = m.bm && plan.up && !t.skipped ? (Array.isArray(plan.up) ? plan.up : [plan.up]) : [];
     if (ups.length) {
       const t1 = performance.now(), o = m.optsUp || m.opts;
       for (const u of ups) {

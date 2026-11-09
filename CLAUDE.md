@@ -2804,6 +2804,15 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   - Not done, waiting for his report: choosing the sharpest of several frames; measuring movement to say "too fast";
     requiring two sightings of an ITF code (no checksum) before a table takes it - check every code in his report
     against the PDF's list first; keeping the Light on between recordings.
+  g11j (same day): A SMEARED FRAME IS DROPPED EARLY. A simulated hand that only pauses (/tmp/claude-0/ga/move/pause.y4m:
+  1 camera frame in 5 sharp, the rest smeared 8 dots sideways), three runs each: g11h 45 codes at 1.25-1.75 s and never
+  all 50; g11i 45 at 0.75 s but all 50 only at 5.25-8.25 s (fewer frames a second = fewer sharp moments caught); g11j 45
+  at 0.75-1.5 s and all 50 at 2-3 s. The rule (scanFrame gate, the worker's plan.gate): while a whole-frame pass has read
+  a code within GATE_MS (2.5 s), a whole pass that reads nothing skips that frame's quarters (t.skipped) - at most
+  GATE_RUN (3) frames in a row, so a place with only the smallest codes still gets them. The report gains
+  framesWithNoCode and framesDroppedEarly. along.y4m (the same smear along the bars): every version reads 49-50 at once.
+  The answer key of Brett's printed sheets (400 codes, 8 sheets of 50; thin bar 0.173 mm PSA Code 128, 0.204 CGC, 0.273
+  PSA ITF) is slab-barcode-test-key.csv, sent with the PDF on 2026-11-05 - check a pasted report's codes against it.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

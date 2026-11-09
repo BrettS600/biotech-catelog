@@ -348,10 +348,10 @@ const VIDEO = document.createElement('video');
 VIDEO.setAttribute('playsinline', ''); VIDEO.setAttribute('muted', ''); VIDEO.muted = true; VIDEO.autoplay = true;
 const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null,
   worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
-  fpsN: 0, fpsT: 0, fps: 0, ms: 0, tFull: 0, tUp: 0, tiles: 0, kn: 0, lastHit: 0, photoBusy: false, photoCaps: null};
+  fpsN: 0, fpsT: 0, fps: 0, ms: 0, tFull: 0, tUp: 0, tiles: 0, kn: 0, lastHit: 0, lastWhole: 0, skipRun: 0, photoBusy: false, photoCaps: null};
 const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
-const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], maxPer: 0, photos: []};
-function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], maxPer: 0, photos: []}); TEST.reads.clear(); }
+const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], maxPer: 0, photos: [], cut: 0, empty: 0};
+function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], maxPer: 0, photos: [], cut: 0, empty: 0}); TEST.reads.clear(); }
 const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
 // zxing's options: which codes to look for, and the LocalAverage binarizer (b = 0) or the GlobalHistogram one (b = 1).
 // maxNumberOfSymbols 255 (2026-11-09; it was 32): with a whole 50-code sheet in view a pass stopped at its first 32 codes -
@@ -385,8 +385,15 @@ const MIDDLE = {x: 0.22, y: 0.22, w: 0.56, h: 0.56};
 // 220 ms: frames still come often enough to catch the moments a hand holds still (in a desktop browser: two quarters a
 // frame at ~4.5 frames a second - as many whole-frame looks as before, and five times the enlarged looks at the corners).
 const BUDGET_MS = 220;                       // the reading time one frame may take
-function liveTiles() {                       // this frame's quarters (i counts the frames that get quarters)
-  const a = SCAN.tFull, b = SCAN.tUp, n = !b ? 2 : a + 4 * b <= BUDGET_MS ? 4 : a + 2 * b <= BUDGET_MS ? 2 : 1, i = SCAN.kn++;
+// A SMEARED FRAME IS DROPPED EARLY (2026-11-09; a simulated hand that only pauses - 1 camera frame in 5 sharp, the rest
+// smeared - showed the price of reading every frame so thoroughly: fewer frames a second, so fewer of the sharp moments
+// caught). While whole-frame passes have been reading codes (one did within GATE_MS), a whole pass that reads nothing
+// means a smeared frame, and a smear that empties the whole pass empties the quarters too: the worker skips them and the
+// next frame is grabbed at once. Never more than GATE_RUN frames in a row, so a place with only the smallest codes (which
+// the whole pass never reads) still gets its quarters.
+const GATE_MS = 2500, GATE_RUN = 3;
+function liveTiles() {                       // this frame's quarters (i counts the frames whose quarters were read)
+  const a = SCAN.tFull, b = SCAN.tUp, n = !b ? 2 : a + 4 * b <= BUDGET_MS ? 4 : a + 2 * b <= BUDGET_MS ? 2 : 1, i = SCAN.kn;
   SCAN.tiles = n;
   return n === 4 ? QUADS : n === 2 ? (i % 2 ? [QUADS[1], QUADS[2]] : [QUADS[0], QUADS[3]]) : [QUADS[i % 4]];
 }
@@ -611,7 +618,12 @@ async function scanFrame() {
   try {
     const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, quick = k % 3 !== 2, deep = k % 6 === 5, ema = (a, v) => a ? a * 0.7 + v * 0.3 : v;
     const opts = quick ? readerOpts(1, SLAB_FORMATS) : readerOpts(0, deep ? wideFormats() : SLAB_FORMATS);
-    const out = await readImage(VIDEO, w, h, opts, {full: true, up: deep ? [MIDDLE] : liveTiles()}, deep ? readerOpts(0, SLAB_FORMATS) : readerOpts(1, LINEAR_FORMATS));
+    const gate = !!SCAN.lastWhole && performance.now() - SCAN.lastWhole < GATE_MS && SCAN.skipRun < GATE_RUN;
+    const out = await readImage(VIDEO, w, h, opts, {full: true, up: deep ? [MIDDLE] : liveTiles(), gate}, deep ? readerOpts(0, SLAB_FORMATS) : readerOpts(1, LINEAR_FORMATS));
+    const cut = !!(out.t && out.t.skipped);
+    if (out.t && out.t.nFull) SCAN.lastWhole = performance.now();
+    SCAN.skipRun = cut ? SCAN.skipRun + 1 : 0;
+    if (!deep && !cut) SCAN.kn++;
     if (out.t && k) { if (!deep && out.t.up != null) SCAN.tUp = ema(SCAN.tUp, out.t.up); if (quick && out.t.full != null) SCAN.tFull = ema(SCAN.tFull, out.t.full); }   // not the first frame ever: the reader is still warming up
     if (out.t && deep) out.t.deep = true;
     if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t);
@@ -632,6 +644,8 @@ function gotReads(res, w, h, ms, tid, sharp, tm) {
     if (tm && tm.full != null) TEST.tw.push(Math.round(tm.full));
     if (tm && tm.up != null && !tm.deep) TEST.tu.push(Math.round(tm.up));
     if (res.length > TEST.maxPer) TEST.maxPer = res.length;
+    if (tm && tm.skipped) TEST.cut++;
+    if (!res.length) TEST.empty++;
   }
   for (const r of res) {
     const kc = certOf(r.text, r.format);
@@ -660,10 +674,11 @@ function testStats() {
 function testReport() {
   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
   const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
-  return {report: 'Slab Show Scanner test', version: 'g11i', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+  return {report: 'Slab Show Scanner test', version: 'g11j', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
     timing: {wholeMs: med(TEST.tw), quarterMs: med(TEST.tu), quartersPerFrame: TEST.mode === 'live' ? SCAN.tiles : 4}, mostCodesInOneFrame: TEST.maxPer,
+    framesWithNoCode: TEST.empty, framesDroppedEarly: TEST.cut,
     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.rows.length, onlyEnlarged: st.onlyUp,
     photoTests: TEST.photos.length ? TEST.photos : null,
     list: st.rows.sort((a, b) => a.first - b.first).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.full ? 'whole' : 'enlarged'])};
