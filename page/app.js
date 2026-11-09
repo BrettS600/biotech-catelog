@@ -3938,3 +3938,17 @@ $('use-al').addEventListener('click', () => {
   $('conf').value = c.conf; $('win').value = c.window; $('margin').value = c.margin; $('buytax').value = c.tax;
   $('margin').dispatchEvent(new Event('input'));
 });
+
+/* ---- the phone app in a pop-up (Slab Show Scanner, page/app; 2026-11-09) ---- */
+(() => {
+  const ov = $('appov'), fr = $('app-frame'), url = new URL('app/', location.href).href;
+  $('app-url').textContent = url.replace(/^https?:\/\//, '');
+  // on a phone the pop-up adds nothing: the button opens the app's own page (from there, Add to Home Screen)
+  const phone = () => window.matchMedia('(max-width: 700px)').matches || /iPhone|iPod|Android.*Mobile/.test(navigator.userAgent);
+  const open = () => { if (phone()) { location.href = 'app/'; return; } if (!fr.src) fr.src = 'app/'; ov.hidden = false; };
+  const close = () => { ov.hidden = true; };
+  $('app-btn').addEventListener('click', open);
+  $('app-x').addEventListener('click', close);
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !ov.hidden) close(); });
+})();

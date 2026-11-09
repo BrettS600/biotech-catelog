@@ -8,6 +8,7 @@
   <button class="tab" data-t="fv" title="The rows you starred, from every tab">Favorites <span class="tcnt" id="nfv"></span></button>
   <div class="tools">
     <span class="pcpill" id="pcpill" hidden></span>
+    <button class="readme" id="app-btn" title="Slab Show Scanner - the phone app for card shows, in a pop-up">Phone app</button>
     <button class="readme" id="readme-btn" title="How this tab works">README</button>
   </div>
 </nav>
@@ -840,3 +841,17 @@
 </div>
 <button class="more" id="more-rv" hidden>Show more</button>
 </section>
+
+<!-- ============ The phone app in a pop-up (2026-11-09, Brett: "have it as like a button that's clickable, and then it'll
+     just pop up so I can kind of see it on my website") - the same app/ page the iPhone's home-screen icon opens ============ -->
+<div class="appov" id="appov" hidden>
+  <div class="appbox" role="dialog" aria-label="Slab Show Scanner">
+    <div class="apphead">
+      <b>Slab Show Scanner</b>
+      <a href="app/" target="_blank" rel="noopener" title="The app on its own page - on your iPhone, open this in Safari and use Share, Add to Home Screen">Open on its own ↗</a>
+      <button class="appx" id="app-x" aria-label="Close">×</button>
+    </div>
+    <iframe id="app-frame" title="Slab Show Scanner" allow="camera; clipboard-write"></iframe>
+    <p class="appnote">On your iPhone: open <b id="app-url"></b> in Safari, then Share › Add to Home Screen. The icon opens straight into the app, not this website.</p>
+  </div>
+</div>

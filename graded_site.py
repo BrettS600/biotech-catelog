@@ -1195,6 +1195,13 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         print("graded: no SITE_PASSWORD - nothing written")
         return doc, trends
     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
+    # the phone app's own small file (2026-11-09, Brett: "proceed to build app"): what a scanned slab needs, nothing more
+    try:
+        ad = app_doc(doc, pc)
+        na = write_enc(os.path.join(out_dir, "app", "data.bin"), ad, key)
+        print(f"app: {len(ad['rows']):,} rows over {len(ad['cards']):,} cards -> {out_dir}/app/data.bin ({na / 1e3:.0f} KB gzip)")
+    except Exception as e:                                   # noqa: BLE001
+        print("app data failed:", f"{type(e).__name__}: {e}")
     # the graded Forecast History's replay (2026-11-04, Brett): each month since 2022 with the odds known at the time and
     # its best-ranked lines with what they did next (graded_forecast.build_hist) - its own file, read when the page opens
     try:
@@ -1216,6 +1223,42 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
           + f") -> {out_dir}/graded.bin ({n / 1e3:.0f} KB gzip), "
           f"{len(shards)} trend file(s); {grade_diff} rows where PriceCharting's grade is not Card Ladder's (not compared)")
     return doc, trends
+
+
+def app_doc(doc, pc):
+    """The phone app's data (public/app/data.bin, the page's key): Slab Show Scanner looks a scanned slab up here.
+    cards {pc id: [PC name, PC set, PC card number, PSA spec, CGC id, CL page, CL label, CL image, CL status, answer]}
+    (answer: 1 Same card / 0 Not the same card / null), rows [[pc id, grade index, CL standard, its window days, its
+    sales, CL sales in 12 months, CL value confidence, CL sales last month, PC price, PC sales last month, CL value]],
+    fc: the Forecast's odds tables ({key: [mean, q]}), lines, regime, month, model and today's ranks (pct) - the same
+    figures the website's Recording page uses."""
+    fc = doc.get("fc") or {}
+    tabs = {k: [v.get("mean"), v.get("q")] for k, v in (fc.get("tables") or {}).items() if isinstance(v, dict) and v.get("q")}
+    names = {}
+    if pc is not None and len(pc) and "product-name" in pc.columns:
+        sets = pc["console-name"] if "console-name" in pc.columns else None
+        for cid, nm in pc["product-name"].items():
+            names[int(cid)] = (str(nm), str(sets.get(cid, "")) if sets is not None else "")
+    cards, rows = {}, []
+    for x in doc.get("rows") or []:
+        cid = int(x[0])
+        c = (doc.get("cards") or {}).get(str(cid)) or {}
+        ns = (c.get("ma") or {}).get("v") == 0              # answered Not the same card: no Card Ladder side
+        at = lambda i: x[i] if len(x) > i else None
+        cs = at(24) if c.get("cls") == "read" and not ns else None
+        pcp = at(2) if at(2) is not None else ((at(18) or [None])[0] if at(18) else None)
+        rows.append([cid, x[1], cs[0] if cs else None, cs[1] if cs else None, cs[2] if cs else None,
+                     None if ns else at(25), None if ns else at(26), None if ns else at(8), pcp,
+                     at(4) if at(4) is not None else at(21), None if ns else at(6)])
+        if str(cid) not in cards:
+            nm, st = names.get(cid, ("", ""))
+            cl = c.get("cl") or [None] * 7
+            cards[str(cid)] = [nm, st, str(c.get("pn") or ""), str(c.get("spec") or ""), str(c.get("cgc") or ""),
+                               c.get("pid") or "", cl[0] or "", cl[6] or "", "nomatch" if ns else c.get("cls") or "",
+                               (c.get("ma") or {}).get("v")]
+    return {"v": 1, "built": doc.get("built"), "lastm": doc.get("lastm"), "gk": doc.get("gk"), "cards": cards, "rows": rows,
+            "fc": {"model": fc.get("model"), "month": fc.get("month"), "qs": fc.get("qs"), "lines": fc.get("lines"),
+                   "regime": fc.get("regime"), "tables": tabs, "pct": fc.get("pct") or {}} if tabs else None}
 
 
 def add_cf(trends, P, F):

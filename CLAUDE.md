@@ -2637,6 +2637,56 @@ pushed through the connector has backslash-u escapes UNESCAPED (`\u2019` in a JS
 itself - harmless there, but the blob sha differs from the local file, so compare and re-align the local copy), and
 long lines with non-ASCII characters (help.js) are safer through the editor, where the ops are small.
 
+## SLAB SHOW SCANNER - THE PHONE APP (2026-11-09, g10)
+Brett: "I walk into a vendor show ... I press a video record button ... the bardcodes of the graded slabs are read ...
+records categorized as table 1 ... I record the 13% number ... I see a summary of which cards to buy and at which table".
+Designed first as a Design-canvas prototype (claude.ai artifact "Slab Show Scanner", 2026-11-06), approved 2026-11-09 with
+four changes: the % box typable like the $ box; the Review button where the recent-sales chart was; "min sales last mo"
+on the Show tab (default 5, variable); Record purchases sending to History. Built as a HOME-SCREEN WEB APP (Brett's pick:
+no Apple account, no Xcode), "everything now", the sample show kept.
+- On the website (Brett: "have it as like a button that's clickable, and then it'll just pop up ... when I ... add to home
+  screen ... I'd rather it just go straight to the mobile app"): a "Phone app" button beside README (body.html #app-btn)
+  opens #appov, a phone-sized iframe of app/ (allow camera) with "Open on its own" and the Add to Home Screen hint; on a
+  phone-width screen the button goes to app/ itself. The home-screen icon is made from app/ (its manifest start_url ./),
+  so it opens straight into the app, never the website (and skips the site's staticrypt page). iOS keeps a home-screen
+  app's storage apart from Safari's: the password and the PSA token are entered once inside the icon's app.
+- Where: page/app/ (index.html, app.css, app.js, sw.js, manifest.webmanifest, icons, zxing/ = zxing-wasm 3.1.6 reader
+  build, vendored so a show hall without signal still scans). build_catalog.py copies page/app to public/app as it is
+  (NOT staticrypted: it holds no data and no key). URL: https://bretts600.github.io/biotech-catelog/app/ - Safari's
+  Share > Add to Home Screen. sw.js keeps the app on the phone (cached first, refreshed behind) and data.bin (network
+  first, the cached copy after 6 s).
+- Data: graded_site.py app_doc() -> public/app/data.bin (HKEY, written right after graded.bin): cards {pc id: [PC name,
+  PC set, PC number, PSA spec, CGC id, CL page, CL label, CL image, CL status, Review answer]}, rows [[pc id, grade
+  index, CL standard, window days, window sales, CL sales/yr, CL confidence, CL sales last month, PC price, PC sales last
+  month, CL value]], fc {model, month, qs, lines, regime, tables {key: [mean, q]}, pct}. The app asks for the SITE
+  PASSWORD once and derives HKEY itself (PBKDF2-SHA256 600,000, salt biotech-catalog-live-v1), kept in localStorage
+  ssc-key; a wrong password = the AES-GCM decrypt fails.
+- Money: the website's Recording math exactly (graded_fc.js fcgCalc / fcgCdf / fcgDraw / fcgMonteCarlo): standard =
+  Card Ladder's, chance off the odds table at the hold and today's rank group, fee 13.25% x 1.065, shipping in the buy
+  price; typed $ -> % under = 1 - (price + shipping) / standard. Plan: bought first; then chance to the whole percent,
+  rank, price; per-slab share; capital; chance bar; MIN SALES LAST MO = Card Ladder sales last month (row col 7, the
+  website's "Sold CL (last mo)", graded.bin x[8]) - below it a slab stays on its table dimmed, never in Buys; the market
+  gate (Show: "Buy only when the market is rising", on by default as on the website) holds real slabs back when the
+  regime is down. A slab whose card is only guessed ("Check it") stays out of Buys until confirmed in Review.
+- Scanning: getUserMedia (back camera) -> canvas (<= 1600 px) -> ZXingWASM.readBarcodes (QRCode, Code128, ITF,
+  DataMatrix; 16 a frame) every 220 ms; certOf() = card-data pc_tab.js S1.kind (PSA: QR psacard.com/cert/<n>, 8-9
+  digits; CGC: 10 digits Code128 starting 3-9, 13 starting 1401) plus CGC's QR cgccards.com/certlookup/<n>. One slab
+  per cert per table. No camera + no data = the prototype's simulated reads; "Add a slab by its cert number" on a table.
+- Lookups: PSA certs through PSA's Public API FROM THE PHONE (CORS is open; Brett pastes his token on the Show tab -
+  localStorage ssc-psa-token, never anywhere else; 100 a day per PSA's gateway, shared with cert_lookups.py's nightly
+  PSA_MAX; ssc-psa-day counts, a 429 stops for the day). SpecID -> the catalog card through card_ids' psa_spec (and the
+  CL page psa-/matched-<spec>); no spec match -> a guess by card number + name words ("Check it" + candidates); nothing
+  -> "Find the card" (search the catalog by name / set / number, pick the grade). CGC certs: found by name until the Card
+  Hedge step (Card Hedge's API refuses browsers - CORS - so it has to go through the collector, with CARDHEDGE_API_KEY
+  added to /etc/pokemon-collector.env by Brett).
+- To the website: Record purchases = the website's Purchases button: alSend {type 'gplan', id, k, n, s: [[cid, gk, %
+  under x1000, CL standard, PC price, paid, chance x1000/100 (= the page's fcP x 10), net, rank x1000]], part 0 + h, cap,
+  disc, ship, fee, month, reg, spent, model, smp 0, holds} on the HKEY channel (ntfy, HMAC) -> History > Recorded
+  Purchases. Sample slabs are never sent. Review's Same card / Not the same card = {type 'gmark', g 'card'} as on the site.
+- Tests (local): serve a copy of page/app with a test data.bin (site2 harness mk3.py, password testpw) on 127.0.0.1;
+  Playwright iPhone 13; ntfy.sh and api.psacard.com ROUTED to stubs (never the real channel); a fake camera:
+  Chromium --use-file-for-fake-video-capture=<y4m of slab labels made with zxing's writer> read all four kinds in ~6 s.
+
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
   fixtures with no network and no git; the jsdom refresh test (test_refresh.js in the harness) needs

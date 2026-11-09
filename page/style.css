@@ -761,3 +761,20 @@ input.fcr-px:focus, input.fcr-d:focus { border-color:var(--link); outline:none; 
 .gdbody font[size="4"], .gdbody .fs-4, .rd .fs-4 { font-size:17px; } .gdbody font[size="5"], .gdbody .fs-5, .rd .fs-5 { font-size:20px; }
 .gdbody font[size="6"], .gdbody .fs-6, .rd .fs-6 { font-size:25px; } .gdbody font[size="7"], .gdbody .fs-7, .rd .fs-7 { font-size:32px; }
 .modal.gdoc > .close { position:absolute; top:10px; right:12px; float:none; margin:0; }
+/* the phone app's pop-up: a phone-sized window over the page (full screen on a phone) */
+.appov { position:fixed; inset:0; z-index:9000; background:rgba(5,8,12,.78); display:flex; align-items:center; justify-content:center; padding:16px; }
+.appov[hidden] { display:none; }
+.appbox { display:flex; flex-direction:column; gap:8px; max-height:100%; }
+.apphead { display:flex; align-items:center; gap:12px; color:#e9eef4; font-size:13px; }
+.apphead b { font-size:14px; }
+.apphead a { color:#8cc4ff; margin-left:auto; }
+.appx { font:inherit; font-size:22px; line-height:1; width:36px; height:36px; border-radius:8px; border:1px solid #3a4452; background:#161b22; color:#e9eef4; cursor:pointer; }
+#app-frame { width:390px; height:min(844px, calc(100vh - 120px)); border:0; border-radius:28px; background:#0d1117; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+.appnote { margin:0; max-width:390px; color:#c8d0da; font-size:12px; line-height:1.4; }
+@media (max-width: 500px) {
+  .appov { padding:0; }
+  .appbox { width:100%; height:100%; gap:0; }
+  .apphead { padding:8px 12px; background:#0d1117; }
+  #app-frame { width:100%; height:auto; flex:1; border-radius:0; box-shadow:none; }
+  .appnote { display:none; }
+}

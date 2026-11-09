@@ -610,3 +610,13 @@ with open(os.path.join(SITE_DIR, "index.html"), "w", encoding="utf-8") as f:
     f.write(html)
 print(f"Wrote {SITE_DIR}/index.html ({len(html) / 1e6:.1f} MB) - "
       f"{n_cards:,} cards in {len(sets_in_order)} sets, release order.")
+
+# The phone app, Slab Show Scanner (2026-11-09, Brett: "proceed to build app"): page/app/ goes to the site as it is, at
+# <site>/app/ (it holds no data and no key - it asks for the site password once and reads app/data.bin, which
+# graded_site.py writes with the page's key). Not password-protected by staticrypt: a home-screen app has to open on
+# its own, and nothing in it is private.
+import shutil
+APP_SRC, APP_OUT = os.path.join("page", "app"), os.path.join("public", "app")
+if os.path.isdir(APP_SRC):
+    shutil.copytree(APP_SRC, APP_OUT, dirs_exist_ok=True)
+    print(f"Copied the phone app to {APP_OUT}/ ({sum(len(fs) for _, _, fs in os.walk(APP_SRC))} files)")
