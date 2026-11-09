@@ -12,7 +12,13 @@
    Forecast's odds tables at the hold and today's rank, eBay's fee 13.25% with the 6.5% buyer tax, the shipping in the price.
    Scanning: the camera's frames read with zxing (zxing/reader.js + .wasm). A PSA slab is looked up with PSA's own API (the
    token Brett pastes on the Show tab, kept on this phone only; 100 a day); its spec leads to the catalog card. A CGC slab
-   is found by name until the Card Hedge step. Record Purchases sends a 'gplan' to the collector, as the website's button. */
+   is found by name until the Card Hedge step. Record Purchases sends a 'gplan' to the collector, as the website's button.
+   The scanner upgrade (2026-11-09; Brett: depth, angles, glare, glass cases, "the barcodes are just automatically picked
+   up during the recording"): the camera at the most it gives (4K where it can), every frame read at full size in a worker
+   (scan-worker.js), the two zxing binarizers by turns (the second copes better with glare and uneven light), the main or
+   the 3x telephoto lens, boxes on what was read, a beep, the screen kept awake; a video from the Camera app read frame by
+   frame; Test mode (nothing saved, looked up or sent; every code with its detail in camera dots per bar). Every real slab
+   read goes to the collector ('scan') and on into card-data's data/scans/scans.csv as its PSA / CGC cert link. */
 'use strict';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -24,7 +30,8 @@ const LS = {
 const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the buyer tax on it (the website's 14.11%)
 const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
 const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
-const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true};
+const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
+const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main'};
 
 /* ---------------- small helpers ---------------- */
 function money(v) { if (v == null || !isFinite(v)) return '-'; const a = Math.abs(v); const s = a >= 100 ? Math.round(a).toLocaleString('en-US') : a.toFixed(2); return (v < 0 ? '-$' : '$') + s; }
@@ -111,7 +118,8 @@ let S = LS.get(STATE_STORE, null) || demoState();
 S.settings = Object.assign({}, DEFAULTS, S.settings || {});
 S.marks = S.marks || {};
 let UI = {tab: S.tables.length ? 'tables' : 'scan', openTable: null, sheet: null, view: 'slab', rec: false, recTable: null, recStart: 0,
-  feed: [], feedN: 0, dup: null, draftVendor: '', sort: 'best', q: '', pickGk: null, confirmNew: false, sending: false, recMsg: null, addCert: '', camErr: null};
+  feed: [], feedN: 0, dup: null, draftVendor: '', sort: 'best', q: '', pickGk: null, confirmNew: false, sending: false, recMsg: null, addCert: '', camErr: null,
+  test: false, scanMsg: null};
 let SAVE_T = 0;
 function save() { clearTimeout(SAVE_T); SAVE_T = setTimeout(() => LS.set(STATE_STORE, S), 150); }
 const slabsArr = () => Object.values(S.slabs);
@@ -157,6 +165,7 @@ async function loadData(keyHex) {
     D = doc; IDX = buildIdx(doc); DSTATE = 'ok'; KEY = keyHex; LS.set(KEY_STORE, keyHex);
     slabsArr().forEach(sl => { if (!sl.demo && (sl.look === 'wait' || (sl.look === 'manual' && sl.lookWhy === 'lock'))) sl.look = 'queued'; });
     pumpLookups();
+    scheduleScanSend(1500);                  // cert links read while locked go out now
     return true;
   } catch (e) { DSTATE = 'err'; DERR = String(e.message || e); return false; } finally { render(); }
 }
@@ -297,14 +306,94 @@ async function sendMark(cid, v) {
   try { await alSend({type: 'gmark', t: nextT(), c: cid, g: 'card', p: c[5] || '', v, reason: null, note: null}); toast('Sent to the website.'); }
   catch (e) { toast('Not sent (no signal?) - kept on this phone.'); }
 }
+// scans.csv (Brett: "when I scan a barcode, the link will appear in the CSV file"): every real slab read is queued here
+// and sent as {type: 'scan', t, c: [[grader, cert], ...]}; the collector turns each into its PSA / CGC cert link and adds
+// the new ones to card-data's data/scans/scans.csv. Kept on the phone until sent (no signal, or locked: sent later).
+const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c;
+let SCAN_SEND_T = 0, SCAN_SENDING = false;
+function queueScan(grader, cert) {
+  const q = LS.get(SCANQ, []);
+  if (!q.some(x => x[0] === grader && x[1] === cert)) { q.push([grader, cert]); LS.set(SCANQ, q); }
+  scheduleScanSend();
+}
+function scheduleScanSend(ms) { clearTimeout(SCAN_SEND_T); SCAN_SEND_T = setTimeout(sendScans, ms == null ? 8000 : ms); }
+async function sendScans() {
+  if (SCAN_SENDING || !KEY) return;
+  const q = LS.get(SCANQ, []); if (!q.length) return;
+  SCAN_SENDING = true;
+  try {
+    for (let i = 0; i < q.length; i += 80) {   // ntfy carries about 4 KB a message
+      const part = q.slice(i, i + 80);
+      await alSend({type: 'scan', t: nextT(), c: part});
+      LS.set(SCANQ, LS.get(SCANQ, []).filter(x => !part.some(y => y[0] === x[0] && y[1] === x[1])));
+      LS.set(SCANN, (+LS.get(SCANN, 0) || 0) + part.length);
+    }
+  } catch (e) { scheduleScanSend(30000); }    // no signal: again in half a minute
+  SCAN_SENDING = false;
+  const el = $('scans-line'); if (el) el.innerHTML = scansLine();
+}
+function scansLine() {
+  const q = LS.get(SCANQ, []).length, n = +LS.get(SCANN, 0) || 0;
+  return '<b>scans.csv</b> (card-data, data/scans): ' + n.toLocaleString() + ' cert link' + (n === 1 ? '' : 's') + ' sent from this phone' +
+    (q ? ' · ' + q + ' waiting' + (KEY ? ' for signal' : ' - unlock to send them') : '') + '.';
+}
 
 /* ---------------- scanning (camera frames -> zxing -> certs) ---------------- */
+// Brett (2026-11-09): "I want to maximize my depth for actually reading the barcode scanners. It's going to be done at
+// different angles. The lighting conditions could be different ... a little bit of glare ... glass paneled showcase".
+// Depth is detail: a reader needs about 2 camera dots per thin bar. So: the most the camera gives (4K where it can), each
+// frame read whole at full size (no shrinking) in a worker, the binarizers by turns, the telephoto for slabs further off.
 const VIDEO = document.createElement('video');
 VIDEO.setAttribute('playsinline', ''); VIDEO.setAttribute('muted', ''); VIDEO.muted = true; VIDEO.autoplay = true;
-const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null};
+const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null,
+  worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
+  fpsN: 0, fpsT: 0, fps: 0, ms: 0};
+const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
+const TEST = {reads: new Map(), frames: 0};
+const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
+// zxing's options for frame k: slab codes only (any code in Test mode, so printed samples count too); the default
+// LocalAverage binarizer and the GlobalHistogram one by turns - a glare patch or a dark corner defeats one more than the other
+const readerOpts = k => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 32, tryHarder: true, tryRotate: true, tryInvert: false,
+  binarizer: k % 2 ? 'GlobalHistogram' : 'LocalAverage'});
 function zxReady() {
   if (!SCAN.zx && window.ZXingWASM) SCAN.zx = ZXingWASM.prepareZXingModule({overrides: {locateFile: (p, prefix) => p.endsWith('.wasm') ? 'zxing/' + p : prefix + p}, fireImmediately: true});
   return SCAN.zx;
+}
+function workerReady() {                     // the reader in its own thread; false = this browser can't, read on the page
+  if (SCAN.worker !== null) return SCAN.worker;
+  try {
+    const w = new Worker('scan-worker.js');
+    w.onmessage = e => {
+      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; return; }
+      const p = SCAN.pend.get(m.id); if (!p) return;
+      SCAN.pend.delete(m.id); if (m.err) p.rej(new Error(m.err)); else p.res(m);
+    };
+    w.onerror = ev => { SCAN.worker = false; SCAN.pend.forEach(p => p.rej(new Error('the reader stopped'))); SCAN.pend.clear(); if (ev && ev.preventDefault) ev.preventDefault(); };
+    SCAN.worker = w;
+  } catch (e) { SCAN.worker = false; }
+  return SCAN.worker;
+}
+function grab(src, w, h) {                   // a frame's pixels at full size
+  const cv = SCAN.canvas; if (cv.width !== w) cv.width = w; if (cv.height !== h) cv.height = h;
+  const ctx = cv.getContext('2d', {willReadFrequently: true}); ctx.drawImage(src, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version});
+async function readImage(src, w, h, opts) {   // -> {res: [{text, format, pos, version}], ms}
+  const wk = workerReady();
+  if (wk) {
+    const id = ++SCAN.wid;
+    const p = new Promise((res, rej) => { SCAN.pend.set(id, {res, rej}); setTimeout(() => { if (SCAN.pend.delete(id)) rej(new Error('the reader took too long')); }, 20000); });
+    let bm = null;
+    if (SCAN.offscreen && window.createImageBitmap) { try { bm = await createImageBitmap(src); } catch (e) { bm = null; } }
+    if (bm) wk.postMessage({id, bm, opts}, [bm]);
+    else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts}, [img.data.buffer]); }
+    return p;
+  }
+  await zxReady();
+  const img = grab(src, w, h), t0 = performance.now();
+  const res = await ZXingWASM.readBarcodes(img, opts);
+  return {res: res.filter(r => r.isValid !== false).map(slim), ms: performance.now() - t0};
 }
 function certOf(v, f) {                      // a barcode -> ['psa' | 'cgc', cert] (card-data pc_tab.js S1.kind, plus CGC's QR link)
   v = String(v || '').trim();
@@ -315,55 +404,173 @@ function certOf(v, f) {                      // a barcode -> ['psa' | 'cgc', cer
   if (/^\d{8,9}$/.test(v)) return ['psa', v];
   return null;
 }
+// the detail a code was read at: camera dots per thin bar (per square for a QR). About 2+ reads easily, 1.5 is the edge.
+function detailOf(r) {
+  const P = r.pos; if (!P || !P.topLeft) return null;
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y), along = (d(P.topLeft, P.topRight) + d(P.bottomLeft, P.bottomRight)) / 2;
+  const t = String(r.text || ''), f = String(r.format || '').replace(/[\s-]/g, '').toLowerCase();
+  if (f.startsWith('qr') || f === 'microqrcode') {
+    const v = parseInt(r.version, 10); if (!(v > 0)) return null;
+    return (along + (d(P.topLeft, P.bottomLeft) + d(P.topRight, P.bottomRight)) / 2) / 2 / (17 + 4 * v);
+  }
+  let mods = null;
+  if (f.startsWith('code128')) mods = 11 * ((/^\d+$/.test(t) ? Math.ceil(t.length / 2) : t.length) + 2) + 13;   // start, data, check, stop
+  else if (f.startsWith('itf')) mods = 9 * t.length + 9;
+  else if (f.startsWith('code39')) mods = 16 * (t.length + 2);
+  else if (f.startsWith('code93')) mods = 9 * (t.length + 4) + 1;
+  else if (f === 'ean13' || f === 'upca') mods = 95;
+  else if (f === 'ean8') mods = 67;
+  return mods && along > 0 ? along / mods : null;
+}
+const fmtName = f => ({qrcode: 'QR', code128: 'Code 128', itf: 'ITF', datamatrix: 'Data Matrix', ean13: 'EAN-13', upca: 'UPC-A', code39: 'Code 39'})[String(f || '').replace(/[\s-]/g, '').toLowerCase()] || String(f || '?');
+function resLabel(w, h) { const m = Math.max(w, h); return !m ? '' : m >= 3800 ? '4K' : m >= 2500 ? '2.7K' : m >= 1900 ? '1080p' : m >= 1260 ? '720p' : w + '×' + h; }
+function lensLabel() {
+  const l = S.settings.lens;
+  return l === 'tele' && SCAN.cams && SCAN.cams.tele ? '3x' : l === 'zoom2' && SCAN.caps && SCAN.caps.zoom ? '2x' : '1x';
+}
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+async function listCams() {                  // the phone's back lenses by name (named only once the camera is allowed)
+  try {
+    const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'), L = d => (d.label || '').toLowerCase();
+    return {main: ds.find(d => /back/.test(L(d)) && !/(ultra|tele|dual|triple)/.test(L(d))) || null, tele: ds.find(d => /tele/.test(L(d))) || null};
+  } catch (e) { return {main: null, tele: null}; }
+}
+const WANT = {width: {ideal: 3840}, height: {ideal: 2160}, frameRate: {ideal: 30}};
 async function camStart() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('this browser gives no camera');
-  SCAN.stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}}});
+  const pick = () => { const c = SCAN.cams; if (!c) return null; return S.settings.lens === 'tele' && c.tele ? c.tele : c.main; };
+  let d = pick();
+  SCAN.stream = await navigator.mediaDevices.getUserMedia({audio: false, video: d ? Object.assign({deviceId: {exact: d.deviceId}}, WANT) : Object.assign({facingMode: {ideal: 'environment'}}, WANT)});
+  if (!SCAN.cams) {                          // first time: the lenses have names now - move to the main lens (or the 3x)
+    SCAN.cams = await listCams(); d = pick();
+    const cur = SCAN.stream.getVideoTracks()[0].getSettings().deviceId;
+    if (d && cur !== d.deviceId) {
+      camStop();
+      SCAN.stream = await navigator.mediaDevices.getUserMedia({audio: false, video: Object.assign({deviceId: {exact: d.deviceId}}, WANT)});
+    }
+  }
+  const tr = SCAN.stream.getVideoTracks()[0];
+  try {
+    SCAN.caps = tr.getCapabilities ? tr.getCapabilities() : null;
+    const adv = [], caps = SCAN.caps || {};
+    if (caps.focusMode && caps.focusMode.includes('continuous')) adv.push({focusMode: 'continuous'});
+    if (caps.zoom) adv.push({zoom: S.settings.lens === 'zoom2' && !isIOS() ? Math.min(caps.zoom.max, 2) : Math.max(caps.zoom.min, 1)});
+    if (adv.length) await tr.applyConstraints({advanced: adv});
+  } catch (e) {}
   VIDEO.srcObject = SCAN.stream;
   try { await VIDEO.play(); } catch (e) {}
 }
 function camStop() { if (SCAN.stream) SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; VIDEO.srcObject = null; }
+function lensChoices() {                     // [value, label]: the iPhone's 3x telephoto by name; elsewhere a 2x zoom when the camera offers one
+  if (SCAN.cams && SCAN.cams.tele) return [['main', '1x'], ['tele', '3x']];
+  if (!isIOS() && SCAN.caps && SCAN.caps.zoom && SCAN.caps.zoom.max >= 2) return [['main', '1x'], ['zoom2', '2x']];
+  return [];
+}
+async function setLens(v) {
+  if (S.settings.lens === v) return;
+  S.settings.lens = v; save();
+  if (UI.rec && SCAN.stream) { camStop(); try { await camStart(); } catch (e) { UI.camErr = 'That lens did not open: ' + (e.message || e); } }
+  paintScan();
+}
+async function wakeOn() {                    // a sweep has no taps: keep the screen (and the camera) from going to sleep
+  try { if ('wakeLock' in navigator && !SCAN.wake) { SCAN.wake = await navigator.wakeLock.request('screen'); SCAN.wake.addEventListener('release', () => { SCAN.wake = null; }); } } catch (e) {}
+}
+function wakeOff() { try { if (SCAN.wake) SCAN.wake.release(); } catch (e) {} SCAN.wake = null; }
+function audioOn() {                         // made on the tap that starts recording, so iOS lets it sound
+  if (!S.settings.beep) return;
+  try { if (!SCAN.audio) SCAN.audio = new (window.AudioContext || window.webkitAudioContext)(); if (SCAN.audio.state === 'suspended') SCAN.audio.resume(); } catch (e) {}
+}
+function beep() {
+  const A = SCAN.audio; if (!S.settings.beep || !A) return;
+  try {
+    const o = A.createOscillator(), g = A.createGain(), t = A.currentTime;
+    o.frequency.value = 1320; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(g); g.connect(A.destination); o.start(t); o.stop(t + 0.1);
+  } catch (e) {}
+}
 async function scanFrame() {
-  if (!UI.rec || SCAN.busy || !SCAN.stream || !VIDEO.videoWidth || !window.ZXingWASM) return;
+  if (!UI.rec || SCAN.busy || !SCAN.stream || !VIDEO.videoWidth) return;
   SCAN.busy = true;
   try {
-    await zxReady();
-    const w = VIDEO.videoWidth, h = VIDEO.videoHeight, k = Math.min(1, 1600 / Math.max(w, h)), cw = Math.round(w * k), ch = Math.round(h * k);
-    const cv = SCAN.canvas; if (cv.width !== cw) cv.width = cw; if (cv.height !== ch) cv.height = ch;
-    const ctx = cv.getContext('2d', {willReadFrequently: true}); ctx.drawImage(VIDEO, 0, 0, cw, ch);
-    const res = await ZXingWASM.readBarcodes(ctx.getImageData(0, 0, cw, ch), {formats: ['QRCode', 'Code128', 'ITF', 'DataMatrix'], maxNumberOfSymbols: 16, tryHarder: true});
-    for (const r of res) { if (r.isValid === false) continue; const kc = certOf(r.text, r.format); if (kc) addScan(kc[0], kc[1]); }
+    const w = VIDEO.videoWidth, h = VIDEO.videoHeight, out = await readImage(VIDEO, w, h, readerOpts(SCAN.k++));
+    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable);
+    if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
   } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
   SCAN.busy = false;
 }
+// what one frame gave: slabs for the table (or Test mode's list), boxes on the picture, the reading speed
+function gotReads(res, w, h, ms, tid) {
+  const now = performance.now();
+  SCAN.ms = ms; SCAN.fpsN++;
+  if (now - SCAN.fpsT > 2000) { SCAN.fps = SCAN.fpsT ? SCAN.fpsN * 1000 / (now - SCAN.fpsT) : 0; SCAN.fpsN = 0; SCAN.fpsT = now; }
+  if (UI.test) TEST.frames++;
+  for (const r of res) {
+    const kc = certOf(r.text, r.format);
+    if (UI.test) testRead(r);
+    else if (kc && tid) addScan(kc[0], kc[1], {table: tid, live: true});
+    SCAN.boxes.push({pos: r.pos, w, h, t: now, ok: UI.test || !!kc});
+  }
+  SCAN.boxes = SCAN.boxes.filter(b => now - b.t < 1400);
+  if (res.length && !SCAN.raf) SCAN.raf = requestAnimationFrame(drawBoxes);
+}
+function testRead(r) {
+  const key = r.format + '|' + r.text, dt = detailOf(r), have = TEST.reads.get(key);
+  if (!have) { TEST.reads.set(key, {format: r.format, text: r.text, n: 1, min: dt, last: dt, at: Date.now()}); beep(); setTimeout(paintScan, 0); }
+  else { have.n++; have.last = dt; have.at = Date.now(); if (dt != null && (have.min == null || dt < have.min)) have.min = dt; }
+}
+function drawBoxes() {                       // green boxes on each code read, fading over a second and a half
+  SCAN.raf = 0;
+  const cv = $('vf-boxes'), vf = $('vf'); if (!cv || !vf) return;
+  const cw = vf.clientWidth, ch = vf.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
+  const ctx = cv.getContext('2d'), now = performance.now();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
+  let live = 0;
+  for (const b of SCAN.boxes) {
+    const age = (now - b.t) / 1400, P = b.pos; if (age >= 1 || !P || !P.topLeft) continue;
+    live++;
+    const s = Math.min(cw / b.w, ch / b.h), dx = (cw - b.w * s) / 2, dy = (ch - b.h * s) / 2;   // the picture is shown whole (object-fit: contain)
+    ctx.beginPath();
+    [P.topLeft, P.topRight, P.bottomRight, P.bottomLeft].forEach((p, i) => { const x = p.x * s + dx, y = p.y * s + dy; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+    ctx.closePath(); ctx.globalAlpha = 1 - age; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.fillStyle = b.ok ? 'rgba(61,214,140,.22)' : 'rgba(233,238,244,.12)'; ctx.strokeStyle = b.ok ? '#3DD68C' : '#E9EEF4'; ctx.fill(); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (live) SCAN.raf = requestAnimationFrame(drawBoxes);
+}
 function addScan(grader, cert, opts) {
-  const tid = (opts && opts.table) || UI.recTable;
+  const tid = (opts && opts.table) || UI.recTable, live = !!(opts && opts.live), busy = UI.rec || VREAD.on;
   if (!tid) return null;
   const have = slabsArr().find(sl => sl.t === tid && !sl.demo && sl.cert === cert);
-  if (have) { if (UI.rec) { UI.dup = 'Already read: ' + gkLabelShort(have) + ' (counted once)'; paintScan(); } return have; }
+  if (have) { if (busy) { UI.dup = 'Already read: ' + gkLabelShort(have) + ' (counted once)'; paintScan(); } return have; }
   const sid = 's' + (S.seq++) + '-' + Date.now().toString(36);
   const sl = {id: sid, t: tid, grader, cert, at: Date.now(), look: 'queued', mode: 'pct', vd: null, vp: null, st: 'new'};
   S.slabs[sid] = sl; save();
+  queueScan(grader, cert);                   // -> scans.csv
   UI.feed = [{sid}].concat(UI.feed).slice(0, 6); UI.feedN++; UI.dup = null;
+  if (live) beep();
   if (navigator.vibrate) try { navigator.vibrate(30); } catch (e) {}
   pumpLookups();
-  if (UI.rec) paintScan(); else render();
+  if (busy) paintScan(); else render();
   return sl;
 }
 const gkLabelShort = sl => { const x = calc(sl); return x.name + (x.known && x.gk ? ' · ' + gkLabel(x.gk) : ''); };
+function newTable() {                        // the next table, with the vendor typed on Scan
+  const now = Date.now(), n = S.tables.reduce((m, t) => Math.max(m, t.n), 0) + 1, id = 't' + now.toString(36);
+  S.tables.push({id, n, vendor: UI.draftVendor || '', at: now}); save();
+  return id;
+}
 async function startRec(tableId) {
+  if (VREAD.on) return;
   const now = Date.now();
-  let id = tableId;
-  if (!id) {
-    const n = S.tables.reduce((m, t) => Math.max(m, t.n), 0) + 1;
-    id = 't' + now.toString(36);
-    S.tables.push({id, n, vendor: UI.draftVendor || '', at: now}); save();
-  }
+  const id = UI.test ? null : (tableId || newTable());
   Object.assign(UI, {rec: true, recTable: id, recStart: now, feed: [], dup: null, tab: 'scan', openTable: null, camErr: null});
+  audioOn(); wakeOn();
   render();
-  try { zxReady(); await camStart(); SCAN.timer = setInterval(scanFrame, 220); }
+  try { workerReady(); zxReady(); await camStart(); SCAN.timer = setInterval(scanFrame, 50); }
   catch (e) {
-    UI.camErr = 'No camera: ' + (e && e.message || e) + (DSTATE === 'ok' ? '. Type certs on the table instead.' : '. Showing sample reads instead.');
-    if (DSTATE !== 'ok') simStart();
+    UI.camErr = 'No camera: ' + (e && e.message || e) + (UI.test ? '.' : DSTATE === 'ok' ? '. Type certs on the table instead.' : '. Showing sample reads instead.');
+    if (DSTATE !== 'ok' && !UI.test) simStart();
   }
   SCAN.tick = setInterval(paintScan, 1000);
   paintScan();
@@ -383,11 +590,54 @@ function simStart() {                        // no camera and no card data: samp
 }
 function stopRec() {
   clearInterval(SCAN.timer); clearInterval(SCAN.sim); clearInterval(SCAN.tick); SCAN.timer = SCAN.sim = SCAN.tick = null;
-  camStop();
-  const id = UI.recTable, count = slabsArr().filter(sl => sl.t === id).length;
-  if (!count) { S.tables = S.tables.filter(t => t.id !== id); save(); Object.assign(UI, {rec: false, feed: [], dup: null}); return render(); }
-  Object.assign(UI, {rec: false, tab: 'tables', openTable: id, feed: [], dup: null, draftVendor: '', sort: 'best'});
+  camStop(); wakeOff(); SCAN.boxes = [];
+  if (UI.test) { Object.assign(UI, {rec: false, recTable: null, feed: [], dup: null}); return render(); }
+  sendScans();
+  finishTable(UI.recTable);
+}
+function finishTable(id, emptyMsg) {         // after a recording or a video: to the table, or drop it if nothing was read
+  const count = slabsArr().filter(sl => sl.t === id).length;
+  if (!count) { S.tables = S.tables.filter(t => t.id !== id); save(); Object.assign(UI, {rec: false, recTable: null, feed: [], dup: null, scanMsg: emptyMsg || null}); return render(); }
+  Object.assign(UI, {rec: false, recTable: null, tab: 'tables', openTable: id, feed: [], dup: null, draftVendor: '', sort: 'best', scanMsg: null});
   render();
+}
+// a video recorded with the Camera app (its own focus, steadying and 4K), read frame by frame - six frames a second
+const VIDEO_STEP_S = 1 / 6;
+function seekTo(v, t) {
+  return new Promise(res => {
+    let tm = 0; const done = () => { v.removeEventListener('seeked', done); clearTimeout(tm); res(); };
+    tm = setTimeout(done, 5000); v.addEventListener('seeked', done); v.currentTime = t;
+  });
+}
+async function readVideo(file) {
+  if (!file || UI.rec || VREAD.on) return;
+  const fv = document.createElement('video');
+  fv.muted = true; fv.playsInline = true; fv.setAttribute('playsinline', ''); fv.setAttribute('muted', ''); fv.preload = 'auto';
+  const url = URL.createObjectURL(file); fv.src = url;
+  const tid = UI.test ? null : newTable();
+  Object.assign(VREAD, {on: true, stop: false, el: fv, pct: 0, w: 0, h: 0, frames: 0, tid, name: file.name || 'video'});
+  Object.assign(UI, {recTable: tid, feed: [], dup: null, camErr: null, scanMsg: null, tab: 'scan', openTable: null});
+  wakeOn(); render();
+  let err = null;
+  try {
+    await new Promise((res, rej) => { if (fv.readyState >= 1) return res(); fv.onloadedmetadata = res; fv.onerror = () => rej(new Error('this video could not be opened')); setTimeout(() => rej(new Error('the video did not load')), 30000); });
+    try { await fv.play(); fv.pause(); } catch (e) {}     // some phones show no picture until a video has played once
+    const w = fv.videoWidth, h = fv.videoHeight, dur = isFinite(fv.duration) ? fv.duration : 600;
+    VREAD.w = w; VREAD.h = h; paintScan();
+    if (!w || !h) throw new Error('no picture in this file');
+    for (let t = 0, k = 0; t < dur && !VREAD.stop; t += VIDEO_STEP_S, k++) {
+      await seekTo(fv, Math.min(t, Math.max(0, dur - 0.01)));
+      const out = await readImage(fv, w, h, readerOpts(k));
+      gotReads(out.res, out.w || w, out.h || h, out.ms, tid);
+      VREAD.frames++; VREAD.pct = Math.min(1, (t + VIDEO_STEP_S) / dur); paintScan();
+    }
+  } catch (e) { err = e; }
+  URL.revokeObjectURL(url); fv.removeAttribute('src'); try { fv.load(); } catch (e) {}
+  const name = VREAD.name;
+  Object.assign(VREAD, {on: false, el: null}); wakeOff(); SCAN.boxes = [];
+  if (UI.test) { UI.recTable = null; UI.camErr = err ? 'Video: ' + (err.message || err) : null; return render(); }
+  sendScans();
+  finishTable(tid, err ? 'Video: ' + (err.message || err) : 'No PSA or CGC barcode was read in ' + name + '. Try Test mode on it to see what the reader picks up.');
 }
 
 /* ---------------- looking a slab up (PSA's API from this phone; CGC by name for now) ---------------- */
@@ -517,40 +767,74 @@ function render() {
   renderTop(); renderTabs();
   const m = $('main');
   m.innerHTML = UI.tab === 'scan' ? scanHtml() : UI.tab === 'tables' ? (UI.openTable ? tableHtml() : tablesHtml()) : UI.tab === 'plan' ? planHtml() : showHtml();
-  if (UI.tab === 'scan') { const vf = $('vf'); if (vf && !vf.contains(VIDEO)) { vf.prepend(VIDEO); if (SCAN.stream) VIDEO.play().catch(() => {}); } paintScan(); }
+  if (UI.tab === 'scan') {
+    const vf = $('vf'), el = VREAD.on && VREAD.el ? VREAD.el : VIDEO;
+    if (vf && !vf.contains(el)) { vf.prepend(el); if (el === VIDEO && SCAN.stream) VIDEO.play().catch(() => {}); }
+    paintScan();
+  }
   renderSheet();
   renderOverlay();
 }
 function scanHtml() {
   const nextN = S.tables.reduce((m, t) => Math.max(m, t.n), 0) + 1;
   return '<div class="stack"><div class="spread"><h1 class="h1" id="scan-title">Table ' + nextN + '</h1><span class="muted small" id="scan-sub">next table</span></div>' +
-    '<label class="field" id="vendor-field"' + (UI.rec ? ' hidden' : '') + '><span class="label">Vendor or booth</span><input class="input" type="text" placeholder="Optional - e.g. Booth 214" value="' + esc(UI.draftVendor) + '" data-in="draftVendor"></label>' +
+    '<label class="field" id="vendor-field"><span class="label">Vendor or booth</span><input class="input" type="text" placeholder="Optional - e.g. Booth 214" value="' + esc(UI.draftVendor) + '" data-in="draftVendor"></label>' +
     '<div class="viewfinder" id="vf"><div class="vfslabs" id="vfslabs">' + '<div class="fslab"><div class="flabel"><div class="fbar"></div></div><div class="fart"></div></div>'.repeat(8) + '</div>' +
-    '<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div>' +
-    '<div id="vf-rec"></div><div class="vfhint" id="vf-hint">Point at the slabs’ barcodes and sweep slowly</div></div>' +
+    '<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div><canvas class="vfboxes" id="vf-boxes"></canvas>' +
+    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Point at the slabs’ barcodes and sweep slowly</div></div>' +
+    '<div id="vid-prog"></div>' +
     '<div class="recwrap"><button class="recbtn" id="rec-btn" data-a="rec" aria-label="Start recording"><span class="core"></span></button><span class="small muted" id="rec-hint">Tap to record this table</span></div>' +
-    '<div id="cam-err"></div><div class="feed" id="feed"></div>' +
-    (DSTATE !== 'ok' ? '<p class="note">Sample mode: unlock on the Show tab to look real slabs up. Without a camera, sample slabs appear as if read.</p>' : '<p class="note">Each slab’s barcode or QR is read once per table; PSA slabs are looked up with PSA right away.</p>') + '</div>';
+    '<div class="toolrow" id="toolrow"><label class="btn" id="vid-btn">Read a video<input class="vh" type="file" accept="video/*" id="vid-in"></label>' +
+    '<button class="btn" id="test-btn" data-a="test" aria-pressed="false">Test mode: Off</button></div>' +
+    '<div id="cam-err"></div><div id="scan-msg"></div><div class="feed" id="feed"></div><div id="test-panel"></div>' +
+    '<p class="note" id="scan-note"></p></div>';
+}
+const detCls = v => v == null ? 'lo' : v >= 2 ? 'hi' : v >= 1.5 ? 'mid' : 'lo';
+function testHtml() {
+  const rows = [...TEST.reads.values()].sort((a, b) => b.at - a.at);
+  const cam = UI.rec && SCAN.stream && VIDEO.videoWidth ? 'Camera ' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' (' + VIDEO.videoWidth + '×' + VIDEO.videoHeight + '), ' + lensLabel() + ' lens'
+    : VREAD.on && VREAD.w ? 'Video ' + VREAD.w + '×' + VREAD.h : '';
+  const speed = (UI.rec || VREAD.on) && SCAN.fps ? ', ' + SCAN.fps.toFixed(1) + ' frames read a second' : '';
+  return '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Test mode</span>' + (rows.length ? '<button class="linkbtn" style="min-height:0;padding:0" data-a="testclear">Clear</button>' : '') + '</div>' +
+    '<div class="tbig"><b>' + rows.length + '</b>different code' + (rows.length === 1 ? '' : 's') + ' read</div>' +
+    (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
+    rows.slice(0, 60).map(r => '<div class="trow"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
+      (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
+    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge. Try your printed sheet at different distances and angles, and through glass. Record, or read a video.</p></div>';
 }
 function paintScan() {
   if (UI.tab !== 'scan' || !$('rec-btn')) return;
-  const t = UI.rec ? tableOf(UI.recTable) : null, nextN = S.tables.reduce((m, x) => Math.max(m, x.n), 0) + 1;
-  $('scan-title').textContent = 'Table ' + (t ? t.n : nextN);
-  $('scan-sub').textContent = UI.rec ? (t && t.vendor ? t.vendor : 'recording') : 'next table';
-  $('vendor-field').hidden = UI.rec;
-  $('vf').classList.toggle('rec', UI.rec);
-  $('vfslabs').hidden = !!(UI.rec && SCAN.stream);
-  const secs = UI.rec ? Math.floor((Date.now() - UI.recStart) / 1000) : 0, cnt = t ? slabsArr().filter(sl => sl.t === t.id).length : 0;
-  $('vf-rec').innerHTML = UI.rec ? '<div class="scanline"></div><div class="recbadge"><span class="recdot"></span>REC ' + Math.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2) + ' · ' + cnt + ' read</div>' : '';
-  $('vf-hint').hidden = UI.rec && !!SCAN.stream;
-  $('rec-btn').classList.toggle('on', UI.rec);
-  $('rec-btn').setAttribute('aria-label', UI.rec ? 'Stop recording' : 'Start recording');
-  $('rec-hint').textContent = UI.rec ? 'Tap to stop - the slabs go to this table' : 'Tap to record this table';
+  const busy = UI.rec || VREAD.on, tid = UI.rec || VREAD.on ? UI.recTable : null, t = tid ? tableOf(tid) : null, nextN = S.tables.reduce((m, x) => Math.max(m, x.n), 0) + 1;
+  const cam = UI.rec && !!SCAN.stream;
+  $('scan-title').textContent = UI.test ? 'Test mode' : 'Table ' + (t ? t.n : nextN);
+  $('scan-sub').textContent = VREAD.on ? 'reading a video' : UI.rec ? (UI.test ? 'recording' : t && t.vendor ? t.vendor : 'recording') : UI.test ? 'nothing is saved' : 'next table';
+  $('vendor-field').hidden = busy || UI.test;
+  $('vf').classList.toggle('rec', busy);
+  $('vfslabs').hidden = cam || VREAD.on;
+  const secs = UI.rec ? Math.floor((Date.now() - UI.recStart) / 1000) : 0, cnt = UI.test ? TEST.reads.size : t ? slabsArr().filter(sl => sl.t === t.id).length : 0;
+  const what = UI.test ? (cnt === 1 ? ' code' : ' codes') : ' read';
+  $('vf-rec').innerHTML = UI.rec ? '<div class="scanline"></div><div class="recbadge"><span class="recdot"></span>' + (UI.test ? 'TEST ' : 'REC ') + Math.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2) + ' · ' + cnt + what + '</div>'
+    : VREAD.on ? '<div class="recbadge"><span class="recdot"></span>VIDEO ' + Math.round(VREAD.pct * 100) + '% · ' + cnt + what + '</div>' : '';
+  const ch = lensChoices(), cur = S.settings.lens;
+  $('vf-tools').innerHTML = cam && VIDEO.videoWidth ? '<div class="vfinfo">' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' · ' + lensLabel() + '</div>' +
+      (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
+    : VREAD.on && VREAD.w ? '<div class="vfinfo">' + resLabel(VREAD.w, VREAD.h) + ' video</div>' : '';
+  $('vf-hint').hidden = cam || VREAD.on;
+  $('rec-btn').classList.toggle('on', busy);
+  $('rec-btn').setAttribute('aria-label', VREAD.on ? 'Stop reading the video' : UI.rec ? 'Stop recording' : 'Start recording');
+  $('rec-hint').textContent = VREAD.on ? 'Tap to stop reading the video' : UI.rec ? (UI.test ? 'Tap to stop the test' : 'Tap to stop - the slabs go to this table') : UI.test ? 'Tap to test the reader' : 'Tap to record this table';
+  $('toolrow').hidden = busy;
+  $('test-btn').textContent = 'Test mode: ' + (UI.test ? 'On' : 'Off'); $('test-btn').classList.toggle('on', UI.test); $('test-btn').setAttribute('aria-pressed', UI.test ? 'true' : 'false');
+  $('vid-prog').innerHTML = VREAD.on ? '<div class="progress" style="margin-top:2px"><span style="width:' + Math.round(VREAD.pct * 100) + '%"></span></div>' : '';
   $('cam-err').innerHTML = UI.camErr ? '<div class="warnbox">' + esc(UI.camErr) + '</div>' : '';
+  $('scan-msg').innerHTML = UI.scanMsg && !busy ? '<div class="warnbox">' + esc(UI.scanMsg) + '</div>' : '';
   const feed = UI.feed.map((f, k) => { const sl = S.slabs[f.sid]; if (!sl) return ''; const x = calc(sl);
     const right = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? '<span class="tag t-look">Looking up</span>' : !sl.demo && sl.look === 'manual' ? '<span class="tag t-check">Find card</span>' : '<span class="' + pillCls(x) + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</span>';
     return '<div class="chip' + (k === 0 ? ' fresh' : '') + '"><span class="tick">' + ICON.check + '</span><span class="ctext"><b>' + esc(x.name) + '</b>' + (x.known && x.gk ? ' · ' + esc(gkLabel(x.gk)) : '') + '</span>' + right + '</div>'; }).join('');
-  $('feed').innerHTML = UI.rec ? (UI.dup ? '<div class="dup">' + esc(UI.dup) + '</div>' : '') + feed : '';
+  $('feed').innerHTML = busy && !UI.test ? (UI.dup ? '<div class="dup">' + esc(UI.dup) + '</div>' : '') + feed : '';
+  $('test-panel').innerHTML = UI.test ? testHtml() : '';
+  $('scan-note').innerHTML = UI.test ? '' : DSTATE !== 'ok' ? 'Sample mode: unlock on the Show tab to look real slabs up. Without a camera, sample slabs appear as if read.'
+    : 'Each slab’s barcode or QR is read once per table; PSA slabs are looked up with PSA right away, and each cert’s link goes to scans.csv. Read a video: a clip you filmed with the Camera app, read frame by frame into a new table.';
 }
 function tablesHtml() {
   const P = plan(), ts = tablesSorted().reverse();
@@ -618,6 +902,7 @@ function showHtml() {
     mini('minSales', String(s.minSales), 'Min sales last mo (Card Ladder)') +
     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
     '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
+    '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
     '<p class="note">Chance = how often slabs like it made money over your hold, bought at that % under, after eBay’s fee (14.11%) and shipping - the website’s Recording math. The plan spends best chance first, up to your capital. Min sales last mo keeps slabs that sold fewer times on Card Ladder last month out of your buys.</p>' +
     '<h2 class="h2" style="margin-top:14px">Card data and lookups</h2>' +
     '<div class="' + (DSTATE === 'ok' ? 'okbox' : DSTATE === 'err' ? 'warnbox' : 'note') + '">' + dataLine + '</div>' +
@@ -626,10 +911,11 @@ function showHtml() {
     '<div style="display:flex;gap:8px"><input class="input" type="password" autocomplete="off" placeholder="' + (tok ? 'Saved - paste a new one to replace it' : 'Paste the token from psacard.com/publicapi') + '" data-in="psaTok"><button class="btn" data-a="savetok">Save</button></div></label>' +
     (tok ? '<button class="linkbtn" style="align-self:flex-start" data-a="deltok">Remove the PSA token from this phone</button>' : '') +
     '<p class="note">CGC slabs: found by name for now (Card Hedge comes next, through your collector).</p>' +
+    '<div class="note" id="scans-line" style="font-size:13px">' + scansLine() + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px"><button class="btn" data-a="demo">Load the sample show (3 tables)</button>' +
     '<button class="btn danger" data-a="newshow">' + (UI.confirmNew ? 'Tap again to clear every table' : 'Start a new show') + '</button>' +
     (DSTATE === 'ok' ? '<button class="linkbtn" style="align-self:flex-start" data-a="lock">Lock: forget the password on this phone</button>' : '') + '</div>' +
-    '<p class="note" style="margin-top:10px">Everything you scan stays on this phone; only Record purchases and Review answers go to the website. Sample slabs have invented prices.</p></div>';
+    '<p class="note" style="margin-top:10px">Your tables, asks and prices stay on this phone. What leaves it: each real slab’s cert link (to scans.csv), Record purchases and Review answers. Sample slabs and Test mode are never sent. Sample slabs have invented prices.</p></div>';
 }
 
 /* ---- the slab panel, Review and Find the card ---- */
@@ -774,12 +1060,16 @@ function paintSheetNumbers() {                // while typing: the numbers only,
 async function act(a, ds, el) {
   const sl = UI.sheet ? S.slabs[UI.sheet] : null, s = S.settings;
   switch (a) {
-    case 'tab': if (UI.rec && ds.v !== 'scan') return toast('Stop recording first.'); UI.tab = ds.v; UI.openTable = null; break;
-    case 'rec': if (UI.rec) return stopRec(); return startRec(null);
+    case 'tab': if ((UI.rec || VREAD.on) && ds.v !== 'scan') return toast(VREAD.on ? 'Stop reading the video first.' : 'Stop recording first.'); UI.tab = ds.v; UI.openTable = null; break;
+    case 'rec': if (VREAD.on) { VREAD.stop = true; return; } if (UI.rec) return stopRec(); return startRec(null);
+    case 'test': if (UI.rec || VREAD.on) return; UI.test = !UI.test; UI.scanMsg = null; UI.camErr = null; break;
+    case 'testclear': TEST.reads.clear(); TEST.frames = 0; return paintScan();
+    case 'lens': return setLens(ds.v);
+    case 'beep': s.beep = !s.beep; save(); if (s.beep) { audioOn(); beep(); } break;
     case 'table': UI.openTable = ds.id; break;
     case 'back': UI.openTable = null; break;
     case 'sort': UI.sort = ds.v; break;
-    case 'scanmore': return startRec(UI.openTable);
+    case 'scanmore': UI.test = false; return startRec(UI.openTable);
     case 'addcert': {
       const v = String(UI.addCert || '').replace(/\D/g, ''), k = certOf(v, 'Code128');
       if (!k) return toast('A PSA cert is 8-9 digits, a CGC cert 10 (or 13 starting 1401).');
@@ -851,20 +1141,25 @@ document.addEventListener('input', e => {
 // leaving a box: tidy what it shows, but never redraw the screen under the finger (a redraw here would swallow the tap
 // that moved the focus away - e.g. on Review right after typing a percent)
 document.addEventListener('change', e => {
-  const el = e.target, k = el.dataset && el.dataset.in; if (!k) return;
+  const el = e.target;
+  if (el && el.id === 'vid-in') { const f = el.files && el.files[0]; el.value = ''; if (f) readVideo(f); return; }
+  const k = el.dataset && el.dataset.in; if (!k) return;
   const sl = UI.sheet ? S.slabs[UI.sheet] : null;
   if (k === 'pct' && sl) { el.value = (Math.round(calc(sl).d * 1000) / 10).toFixed(1); paintSheetNumbers(); }
   else if (k.startsWith('set:')) { renderTop(); renderTabs(); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'pw') act('dounlock', {}); });
-Object.defineProperty(window, 'SSC', {value: {get S() { return S; }, get D() { return D; }, calc, plan, certOf, addScan, numSet}});
+Object.defineProperty(window, 'SSC', {value: {get S() { return S; }, get D() { return D; }, calc, plan, certOf, addScan, numSet, detailOf, readImage, TEST, SCAN, VREAD, scanLink}});
 
 /* ---------------- start ---------------- */
 if (KEY) loadData(KEY); else { DSTATE = 'locked'; if (!LS.get('ssc-seen', 0)) UI.unlock = true; }
 render();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+scheduleScanSend(4000);                      // cert links left over from last time
+window.addEventListener('online', () => scheduleScanSend(1000));
 // back from the background while recording: iOS ends the camera there, so it is opened again
 document.addEventListener('visibilitychange', async () => {
+  if (!document.hidden && (UI.rec || VREAD.on)) wakeOn();   // iOS lets the screen lock go while the app is in the background
   if (document.hidden || !UI.rec || !SCAN.stream) return;
   if (SCAN.stream.getVideoTracks().every(t => t.readyState === 'ended')) { try { await camStart(); } catch (e) { UI.camErr = 'The camera did not come back - stop and record again.'; paintScan(); } }
 });
