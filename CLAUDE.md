@@ -2711,9 +2711,13 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   frames read a second. Brett's Staples sheets: test with these, then the K&F magnetic polarizer (6.7" MagSafe mount, 67 mm
   CPL - covers all three lenses) once it ships.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
-  (private), data/scans/scans.csv - one cert link a line (https://www.psacard.com/cert/<n>,
-  https://www.cgccards.com/certlookup/<n>/), each slab once, no header (until Brett gives links.csv's exact format - the
-  file he got in an earlier chat; DON'T look for links.csv in his repos or Downloads). Every real slab put on a table (read
+  (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
+  should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
+    Cert ID
+    "=HYPERLINK(""https://www.psacard.com/cert/46790116/psa"",""46790116"")"
+    "=HYPERLINK(""https://www.cgccards.com/certlookup/6153192005/"",""6153192005"")"
+  (PSA's link ends in /psa, CGC's in a slash; scan_row(); dedupe by (grader, cert) read out of the file with scan_keys,
+  so any link spelling counts). Don't look for links.csv in his repos or Downloads. Every real slab put on a table (read
   or typed; never sample slabs, never Test mode) is queued on the phone (localStorage ssc-scan-q; ssc-scan-n = sent) and
   sent {type 'scan', t, c: [[grader, cert], ...]} (80 a message) 8 s after the last read, at Stop, after an unlock, on
   'online', at start; no signal = again in 30 s. Collector: scan_record() -> v["scan_q"] (links; saved with the state),
@@ -2724,8 +2728,12 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   /opt/pokemon-collector/.ssh/card_data_ed25519 (owned by collector; made by Brett in the DO console on 2026-11-09 with
   `sudo -u collector ssh-keygen -t ed25519 -N "" -C "pokemon-collector card-data" -f ...`, its .pub added at card-data >
   Settings > Deploy keys "pokemon-collector (scans)", Allow write access; setup.sh makes and prints it too). No key =
-  the links wait (logged hourly); a failed try waits 10 minutes. Tested against a local bare repo (file:// remote,
-  uploadpack.allowfilter): duplicates skipped, a concurrent push rebased over, no key = waiting.
+  the links wait (logged hourly); a failed try waits 10 minutes. ONCE A START the collector tries the key even with
+  nothing waiting: it writes the Cert ID header if the file lacks one (a real push), else a `git push --dry-run` - the
+  log says "Scans: card-data's key works (read and write) ..." or why not (collector.log on the live branch). Tested
+  against a local bare repo (file:// remote, uploadpack.allowfilter): header, format, duplicates skipped, a concurrent
+  push rebased over, no key = waiting. (page/app/app.js scanLink() is display-only and unused; the collector makes the
+  links.)
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
