@@ -1,0 +1,132 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 1063b4e..822a6ee 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2737,2 +2737,20 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   frame with tracking (MatrixScan); its native SDK controls the camera (focus, lens), its web SDK is a browser like ours.
++  OTHER READERS BRETT FOUND (2026-11-09), tried on the simulated pictures: tapirscan (npm 1.5.0, Rust/WASM, MIT/Apache,
++  EAN-13-first; Code 128 / ITF selectable) - per picture, straight sheet 48 vs our 50 (whole + enlarged pieces), 45
++  degrees 4-19 vs our 30.5, 40-slab 4K frame 39 vs our 38, blurred 0 vs 0; 530 ms a 4K pass vs zxing-cpp's 61; both
++  together added at most one code - not adopted. react-native-qr-camera-pro: a React Native module (needs a native app);
++  its iOS code is AVCaptureMetadataOutput on the plain wide camera, FIRST code per frame only, 500 ms throttle - built for
++  one QR at a time; not useful. Test harness: /tmp/claude-0/ga/tapirbench (bench*.mjs, vid.mjs).
++  BRETT'S THIRD TEST (2026-11-09): 1x about a foot, 38 of 50 in 54 s; 3x at ~2.5 ft (whole sheet in view) 0 - blurry (the
++  3x at that distance has no more detail than 1x at a foot, and shake is magnified). He felt the Camera app's video was
++  "far better ... in terms of how clear it was" and attached one (IMG_0518.mov): 1080p HEVC HDR (his Camera app records
++  1080p, not 4K), sheet ~85 px per barcode = ~1 dot per bar - ZERO codes with zxing (whole, pieces, 2x) and tapirscan:
++  it looks clear because the printed numbers are big and Apple's processing is clean, but the bars aren't resolved.
++  The two levers are DISTANCE (slab barcodes need ~8-10 in with 1x in 4K) and MOTION BLUR. g11g: WANT frameRate ideal 60
++  (a frame can't be exposed longer than its duration; if 4K60 isn't offered the browser keeps 4K30 - fitness distance
++  0.5 vs 1.0 for 1080p60); a "Light" button when the track offers torch (WebKit bug 280970: torch works on iOS 17/18;
++  kept across lens changes, off at Stop - camOff); the vf hint and Test note say 8-10 inches; the report gains
++  cameraDetails (device label, width/height, frameRate, light, zoom, zoomRange, lightAvailable, maxFrameRate,
++  focusModes, lenses = every camera label) so the next test shows what Safari actually gives on his phone. The camera
++  label (size, lens, fps) moved to the bottom-left of the picture. Recordings in the app are never saved anywhere.
+ - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
+diff --git a/page/app/app.css b/page/app/app.css
+index 227bc5f..04b4d88 100644
+--- a/page/app/app.css
++++ b/page/app/app.css
+@@ -165,3 +165,3 @@ a{color:var(--blt)}
+ .vfboxes{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+-.vfinfo{position:absolute;top:12px;left:12px;background:rgba(6,9,13,.72);color:var(--tx);font:600 11px Inter,sans-serif;padding:4px 8px;border-radius:7px;font-variant-numeric:tabular-nums;pointer-events:none}
++.vfinfo{position:absolute;bottom:14px;left:12px;background:rgba(6,9,13,.72);color:var(--tx);font:600 11px Inter,sans-serif;padding:4px 8px;border-radius:7px;font-variant-numeric:tabular-nums;pointer-events:none}
+ .lensbar{position:absolute;right:10px;bottom:10px;display:flex;gap:3px;background:rgba(6,9,13,.72);border-radius:22px;padding:3px}
+@@ -179 +179,3 @@ a{color:var(--blt)}
+ .tdet{flex:none;font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;font-variant-numeric:tabular-nums}
++.lightbtn{position:absolute;top:10px;right:10px;min-height:34px;padding:0 12px;border-radius:17px;border:0;background:rgba(6,9,13,.72);color:var(--tx);font:700 12px Inter,sans-serif;cursor:pointer}
++.lightbtn.on{background:var(--am);color:#1A1204}
+diff --git a/page/app/app.js b/page/app/app.js
+index 1ee5e86..6dcbc24 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -353,3 +353,3 @@ const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0,
+ const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: ''};
+-function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: ''}); TEST.reads.clear(); }
++function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null}); TEST.reads.clear(); }
+ const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
+@@ -446,6 +446,9 @@ async function listCams() {                  // the phone's back lenses by name
+     const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'), L = d => (d.label || '').toLowerCase();
+-    return {main: ds.find(d => /back/.test(L(d)) && !/(ultra|tele|dual|triple)/.test(L(d))) || null, tele: ds.find(d => /tele/.test(L(d))) || null};
+-  } catch (e) { return {main: null, tele: null}; }
++    return {main: ds.find(d => /back/.test(L(d)) && !/(ultra|tele|dual|triple)/.test(L(d))) || null, tele: ds.find(d => /tele/.test(L(d))) || null, labels: ds.map(d => d.label)};
++  } catch (e) { return {main: null, tele: null, labels: []}; }
+ }
+-const WANT = {width: {ideal: 3840}, height: {ideal: 2160}, frameRate: {ideal: 30}};
++// 60 frames a second where the camera offers it at 4K (2026-11-09, Brett's third test: the misses were frames smeared by
++// movement): a frame then can't be exposed longer than 1/60 s, half the smear of 1/30 s. If 4K60 isn't offered, the
++// size wins over the rate (the browser picks the closest overall), so this never costs detail.
++const WANT = {width: {ideal: 3840}, height: {ideal: 2160}, frameRate: {ideal: 60}};
+ async function camStart() {
+@@ -471,2 +474,5 @@ async function camStart() {
+   } catch (e) {}
++  SCAN.label = tr.label || '';
++  if (SCAN.torch) { try { await tr.applyConstraints({advanced: [{torch: true}]}); } catch (e) { SCAN.torch = false; } }   // a lens change keeps the light on
++  try { SCAN.settings = tr.getSettings ? tr.getSettings() : null; } catch (e) { SCAN.settings = null; }
+   VIDEO.srcObject = SCAN.stream;
+@@ -474,3 +480,19 @@ async function camStart() {
+ }
++// the phone's light (only where the camera offers it): more light = a shorter exposure = less smear from a moving hand.
++// It can put a glare spot on slab plastic - tilt a little so the spot slides off the label.
++async function setTorch(on) {
++  const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0]; if (!tr) return;
++  try { await tr.applyConstraints({advanced: [{torch: !!on}]}); SCAN.torch = !!on; } catch (e) { SCAN.torch = false; toast('The light did not switch on.'); }
++  try { SCAN.settings = tr.getSettings ? tr.getSettings() : SCAN.settings; } catch (e) {}
++  paintScan();
++}
++// what the camera really gave, for the test report: the lens, its rate and size, what it offers (zoom, light, focus)
++function camInfo() {
++  const st = SCAN.settings || {}, c = SCAN.caps || {}, rng = x => x && x.max != null ? [x.min, x.max] : null;
++  return {device: SCAN.label || '', width: st.width || null, height: st.height || null, frameRate: st.frameRate ? Math.round(st.frameRate) : null,
++    light: !!SCAN.torch, zoom: st.zoom != null ? st.zoom : null, zoomRange: rng(c.zoom), lightAvailable: !!c.torch,
++    maxFrameRate: c.frameRate && c.frameRate.max ? Math.round(c.frameRate.max) : null, focusModes: c.focusMode || null, lenses: (SCAN.cams && SCAN.cams.labels) || []};
++}
+ function camStop() { if (SCAN.stream) SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; VIDEO.srcObject = null; }
++function camOff() { camStop(); SCAN.torch = false; }   // the recording is over: the light goes off with the camera
+ function lensChoices() {                     // [value, label]: the iPhone's 3x telephoto by name; elsewhere a 2x zoom when the camera offers one
+@@ -522,2 +544,3 @@ function gotReads(res, w, h, ms, tid, sharp) {
+     Object.assign(TEST, {mode: VREAD.on ? 'video' : 'live', w, h, lens: VREAD.on ? 'video' : lensLabel()});
++    if (!VREAD.on && TEST.frames % 10 === 1) TEST.cam = camInfo();
+   }
+@@ -549,4 +572,4 @@ function testReport() {
+   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
+-  return {report: 'Slab Show Scanner test', version: 'g11f', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+-    mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, seconds: Math.round(secs), frames: TEST.frames,
++  return {report: 'Slab Show Scanner test', version: 'g11g', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
++    mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
+     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
+@@ -634,3 +657,3 @@ function stopRec() {
+   clearInterval(SCAN.timer); clearInterval(SCAN.sim); clearInterval(SCAN.tick); SCAN.timer = SCAN.sim = SCAN.tick = null;
+-  camStop(); wakeOff(); SCAN.boxes = [];
++  camOff(); wakeOff(); SCAN.boxes = [];
+   if (UI.test) { Object.assign(UI, {rec: false, recTable: null, feed: [], dup: null}); return render(); }
+@@ -825,3 +848,3 @@ function scanHtml() {
+     '<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div><canvas class="vfboxes" id="vf-boxes"></canvas>' +
+-    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Point at the slabs’ barcodes and sweep slowly</div></div>' +
++    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Hold 8–10 inches above the slabs and sweep slowly</div></div>' +
+     '<div id="vid-prog"></div>' +
+@@ -848,3 +871,3 @@ function testHtml() {
+       (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
+-    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge. Tap Clear before each run; after it, Copy report and paste it into the chat - it also says how sharp the frames were.</p></div>';
++    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge - slab barcodes need the phone about 8–10 inches away with 1x. Tap Clear before each run; after it, Copy report and paste it into the chat - it also says how sharp the frames were and what the camera gave.</p></div>';
+ }
+@@ -864,3 +887,5 @@ function paintScan() {
+   const ch = lensChoices(), cur = S.settings.lens;
+-  $('vf-tools').innerHTML = cam && VIDEO.videoWidth ? '<div class="vfinfo">' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' · ' + lensLabel() + '</div>' +
++  const fr = SCAN.settings && SCAN.settings.frameRate ? ' · ' + Math.round(SCAN.settings.frameRate) + 'fps' : '';
++  $('vf-tools').innerHTML = cam && VIDEO.videoWidth ? '<div class="vfinfo">' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' · ' + lensLabel() + fr + '</div>' +
++      (SCAN.caps && SCAN.caps.torch ? '<button class="lightbtn' + (SCAN.torch ? ' on' : '') + '" data-a="light" aria-pressed="' + (SCAN.torch ? 'true' : 'false') + '">Light ' + (SCAN.torch ? 'on' : 'off') + '</button>' : '') +
+       (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
+@@ -1114,2 +1139,3 @@ async function act(a, ds, el) {
+     case 'lens': return setLens(ds.v);
++    case 'light': return setTorch(!SCAN.torch);
+     case 'beep': s.beep = !s.beep; save(); if (s.beep) { audioOn(); beep(); } break;
+diff --git a/page/app/sw.js b/page/app/sw.js
+index d750558..6edc77b 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -3,3 +3,3 @@
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v4';
++const CACHE = 'ssc-v5';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
