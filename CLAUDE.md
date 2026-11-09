@@ -2753,6 +2753,12 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   cameraDetails (device label, width/height, frameRate, light, zoom, zoomRange, lightAvailable, maxFrameRate,
   focusModes, lenses = every camera label) so the next test shows what Safari actually gives on his phone. The camera
   label (size, lens, fps) moved to the bottom-left of the picture. Recordings in the app are never saved anywhere.
+  g11h (2026-11-09, a code review before Brett's fourth test): readerOpts maxNumberOfSymbols 32 -> 255. With the whole
+  50-code sheet in view each pass stopped at its first 32 codes, the same ones every frame (simulated straight sheet: 32
+  a pass before, 35-37 after, same time) - part of why his runs stalled at 38. Also looked at (not adopted):
+  Yukaii/barbarcode (Quagga 0.12, 640x480, half-sampled, one code a frame, types into a computer over a WebSocket) and
+  bau70/claude-camera (a Claude skill: photos shrunk to 1600 px or one frame every 3-10 s for Claude to look at; its
+  live view is the same browser camera). The Camera app's own video already has a way in: "Read a video" (4K 60).
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

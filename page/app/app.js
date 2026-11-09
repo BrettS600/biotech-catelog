@@ -355,7 +355,9 @@ function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0
 const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
 // zxing's options: slab codes only (any code in Test mode, so printed samples count too); the default LocalAverage
 // binarizer or the GlobalHistogram one (b = 1) by turns - a glare patch or a dark corner defeats one more than the other
-const readerOpts = b => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 32, tryHarder: true, tryRotate: true, tryInvert: false,
+// maxNumberOfSymbols 255 (2026-11-09; it was 32): with a whole 50-code sheet in view a pass stopped at its first 32 codes -
+// the same 32 every frame; on the simulated sheet one pass now gives 35-37 instead of 32, at the same speed.
+const readerOpts = b => ({formats: UI.test ? [] : SLAB_FORMATS, maxNumberOfSymbols: 255, tryHarder: true, tryRotate: true, tryInvert: false,
   binarizer: b ? 'GlobalHistogram' : 'LocalAverage'});
 // ENLARGED READS (Brett's first test, 2026-11-09: "results weren't that great" - at a foot the 4K camera gives the slab
 // barcodes' ~0.2 mm bars only ~1.7 dots each, at 45 degrees less): a piece of the frame is drawn 1.5x bigger before it is
@@ -570,7 +572,7 @@ function testStats() {
 }
 function testReport() {
   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
-  return {report: 'Slab Show Scanner test', version: 'g11g', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+  return {report: 'Slab Show Scanner test', version: 'g11h', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.rows.length, onlyEnlarged: st.onlyUp,
