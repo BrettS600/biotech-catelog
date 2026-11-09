@@ -2710,6 +2710,19 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   + 13, numeric = pairs; ITF 9 x digits + 9; QR 17 + 4 x version per side) = "dots/bar"; plus the camera size, lens and
   frames read a second. Brett's Staples sheets: test with these, then the K&F magnetic polarizer (6.7" MagSafe mount, 67 mm
   CPL - covers all three lenses) once it ships.
+  BRETT'S FIRST SHEET TEST (2026-11-09, iPhone 13 Pro Max, the badge said 4K): sheets in plastic sleeves, true slab sizes
+  (PSA 9-digit Code 128 / 8-digit ITF 17.5 x 3.2 mm, CGC 10-digit Code 128 18.4 x 2.0 mm - bars ~0.2 mm); about a foot
+  straight down: 40 of the sheet's 50 in 33 s; at 45 degrees: 23 in 37 s, all in the nearer rows ("results weren't that
+  great"). Why: at a foot the main lens in 4K gives ~9 dots per mm, so ~1.7-1.9 dots per bar - the reader's edge; at 45
+  degrees the far rows are farther and squashed. ENLARGED READS (g11e): scan-worker.js draws a piece of the frame 1.5x
+  bigger (OffscreenCanvas, imageSmoothingQuality 'high') before reading it and maps positions back (so Test mode's
+  dots/bar still means the camera's detail). Plans from the page: live, livePlan(k) - even frames the whole frame, odd
+  frames one enlarged piece: the middle (0.2/0.2/0.6/0.6) every second time, the four overlapping corners (0.56 square)
+  in turn; binarizer by (k >> 2) & 1. Video, videoPlan(k): the whole frame AND one piece (middle, then the corners) every
+  frame, binarizer k & 1. Only when the worker has the ImageBitmap (OffscreenCanvas); raw pixels / no worker = whole
+  frames as before. Measured: PIL bicubic 1.5x took a 1.45 dots/bar row from 0/10 to 9/10 (2x: 7/10); in Chromium on a
+  simulated sheet at a foot (Brett's layout, true sizes, blur, noise, glare): straight 36 -> 50 of 50 in 12 s, 45 degrees
+  30 -> 39; the 40-slab 4K frame 27 -> 38 of 40; no misreads. Next on the phone: the same runs, 3x at ~2 ft, a video.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
