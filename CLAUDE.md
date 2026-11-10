@@ -3098,6 +3098,126 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   localStorage clr-freeze-log; the topic and key are carried over the reload in sessionStorage (and removed), so they are
   never read out. With it the hidden tab ran 110-119 pages an hour for hours and the log shows no freeze: 233 pages at
   04:13, 295 at 04:44, 332 at 05:03, 370 at 05:24.
+  g14 (2026-11-10, the same day; Brett after reading g13b's report: "the speed at which they were scanned ... matters
+  too", "is there a way to incorporate depth data?", "is it possible to collect motion data. i want you have access to
+  literally all data during the barcode test experiments so that we can successfully optimize its reading abilities",
+  then "yes do that ... i want to be on par with scandit"; his K&F polarizer arrives that day - TESTS WAIT FOR IT).
+  The reading itself (finder.js, the grey-line reader, the classes, NEED) is g13b's to the letter: finder.js gained
+  only what the log needs (decide(lay, zres, dbg) -> every box's grey-line and zxing readings; job.why[ci] = why a box
+  was not cut: [1] over a limit, [2, rows], [3, rows, fold]) and reads the 138 real test pictures exactly as before
+  (4,043 readings, g14t/dump.js). What changed is WHICH frames are read, how many, and what a test leaves behind.
+  WHAT THE SEVEN FILES SAID ABOUT SPEED (g12a, on his phone; each frame's time is in report.json's frameLog): held
+  still at 9 inches, 11 codes in the first second, 33 by 3 s, 36 by 4 s, the 37th at 11 s; at 13 inches 6 / 21 by 3 s /
+  33 by 14 s; tilted 15 / 32 / 38; dim 4 / 5 / 23 at 13 s; moving 2 at 6 s; 2 feet 1 at 9 s. So close and still, what
+  could be read was read in 2-3 s (the misses were codes it could not read, not time); at 13 inches and in dim light
+  the codes trickled in - there a frame's yield is the speed. AND: in every test the blurrier half of the frames gave
+  about half the codes of the sharper half (plain frames at 9 in: 11.6 against 23.0 codes a frame; 13 in: 5.4 against
+  10.7; tilted 7.2 against 15.0) - a hand trembles and the focus hunts even when "holding still" (sharpness 197-627 in
+  one test).
+  THE SCANNER, THREE CHANGES (all three also at a show, not only in Test mode):
+  1. TWO READER THREADS (app.js: SCAN.pool, newReader, workerReady, readerFree; readImage picks a free one). Each is
+     scan-worker.js with its own zxing and finder; frames go to whichever is free; results come back in any order (the
+     tally does not mind). readersWanted(): 2 when Fast reading is on, unless navigator.hardwareConcurrency says 1 (an
+     iPhone's Safari may own up to only 2 of its 6 cores; report.json's platform.cores will say); localStorage
+     'ssc-readers' = N forces N. A reader that stops takes only its own frames; with none left the page reads, as
+     before. readersNow(): with Fast reading off for one test (TEST.old) the second reader sits it out.
+  2. THE PICK OF THE SHARP FRAMES (app.js: FW, probe, pick, fwArm/fwStart/fwStop/fwWatch, scanFrame). The camera's
+     frames come through requestVideoFrameCallback (a 50 ms timer asks instead where a browser has none or it falls
+     silent for 250 ms). When a reader is free the page takes the frame as a bitmap (createImageBitmap - what a reader
+     is handed anyway), draws 320 x 320 dots of it - where the codes were last found (the worker's t.cen, moved only
+     when it is 160 dots elsewhere, and then the looks so far are forgotten) - into a small canvas and takes the
+     variance of their Laplacian. The frame goes to the reader if that is >= GATE.hi (0.6) of the sharpest look of the
+     last 1.5 s; after GATE.soft (150 ms) of waiting GATE.lo (0.4) will do; after GATE.hard (300 ms) anything goes.
+     Every fourth frame read is not judged at all (so nothing can be passed over for good - found with a fake camera
+     that loops different views: without this a close-up test counted 16 codes instead of 20). When the looks of the
+     last 1.5 s are all within GATE.calm (0.88) of each other there is no looking for 600 ms (a phone on a stand). If
+     taking and looking costs over GATE.slow (70 ms) a frame on average, the pick switches itself off for the recording
+     (event 'pick-off'). THE LOOK IS TAKEN OF THE BITMAP: looking at the <video> and then taking the bitmap gave, in
+     Chromium, the NEXT frame in about 3 frames of 100. On a fake camera whose frames are sharp, sharp, half-blurred
+     and three times blurred by turns (apptest4/jitter.y4m): g13b's way read 59 readings a second, two readers 102,
+     the pick with one reader 99, both 120-138 - and of the frames read 20-26 of ~33 were the sharp ones instead of 3
+     of 39. Whether a real hand's frames differ as much as his seven files say will show in the next files (every
+     frame's look is in the log; the video holds every frame).
+  3. THE WHOLE PASS MAY NOT CONTRADICT THE FINDER'S READERS (scan-worker.js: claims, given, t.clash). Found by a
+     replay: with Fast reading off, the 13-inch camera counted 530231271720 - zxing on the whole frame misread the
+     code 150231577 (check symbol agreeing) each time the looped frame came round, four weak sightings = counted; the
+     grey-line reader read that very box right and strongly every time. g13b had this hole. Now a LINEAR reading of
+     the whole pass is dropped when it lies on a box (its middle within 0.6 of the box's length) where the finder's
+     readers gave ANOTHER reading class A or B; never when the finder's readers gave that same reading a class
+     anywhere in the frame. (A first version also let the grey-line reader's unclassed readings of fit 0.8+ stand in
+     the way: wrong - on poor frames those are wrong more often than zxing, and a camera of grainy, blurred, dark
+     frames counted 44 instead of 49-50.) On all 136 real pictures (g14t/clash.js): 685 linear whole-pass readings,
+     the one wrong one dropped, no right one; the 15 right ones only the whole pass had all stay (the net under the
+     finder is whole). report.json: wholePassReadingsDropped {count, texts}.
+  Also: detailOf counted a 9-digit Code 128 as 90 modules; it is 101 (an odd digit costs two symbols) - Test mode's
+  dots/bar for PSA's 9-digit codes was 12% high.
+  DEPTH, AS FAR AS A PAGE CAN HAVE IT. No web page gets an iPhone's LiDAR (Safari has no WebXR, no depth stream), nor
+  the Measure app's numbers, nor a live focus distance (getCapabilities gives only focusDistance.min, 0.15 m). But the
+  codes are rulers: PSA's are 17.5 mm long, CGC's 18.4, modules 0.173 / 0.204 mm. His ruler distances and the grey-line
+  reader's dots per module (g14t/calib.js) give the camera's scale at 4K: FPX 2,750-2,800 at both 9 and 13.4 inches
+  (2,775 used; the finder's boxes run long: FPX_BOX 2,900; 3x = x 77/26). app.js inchBox (a frame's median box) and
+  inchCode (each reading): Test mode shows "~11 in" live and logs it per frame and per code - within a few percent on
+  his own tests.
+  WHAT A TEST'S FILE HOLDS NOW (buildTestZip; scanner-test-g14-t<N>[-pol]-<date>.zip, 50-100 MB with the video):
+  - report.json: as before, plus conditions {polarizer, distanceMeasuredInches, note} (Test mode's switch and two
+    boxes), app {fastReading, readers, framePick, framesPassedOver, waitedMsMedian, lookMsMedian, cameraFramesSeen,
+    video}, timing.copyMs / drawMs / roundTripMs, distanceByCodeSizeInches, tiltDegrees, motion (the permission's
+    answer), clock {startedAt, firstResultMs} (frameLog's first column counts from the first frame READ; everything
+    new counts from the record tap), events [[ms, what, detail]] (start, camera, video, motion, lens, light, pick-off,
+    camera-restarted, app to the background, stop), cameraRaw (every camera opening: getSettings, getCapabilities,
+    getSupportedConstraints, the lenses), platform (at Stop: is there VideoFrame / MediaStreamTrackProcessor here and
+    in the worker, a frame's format and size as a VideoFrame, ms to copy all of it and a 320 x 320 piece - for a path
+    that hands frames to the readers without the bitmap), video [{file, type, bitsPerSecondAsked, megabitsPerSecond,
+    startedMs, endedMs}], frameLog with 16 more columns (LOG_FIELDS: taken ms, camera frame number, reader thread, the
+    pick's look, ms waited, copy / round trip / draw ms, zoom, brightness mean / 1% / 99%, blown out %, grain,
+    distance, tilt), list with first-sighted and counted ms and nearest / farthest inches.
+  - frames.json: boxes[i] for frameLog[i] - EVERY box the finder found, read or not (BOX_FIELDS: place, length,
+    thickness, angle, contrast, kind, cut or why not, rows, agreement, blown-out %, brightness, the grey-line reader's
+    fit / lead / blur / symbols / dots a module / text even when it was given no class, zxing's format / lines / text,
+    the class); cameraFrames: every frame the camera showed [ms, media time, number, capture time, the look, handed
+    over].
+  - motion.json: devicemotion 60 times a second [ms, acceleration x y z, with gravity x y z, turning alpha beta
+    gamma] and deviceorientation. An iPhone asks once ("Motion & Orientation"), on the record tap (motionStart is
+    called before anything is awaited); TEST.tilt = degrees from lying flat.
+  - video-1.mp4 (-2 after a lens change): MediaRecorder on the camera's own stream, H.264 MP4 asked at 4.8 bits a dot
+    (40 Mbit/s at 4K), a piece a second, stopped at VID_MAX 200 MB. The kept JPEGs stay (they are what the reader saw;
+    the video is a second encoding of it).
+  - zipStore takes the CRC 8 MB at a time (crcOf).
+  TEST MODE: three switches - Polarizer (set by the plan's step, to be corrected by hand; in the file and its name),
+  Video (S.settings.tvideo), Fast reading (S.settings.fast: off = one reader, no pick, as g13b; readersReset) - and
+  two boxes (distance measured, a note). The plan is 18 tests ('ssc-test-step14'): 9 in, 14 in, 18 in, 2 ft with 1x
+  (3 and 4 are for reading further with 1x - see below), 2 ft and 3 ft with 3x, tilted, turned, moving with pauses,
+  glare, his choice; 12: 14 in again read THE OLD WAY (the app itself switches Fast reading off for that test,
+  planOld / TEST.old - so the phone says what the two changes are worth); then through the polarizer (13-18): 9 in,
+  2 ft 3x, tilted, moving, glare, his choice.
+  TESTED (apptest4/run14.py <camera> <secs> <name> [readers=2 video=0 fast=0 motion=1 perm=granted|denied norvfc=1
+  nomr=1 noworker=1 nomotion=1 pol=1 note=x], gate.py, real14.py, video14.py; Chromium, 2 cores, so two readers gain
+  less than on a phone): the replay cameras count as g13b did - 9 in 48, 13 in 43, tilted 43, dim 50, turned 30
+  degrees 43, with lines 41, close 25 and 20, faint 46, made worse 49-50 (the wrong one only sighted), on wood 39, a
+  table 48 slabs, a video file 37 - and nothing not on the sheet. Without the frame callback, without MediaRecorder,
+  motion allowed / refused / absent, without workers: all run, the file says what was missing. This Chromium records
+  H.264 MP4 too (ffprobe: h264 3840 x 2160; ffmpeg cuts frames from it). NOT TESTABLE HERE: an iPhone's cost of the
+  bitmap and the look (the file's copyMs, lookMsMedian, 'pick-off'), two readers on its cores and memory, its
+  MediaRecorder's real bitrate at 4K, the motion prompt.
+  WHAT THE NEXT FILES ARE FOR (the road towards the paid scanners, in the order the data must decide):
+  - FURTHER WITH 1x. At 2 feet (0.82-0.97 dots a module, t8's 5 frames, g14t/far.js) the grey-line reader made 45
+    readings: 22 right, 23 wrong; of those fitting 0.86+ 17 right and 1 wrong - but nearly all are refused, the lead
+    being small at that blur. Right readings came back in other frames (4 codes in 2-3 of 5), wrong ones never did
+    (at 13 in: 34 of 36 right texts in 3+ frames of 5, 7 of 72 wrong ones in 2). A rule "the same fitting reading in
+    N frames counts" could carry 1x towards 18-24 inches - but a phone held still can show one wrong reading again and
+    again, so it needs hundreds of frames with known answers to set N: tests 3 and 4 with their videos. At 2 feet the
+    finder cuts ~104 boxes of 250 codes (the 444 it throws out are print, not codes): finding is the other half.
+  - MOVING: the gyro against each frame's smear gives the exposure time and how fast a sweep may be; then a "slow
+    down" hint and the pick by the sensor instead of by looking.
+  - SPEED: if platform says a VideoFrame can be copied in a few ms on the phone, frames can go to the readers as
+    they are (no bitmap, no canvas, only the brightness plane) - then every frame could be looked at, or read.
+  - THE POLARIZER: glare % and each box's blown-out % with and without, against the light it costs (grain, smear).
+  sw.js: ssc-v16; the app says g14.
+  CARD LADDER, 2026-11-10 14:39 UTC (Brett: "keep it permanant"): the keep-alive Web Lock and the freeze log are now
+  in card-data tools/clingest/browser/common.js (commit e7bf811, blob 846b4a81d02a98d80284d03d5379cbba946504ae; no
+  second lock or watcher when the file is pasted again) and both run tabs' cached clr-src-common were renewed to it
+  (sha checked in the tab; the old copy kept as clr-src-common-prev). The night of Nov 10: 900 pages, 110-119 an
+  hour at every check, no freeze logged; restarts at 02:11, 03:47, 05:24, 07:02, 08:32 UTC.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

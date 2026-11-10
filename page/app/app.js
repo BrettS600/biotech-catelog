@@ -121,7 +121,7 @@ S.settings = Object.assign({}, DEFAULTS, S.settings || {});
 S.marks = S.marks || {};
 let UI = {tab: S.tables.length ? 'tables' : 'scan', openTable: null, sheet: null, view: 'slab', rec: false, recTable: null, recStart: 0,
   feed: [], feedN: 0, dup: null, draftVendor: '', sort: 'best', q: '', pickGk: null, confirmNew: false, sending: false, recMsg: null, addCert: '', camErr: null,
-  test: false, scanMsg: null};
+  test: false, scanMsg: null, tpol: false, tdist: '', tnote: ''};
 let SAVE_T = 0;
 function save() { clearTimeout(SAVE_T); SAVE_T = setTimeout(() => LS.set(STATE_STORE, S), 150); }
 const slabsArr = () => Object.values(S.slabs);
@@ -349,11 +349,15 @@ const VIDEO = document.createElement('video');
 VIDEO.setAttribute('playsinline', ''); VIDEO.setAttribute('muted', ''); VIDEO.muted = true; VIDEO.autoplay = true;
 const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null,
   worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
-  fpsN: 0, fpsT: 0, fps: 0, ms: 0, lastHit: 0, finder: false, seen: new Map(), lastLen: 0, lastSharp: 0, bestPx: 0, revived: 0, reviving: false, glare: 0, lastNew: 0, cntSeen: -1, blobOk: false};
+  fpsN: 0, fpsT: 0, fps: 0, ms: 0, lastHit: 0, finder: false, seen: new Map(), lastLen: 0, lastSharp: 0, bestPx: 0, revived: 0, reviving: false, glare: 0, lastNew: 0, cntSeen: -1, blobOk: false,
+  pool: [], freeAt: 0, focus: null, plat: null};
 const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
 // A test's numbers. keep: the frames whose pictures are kept for the test-data file; log: one line a frame (testFrame).
 const testFresh = () => ({frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tget: [], tf: [], tl: [], tr: [], ty: [], tw: [], tg: [], lens_: [], maxPer: 0, empty: 0,
-  stN: 0, boxes: 0, kept: 0, sure: 0, strong: 0, weak: 0, ferr: null, log: [], keep: [], keepN: 0, keepNext: Infinity, keepGap: KEEP_GAP_MS, rowsPic: null, sheetN: new Map(), live: null, keepErr: null});
+  stN: 0, boxes: 0, kept: 0, sure: 0, strong: 0, weak: 0, ferr: null, log: [], keep: [], keepN: 0, keepNext: Infinity, keepGap: KEEP_GAP_MS, rowsPic: null, sheetN: new Map(), live: null, keepErr: null,
+  // g14 - everything else a test leaves behind (times: ms since the record tap, p0): events, the camera's frames as they came (vfl), every box of
+  // every frame read (fbox), the phone's movement (mo) and tilt (ti), the video (vid), and what the frame loop did
+  p0: 0, wall0: 0, old: false, clash: 0, clashes: [], ev: [], vfl: [], fbox: [], mo: [], ti: [], moState: '', moInt: null, tilt: null, tilts: [], vid: [], vidErr: null, platP: null, passed: 0, waits: [], probes: [], rts: [], bms: [], draws: [], dists: [], lerr: null, camRaw: null, pol: false, distIn: '', note: ''});
 const KEEP_MAX = 10, KEEP_Q = 0.92, KEEP_GAP_MS = 1500, KEEP_CROP = 640;   // pictures kept a test at most; their JPEG quality; the first gap between two; the side of the lossless middle piece
 const TEST = Object.assign({reads: new Map(), zip: null, zipSeq: 0, step: 0, label: ''}, testFresh());
 // THE TESTS TO RUN (2026-11-10; Brett: "this is just one lighting condition ... the angles are going to be different.
@@ -363,16 +367,35 @@ const TEST = Object.assign({reads: new Map(), zip: null, zipSeq: 0, step: 0, lab
 const TEST_PLAN = [
   'Sheet flat, room light, about 9 inches, 1x, hold still',
   'About 14 inches, 1x, hold still',
+  'About 18 inches, 1x, hold still',
+  'About 2 feet, still 1x, hold still',
   'About 2 feet: tap 3x, hold still',
   'About 3 feet, 3x, hold still',
   'Phone tilted about 45 degrees, about a foot away, 1x',
   'Sheet turned: on its side, then upside down, then aslant - about a foot away, 1x',
   'Moving: glide slowly over the sheet at 8 to 10 inches, a short pause on each part',
-  'Your choice: another light, another room, under glass'];
-let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step13', 0) || 0));
-function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step13', TEST_STEP); }
+  'Glare: a lamp or a window reflecting in the sleeve, about a foot away, 1x',
+  'Your choice: a dim room, under glass, real slabs',
+  'The old way of reading (the app switches Fast reading off for this one): as test 2 - about 14 inches, 1x, hold still',
+  'Polarizer on (turn its ring until the glare is weakest): as test 1 - 9 inches, 1x, hold still',
+  'Polarizer on: as test 5 - about 2 feet, 3x, hold still',
+  'Polarizer on: as test 7 - tilted about 45 degrees, a foot away',
+  'Polarizer on: as test 9 - moving, a short pause on each part',
+  'Polarizer on: as test 10 - the same glare',
+  'Polarizer on: as test 11 - your choice again'];
+// (g14: tests 13-18 are the ones to run again through the polarizer - the step sets the Polarizer switch, the file says which.
+// Tests 3 and 4 are there for what comes next: reading from further off with 1x needs frames from there. Test 12 is read
+// the old way - one reader, no pick of frames (TEST.old) - so the phone itself says what Fast reading is worth.)
+const planPol = () => /^Polarizer on/.test(TEST_PLAN[TEST_STEP] || ''), planOld = () => /^The old way/.test(TEST_PLAN[TEST_STEP] || '');
+let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step14', 0) || 0));
+function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
+UI.tpol = planPol();
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
-const APP_VERSION = 'g13b';
+const APP_VERSION = 'g14';
+// Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
+// and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
+const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
+const pickState = () => !optFast() ? 'off' : FW.off ? 'switched itself off' : !(SCAN.worker && SCAN.offscreen && window.createImageBitmap) ? 'off (no reader thread takes bitmaps here)' : 'on';
 // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
 // sheet, row by row; 10 digits = CGC Code 128, 9 = PSA Code 128 with the thinnest bars, 8 = PSA ITF). Test mode knows
 // them so that a run can be shown as a map of the sheet: which codes were read and which were not (sheetCard).
@@ -433,36 +456,65 @@ function zxReady() {
   if (!SCAN.zx && window.ZXingWASM) SCAN.zx = ZXingWASM.prepareZXingModule({overrides: {locateFile: (p, prefix) => p.endsWith('.wasm') ? 'zxing/' + p : prefix + p}, fireImmediately: true});
   return SCAN.zx;
 }
-function workerReady() {                     // the reader in its own thread; false = this browser can't, read on the page
-  if (SCAN.worker !== null) return SCAN.worker;
+// THE READERS, EACH IN ITS OWN THREAD (g14: two of them with Fast reading on - a phone has the cores, and two readers
+// take turns at the camera's frames, so twice as many are read; a frame's readings are the same whichever reads it.
+// An iPhone's Safari may own up to only two of its six cores - so two readers unless a phone says it has one).
+// localStorage 'ssc-readers' = a number forces that many (tests). false = this browser can't: read on the page.
+const readersWanted = () => { const n = +LS.get('ssc-readers', 0); return n >= 1 ? Math.min(4, Math.round(n)) : setFast() && navigator.hardwareConcurrency !== 1 ? 2 : 1; };
+const readersNow = () => optFast() ? SCAN.pool : SCAN.pool.slice(0, 1);   // (Fast reading off for one test: the second reader sits it out)
+function newReader(i) {
   try {
-    const w = new Worker('scan-worker.js');
+    const w = new Worker('scan-worker.js'), r = {w, i, busy: false};
     w.onmessage = e => {
-      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; SCAN.finder = !!m.finder; SCAN.blobOk = !!m.blob; return; }
+      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; SCAN.finder = !!m.finder; SCAN.blobOk = !!m.blob; SCAN.plat = m.plat || null; return; }
       const p = SCAN.pend.get(m.id); if (!p) return;
       SCAN.pend.delete(m.id); if (m.err) p.rej(new Error(m.err)); else p.res(m);
     };
-    w.onerror = ev => { SCAN.worker = false; SCAN.pend.forEach(p => p.rej(new Error('the reader stopped'))); SCAN.pend.clear(); if (ev && ev.preventDefault) ev.preventDefault(); };
-    SCAN.worker = w;
-  } catch (e) { SCAN.worker = false; }
-  return SCAN.worker;
+    // a reader that stops takes only its own frames with it; with none left the page reads (as before)
+    w.onerror = ev => {
+      SCAN.pool = SCAN.pool.filter(x => x !== r); if (!SCAN.pool.length) SCAN.worker = false;
+      SCAN.pend.forEach((q, id) => { if (q.r === r) { SCAN.pend.delete(id); q.rej(new Error('the reader stopped')); } });
+      tev('reader-stopped', i); if (ev && ev.preventDefault) ev.preventDefault();
+    };
+    return r;
+  } catch (e) { return null; }
 }
+function workerReady() {
+  if (SCAN.worker !== null) return SCAN.worker;
+  SCAN.pool = [];
+  for (let i = 0, n = readersWanted(); i < n; i++) { const r = newReader(i); if (r) SCAN.pool.push(r); }
+  return SCAN.worker = SCAN.pool.length ? SCAN.pool[0].w : false;
+}
+function readersReset() {                    // (the Fast reading switch: the next recording makes its readers anew)
+  for (const r of SCAN.pool) { try { r.w.terminate(); } catch (e) {} }
+  SCAN.pool = []; SCAN.worker = null;
+  SCAN.pend.forEach(q => q.rej(new Error('the reader was restarted'))); SCAN.pend.clear();
+}
+const readerFree = () => SCAN.worker === false ? !SCAN.busy : readersNow().some(r => !r.busy);
 function grab(src, w, h) {                   // a frame's pixels at full size
   const cv = SCAN.canvas; if (cv.width !== w) cv.width = w; if (cv.height !== h) cv.height = h;
   const ctx = cv.getContext('2d', {willReadFrequently: true}); ctx.drawImage(src, 0, 0, w, h);
   return ctx.getImageData(0, 0, w, h);
 }
 const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version, cls: /qr|matrix/i.test(String(r.format)) ? 'A' : 'B', by: 'w'});   // (read on the page, without the finder: strong)
-async function readImage(src, w, h, opts, plan) {   // -> {res: [{text, format, pos, version, cls, by}], ms, sharp, t}; opts: the whole-frame pass's (plan.full)
+async function readImage(src, w, h, opts, plan) {   // -> {res: [{text, format, pos, version, cls, by}], ms, sharp, t, reader, bmMs}; opts: the whole-frame pass's (plan.full)
   const wk = workerReady();
   if (wk) {
-    const id = ++SCAN.wid;
-    const p = new Promise((res, rej) => { SCAN.pend.set(id, {res, rej}); setTimeout(() => { if (SCAN.pend.delete(id)) rej(new Error('the reader took too long')); }, 20000); });
-    let bm = null;
-    if (SCAN.offscreen && window.createImageBitmap) { try { bm = window.ImageBitmap && src instanceof ImageBitmap ? src : await createImageBitmap(src); } catch (e) { bm = null; } }
-    if (bm) wk.postMessage({id, bm, opts, plan}, [bm]);
-    else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts, plan}, [img.data.buffer]); }   // raw pixels
-    return p;
+    const r = readersNow().find(x => !x.busy) || SCAN.pool[0], id = ++SCAN.wid, tb = performance.now();
+    r.busy = true;
+    try {
+      const p = new Promise((res, rej) => { SCAN.pend.set(id, {res, rej, r}); setTimeout(() => { if (SCAN.pend.delete(id)) rej(new Error('the reader took too long')); }, 20000); });
+      p.catch(() => {});                       // (a frame given up on is reported where it is awaited)
+      let bm = null;
+      if (SCAN.offscreen && window.createImageBitmap) { try { bm = window.ImageBitmap && src instanceof ImageBitmap ? src : await createImageBitmap(src); } catch (e) { bm = null; } }
+      const bmMs = performance.now() - tb;
+      try {
+        if (bm) r.w.postMessage({id, bm, opts, plan}, [bm]);
+        else { const img = grab(src, w, h); r.w.postMessage({id, w, h, buf: img.data.buffer, opts, plan}, [img.data.buffer]); }   // raw pixels
+      } catch (e) { SCAN.pend.delete(id); throw e; }
+      const m = await p; m.reader = r.i; m.bmMs = bmMs;
+      return m;
+    } finally { r.busy = false; }
   }
   await zxReady();
   const img = grab(src, w, h), t0 = performance.now();
@@ -488,7 +540,7 @@ function detailOf(r) {
     return (along + (d(P.topLeft, P.bottomLeft) + d(P.topRight, P.bottomRight)) / 2) / 2 / (17 + 4 * v);
   }
   let mods = null;
-  if (f.startsWith('code128')) mods = 11 * ((/^\d+$/.test(t) ? Math.ceil(t.length / 2) : t.length) + 2) + 13;   // start, data, check, stop
+  if (f.startsWith('code128')) mods = 11 * ((/^\d+$/.test(t) ? (t.length >> 1) + (t.length & 1 ? 2 : 0) : t.length) + 2) + 13;   // start, data, check, stop (digits go in pairs; an odd one costs two symbols: a change of set, then the digit)
   else if (f.startsWith('itf')) mods = 9 * t.length + 9;
   else if (f.startsWith('code39')) mods = 16 * (t.length + 2);
   else if (f.startsWith('code93')) mods = 9 * (t.length + 4) + 1;
@@ -539,12 +591,19 @@ async function camStart() {
   try { SCAN.settings = tr.getSettings ? tr.getSettings() : null; } catch (e) { SCAN.settings = null; }
   VIDEO.srcObject = SCAN.stream;
   try { await VIDEO.play(); } catch (e) {}
+  if (UI.test && UI.rec) {                    // Test mode: all the camera says of itself, as it says it; and the video of the test begins
+    let sup = null; try { sup = navigator.mediaDevices.getSupportedConstraints(); } catch (e) {}
+    (TEST.camRaw || (TEST.camRaw = [])).push({ms: Math.round(performance.now() - TEST.p0), label: SCAN.label, settings: SCAN.settings, capabilities: SCAN.caps, lenses: (SCAN.cams && SCAN.cams.labels) || [], supportedConstraints: sup});
+    tev('camera', SCAN.label + ' ' + ((SCAN.settings && SCAN.settings.width) || '?') + 'x' + ((SCAN.settings && SCAN.settings.height) || '?'));
+    vidStart();
+  }
 }
 // the phone's light (only where the camera offers it): more light = a shorter exposure = less smear from a moving hand.
 // It can put a glare spot on slab plastic - tilt a little so the spot slides off the label.
 async function setTorch(on) {
   const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0]; if (!tr) return;
   try { await tr.applyConstraints({advanced: [{torch: !!on}]}); SCAN.torch = !!on; } catch (e) { SCAN.torch = false; toast('The light did not switch on.'); }
+  tev('light', SCAN.torch ? 'on' : 'off');
   try { SCAN.settings = tr.getSettings ? tr.getSettings() : SCAN.settings; } catch (e) {}
   paintScan();
 }
@@ -557,7 +616,7 @@ function camInfo() {
     focusModes: c.focusMode || null, closestFocusMeters: c.focusDistance && c.focusDistance.min != null ? c.focusDistance.min : null,
     lenses: (SCAN.cams && SCAN.cams.labels) || []};
 }
-function camStop() { if (SCAN.stream) SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; VIDEO.srcObject = null; }
+function camStop() { vidEnd(); if (SCAN.stream) SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; VIDEO.srcObject = null; }
 function camOff() { camStop(); SCAN.torch = false; }   // the recording is over: the light goes off with the camera
 // THE CAMERA IS STARTED AGAIN WHEN ITS PICTURE COLLAPSES (2026-11-10). Brett's fourth test: asking Safari for a still
 // photo (ImageCapture.takePhoto, the "Photo test" tried in g11i-g11k) left the live picture black and 144 x 192, and the
@@ -570,7 +629,7 @@ function camWatch() {
   const px = VIDEO.videoWidth * VIDEO.videoHeight;
   if (px > SCAN.bestPx) SCAN.bestPx = px;
   if (!(tr.readyState === 'ended' || (px && px < SCAN.bestPx / 4)) || SCAN.revived >= 3) return;
-  SCAN.reviving = true; SCAN.revived++;
+  SCAN.reviving = true; SCAN.revived++; tev('camera-restarted', px + ' dots, track ' + tr.readyState);
   (async () => {
     try { camStop(); await camStart(); } catch (e) { UI.camErr = 'Camera: ' + (e && e.message || e); }
     SCAN.reviving = false; paintScan();
@@ -583,7 +642,7 @@ function lensChoices() {                     // [value, label]: the iPhone's 3x 
 }
 async function setLens(v) {
   if (S.settings.lens === v) return;
-  S.settings.lens = v; save();
+  S.settings.lens = v; save(); tev('lens', v);
   if (v === 'tele') toast('3x: hold about 2 feet away - it cannot focus closer.');
   if (UI.rec && SCAN.stream) { camStop(); try { await camStart(); } catch (e) { UI.camErr = 'That lens did not open: ' + (e.message || e); } }
   paintScan();
@@ -604,25 +663,110 @@ function beep() {
     o.connect(g); g.connect(A.destination); o.start(t); o.stop(t + 0.1);
   } catch (e) {}
 }
+// WHICH FRAMES ARE READ (g14, from Brett's seven test files: a phone held still gives frames of very different
+// sharpness - a hand trembles, the focus hunts - and in every test the blurrier half of the frames gave about half as
+// many codes as the sharper half: 12 against 23 at 9 inches, 5 against 11 at 13). A reader takes a third of a second
+// over a frame while the camera delivers ten, so the frame it is handed can be CHOSEN. Each time the camera shows a new
+// frame (requestVideoFrameCallback) and a reader is free, the page takes the frame (the bitmap a reader would get
+// anyway), looks at a small square of it where the codes were last found (probe: 320 x 320 dots as they are, the
+// variance of their Laplacian) and hands it over if it is sharp: at least GATE.hi of the sharpest look of the last
+// second and a half; after GATE.soft ms of waiting GATE.lo will do; after GATE.hard ms anything goes - so nothing ever
+// stalls, and a phone on the move (every frame smeared alike) reads as often as before. The look is taken OF THE
+// BITMAP, so the frame judged is the frame read (looking at the video and then taking the bitmap gave, now and then,
+// the next frame). When the frames of the last second and a half are all alike (the dullest at GATE.calm of the
+// sharpest: a phone on a stand) there is nothing to pick, and no looking for GATE.rest ms. If taking and looking ever
+// costs more than GATE.slow ms a frame on a phone, the picking switches itself off; without the frame callback a timer
+// asks, as before (and picks the same way). Fast reading off, or a browser whose readers get no bitmaps: no picking.
+const FW = {on: false, id: 0, at: 0, ring: [], cost: 0, probes: 0, off: false, calm: 0, cv: null, cx: null, grab: 0};
+const PROBE = 320, GATE = {hi: 0.6, lo: 0.4, soft: 150, hard: 300, span: 1500, slow: 70, calm: 0.88, rest: 600};
+function probe(bm) {                         // how sharp a frame is where the codes are -> a number, or null
+  const w = bm.width, h = bm.height; if (!w || !h) return null;
+  if (!FW.cv) { FW.cv = document.createElement('canvas'); FW.cv.width = FW.cv.height = PROBE; FW.cx = FW.cv.getContext('2d', {willReadFrequently: true}); }
+  const n = Math.min(PROBE, w, h), f = SCAN.focus, sx = Math.max(0, Math.min(w - n, Math.round((f ? f[0] : w / 2) - n / 2))), sy = Math.max(0, Math.min(h - n, Math.round((f ? f[1] : h / 2) - n / 2)));
+  FW.cx.drawImage(bm, sx, sy, n, n, 0, 0, n, n);
+  const d = FW.cx.getImageData(0, 0, n, n).data, n4 = n * 4; let sum = 0, sq = 0, c = 0;
+  for (let y = 1; y < n - 1; y++) { let i = (y * n + 1) * 4 + 1; for (let x = 1; x < n - 1; x++, i += 4) { const l = d[i - 4] + d[i + 4] + d[i - n4] + d[i + n4] - 4 * d[i]; sum += l; sq += l * l; c++; } }
+  return c ? Math.round(sq / c - (sum / c) * (sum / c)) : 0;
+}
+function pick(bm, now, waited, bmMs) {       // may this frame go to a reader? -> {ok, sharp}
+  let v = null; const t0 = performance.now();
+  try { v = probe(bm); } catch (e) { FW.off = true; tev('pick-off', String(e && e.message || e).slice(0, 80)); return {ok: true, sharp: null}; }
+  if (v == null) return {ok: true, sharp: null};
+  const ms = performance.now() - t0; FW.probes++; if (FW.probes > 4) FW.cost = FW.cost ? FW.cost * 0.8 + (ms + bmMs) * 0.2 : ms + bmMs;   // (the first looks warm up)
+  if (UI.test && TEST.probes.length < 4000) TEST.probes.push(Math.round(ms * 10) / 10);
+  if (FW.probes > 12 && FW.cost > GATE.slow) { FW.off = true; tev('pick-off', 'taking a frame and looking at it took ' + FW.cost.toFixed(0) + ' ms'); }
+  const R = FW.ring; R.push([now, v]); while (R.length && now - R[0][0] > GATE.span) R.shift();
+  let mx = 0, mn = Infinity; for (const e of R) { if (e[1] > mx) mx = e[1]; if (e[1] < mn) mn = e[1]; }
+  if (R.length >= 6 && mn >= GATE.calm * mx) FW.calm = now + GATE.rest;   // a phone on a stand: every frame as sharp as the next - no looking for a while
+  return {ok: v >= GATE.hi * mx || (waited >= GATE.soft && v >= GATE.lo * mx) || waited >= GATE.hard, sharp: v};
+}
+// the camera's frames as they come: each one may be read (scanFrame), and Test mode writes each one down
+function fwArm() {
+  if (!FW.on || !VIDEO.requestVideoFrameCallback) return;
+  FW.id = VIDEO.requestVideoFrameCallback((now, md) => {
+    if (!FW.on) return;
+    FW.at = performance.now();
+    let row = null;
+    if (UI.test && UI.rec && TEST.vfl.length < 9000) TEST.vfl.push(row = [Math.round(FW.at - TEST.p0), md && md.mediaTime != null ? Math.round(md.mediaTime * 1000) : null, md && md.presentedFrames != null ? md.presentedFrames : null,
+      md && md.captureTime != null ? Math.round(md.captureTime - TEST.p0) : null, null, 0]);
+    scanFrame({pf: md && md.presentedFrames != null ? md.presentedFrames : null, row}).catch(() => {});
+    fwArm();
+  });
+}
+function fwStart() { fwStop(); Object.assign(FW, {on: true, at: 0, ring: [], cost: 0, probes: 0, off: false, calm: 0, grab: 0}); SCAN.freeAt = 0; SCAN.focus = null; fwArm(); }
+function fwStop() { FW.on = false; try { if (FW.id && VIDEO.cancelVideoFrameCallback) VIDEO.cancelVideoFrameCallback(FW.id); } catch (e) {} FW.id = 0; }
+function fwWatch() {                         // once a second: a frame callback that fell silent (a new camera stream) is asked for again
+  if (!FW.on || !VIDEO.requestVideoFrameCallback || performance.now() - FW.at < 1000) return;
+  try { if (FW.id && VIDEO.cancelVideoFrameCallback) VIDEO.cancelVideoFrameCallback(FW.id); } catch (e) {}
+  fwArm();
+}
 // One frame: the finder and its readers on every frame (plan.find), and on one frame in four zxing on the whole frame
 // too (plan.full; LocalAverage, the binarizer a QR needs) - every eighth frame for any code at all in Test mode.
-async function scanFrame() {
-  if (!UI.rec || SCAN.busy || !SCAN.stream || !VIDEO.videoWidth) return;
-  SCAN.busy = true;
+// md: the camera frame's number and its line in Test mode's list when the frame callback asks; null when the timer does.
+async function scanFrame(md) {
+  const now = performance.now();
+  if (!UI.rec || !SCAN.stream || !VIDEO.videoWidth || (FW.grab && now - FW.grab < 1500)) return;   // (one frame is taken at a time; a taking that never ends is given up on)
+  workerReady();
+  if (!readerFree()) { SCAN.freeAt = 0; return; }
+  if (!SCAN.freeAt) SCAN.freeAt = now;
+  const waited = now - SCAN.freeAt, w = VIDEO.videoWidth, h = VIDEO.videoHeight;
+  let bm = null, sharpAt = null, bmMs = null;
+  // the pick - but every fourth frame read is taken as it comes (the first of a recording among them): whatever a
+  // look would pass over for good is still read once or twice a second
+  if (optFast() && !FW.off && now >= FW.calm && SCAN.k % 4 !== 0 && SCAN.worker && SCAN.offscreen && window.createImageBitmap) {
+    FW.grab = now;
+    try { bm = await createImageBitmap(VIDEO); } catch (e) { bm = null; }
+    if (FW.grab === now) FW.grab = 0; bmMs = performance.now() - now;
+    if (!UI.rec || !readerFree()) { if (bm) bm.close(); return; }
+    if (bm) {
+      const g = pick(bm, now, waited, bmMs); sharpAt = g.sharp;
+      if (md && md.row) md.row[4] = g.sharp;
+      if (!g.ok) { bm.close(); if (UI.test) TEST.passed++; return; }
+    }
+  }
+  SCAN.freeAt = 0; if (md && md.row) md.row[5] = 1;
+  const main = SCAN.worker === false; if (main) SCAN.busy = true;
+  let keep = null;
   try {
-    const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, full = k % 4 === 3, deep = k % 8 === 7;
-    const keep = UI.test && SCAN.blobOk && performance.now() >= TEST.keepNext ? {q: KEEP_Q, crop: TEST.keepN ? 0 : KEEP_CROP, rows: !TEST.rowsPic} : null;
-    const out = await readImage(VIDEO, w, h, readerOpts(0, deep ? wideFormats() : SLAB_FORMATS), {find: true, full, keep});
+    const k = SCAN.k++, full = k % 4 === 3, deep = k % 8 === 7;
+    keep = UI.test && SCAN.blobOk && now >= TEST.keepNext ? {q: KEEP_Q, crop: TEST.keepN ? 0 : KEEP_CROP, rows: !TEST.rowsPic} : null;
+    if (keep) TEST.keepNext = Infinity;        // (one frame at a time is kept; testFrame sets the next time)
+    const out = await readImage(bm || VIDEO, w, h, readerOpts(0, deep ? wideFormats() : SLAB_FORMATS), {find: true, full, keep, log: UI.test});
     if (out.t && out.t.glare != null) SCAN.glare = SCAN.glare * 0.6 + out.t.glare * 0.4;
     if (out.t && out.t.len != null) SCAN.lastLen = out.t.len;
+    // where the next looks are taken: the middle of the codes just found - moved only when that is somewhere else (160 dots off),
+    // and then the looks so far are forgotten (another patch of the picture is sharp on another scale)
+    if (out.t && out.t.cen && (!SCAN.focus || Math.hypot(out.t.cen[0] - SCAN.focus[0], out.t.cen[1] - SCAN.focus[1]) > 160)) { SCAN.focus = out.t.cen; FW.ring = []; }
     if (out.sharp != null) SCAN.lastSharp = out.sharp;
-    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t, out.keep);
+    if (keep && !(out.keep && out.keep.orig) && UI.test && TEST.keepNext === Infinity) TEST.keepNext = performance.now() + 300;   // (the picture did not come: ask again soon)
+    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t, out.keep,
+      {at: now, pick: sharpAt, waited, reader: out.reader, bm: bmMs != null ? bmMs : out.bmMs, rt: performance.now() - now, pf: md && md.pf != null ? md.pf : null});
     if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
-  } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
-  SCAN.busy = false;
+  } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); if (keep && UI.test && TEST.keepNext === Infinity) TEST.keepNext = performance.now() + 300; }
+  if (main) SCAN.busy = false;
 }
 // what one frame gave: slabs for the table (or Test mode's list), boxes on the picture, the reading speed
-function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
+function gotReads(res, w, h, ms, tid, sharp, tm, kept, fx) {
   const now = performance.now();
   SCAN.ms = ms; SCAN.fpsN++;
   if (now - SCAN.fpsT > 2000) { SCAN.fps = SCAN.fpsT ? SCAN.fpsN * 1000 / (now - SCAN.fpsT) : 0; SCAN.fpsN = 0; SCAN.fpsT = now; }
@@ -637,7 +781,11 @@ function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
       if (tm.len) TEST.lens_.push(tm.len);
       if (tm.st) { TEST.stN++; TEST.boxes += tm.st.boxes; TEST.kept += tm.st.kept; }
       if (tm.ferr) TEST.ferr = tm.ferr;
+      if (tm.lerr) TEST.lerr = tm.lerr;
+      if (tm.clash) { TEST.clash += tm.clash; for (const c of tm.clashes || []) if (TEST.clashes.length < 40 && !TEST.clashes.includes(c)) TEST.clashes.push(c); }
+      if (tm.draw != null) TEST.draws.push(Math.round(tm.draw));
     }
+    if (fx) { TEST.rts.push(Math.round(fx.rt)); if (fx.bm != null) TEST.bms.push(Math.round(fx.bm)); if (fx.pick != null) TEST.waits.push(Math.round(fx.waited)); }
     if (res.length > TEST.maxPer) TEST.maxPer = res.length;
     if (!res.length) TEST.empty++;
   }
@@ -645,28 +793,29 @@ function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
   for (const r of res) {
     const cls = POINTS[r.cls] ? r.cls : 'C', kc = certOf(r.text, r.format); let ok = false;
     cnt[cls]++;
-    if (UI.test) { const e = testRead(r, cls); idx.push(e.i + cls); ok = e.ok; }
+    if (UI.test) { const e = testRead(r, cls, w, h); idx.push(e.i + cls); ok = e.ok; }
     else if (kc && tid) { ok = sighted(kc[0] + '|' + kc[1], cls).ok; if (ok) { addScan(kc[0], kc[1], {table: tid, live: true, quiet: true}); dup = true; } }
     if (ok || cls === 'A' || cls === 'B') SCAN.lastHit = now;
     SCAN.boxes.push({pos: r.pos, w, h, t: now, ok});         // grey until the number counts, then green
   }
   SCAN.boxes = SCAN.boxes.filter(b => now - b.t < 1400);
   if (res.length && !SCAN.raf) SCAN.raf = requestAnimationFrame(drawBoxes);
-  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C + cnt.D; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt); }
+  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C + cnt.D; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt, fx); }
   else if (dup) paintScan();                 // once a frame, however many slabs it held (a slab already on the table: "Already read")
 }
 // Test mode's record of a code: every sighting with how sure it was and which reader gave it (g the grey-line reader, z
 // zxing on the code's lines, w zxing on the whole frame); it COUNTS (ok, and the map turns green) by the same rule as a
 // slab at a show - NEED points.
-function testRead(r, cls) {
-  const key = r.format + '|' + r.text, dt = detailOf(r), now = Date.now(), secs = Math.round((now - (TEST.t0 || now)) / 100) / 10;
+function testRead(r, cls, w, h) {
+  const key = r.format + '|' + r.text, dt = detailOf(r), now = Date.now(), secs = Math.round((now - (TEST.t0 || now)) / 100) / 10, ms = Math.round(performance.now() - TEST.p0), inch = inchCode(r, w, h);
   let e = TEST.reads.get(key);
-  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, solid: 0, A: 0, B: 0, C: 0, D: 0, g: false, z: false, w: false});
+  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, solid: 0, A: 0, B: 0, C: 0, D: 0, g: false, z: false, w: false, seenMs: ms, okMs: null, in0: null, in1: null});
   const was = e.ok; tally(e, cls); const now_ok = e.ok; e.ok = was; e.last = dt; e.at = now; e[cls]++;
   const by = String(r.by || ''); if (by.includes('g')) e.g = true; if (by.includes('z')) e.z = true; if (by.includes('w')) e.w = true;
   if (dt != null && (e.min == null || dt < e.min)) e.min = dt;
+  if (inch != null) { if (e.in0 == null || inch < e.in0) e.in0 = inch; if (e.in1 == null || inch > e.in1) e.in1 = inch; }
   if (!e.ok && now_ok) {
-    e.ok = true; e.first = secs;
+    e.ok = true; e.first = secs; e.okMs = ms;
     const at = SHEET_OF.get(r.text); if (at) TEST.sheetN.set(at[0], (TEST.sheetN.get(at[0]) || 0) + 1);
     beep(); setTimeout(paintScan, 0);
   }
@@ -682,18 +831,45 @@ const testOk = () => { let n = 0; for (const r of TEST.reads.values()) if (r.ok)
 // what was read in each and where, the camera's settings at that moment, and for every frame a line (LOG_FIELDS).
 // "Save test data" (saveTestData) hands all of it over as one file. THE SEVEN FILES OF 2026-11-09 ARE WHAT g13 WAS BUILT
 // ON: real frames with known answers, replayed through every idea before it went into the app.
-const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak or faint', 'picture kept', 'codes: number in codes[] + A sure / B strong / C weak / D faint (the grey-line reader alone: helps, never counts by itself)'];
+const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak or faint', 'picture kept',
+  // g14 (times here: ms since the record tap; add clock.firstResultMs to 'ms since start' to compare)
+  'taken: ms since the record tap', 'camera frame number', 'reader thread', 'sharpness where the codes are (the pick; null: not looked at)', 'ms a reader waited for this frame', 'copy ms (the frame as a bitmap)', 'round trip ms (taken to read)', 'draw ms (in the reader thread)', 'zoom',
+  'brightness: mean', 'darkest 1%', 'brightest 1%', 'blown out %', 'grain', 'distance by code size, inches', 'tilt, degrees from flat',
+  'codes: number in codes[] + A sure / B strong / C weak / D faint (the grey-line reader alone: helps, never counts by itself)'];
+// every box the finder found in a frame, read or not (frames.json: boxes[frame] = rows in this order)
+const BOX_FIELDS = ['x of its middle', 'y of its middle', 'length, dots', 'thickness, dots', 'angle, degrees', 'contrast x100', 'kind: 1 on its side + 2 aslant + 4 found on the coarse level',
+  'not cut: 0 = lines were cut from it, 1 over a limit (too many boxes, too big, out of time), 2 too few rows of bars, 3 its rows do not agree (print, or too little detail)', 'rows of bars', 'how well its rows agree x100', 'blown out % of its rows', 'brightness of its rows',
+  'grey-line reader: fit x100 (null: no start and stop found)', 'its lead over the next best reading x100', 'blur it read at, modules x100', 'symbols', 'dots a module x100', 'its text (any reading whose check symbol agrees - right or wrong)',
+  'zxing on its lines: C Code 128, I ITF', 'lines it read it on', 'its text', 'class given: A sure, B strong, C weak, D faint, empty: none'];
+// HOW FAR, BY THE SIZE OF THE CODES (g14; Brett: "is there a way to incorporate depth data?" - a page gets none from an
+// iPhone's depth sensor, but a slab's barcode is a ruler: 17.5 mm long on a PSA label, 18.4 on a CGC one). His seven
+// tests, measured with a ruler, fix the camera's scale (FPX: a thing's dots in the picture = FPX x its size / its
+// distance): 2,750-2,800 at 4K from the bars' modules at both 9 and 13.4 inches; the finder's boxes run 4-7% long
+// (FPX_BOX 2,900); the 3x lens is 77 mm against 26. Per frame: the median box (inchBox); per code: its own length (inchCode).
+const FPX = 2775, FPX_BOX = 2900, CODE_MM = {psa: 17.5, cgc: 18.4};
+const lensTimes = () => VREAD.on ? null : lensLabel() === '3x' ? 77 / 26 : lensLabel() === '2x' ? 2 : 1;
+const inchBox = (len, w, h) => { const z = lensTimes(); return len && z ? Math.round(FPX_BOX * Math.max(w, h) / 3840 * z * 17.9 / len / 25.4 * 10) / 10 : null; };
+function inchCode(r, w, h) {                  // one reading -> inches, by the code's own length in the frame
+  const P = r.pos, z = lensTimes(), kc = certOf(r.text, r.format); if (!P || !P.topLeft || !z || !kc) return null;
+  const d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y), along = (d(P.topLeft, P.topRight) + d(P.bottomLeft, P.bottomRight)) / 2;
+  return along > 20 ? Math.round(FPX * Math.max(w, h) / 3840 * z * CODE_MM[kc[0]] / along / 25.4 * 10) / 10 : null;
+}
 function camNow() {                           // what the camera says of itself right now (a phone gives few of these; a focus distance would show hunting)
   const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0], o = {};
   try { const st = tr.getSettings(); for (const k of ['width', 'height', 'frameRate', 'zoom', 'torch', 'focusDistance', 'focusMode', 'exposureMode', 'exposureTime', 'exposureCompensation', 'iso', 'whiteBalanceMode', 'colorTemperature']) if (st[k] != null) o[k] = typeof st[k] === 'number' ? Math.round(st[k] * 1000) / 1000 : st[k]; } catch (e) {}
   return o;
 }
-function testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt) {
-  const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig), st = (tm && tm.st) || {}, T = tm || {};
+function testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt, fx) {
+  const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig), st = (tm && tm.st) || {}, T = tm || {}, F = fx || {}, I = T.img || {};
+  const dist = inchBox(T.len, w, h); if (dist != null) TEST.dists.push(dist);
+  let zoom = null; try { const z = SCAN.stream && SCAN.stream.getVideoTracks()[0].getSettings().zoom; if (z != null) zoom = Math.round(z * 100) / 100; } catch (e) {}
   TEST.log.push([t, T.full != null ? 1 : 0, sharp == null ? null : sharp, T.glare != null ? Math.round(T.glare * 1000) : null, st.boxes == null ? null : st.boxes, st.kept == null ? null : st.kept, T.len || null,
-    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C + cnt.D, has ? 1 : 0, idx]);
+    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C + cnt.D, has ? 1 : 0,
+    F.at != null ? Math.round(F.at - TEST.p0) : null, F.pf != null ? F.pf : null, F.reader != null ? F.reader : null, F.pick != null ? F.pick : null, F.pick != null ? r0(F.waited) : null, r0(F.bm), r0(F.rt), r0(T.draw), zoom,
+    I.mean != null ? I.mean : null, I.p1 != null ? I.p1 : null, I.p99 != null ? I.p99 : null, I.hot != null ? I.hot : null, I.grain != null ? I.grain : null, dist, TEST.tilt == null ? null : Math.round(TEST.tilt), idx]);
+  TEST.fbox.push(T.boxes || null); if (TEST.tilt != null) TEST.tilts.push(Math.round(TEST.tilt));
   if (TEST.log.length === 1) TEST.keepNext = performance.now() + 1000;
-  TEST.live = {sharp, idx, cnt, st};
+  TEST.live = {sharp, idx, cnt, st, dist};
   if (kept && kept.err) TEST.keepErr = kept.err;
   if (has) {
     const q = P => P && P.topLeft ? [P.topLeft, P.topRight, P.bottomRight, P.bottomLeft].flatMap(c => [Math.round(c.x), Math.round(c.y)]) : null;
@@ -718,7 +894,8 @@ function paintLive() {
   if (!(UI.test && UI.rec && TEST.live)) { if (st.textContent) st.textContent = ''; if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
   const L = TEST.live, d = v => v == null ? '-' : v;
   st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nboxes ' + d(L.st.kept) + '/' + d(L.st.boxes) + '\nA ' + L.cnt.A + ' B ' + L.cnt.B + ' C ' + (L.cnt.C + L.cnt.D) +
-    '\nnew ' + Math.max(0, (performance.now() - (SCAN.lastNew || 0)) / 1000).toFixed(0) + ' s ago\npics ' + TEST.keep.length;
+    '\nnew ' + Math.max(0, (performance.now() - (SCAN.lastNew || 0)) / 1000).toFixed(0) + ' s ago\npics ' + TEST.keep.length +
+    '\n' + (L.dist != null ? '~' + L.dist.toFixed(0) + ' in' : '- in') + (TEST.tilt != null ? ' tilt ' + Math.round(TEST.tilt) : '');
   let top = 0, best = 2; for (const [sh, n] of TEST.sheetN) if (n > best) { best = n; top = sh; }
   if (!top) { if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
   if (!LIVE.cells || LIVE.sheet !== top || mp.childNodes.length !== 50) { mp.innerHTML = '<b></b>'.repeat(50); LIVE.cells = [...mp.childNodes]; LIVE.sheet = top; }
@@ -742,22 +919,29 @@ function testReport() {
   return {report: 'Slab Show Scanner test', version: APP_VERSION, test: TEST.step ? {number: TEST.step, of: TEST_PLAN.length, what: TEST.label} : null, at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '', browser: navigator.userAgent, homeScreenApp: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)), screen: [window.innerWidth, window.innerHeight, window.devicePixelRatio || 1],
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
-    timing: {pixelsMs: med(TEST.tget), findMs: med(TEST.tf), linesMs: med(TEST.tl), zxingOnLinesMs: med(TEST.tr), greyLineMs: med(TEST.ty), wholePassMs: med(TEST.tw)}, finder: SCAN.finder, finderError: TEST.ferr, glarePct: TEST.tg.length ? Math.round(med(TEST.tg) * 1000) / 10 : null,
+    timing: {pixelsMs: med(TEST.tget), findMs: med(TEST.tf), linesMs: med(TEST.tl), zxingOnLinesMs: med(TEST.tr), greyLineMs: med(TEST.ty), wholePassMs: med(TEST.tw), copyMs: med(TEST.bms), drawMs: med(TEST.draws), roundTripMs: med(TEST.rts)}, finder: SCAN.finder, finderError: TEST.ferr, logError: TEST.lerr,
+    wholePassReadingsDropped: {count: TEST.clash, texts: TEST.clashes, why: 'a linear reading of the whole-frame pass at a box where the finder\'s readers were sure of another'},
+    conditions: {polarizer: TEST.pol, distanceMeasuredInches: TEST.distIn || null, note: TEST.note || null}, distanceByCodeSizeInches: med(TEST.dists), tiltDegrees: med(TEST.tilts), motion: TEST.moState || 'not asked',
+    app: {fastReading: optFast(), readers: SCAN.worker === false ? 0 : readersNow().length, framePick: pickState(), framesPassedOver: TEST.passed, waitedMsMedian: med(TEST.waits), lookMsMedian: med(TEST.probes), cameraFramesSeen: TEST.vfl.length, video: optVideo() ? TEST.vid.length ? 'recorded' : TEST.vidErr || 'not recorded' : 'off'}, glarePct: TEST.tg.length ? Math.round(med(TEST.tg) * 1000) / 10 : null,
     perFrame: {boxesFound: perFrame(TEST.boxes, TEST.stN), boxesKept: perFrame(TEST.kept, TEST.stN), medianBoxLength: med(TEST.lens_), sure: perFrame(TEST.sure, TEST.frames), strong: perFrame(TEST.strong, TEST.frames), weak: perFrame(TEST.weak, TEST.frames)}, mostCodesInOneFrame: TEST.maxPer,
     framesWithNoCode: TEST.empty,
     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.ok.length, sightedButNotCounted: st.rows.length - st.ok.length,
     countedBy: {greyLineOnly: st.ok.filter(r => r.g && !r.z && !r.w).length, zxingOnly: st.ok.filter(r => !r.g).length, both: st.ok.filter(r => r.g && (r.z || r.w)).length},
-    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak / faint sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame'],
-    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C + '/' + r.D, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : '')])};
+    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak / faint sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame', 'first sighted: ms since the record tap', 'counted: ms since the record tap', 'nearest, inches (by its size)', 'farthest, inches'],
+    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C + '/' + r.D, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : ''), r.seenMs, r.okMs, r.in0, r.in1])};
 }
 // THE TEST-DATA FILE: a ZIP, made here (the pictures are JPEGs already, so they are stored as they are - no compressing).
 const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function crcOf(blob) {                   // (8 MB at a time: a test's video is tens of megabytes)
+  let c = 0xFFFFFFFF; const STEP = 8 << 20;
+  for (let o = 0; o < blob.size; o += STEP) { const u8 = new Uint8Array(await blob.slice(o, o + STEP).arrayBuffer()); for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); }
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
 async function zipStore(files) {              // [{name, blob}] -> a Blob
   const enc = new TextEncoder(), parts = [], cen = [], d = new Date(); let off = 0;
   const date = (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate(), time = d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1;
   for (const f of files) {
-    const data = new Uint8Array(await f.blob.arrayBuffer()), name = enc.encode(f.name), crc = crc32(data), n = data.length;
+    const name = enc.encode(f.name), crc = await crcOf(f.blob), n = f.blob.size;
     const lh = new DataView(new ArrayBuffer(30)), ch = new DataView(new ArrayBuffer(46));
     lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true); lh.setUint32(18, n, true); lh.setUint32(22, n, true); lh.setUint16(26, name.length, true);
     ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true); ch.setUint32(20, n, true); ch.setUint32(24, n, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
@@ -768,6 +952,11 @@ async function zipStore(files) {              // [{name, blob}] -> a Blob
   return new Blob([...parts, ...cen, eo.buffer], {type: 'application/zip'});
 }
 async function buildTestZip() {               // made at Stop: report.json (the numbers, every frame's line, what each kept picture holds) + the pictures
+  // g14: + the video of the whole test (video-1.mp4), frames.json (every box of every frame read; the camera's frames as
+  // they came) and motion.json (the phone's movement and tilt, 60 times a second). What belongs to THIS test is taken
+  // hold of before anything is awaited - the next test may start while the video is still being closed.
+  const vids = TEST.vid, platP = TEST.platP, fbox = TEST.fbox, vfl = TEST.vfl, mo = TEST.mo, ti = TEST.ti, ev = TEST.ev, moState = TEST.moState, moInt = TEST.moInt, camRaw = TEST.camRaw, step = TEST.step, pol = TEST.pol,
+    clock = {startedAt: TEST.wall0 ? new Date(TEST.wall0).toISOString() : null, firstResultMs: TEST.t0 && TEST.wall0 ? TEST.t0 - TEST.wall0 : null, note: "frameLog's 'ms since start' counts from the first frame read; every other time counts from the record tap - add firstResultMs to compare"};
   const rep = testReport(), p2 = n => ('0' + n).slice(-2), d = new Date(), files = [];
   rep.codes = [...TEST.reads.values()].map(r => [fmtName(r.format), r.text]);
   rep.frameFields = LOG_FIELDS; rep.frameLog = TEST.log;
@@ -782,11 +971,27 @@ async function buildTestZip() {               // made at Stop: report.json (the 
     rep.linesPicture = {file: name, frame: TEST.rowsPic.frame, msSinceStart: TEST.rowsPic.t};
   }
   rep.keepSettings = {most: KEEP_MAX, jpegQuality: KEEP_Q, lastGapMs: TEST.keepGap, error: TEST.keepErr};
+  rep.clock = clock; rep.eventFields = ['ms since the record tap', 'what', 'detail']; rep.events = ev; rep.cameraRaw = camRaw;
+  const pics = TEST.keep.length;
+  await Promise.race([Promise.all(vids.map(v => v.done)), new Promise(res => setTimeout(res, 4000))]);   // the video's last piece arrives after Stop
+  let plat = null; try { plat = await Promise.race([platP, new Promise(res => setTimeout(() => res(null), 3000))]); } catch (e) {}
+  rep.platform = Object.assign({}, plat || {}, {readerThread: SCAN.plat});
+  let vmb = 0;
+  rep.video = vids.map((v, i) => {
+    const type = (v.mime || 'video/mp4').split(';')[0], name = 'video-' + (i + 1) + (/webm/.test(type) ? '.webm' : '.mp4'), blob = new Blob(v.chunks, {type});
+    if (blob.size) { files.push({name, blob}); vmb += blob.size; }
+    return {file: blob.size ? name : null, type: v.mime, bitsPerSecondAsked: v.bps, startedMs: v.at, firstPieceMs: v.first, endedMs: v.end, bytes: blob.size, megabitsPerSecond: v.end && v.end > v.at ? Math.round(blob.size * 8 / (v.end - v.at) / 100) / 10 : null, cutShort: v.cut || null, error: v.err || null};
+  });
+  files.push({name: 'frames.json', blob: new Blob([JSON.stringify({boxFields: BOX_FIELDS, boxes: fbox, note: 'boxes[i] belongs to frameLog[i] of report.json',
+    cameraFrameFields: ['ms since the record tap (when the page was told of the frame)', 'media time, ms', 'frame number', 'capture time, ms since the record tap (where the browser tells)', 'sharpness where the codes are (null: no reader was free, not looked at)', '1 = handed to a reader'], cameraFrames: vfl})], {type: 'application/json'})});
+  files.push({name: 'motion.json', blob: new Blob([JSON.stringify({state: moState || 'not asked', intervalAsGiven: moInt,
+    fields: ['ms since the record tap', 'acceleration x, y, z (m/s2, gravity taken off)', '', '', 'acceleration with gravity x, y, z', '', '', 'turning: alpha, beta, gamma (degrees a second)', '', ''], rows: mo,
+    tiltFields: ['ms since the record tap', 'alpha', 'beta', 'gamma (degrees)'], tilt: ti})], {type: 'application/json'})});
   files.unshift({name: 'report.json', blob: new Blob([JSON.stringify(rep)], {type: 'application/json'})});
-  const blob = await zipStore(files), name = 'scanner-test-' + APP_VERSION + (TEST.step ? '-t' + TEST.step : '') + '-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + '.zip';
+  const blob = await zipStore(files), name = 'scanner-test-' + APP_VERSION + (step ? '-t' + step : '') + (pol ? '-pol' : '') + '-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + '.zip';
   let file = null, parts = [];                 // parts: the same files one by one, for a phone that will not share a ZIP
   try { file = new File([blob], name, {type: 'application/zip'}); const stem = name.replace(/\.zip$/, '-'); parts = files.map(f => new File([f.blob], stem + f.name, {type: f.blob.type || 'application/octet-stream'})); } catch (e) {}
-  return {blob, name, file, parts, pics: TEST.keep.length, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
+  return {blob, name, file, parts, pics, video: vmb > 0, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
 }
 // One tap: the phone's share sheet with the file (AirDrop, Save to Files...). It has to open straight from the tap, so
 // nothing is awaited before it - the file was made at Stop. Where a browser will not share a file, it is downloaded.
@@ -808,6 +1013,92 @@ async function copyReport() {
   try { await navigator.clipboard.writeText(txt); UI.reportText = null; toast('Report copied - paste it into the chat.'); }
   catch (e) { UI.reportText = txt; toast('Copy was blocked - select the report below and copy it.'); }
   paintScan();
+}
+// EVERYTHING ELSE A TEST LEAVES BEHIND (g14, 2026-11-10; Brett: "i want you have access to literally all data during the
+// barcode test experiments so that we can successfully optimize its reading abilities" - speed, depth, motion).
+// - tev: what happened when (the camera opened, a lens was changed, the video began, the app went to the background).
+// - THE PHONE'S MOVEMENT: its motion sensors, 60 times a second - how fast it turns (what smears a frame) and which way
+//   gravity pulls (its tilt: 0 = lying flat over the sheet). An iPhone asks once ("Motion & Orientation Access"), on the
+//   tap that starts a test; without a yes the file says so and the test runs all the same.
+// - THE VIDEO OF THE WHOLE TEST: the camera's own stream, recorded by the browser beside the reading (MediaRecorder, H.264
+//   in an MP4 on an iPhone, asked for ~40 Mbit/s at 4K) - EVERY frame, not only the three to six a second that were read,
+//   so any way of choosing or combining frames can be tried afterwards on what the phone really saw. A new piece starts
+//   whenever the camera is opened again (a lens change). Over VID_MAX bytes the video stops and the test goes on.
+// - at Stop, once: what a camera frame is made of when the browser hands it over directly (VideoFrame) and how long
+//   copying it takes - for a later, faster way of getting frames to the readers.
+function tev(what, detail) { if (UI.test && TEST.p0 && TEST.ev.length < 500) TEST.ev.push([Math.round(performance.now() - TEST.p0), what, detail == null ? '' : String(detail).slice(0, 300)]); }
+const MO = {on: false, m: null, o: null};
+function motionStart() {                     // called on the record tap itself (an iPhone only asks then)
+  if (!window.DeviceMotionEvent) { TEST.moState = 'this browser has no motion sensors for a page'; return; }
+  const f3 = v => v == null ? null : Math.round(v * 1000) / 1000, at = e => { const now = performance.now(), ts = e.timeStamp; return Math.round((ts > 0 && Math.abs(now - ts) < 2000 ? ts : now) - TEST.p0); };
+  const go = () => {
+    if (MO.on) return;
+    MO.m = e => {
+      if (!(UI.test && UI.rec)) return;
+      const a = e.acceleration || {}, g = e.accelerationIncludingGravity || {}, r = e.rotationRate || {};
+      if (TEST.mo.length < 30000) TEST.mo.push([at(e), f3(a.x), f3(a.y), f3(a.z), f3(g.x), f3(g.y), f3(g.z), f3(r.alpha), f3(r.beta), f3(r.gamma)]);
+      if (TEST.moInt == null && e.interval != null) TEST.moInt = e.interval;
+      if (g.z != null) { const n = Math.hypot(g.x || 0, g.y || 0, g.z); if (n > 1) { const t = Math.acos(Math.min(1, Math.abs(g.z) / n)) * 180 / Math.PI; TEST.tilt = TEST.tilt == null ? t : TEST.tilt * 0.8 + t * 0.2; } }
+    };
+    MO.o = e => { if (UI.test && UI.rec && TEST.ti.length < 30000) TEST.ti.push([at(e), f3(e.alpha), f3(e.beta), f3(e.gamma)]); };
+    window.addEventListener('devicemotion', MO.m); window.addEventListener('deviceorientation', MO.o); MO.on = true;
+  };
+  go();                                        // (listening costs nothing; an iPhone sends nothing until it has been allowed)
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    TEST.moState = 'asked';
+    const T = TEST.ev;                         // (the answer may come after the test)
+    DeviceMotionEvent.requestPermission().then(st => { if (TEST.ev === T) { TEST.moState = st; tev('motion', st); } },
+      e => { if (TEST.ev === T) { TEST.moState = 'not allowed: ' + String(e && e.message || e).slice(0, 80); tev('motion', TEST.moState); } });
+  } else TEST.moState = 'on';
+}
+function motionStop() { if (MO.m) window.removeEventListener('devicemotion', MO.m); if (MO.o) window.removeEventListener('deviceorientation', MO.o); MO.on = false; MO.m = MO.o = null; }
+const VID = {mr: null}, VID_MAX = 200e6;
+function vidStart() {
+  if (!(UI.test && UI.rec && optVideo()) || VID.mr || !SCAN.stream) return;
+  if (!window.MediaRecorder) { TEST.vidErr = 'this browser records no video'; return; }
+  const st = SCAN.settings || {}, px = (st.width || 3840) * (st.height || 2160), bps = Math.round(Math.max(6e6, Math.min(60e6, px * 4.8)));   // 4K: 40 Mbit/s
+  let used = 0; for (const v of TEST.vid) used += v.bytes;
+  if (used > VID_MAX) return;
+  // the kinds of file tried in turn (an iPhone: H.264 in an MP4); the last try leaves the kind to the browser
+  let mr = null, why = '';
+  for (const t of ['video/mp4;codecs=avc1.640033', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', '']) {
+    try {
+      if (t && !MediaRecorder.isTypeSupported(t)) continue;
+      mr = new MediaRecorder(SCAN.stream, Object.assign({videoBitsPerSecond: bps}, t ? {mimeType: t} : {}));
+      break;
+    } catch (e) { mr = null; why = String(e && e.message || e).slice(0, 80); }
+  }
+  if (!mr) { TEST.vidErr = 'the video did not start: ' + (why || 'no kind of video file is offered'); tev('video-error', TEST.vidErr); return; }
+  const seg = {mime: mr.mimeType || '', bps, at: Math.round(performance.now() - TEST.p0), first: null, end: null, chunks: [], bytes: 0, err: null, cut: null, done: null}, T = TEST.vid;
+  seg.done = new Promise(res => { mr.onstop = () => { seg.end = Math.round(performance.now() - TEST.p0); if (VID.mr === mr) VID.mr = null; res(); }; });
+  mr.onerror = e => { seg.err = String((e && e.error && (e.error.name || e.error.message)) || 'error').slice(0, 80); };
+  mr.ondataavailable = e => {
+    if (!e.data || !e.data.size) return;
+    if (seg.first == null) seg.first = Math.round(performance.now() - TEST.p0);
+    seg.chunks.push(e.data); seg.bytes += e.data.size;
+    let all = 0; for (const v of T) all += v.bytes;
+    if (all > VID_MAX && VID.mr === mr) { seg.cut = 'over ' + Math.round(VID_MAX / 1e6) + ' MB'; tev('video-cut', seg.cut); vidEnd(); }
+  };
+  try {
+    try { mr.start(1000); } catch (e) { mr.start(); }      // a piece a second: what was recorded is there even if the end is not
+    VID.mr = mr; TEST.vid.push(seg); tev('video', (seg.mime || 'the browser\'s own kind') + ' at ' + Math.round(bps / 1e6) + ' Mbit/s');
+  } catch (e) { TEST.vidErr = 'the video did not start: ' + String(e && e.message || e).slice(0, 80); tev('video-error', TEST.vidErr); }
+}
+function vidEnd() { const mr = VID.mr; VID.mr = null; if (mr && mr.state !== 'inactive') { try { mr.stop(); } catch (e) {} } }
+async function framePlat() {                 // (its first lines run at once, on the frame the camera shows at Stop; the copying after)
+  const o = {videoFrame: typeof VideoFrame !== 'undefined', trackProcessor: typeof MediaStreamTrackProcessor !== 'undefined', frameCallback: !!VIDEO.requestVideoFrameCallback, cores: navigator.hardwareConcurrency || null, memoryGB: navigator.deviceMemory || null}, r1 = v => Math.round(v * 10) / 10;
+  let f = null;
+  try {
+    if (!o.videoFrame || !VIDEO.videoWidth) return o;
+    const t0 = performance.now(); f = new VideoFrame(VIDEO); o.makeMs = r1(performance.now() - t0);
+    Object.assign(o, {format: f.format, coded: [f.codedWidth, f.codedHeight], shown: [f.displayWidth, f.displayHeight]});
+    try { const n = f.allocationSize(), buf = new Uint8Array(n), t1 = performance.now(), lay = await f.copyTo(buf); o.copyMs = r1(performance.now() - t1); o.bytes = n; o.planes = lay.map(p => [p.offset, p.stride]); }
+    catch (e) { o.copyError = String(e && e.message || e).slice(0, 100); }
+    try { const rect = {x: 0, y: 0, width: 320, height: 320}, n = f.allocationSize({rect}), buf = new Uint8Array(n), t2 = performance.now(); await f.copyTo(buf, {rect}); o.copyPieceMs = r1(performance.now() - t2); o.pieceBytes = n; }
+    catch (e) { o.copyPieceError = String(e && e.message || e).slice(0, 100); }
+  } catch (e) { o.error = String(e && e.message || e).slice(0, 100); }
+  try { if (f) f.close(); } catch (e) {}
+  return o;
 }
 function drawBoxes() {                       // green boxes on each code read, fading over a second and a half
   SCAN.raf = 0;
@@ -857,6 +1148,8 @@ async function startRec(tableId) {
   if (UI.test) {                               // every recording is its own test (no more "tap Clear first"); the last test's file stays until this one has its own
     if (TEST.zip && !TEST.zip.saved && !TEST.zip.warned) { TEST.zip.warned = true; return toast('The last test\'s file is not saved yet - tap Save test data, or tap record again to go on without it.'); }
     testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = TEST_STEP + 1; TEST.label = TEST_PLAN[TEST_STEP];
+    Object.assign(TEST, {p0: performance.now(), wall0: now, old: planOld(), pol: !!UI.tpol, distIn: String(UI.tdist || '').trim(), note: String(UI.tnote || '').trim()});
+    tev('start', 'test ' + TEST.step + (TEST.pol ? ', polarizer on' : '') + (TEST.old ? ', the old way of reading' : '')); motionStart();
   }
   const id = UI.test ? null : (tableId || newTable());
   SCAN.seen.clear(); SCAN.lastLen = 0;         // the sightings are counted anew for every table
@@ -864,12 +1157,13 @@ async function startRec(tableId) {
   SCAN.lastHit = SCAN.lastNew = performance.now(); SCAN.cntSeen = -1; SCAN.glare = 0; SCAN.bestPx = 0; SCAN.revived = 0; SCAN.reviving = false;
   audioOn(); wakeOn();
   render();
-  try { workerReady(); zxReady(); await camStart(); SCAN.timer = setInterval(scanFrame, 50); }
+  // (the camera's frame callback asks for each frame to be read; where a browser has none, or it falls silent, this timer does)
+  try { workerReady(); zxReady(); await camStart(); fwStart(); SCAN.timer = setInterval(() => { if (!VIDEO.requestVideoFrameCallback || performance.now() - FW.at > 250) scanFrame(null); }, 50); }
   catch (e) {
     UI.camErr = 'No camera: ' + (e && e.message || e) + (UI.test ? '.' : DSTATE === 'ok' ? '. Type certs on the table instead.' : '. Showing sample reads instead.');
     if (DSTATE !== 'ok' && !UI.test) simStart();
   }
-  SCAN.tick = setInterval(() => { camWatch(); paintScan(); }, 1000);
+  SCAN.tick = setInterval(() => { camWatch(); fwWatch(); paintScan(); }, 1000);
   paintScan();
 }
 function simStart() {                        // no camera and no card data: sample slabs appear, as on the prototype
@@ -887,6 +1181,8 @@ function simStart() {                        // no camera and no card data: samp
 }
 function stopRec() {
   clearInterval(SCAN.timer); clearInterval(SCAN.sim); clearInterval(SCAN.tick); SCAN.timer = SCAN.sim = SCAN.tick = null;
+  fwStop();
+  if (UI.test) { tev('stop', TEST.frames + ' frames read'); TEST.platP = SCAN.stream && TEST.frames ? framePlat() : null; motionStop(); }
   camOff(); wakeOff(); SCAN.boxes = [];
   if (UI.test) {
     Object.assign(UI, {rec: false, recTable: null, feed: [], dup: null}); render();
@@ -920,7 +1216,7 @@ async function readVideo(file) {
   const url = URL.createObjectURL(file); fv.src = url;
   const tid = UI.test ? null : newTable();
   SCAN.seen.clear();
-  if (UI.test) { testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = 0; TEST.label = ''; }   // a video read in Test mode is a test of its own too
+  if (UI.test) { testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = 0; TEST.label = ''; Object.assign(TEST, {p0: performance.now(), wall0: Date.now(), pol: !!UI.tpol, distIn: '', note: String(UI.tnote || '').trim()}); }   // a video read in Test mode is a test of its own too
   Object.assign(VREAD, {on: true, stop: false, el: fv, pct: 0, w: 0, h: 0, frames: 0, tid, name: file.name || 'video'});
   Object.assign(UI, {recTable: tid, feed: [], dup: null, camErr: null, scanMsg: null, tab: 'scan', openTable: null});
   wakeOn(); render();
@@ -934,8 +1230,8 @@ async function readVideo(file) {
     for (let t = 0, k = 0; t < dur && !VREAD.stop; t += VIDEO_STEP_S, k++) {
       await seekTo(fv, Math.min(t, Math.max(0, dur - 0.01)));
       // no hurry: the finder and the whole-frame pass on every frame, the two binarizers by turns for the whole pass
-      const out = await readImage(fv, w, h, readerOpts(k & 1, wideFormats()), {find: true, full: true});
-      gotReads(out.res, out.w || w, out.h || h, out.ms, tid, out.sharp, out.t);
+      const tk = performance.now(), out = await readImage(fv, w, h, readerOpts(k & 1, wideFormats()), {find: true, full: true, log: UI.test});
+      gotReads(out.res, out.w || w, out.h || h, out.ms, tid, out.sharp, out.t, null, {at: tk, pick: null, waited: 0, reader: out.reader, bm: out.bmMs, rt: performance.now() - tk, pf: k});
       VREAD.frames++; VREAD.pct = Math.min(1, (t + VIDEO_STEP_S) / dur); paintScan();
     }
   } catch (e) { err = e; }
@@ -1139,6 +1435,9 @@ function sheetCard() {
     'counted ' + st.ok.length + ' · sighted only ' + (all.length - st.ok.length) + ' · empty frames ' + TEST.empty,
     'by: grey-line only ' + st.ok.filter(r => r.g && !r.z && !r.w).length + ' · zxing only ' + st.ok.filter(r => !r.g).length + ' · both ' + st.ok.filter(r => r.g && (r.z || r.w)).length,
     'sharp ' + st.q(0.1) + '/' + st.q(0.5) + '/' + st.best + ' · glare ' + (TEST.tg.length ? (med(TEST.tg) * 100).toFixed(1) + '%' : '-') + ' · code length ' + med(TEST.lens_),
+    'readers ' + (SCAN.worker === false ? 'page' : readersNow().length) + ' · sharp-frame pick ' + (pickState() === 'on' ? 'on, passed over ' + TEST.passed : pickState()) + ' · ms: copy ' + med(TEST.bms) + ' · trip ' + med(TEST.rts),
+    'about ' + med(TEST.dists) + ' in by code size' + (TEST.distIn ? ' (measured ' + TEST.distIn + ')' : '') + ' · tilt ' + (TEST.tilts.length ? med(TEST.tilts) + '°' : '-') + ' · polarizer ' + (TEST.pol ? 'ON' : 'off'),
+    'video ' + (!optVideo() ? 'off' : TEST.vid.length ? Math.round(TEST.vid.reduce((a, v) => a + v.bytes, 0) / 1e6) + ' MB' : TEST.vidErr || 'none') + ' · motion ' + (TEST.mo.length ? TEST.mo.length + ' readings' : TEST.moState || '-') + ' · camera frames ' + TEST.vfl.length,
     'secs to 10/25/40/45/50: ' + [10, 25, 40, 45, 50].map(mark).join('/'),
     'not on a sheet: counted ' + offOk.length + (offOk.length ? ' (' + offOk.slice(0, 3).map(r => r.text.slice(0, 12)).join(', ') + ')' : '') + ' · sighted ' + (off.length - offOk.length),
     ...(SCAN.finder && !TEST.ferr ? [] : ['FINDER ' + (TEST.ferr ? 'ERROR: ' + TEST.ferr.slice(0, 60) : 'NOT LOADED')])];
@@ -1153,18 +1452,23 @@ function testHtml() {
   const nOk = testOk(), more = rows.length - nOk;
   return '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Test mode</span>' + (rows.length || TEST.frames ? '<button class="linkbtn" style="min-height:0;padding:0" data-a="testclear">Clear</button>' : '') + '</div>' +
     (UI.rec || VREAD.on ? '' : '<div class="tplan"><button class="minibtn" data-a="teststep" data-v="-1" aria-label="Previous test">‹</button><div class="tplan-t"><b>Next: test ' + (TEST_STEP + 1) + ' of ' + TEST_PLAN.length + '</b>' + esc(TEST_PLAN[TEST_STEP]) + '</div><button class="minibtn" data-a="teststep" data-v="1" aria-label="Next test">›</button></div>') +
+    (UI.rec || VREAD.on ? '' : '<div class="topt"><button class="optbtn' + (UI.tpol ? ' on' : '') + '" data-a="topt" data-v="pol" aria-pressed="' + (UI.tpol ? 'true' : 'false') + '">Polarizer: ' + (UI.tpol ? 'On' : 'Off') + '</button>' +
+      '<button class="optbtn' + (optVideo() ? ' on' : '') + '" data-a="topt" data-v="video" aria-pressed="' + (optVideo() ? 'true' : 'false') + '">Video: ' + (optVideo() ? 'On' : 'Off') + '</button>' +
+      '<button class="optbtn' + (setFast() ? ' on' : '') + '" data-a="topt" data-v="fast" aria-pressed="' + (setFast() ? 'true' : 'false') + '">Fast reading: ' + (setFast() ? 'On' : 'Off') + '</button></div>' +
+      '<div class="topt"><input class="input" type="text" inputmode="decimal" placeholder="Distance measured, inches" value="' + esc(UI.tdist) + '" data-in="tdist" aria-label="Distance measured, inches">' +
+      '<input class="input" type="text" placeholder="Note (optional)" value="' + esc(UI.tnote) + '" data-in="tnote" aria-label="Note"></div>') +
     (sheetCard() || '<div class="tbig"><b>' + nOk + '</b>different code' + (nOk === 1 ? '' : 's') + ' read</div>') +
     (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
     (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (more ? ', ' + more + ' more code' + (more === 1 ? '' : 's') + ' sighted but not surely enough to count' : '') + '</div>' : '') +
-    (TEST.frames && !(UI.rec || VREAD.on) ? (TEST.zip ? '<button class="btn green" data-a="testsave">Save test data (' + (TEST.zip.pics ? TEST.zip.pics + ' picture' + (TEST.zip.pics === 1 ? '' : 's') + ', ' : '') + TEST.zip.mb + ' MB)</button>' +
-        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>' +
+    (TEST.frames && !(UI.rec || VREAD.on) ? (TEST.zip ? '<button class="btn green" data-a="testsave">Save test data (' + (TEST.zip.pics ? TEST.zip.pics + ' picture' + (TEST.zip.pics === 1 ? '' : 's') + ', ' : '') + (TEST.zip.video ? 'video, ' : '') + TEST.zip.mb + ' MB)</button>' +
+        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the video of the whole test, the pictures kept from it as the camera gave them, the phone\'s movement, and a log of every frame and every code found. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>' +
         (TEST.zip.parts && TEST.zip.parts.length > 1 ? '<button class="linkbtn" style="min-height:0;padding:0;text-align:left" data-a="testsaveparts">…or share them as ' + TEST.zip.parts.length + ' separate files</button>' : '')
       : '<div class="small muted">' + (TEST.keepErr && !TEST.keep.length ? 'No pictures were kept (' + esc(TEST.keepErr) + ').' : 'Preparing the test file…') + '</div>') +
       '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
     (UI.reportText ? '<textarea class="input" style="height:120px;font-size:12px" readonly>' + esc(UI.reportText) + '</textarea>' : '') +
     rows.slice(0, 60).map(r => '<div class="trow' + (r.ok ? '' : ' un') + '"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
       (r.ok ? '' : '<span class="tdet lo">not counted</span>') + (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
-    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. A code counts once the reader is sure of it - its two readers agreeing on one frame, or one of them on a second frame - the same rule as at a show. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). With 1x a slab’s barcode reads to about 13 inches; from 2 feet or more, tap 3x on the picture. Movement across the bars smears them: a short pause over each group reads them. With one of the printed test sheets in view, a map of the sheet shows which codes counted. Each recording is a test of its own: after Stop, Save test data hands over the pictures kept from it and a log of every frame, in one file (or screenshot the map; or Copy report for the numbers alone).</p></div>';
+    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. A code counts once the reader is sure of it - its two readers agreeing on one frame, or one of them on a second frame - the same rule as at a show. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). With 1x a slab’s barcode reads to about 13 inches; from 2 feet or more, tap 3x on the picture. Movement across the bars smears them: a short pause over each group reads them. With one of the printed test sheets in view, a map of the sheet shows which codes counted. Each recording is a test of its own: after Stop, Save test data hands over its video, the pictures kept from it, the phone’s movement and a log of every frame, in one file (or screenshot the map; or Copy report for the numbers alone). Polarizer: say whether the filter is on the lens - the file carries it. Video: the whole test as the camera saw it (a file of 50-100 MB). Fast reading: two reader threads and the pick of the sharp frames - off reads as the last version did. The first test asks once to use the phone’s motion sensors: allow it.</p></div>';
 }
 function paintScan() {
   if (UI.tab !== 'scan' || !$('rec-btn')) return;
@@ -1450,6 +1754,12 @@ async function act(a, ds, el) {
     case 'testsave': return saveTestData();
     case 'testsaveparts': return saveTestData(true);
     case 'teststep': testStep(+ds.v || 0); return paintScan();
+    case 'topt':
+      if (UI.rec || VREAD.on) return;
+      if (ds.v === 'pol') UI.tpol = !UI.tpol;
+      else if (ds.v === 'video') { s.tvideo = !optVideo(); save(); }
+      else if (ds.v === 'fast') { s.fast = !setFast(); save(); readersReset(); }
+      return paintScan();
     case 'testcopy': return copyReport();
     case 'lens': return setLens(ds.v);
     case 'light': return setTorch(!SCAN.torch);
@@ -1520,6 +1830,8 @@ document.addEventListener('input', e => {
   if (k === 'draftVendor') UI.draftVendor = v;
   else if (k === 'tableVendor') { const t = tableOf(UI.openTable); if (t) { t.vendor = v; save(); } }
   else if (k === 'addCert') UI.addCert = v;
+  else if (k === 'tdist') UI.tdist = v;
+  else if (k === 'tnote') UI.tnote = v;
   else if (k === 'psaTok') { /* read on Save */ }
   else if (k === 'q') { UI.q = v; const r = $('results'); if (r) r.innerHTML = resultsHtml(v, UI.pickGk || (sl && sl.gk)); }
   else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); }
@@ -1547,6 +1859,7 @@ scheduleScanSend(4000);                      // cert links left over from last t
 window.addEventListener('online', () => scheduleScanSend(1000));
 // back from the background while recording: iOS ends the camera there, so it is opened again
 document.addEventListener('visibilitychange', async () => {
+  tev('app', document.hidden ? 'to the background' : 'back');
   if (!document.hidden && (UI.rec || VREAD.on)) wakeOn();   // iOS lets the screen lock go while the app is in the background
   if (document.hidden || !UI.rec || !SCAN.stream) return;
   if (SCAN.stream.getVideoTracks().every(t => t.readyState === 'ended')) { try { await camStart(); } catch (e) { UI.camErr = 'The camera did not come back - stop and record again.'; paintScan(); } }

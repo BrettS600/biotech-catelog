@@ -468,9 +468,9 @@ function prepare(D, W, H, opt) {
   const o = Object.assign({}, DEF, opt), t = {find: 0, cut: 0, lean: 0, lines: 0, grey: 0};
   let ta = now();
   const cands = find(D, W, H, o); t.find = now() - ta; ta = now();
-  const cuts = []; let keptN = 0;
+  const cuts = [], why = []; let keptN = 0;       // why[ci]: a box that was not cut - [1] over a limit, [2, rows] too few rows of bars, [3, rows, fold] rows that do not agree (Test mode's log)
   for (let ci = 0; ci < cands.length; ci++) {
-    if (keptN >= o.maxKept || cands[ci].len > o.maxLen || cands[ci].thick > o.maxThick || t.cut + t.lean > o.cutMs) { cuts.push(null); continue; }
+    if (keptN >= o.maxKept || cands[ci].len > o.maxLen || cands[ci].thick > o.maxThick || t.cut + t.lean > o.cutMs) { cuts.push(null); why[ci] = [1]; continue; }
     const c = cands[ci], turn = c.diag && o.turn !== false;
     const along = c.diag && !turn ? (c.side ? Math.abs(Math.sin(c.ang)) : Math.cos(c.ang)) : 1;   // a slanted code cut by shearing: the share of its length that lies along the cut
     const span = c.len * along, mrg = Math.round(span * o.margin) + o.marginPx, w = Math.round(span) + 2 * mrg, h = Math.round(c.thick / along) + 6;
@@ -492,10 +492,10 @@ function prepare(D, W, H, opt) {
     }
     const [y0, y1] = barRows(P, w, h, e);
     t.cut += now() - ta; ta = now();
-    if (y1 - y0 < 3) { cuts.push(null); continue; }
+    if (y1 - y0 < 3) { cuts.push(null); why[ci] = [2, y1 - y0]; continue; }
     const [k, fold] = lean(P, w, y0, y1, tmp, k0);
     t.lean += now() - ta; ta = now();
-    if (fold < o.minFold) { cuts.push(null); continue; }      // rows that do not agree: print, not bars
+    if (fold < o.minFold) { cuts.push(null); why[ci] = [3, y1 - y0, fold]; continue; }      // rows that do not agree: print, not bars
     cuts.push({P, w, h, y0, y1, k, slope, fold, S, n: w * S, side: c.side, len: span, axis: c.len, diag: c.diag ? 1 : 0, turn: turn ? 1 : 0, ang}); keptN++;
   }
   // a place along a box's line (samples from its left end) -> the frame, on the bars' middle row
@@ -581,7 +581,7 @@ function prepare(D, W, H, opt) {
   // On Brett's 26 test frames (2026-11-09): A and B together 677 right Code 128 readings, none wrong. Over those frames
   // as they are, turned every way and with border lines drawn in (2,330 grey-line readings, 574 of them wrong): of the
   // 1,523 that were strong, none was wrong (the wrong ones were ahead of their runner-up by under 0.08; a strong one needs 0.11)
-  function decide(lay, zres) {
+  function decide(lay, zres, dbg) {
     const tb = now(), per = new Map(), out = [], G = root.SlabC128;
     zres.forEach((rs, k) => { for (const r of rs) {
       if (r.isValid === false || !r.position) continue;
@@ -592,6 +592,8 @@ function prepare(D, W, H, opt) {
     lay.list.forEach((ci, bi) => {
       const zs = per.get(ci) ? [...per.get(ci).values()] : [], c = cuts[ci];
       const g = G && !zs.some(e => e.format !== 'Code128' && e.lines >= 4) ? G.decode(lay.wholes[bi], c.n, {expect: c.len * c.S}) : null;   // (a box zxing reads as ITF on four lines holds no Code 128)
+      // (Test mode's log, g14: what both readers made of EVERY box, read or not - nothing here changes what is read)
+      if (dbg) dbg.push({ci, g: g ? {text: g.text || '', fit: g.fit, gap: g.gap, sig: g.sig, K: g.K, m: g.m / c.S, ends: g.ends, rev: g.rev ? 1 : 0} : null, z: zs.map(e => [e.format, e.text, e.lines, e.dots])});
       if (g && g.text) {
         st.grey++;
         const same = zs.find(e => e.format === 'Code128' && e.text === g.text), far = g.gap >= (g.sig >= 0.66 ? 0.2 : 0.11) && g.fit >= 0.86;
@@ -611,7 +613,7 @@ function prepare(D, W, H, opt) {
     return {reads: out, st};
   }
   const lens = cuts.filter(Boolean).map(c => c.axis).sort((a, b) => a - b);
-  return {cands, cuts, lines, resolve, decide, t, o, glare: cands.glare, medLen: lens.length ? lens[lens.length >> 1] : 0};
+  return {cands, cuts, why, lines, resolve, decide, t, o, glare: cands.glare, medLen: lens.length ? lens[lens.length >> 1] : 0};
 }
 root.SlabFinder = {DEF, DIAG, blockSums, findBoxes, findSlant, find, prepare};
 })(typeof self !== 'undefined' ? self : globalThis);

@@ -200,3 +200,7 @@ a{color:var(--blt)}
 .trow.un .ttext{color:var(--mu)}
 .tstat{font:500 10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx);background:var(--s2);border-radius:8px;padding:8px 9px;word-break:break-word}
 #sheet-card{display:flex;flex-direction:column;gap:8px;scroll-margin-top:4px}
+.topt{display:flex;gap:8px;flex-wrap:wrap}
+.topt .input{flex:1;min-width:0;height:40px;font-size:13px}
+.optbtn{flex:1;min-height:40px;padding:0 8px;border-radius:10px;border:1px solid var(--ln);background:var(--s2);color:var(--mu);font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.optbtn.on{color:var(--tx);border-color:var(--gr)}
