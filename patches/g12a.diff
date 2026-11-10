@@ -1,0 +1,65 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 47fac68..e24ae53 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2927,2 +2927,4 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+     A reminder if the last test's file was not saved when the next recording starts (a second tap goes on).
++    g12a (20 minutes later): under the button, "...or share them as N separate files" (saveTestData(true): the same
++    pictures and report.json as files of their own, named <zip name>-<file>) - for a phone whose share sheet refuses a ZIP.
+   - WHAT TO DO WITH THE FILES: copy the frames into a real-picture set (/tmp/claude-0/ga/real/<test>/), run them
+diff --git a/page/app/app.js b/page/app/app.js
+index 8d76640..622dab9 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -373,3 +373,3 @@ function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, T
+ function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); }
+-const APP_VERSION = 'g12';
++const APP_VERSION = 'g12a';
+ // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
+@@ -789,4 +789,5 @@ async function buildTestZip() {               // made at Stop: report.json (the
+   const blob = await zipStore(files), name = 'scanner-test-' + APP_VERSION + (TEST.step ? '-t' + TEST.step : '') + '-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + '.zip';
+-  let file = null; try { file = new File([blob], name, {type: 'application/zip'}); } catch (e) {}
+-  return {blob, name, file, pics: TEST.keep.length, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
++  let file = null, parts = [];                 // parts: the same files one by one, for a phone that will not share a ZIP
++  try { file = new File([blob], name, {type: 'application/zip'}); const stem = name.replace(/\.zip$/, '-'); parts = files.map(f => new File([f.blob], stem + f.name, {type: f.blob.type || 'application/octet-stream'})); } catch (e) {}
++  return {blob, name, file, parts, pics: TEST.keep.length, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
+ }
+@@ -794,3 +795,3 @@ async function buildTestZip() {               // made at Stop: report.json (the
+ // nothing is awaited before it - the file was made at Stop. Where a browser will not share a file, it is downloaded.
+-function saveTestData() {
++function saveTestData(separate) {             // separate: the pictures and the report as files of their own (the small link under the button)
+   const z = TEST.zip; if (!z) return;
+@@ -798,8 +799,9 @@ function saveTestData() {
+     const a = document.createElement('a'); a.href = z.url || (z.url = URL.createObjectURL(z.blob)); a.download = z.name; document.body.appendChild(a); a.click(); a.remove();
+-    z.saved = true; z.note = (why ? why + ' ' : '') + 'Downloaded as ' + z.name + ' (Files app > Downloads on an iPhone). If nothing arrived, open the scanner in Safari itself and run the test there.'; paintScan();
++    z.saved = true; z.note = (why ? why + ' ' : '') + 'Downloaded as ' + z.name + ' (Files app > Downloads on an iPhone). If nothing arrived, try "as separate files" below, or open the scanner in Safari itself and run the test there.'; paintScan();
+   };
+-  let can = false; try { can = !!(z.file && navigator.share && navigator.canShare && navigator.canShare({files: [z.file]})); } catch (e) {}
+-  if (!can) return download('');
+-  navigator.share({files: [z.file]}).then(() => { z.saved = true; z.note = 'Handed over as ' + z.name + '. (Tap again to send it once more.)'; paintScan(); },
+-    e => { if (e && e.name === 'AbortError') return; download('The share sheet did not open (' + String(e && e.message || e).slice(0, 60) + ').'); });
++  const files = separate ? z.parts || [] : z.file ? [z.file] : [];
++  let can = false; try { can = !!(files.length && navigator.share && navigator.canShare && navigator.canShare({files})); } catch (e) {}
++  if (!can) { if (!separate) return download(''); z.note = 'This browser will not share the separate files.'; return paintScan(); }
++  navigator.share({files}).then(() => { z.saved = true; z.note = 'Handed over' + (separate ? ' as ' + files.length + ' separate files.' : ' as ' + z.name + '.') + ' (Tap again to send it once more.)'; paintScan(); },
++    e => { if (e && e.name === 'AbortError') return; const why = String(e && e.message || e).slice(0, 60); if (separate) { z.note = 'Sharing the separate files did not work (' + why + ').'; paintScan(); } else download('The share sheet did not open (' + why + ').'); });
+ }
+@@ -1157,3 +1159,4 @@ function testHtml() {
+     (TEST.frames && !(UI.rec || VREAD.on) ? (TEST.zip ? '<button class="btn green" data-a="testsave">Save test data (' + (TEST.zip.pics ? TEST.zip.pics + ' picture' + (TEST.zip.pics === 1 ? '' : 's') + ', ' : '') + TEST.zip.mb + ' MB)</button>' +
+-        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>'
++        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>' +
++        (TEST.zip.parts && TEST.zip.parts.length > 1 ? '<button class="linkbtn" style="min-height:0;padding:0;text-align:left" data-a="testsaveparts">…or share them as ' + TEST.zip.parts.length + ' separate files</button>' : '')
+       : '<div class="small muted">' + (TEST.keepErr && !TEST.keep.length ? 'No pictures were kept (' + esc(TEST.keepErr) + ').' : 'Preparing the test file…') + '</div>') +
+@@ -1440,2 +1443,3 @@ async function act(a, ds, el) {
+     case 'testsave': return saveTestData();
++    case 'testsaveparts': return saveTestData(true);
+     case 'teststep': testStep(+ds.v || 0); return paintScan();
+diff --git a/page/app/sw.js b/page/app/sw.js
+index 943a346..2d65f85 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -3,3 +3,3 @@
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v11';
++const CACHE = 'ssc-v12';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
