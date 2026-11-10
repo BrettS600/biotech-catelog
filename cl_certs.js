@@ -24,7 +24,9 @@
    Cert column. Columns: read_at, pc, gk, pic, status (ok / none / many / err), cert, how (1x, 2x, f2 / f3 = the finder
    at 2x / 3x, with its class), seen (everything the readers decoded, | between), w, h, ms, v (this reader's version:
    a later version may read its "none" pictures again). err = the picture did not download or decode: tried again in a
-   later run, three times at most.
+   later run, three times at most. Pictures come as JPEG (jpeg-js decodes them), PNG or WebP (about one in eight of
+   Card Ladder's own copies - sharp decodes those; the first run, without it, left them "not a JPEG", which is read
+   again at once and counts as no try).
 
    Order: the cards in the Card Ladder run's order (cardladder/queue.csv), the four grades the page shows first (PSA 10,
    PSA 9, CGC 10, CGC 10 Pristine), then every other PSA / CGC grade. Workers: one per CPU (at most 4), each with its own
@@ -33,7 +35,7 @@
    --minutes and writes what it has every 200 pictures, so a run cut short keeps its reads.
 
    Run by .github/workflows/cl_certs.yml (every two hours):
-     npm install --no-save --prefix /tmp/clc jpeg-js@0.4.4
+     npm install --no-save --prefix /tmp/clc jpeg-js@0.4.4 sharp@0.33.5
      NODE_PATH=/tmp/clc/node_modules node cl_certs.js --card-data card-data/data --app page/app --minutes 40
 */
 'use strict';
@@ -127,11 +129,18 @@ if (!isMainThread) {
     try {
       await ready;
       const b = Buffer.from(m.buf);
-      if (!(b[0] === 0xFF && b[1] === 0xD8)) throw new Error('not a JPEG (' + b.subarray(0, 4).toString('hex') + ')');
-      const im = jpeg.decode(b, {useTArray: true, formatAsRGBA: true, maxResolutionInMP: 60, maxMemoryUsageInMB: 1024});
-      const img = {data: new Uint8ClampedArray(im.data.buffer, im.data.byteOffset, im.data.length), width: im.width, height: im.height};
+      let img;
+      if (b[0] === 0xFF && b[1] === 0xD8) {
+        const im = jpeg.decode(b, {useTArray: true, formatAsRGBA: true, maxResolutionInMP: 60, maxMemoryUsageInMB: 1024});
+        img = {data: new Uint8ClampedArray(im.data.buffer, im.data.byteOffset, im.data.length), width: im.width, height: im.height};
+      } else {                                 // PNG / WebP (about one picture in eight on Card Ladder's store): sharp (libvips)
+        let sharp; try { sharp = require('sharp'); } catch (e) { throw new Error('not a JPEG (' + b.subarray(0, 4).toString('hex') + '), no sharp'); }
+        const {data, info} = await sharp(b, {limitInputPixels: 60e6}).ensureAlpha().raw().toBuffer({resolveWithObject: true});
+        if (info.channels !== 4) throw new Error('decoded to ' + info.channels + ' channels');
+        img = {data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), width: info.width, height: info.height};
+      }
       const r = await readPicture(img, m.grader, Z, F);
-      parentPort.postMessage(Object.assign({id: m.id, w: im.width, h: im.height, ms: Date.now() - t0}, r));
+      parentPort.postMessage(Object.assign({id: m.id, w: img.width, h: img.height, ms: Date.now() - t0}, r));
     } catch (e) {
       parentPort.postMessage({id: m.id, status: 'err', cert: '', how: '', seen: String(e && e.message || e).slice(0, 120), ms: Date.now() - t0});
     }
@@ -186,8 +195,9 @@ function loadReads() {                       // {pic: {status, tries, v, at}} - 
     const rows = csvRows(fs.readFileSync(path.join(OUTDIR, f), 'utf8')), head = rows.shift() || [], ix = Object.fromEntries(head.map((h, i) => [h, i]));
     for (const r of rows) {
       const pic = r[ix.pic]; if (!pic) continue;
-      const prev = out.get(pic), st = r[ix.status];
-      out.set(pic, {status: st, v: +r[ix.v] || 0, at: r[ix.read_at] || '', tries: (prev ? prev.tries : 0) + (st === 'err' ? 1 : 0)});
+      // a PNG / WebP picture the first runs could not decode ("not a JPEG") is no failed try: it is read again at once
+      const prev = out.get(pic), st = r[ix.status], fmt = st === 'err' && /^not a JPEG/.test(r[ix.seen] || '');
+      out.set(pic, {status: st, fmt, v: +r[ix.v] || 0, at: r[ix.read_at] || '', tries: (prev ? prev.tries : 0) + (st === 'err' && !fmt ? 1 : 0)});
     }
   }
   return out;
@@ -208,7 +218,7 @@ async function main() {
       const pic = imgs[k]; if (!pic || seenPic.has(pic) || !picUrl(pic)) continue;
       const r = reads.get(pic);
       if (r && (r.status === 'ok' || r.status === 'many' || (r.status === 'none' && r.v >= VERSION))) continue;
-      if (r && r.status === 'err' && (r.tries >= 3 || now - Date.parse(r.at) < 20 * 3600e3)) continue;
+      if (r && r.status === 'err' && !r.fmt && (r.tries >= 3 || now - Date.parse(r.at) < 20 * 3600e3)) continue;
       seenPic.add(pic); todo.push({pc, gk, grader, pic});
     }
   }

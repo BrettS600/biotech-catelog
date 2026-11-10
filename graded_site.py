@@ -463,7 +463,8 @@ def load_page_certs(cd):
 def load_pic_certs(cd):
     """{picture code: [status, cert, tries]} from cardladder/pic_certs/reads_*.csv (cl_certs.js): the cert number read off
     each of Card Ladder's per-grade pictures - status ok / none (no cert of the grader's kind on it) / many (two slabs'
-    certs) / err (did not download or decode; tries counts them, cl_certs.js gives up after three). Newest row wins."""
+    certs) / err (did not download or decode; tries counts them, cl_certs.js gives up after three; a PNG / WebP picture
+    the first run could not decode - "not a JPEG" - is no try, as in cl_certs.js). Newest row wins."""
     import csv
     out = {}
     for f in sorted(glob.glob(os.path.join(cd, "cardladder", "pic_certs", "reads_*.csv"))):
@@ -473,7 +474,8 @@ def load_pic_certs(cd):
                 if not pic:
                     continue
                 st, prev = r.get("status") or "", out.get(pic)
-                out[pic] = [st, r.get("cert") or "", (prev[2] if prev else 0) + (1 if st == "err" else 0)]
+                tried = st == "err" and not (r.get("seen") or "").startswith("not a JPEG")
+                out[pic] = [st, r.get("cert") or "", (prev[2] if prev else 0) + (1 if tried else 0)]
     return out
 
 

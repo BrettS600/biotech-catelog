@@ -2379,6 +2379,11 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   made-up two slabs / picture gone / failed-once row): header and cell counts equal in both views (66), the words and
   links right, a cert found by search, a layout saved on the old page (a moved column, four hidden ones incl. Auth
   Illustrator) kept on the new one with the new columns in place, no page errors.
+  FIRST RUN (2026-11-10 21:55 UTC): 28 of the first 200 pictures failed, most because one in eight of Card Ladder's own
+  copies is PNG or WebP (the browser trial decoded them; jpeg-js does not). cl_certs.js now decodes those with sharp
+  (0.33.5, libvips; the workflow installs it); the first run's "not a JPEG" rows are read again at once and count as no
+  try (cl_certs.js loadReads, graded_site.load_pic_certs). Tested: the 60 test pictures as PNG / lossy WebP read as the
+  JPEGs on 59 (one WebP lost a weak reading).
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
