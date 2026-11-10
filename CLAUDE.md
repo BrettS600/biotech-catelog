@@ -2925,6 +2925,8 @@ no Apple account, no Xcode), "everything now", the sample show kept.
       evened-<ev|bo>-frame<N>-quarter-size.jpg: the evened picture as the phone made it - compare it with our own
         evening of the same frame (does Safari's blend equal Chromium's?).
     A reminder if the last test's file was not saved when the next recording starts (a second tap goes on).
+    g12a (20 minutes later): under the button, "...or share them as N separate files" (saveTestData(true): the same
+    pictures and report.json as files of their own, named <zip name>-<file>) - for a phone whose share sheet refuses a ZIP.
   - WHAT TO DO WITH THE FILES: copy the frames into a real-picture set (/tmp/claude-0/ga/real/<test>/), run them
     through the worker's own evenLight + the reader (apptest3/shade_bench.py takes any pictures) as plain / evened /
     boosted, compare with what the phone read in that frame (pictures[].reads) and over the run (frameLog by kind);

@@ -371,7 +371,7 @@ const TEST_PLAN = [
 let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step', 0) || 0));
 function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step', TEST_STEP); }
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); }
-const APP_VERSION = 'g12';
+const APP_VERSION = 'g12a';
 // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
 // sheet, row by row; 10 digits = CGC Code 128, 9 = PSA Code 128 with the thinnest bars, 8 = PSA ITF). Test mode knows
 // them so that a run can be shown as a map of the sheet: which codes were read and which were not (sheetCard).
@@ -787,21 +787,23 @@ async function buildTestZip() {               // made at Stop: report.json (the 
   rep.keepSettings = {most: KEEP_MAX, jpegQuality: KEEP_Q, lastGapMs: TEST.keepGap, error: TEST.keepErr};
   files.unshift({name: 'report.json', blob: new Blob([JSON.stringify(rep)], {type: 'application/json'})});
   const blob = await zipStore(files), name = 'scanner-test-' + APP_VERSION + (TEST.step ? '-t' + TEST.step : '') + '-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + '.zip';
-  let file = null; try { file = new File([blob], name, {type: 'application/zip'}); } catch (e) {}
-  return {blob, name, file, pics: TEST.keep.length, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
+  let file = null, parts = [];                 // parts: the same files one by one, for a phone that will not share a ZIP
+  try { file = new File([blob], name, {type: 'application/zip'}); const stem = name.replace(/\.zip$/, '-'); parts = files.map(f => new File([f.blob], stem + f.name, {type: f.blob.type || 'application/octet-stream'})); } catch (e) {}
+  return {blob, name, file, parts, pics: TEST.keep.length, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
 }
 // One tap: the phone's share sheet with the file (AirDrop, Save to Files...). It has to open straight from the tap, so
 // nothing is awaited before it - the file was made at Stop. Where a browser will not share a file, it is downloaded.
-function saveTestData() {
+function saveTestData(separate) {             // separate: the pictures and the report as files of their own (the small link under the button)
   const z = TEST.zip; if (!z) return;
   const download = why => {
     const a = document.createElement('a'); a.href = z.url || (z.url = URL.createObjectURL(z.blob)); a.download = z.name; document.body.appendChild(a); a.click(); a.remove();
-    z.saved = true; z.note = (why ? why + ' ' : '') + 'Downloaded as ' + z.name + ' (Files app > Downloads on an iPhone). If nothing arrived, open the scanner in Safari itself and run the test there.'; paintScan();
+    z.saved = true; z.note = (why ? why + ' ' : '') + 'Downloaded as ' + z.name + ' (Files app > Downloads on an iPhone). If nothing arrived, try "as separate files" below, or open the scanner in Safari itself and run the test there.'; paintScan();
   };
-  let can = false; try { can = !!(z.file && navigator.share && navigator.canShare && navigator.canShare({files: [z.file]})); } catch (e) {}
-  if (!can) return download('');
-  navigator.share({files: [z.file]}).then(() => { z.saved = true; z.note = 'Handed over as ' + z.name + '. (Tap again to send it once more.)'; paintScan(); },
-    e => { if (e && e.name === 'AbortError') return; download('The share sheet did not open (' + String(e && e.message || e).slice(0, 60) + ').'); });
+  const files = separate ? z.parts || [] : z.file ? [z.file] : [];
+  let can = false; try { can = !!(files.length && navigator.share && navigator.canShare && navigator.canShare({files})); } catch (e) {}
+  if (!can) { if (!separate) return download(''); z.note = 'This browser will not share the separate files.'; return paintScan(); }
+  navigator.share({files}).then(() => { z.saved = true; z.note = 'Handed over' + (separate ? ' as ' + files.length + ' separate files.' : ' as ' + z.name + '.') + ' (Tap again to send it once more.)'; paintScan(); },
+    e => { if (e && e.name === 'AbortError') return; const why = String(e && e.message || e).slice(0, 60); if (separate) { z.note = 'Sharing the separate files did not work (' + why + ').'; paintScan(); } else download('The share sheet did not open (' + why + ').'); });
 }
 async function copyReport() {
   if (!TEST.frames) return toast('Record a test first, then copy its report.');
@@ -1155,7 +1157,8 @@ function testHtml() {
     (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
     (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (rows.length ? ', ' + st.onlyUp + ' code' + (st.onlyUp === 1 ? '' : 's') + ' found only by the enlarged reads' : '') + '</div>' : '') +
     (TEST.frames && !(UI.rec || VREAD.on) ? (TEST.zip ? '<button class="btn green" data-a="testsave">Save test data (' + (TEST.zip.pics ? TEST.zip.pics + ' picture' + (TEST.zip.pics === 1 ? '' : 's') + ', ' : '') + TEST.zip.mb + ' MB)</button>' +
-        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>'
+        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>' +
+        (TEST.zip.parts && TEST.zip.parts.length > 1 ? '<button class="linkbtn" style="min-height:0;padding:0;text-align:left" data-a="testsaveparts">…or share them as ' + TEST.zip.parts.length + ' separate files</button>' : '')
       : '<div class="small muted">' + (TEST.keepErr && !TEST.keep.length ? 'No pictures were kept (' + esc(TEST.keepErr) + ').' : 'Preparing the test file…') + '</div>') +
       '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
     (UI.reportText ? '<textarea class="input" style="height:120px;font-size:12px" readonly>' + esc(UI.reportText) + '</textarea>' : '') +
@@ -1438,6 +1441,7 @@ async function act(a, ds, el) {
     case 'test': if (UI.rec || VREAD.on) return; UI.test = !UI.test; UI.scanMsg = null; UI.camErr = null; break;
     case 'testclear': testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; return paintScan();
     case 'testsave': return saveTestData();
+    case 'testsaveparts': return saveTestData(true);
     case 'teststep': testStep(+ds.v || 0); return paintScan();
     case 'testcopy': return copyReport();
     case 'lens': return setLens(ds.v);
