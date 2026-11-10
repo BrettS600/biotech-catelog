@@ -1,0 +1,72 @@
+name: CL Cert reads
+
+# The CL Cert column of the graded view (2026-11-10, Brett: "the cl cert number can be found in the images ... only fill
+# out the column for cl cert"): cl_certs.js reads the cert number off Card Ladder's picture of each PSA / CGC grade
+# (the picture Review shows) with the Slab Show Scanner's own reader, and leaves the reads in card-data
+# data/cardladder/pic_certs/reads_<YYYY-MM>.csv. Each picture is read once; a run stops after 40 minutes and the next
+# one carries on (the first pass, ~89,000 pictures, takes about a day). The site build's checkout of card-data
+# (data/cardladder/ but sales/) already holds the reads, so the next site build shows them.
+
+on:
+  schedule:
+    - cron: "37 */2 * * *"     # every two hours, at :37
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cl-certs
+  cancel-in-progress: false
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            cl_certs.js
+            page/app/finder.js
+            page/app/zxing/
+          sparse-checkout-cone-mode: false
+
+      - name: Check out the card data (the private repo card-data)
+        uses: actions/checkout@v4
+        with:
+          repository: BrettS600/card-data
+          token: ${{ secrets.DATA_REPO_TOKEN }}
+          path: card-data
+          sparse-checkout: |
+            data/cardladder/profiles/
+            data/cardladder/queue.csv
+            data/cardladder/pic_certs/
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Read the pictures
+        run: |
+          npm install --no-save --no-audit --no-fund --prefix /tmp/clc jpeg-js@0.4.4
+          NODE_PATH=/tmp/clc/node_modules node cl_certs.js --card-data card-data/data --app page/app --minutes 40
+
+      - name: Save the reads to card-data
+        if: always()
+        run: |
+          cd card-data
+          [ -d data/cardladder/pic_certs ] || { echo "no reads"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add -- data/cardladder/pic_certs
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git diff --cached --stat
+          git commit -q -m "CL Cert reads $(date -u '+%F %H:%M') UTC"
+          b=$(git rev-parse --abbrev-ref HEAD)
+          for i in 1 2 3; do
+            if git pull -q --rebase origin "$b" && git push -q origin "HEAD:$b"; then echo "pushed"; exit 0; fi
+            sleep 10
+          done
+          echo "could not push (card-data moved three times)"; exit 1
