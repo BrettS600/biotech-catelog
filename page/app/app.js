@@ -348,11 +348,30 @@ const VIDEO = document.createElement('video');
 VIDEO.setAttribute('playsinline', ''); VIDEO.setAttribute('muted', ''); VIDEO.muted = true; VIDEO.autoplay = true;
 const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null,
   worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
-  fpsN: 0, fpsT: 0, fps: 0, ms: 0, tFull: 0, tUp: 0, tiles: 0, kn: 0, lastHit: 0, lastWhole: 0, skipRun: 0, even: false, bestPx: 0, revived: 0, reviving: false, glare: 0, lastNew: 0, cntSeen: -1};
+  fpsN: 0, fpsT: 0, fps: 0, ms: 0, tFull: 0, tUp: 0, tiles: 0, kn: 0, lastHit: 0, lastWhole: 0, skipRun: 0, even: false, bestPx: 0, revived: 0, reviving: false, glare: 0, lastNew: 0, cntSeen: -1, blobOk: false};
 const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
-const TEST = {reads: new Map(), frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], te: [], tg: [], maxPer: 0, cut: 0, empty: 0, evN: 0, evC: 0, boN: 0, boC: 0, plN: 0, plC: 0};
-function testClear() { Object.assign(TEST, {frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], te: [], tg: [], maxPer: 0, cut: 0, empty: 0, evN: 0, evC: 0, boN: 0, boC: 0, plN: 0, plC: 0}); TEST.reads.clear(); }
-const APP_VERSION = 'g11l';
+// A test's numbers. keep: the frames whose pictures are kept for the test-data file; log: one line a frame (testFrame).
+const testFresh = () => ({frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], te: [], tg: [], maxPer: 0, cut: 0, empty: 0,
+  evN: 0, evC: 0, boN: 0, boC: 0, plN: 0, plC: 0, log: [], keep: [], keepN: 0, keepNext: Infinity, keepGap: KEEP_GAP_MS, evened: {}, sheetN: new Map(), live: null, now: {}, keepErr: null});
+const KEEP_MAX = 10, KEEP_Q = 0.92, KEEP_GAP_MS = 1500, KEEP_CROP = 640;   // pictures kept a test at most; their JPEG quality; the first gap between two; the side of the lossless middle piece
+const TEST = Object.assign({reads: new Map(), zip: null, zipSeq: 0, step: 0, label: ''}, testFresh());
+// THE TESTS TO RUN (2026-11-10; Brett: "this is just one lighting condition ... the angles are going to be different.
+// Everything is going to be different ... I want this test to translate across other conditions"). Test mode names the
+// next test - another light, distance, angle or movement each time - and every test's file and map carry its number and
+// words, so the pictures that come back are labelled and cover more than one table under one lamp.
+const TEST_PLAN = [
+  'Sheet in its sleeve, flat, room light, about 9 inches, hold still',
+  'The same with the Light on',
+  'Sheet out of its sleeve (bare paper), about 9 inches, hold still',
+  'In the sleeve, from as far as it still reads (14 inches or more), hold still',
+  'Phone tilted about 45 degrees to the sheet, hold still',
+  'Moving: sweep steadily down the sheet, 6 to 8 inches away',
+  'Another light: a dim room, or one lamp from the side',
+  'Your choice: anything like a show table (window light, under glass, another room)'];
+let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step', 0) || 0));
+function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step', TEST_STEP); }
+function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); }
+const APP_VERSION = 'g12';
 // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
 // sheet, row by row; 10 digits = CGC Code 128, 9 = PSA Code 128 with the thinnest bars, 8 = PSA ITF). Test mode knows
 // them so that a run can be shown as a map of the sheet: which codes were read and which were not (sheetCard).
@@ -423,7 +442,7 @@ function workerReady() {                     // the reader in its own thread; fa
   try {
     const w = new Worker('scan-worker.js');
     w.onmessage = e => {
-      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; SCAN.even = m.even || false; return; }
+      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; SCAN.even = m.even || false; SCAN.blobOk = !!m.blob; return; }
       const p = SCAN.pend.get(m.id); if (!p) return;
       SCAN.pend.delete(m.id); if (m.err) p.rej(new Error(m.err)); else p.res(m);
     };
@@ -605,7 +624,9 @@ async function scanFrame() {
     const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, quick = k % 3 !== 2, deep = k % 6 === 5, boost = k % 3 === 1 ? BOOST : 0, ema = (a, v) => a ? a * 0.7 + v * 0.3 : v;
     const opts = quick ? readerOpts(1, SLAB_FORMATS) : readerOpts(0, deep ? wideFormats() : SLAB_FORMATS);
     const gate = !!SCAN.lastWhole && performance.now() - SCAN.lastWhole < GATE_MS && SCAN.skipRun < GATE_RUN;
-    const out = await readImage(VIDEO, w, h, opts, {full: true, up: deep ? [MIDDLE] : liveTiles(), gate, even: quick, boost}, deep ? readerOpts(0, SLAB_FORMATS) : readerOpts(1, LINEAR_FORMATS));
+    const fk = !quick ? 'pl' : boost ? 'bo' : 'ev';   // kept pictures take the three kinds of frame by turns, so each kind's reads are on record with a picture
+    const keep = UI.test && SCAN.blobOk && performance.now() >= TEST.keepNext && fk === ['pl', 'ev', 'bo'][TEST.keepN % 3] ? {q: KEEP_Q, crop: TEST.keepN ? 0 : KEEP_CROP, evened: quick && !TEST.evened[fk]} : null;
+    const out = await readImage(VIDEO, w, h, opts, {full: true, up: deep ? [MIDDLE] : liveTiles(), gate, even: quick, boost, keep}, deep ? readerOpts(0, SLAB_FORMATS) : readerOpts(1, LINEAR_FORMATS));
     const cut = !!(out.t && out.t.skipped);
     if (out.t && out.t.nFull) SCAN.lastWhole = performance.now();
     SCAN.skipRun = cut ? SCAN.skipRun + 1 : 0;
@@ -613,13 +634,13 @@ async function scanFrame() {
     if (out.t && k) { if (!deep && out.t.up != null) SCAN.tUp = ema(SCAN.tUp, out.t.up); if (quick && out.t.full != null) SCAN.tFull = ema(SCAN.tFull, out.t.full); }   // not the first frame ever: the reader is still warming up
     if (out.t && deep) out.t.deep = true;
     if (out.t && out.t.glare != null) SCAN.glare = SCAN.glare * 0.6 + out.t.glare * 0.4;
-    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t);
+    if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t, out.keep);
     if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
   } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
   SCAN.busy = false;
 }
 // what one frame gave: slabs for the table (or Test mode's list), boxes on the picture, the reading speed
-function gotReads(res, w, h, ms, tid, sharp, tm) {
+function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
   const now = performance.now();
   SCAN.ms = ms; SCAN.fpsN++; if (res.length) SCAN.lastHit = now;
   if (now - SCAN.fpsT > 2000) { SCAN.fps = SCAN.fpsT ? SCAN.fpsN * 1000 / (now - SCAN.fpsT) : 0; SCAN.fpsN = 0; SCAN.fpsT = now; }
@@ -637,23 +658,84 @@ function gotReads(res, w, h, ms, tid, sharp, tm) {
     if (tm && tm.skipped) TEST.cut++;
     if (!res.length) TEST.empty++;
   }
-  const ev = frameKind(tm);                   // how this frame was read: 'ev' its light evened, 'bo' evened and boosted, 'pl' as it is
+  const ev = frameKind(tm), idx = [];         // how this frame was read: 'ev' its light evened, 'bo' evened and boosted, 'pl' as it is
   for (const r of res) {
     const kc = certOf(r.text, r.format);
-    if (UI.test) testRead(r, ev);
+    if (UI.test) idx.push(testRead(r, ev));
     else if (kc && tid) addScan(kc[0], kc[1], {table: tid, live: true});
     SCAN.boxes.push({pos: r.pos, w, h, t: now, ok: UI.test || !!kc});
   }
   SCAN.boxes = SCAN.boxes.filter(b => now - b.t < 1400);
   if (res.length && !SCAN.raf) SCAN.raf = requestAnimationFrame(drawBoxes);
+  if (UI.test) testFrame(res, idx, w, h, ms, sharp, tm, ev, kept);
 }
 const frameKind = tm => !tm || tm.even == null ? 'pl' : tm.boost ? 'bo' : 'ev';
-function testRead(r, kind) {                 // kind: 'ev' | 'bo' | 'pl' - each code remembers which kinds of frame ever read it
+function testRead(r, kind) {                 // kind: 'ev' | 'bo' | 'pl' - each code remembers which kinds of frame ever read it; -> the code's number in this test
   const key = r.format + '|' + r.text, dt = detailOf(r), have = TEST.reads.get(key);
   if (!have) {
-    TEST.reads.set(key, {format: r.format, text: r.text, n: 1, min: dt, last: dt, at: Date.now(), first: Math.round((Date.now() - (TEST.t0 || Date.now())) / 100) / 10, full: !r.up, ev: kind === 'ev', bo: kind === 'bo', pl: kind === 'pl'});
+    const at = SHEET_OF.get(r.text); if (at) TEST.sheetN.set(at[0], (TEST.sheetN.get(at[0]) || 0) + 1);
+    TEST.reads.set(key, {i: TEST.reads.size, format: r.format, text: r.text, n: 1, min: dt, last: dt, at: Date.now(), first: Math.round((Date.now() - (TEST.t0 || Date.now())) / 100) / 10, full: !r.up, ev: kind === 'ev', bo: kind === 'bo', pl: kind === 'pl'});
     beep(); setTimeout(paintScan, 0);
-  } else { have.n++; have.last = dt; have.at = Date.now(); if (!r.up) have.full = true; have[kind] = true; if (dt != null && (have.min == null || dt < have.min)) have.min = dt; }
+    return TEST.reads.size - 1;
+  }
+  have.n++; have.last = dt; have.at = Date.now(); if (!r.up) have.full = true; have[kind] = true; if (dt != null && (have.min == null || dt < have.min)) have.min = dt;
+  return have.i;
+}
+// EVERY FRAME OF A TEST LEAVES A LINE, AND SOME LEAVE THEIR PICTURE (2026-11-10; Brett: "the previous builds have not been
+// effective enough because the data that was collected from the test runs was insufficient ... if there's any stuff you
+// can add to the build for collecting data, then please do so"). Until now the reader was tuned on simulated pictures:
+// a screenshot or a screen recording has a third of the camera's detail - the bars are not in it. So Test mode keeps up
+// to KEEP_MAX frames as the camera gave them (the worker makes the JPEG before anything touches the frame; the first one
+// a second into the test, then every KEEP_GAP_MS - and when there are too many, every other one goes and the gap
+// doubles, so a test of any length is covered end to end), what was read in each and where, the camera's settings at
+// that moment, and for every frame a line: when, which kind, how sharp, how much glare, how many codes, how long each
+// step took, and which codes. "Save test data" (saveTestData) hands all of it over as one file.
+const LOG_FIELDS = ['ms since start', 'kind e|b|p', 'deep', 'sharpness', 'glare per mille', 'codes in the whole pass', 'reading ms', 'evening ms', 'whole ms', 'ms a quarter', 'cut', 'picture kept', 'codes read (numbers in codes[])'];
+function camNow() {                           // what the camera says of itself right now (a phone gives few of these; a focus distance would show hunting)
+  const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0], o = {};
+  try { const st = tr.getSettings(); for (const k of ['width', 'height', 'frameRate', 'zoom', 'torch', 'focusDistance', 'focusMode', 'exposureMode', 'exposureTime', 'exposureCompensation', 'iso', 'whiteBalanceMode', 'colorTemperature']) if (st[k] != null) o[k] = typeof st[k] === 'number' ? Math.round(st[k] * 1000) / 1000 : st[k]; } catch (e) {}
+  return o;
+}
+function testFrame(res, idx, w, h, ms, sharp, tm, kind, kept) {
+  const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig);
+  TEST.log.push([t, kind[0], tm && tm.deep ? 1 : 0, sharp == null ? null : sharp, tm && tm.glare != null ? Math.round(tm.glare * 1000) : null, tm && tm.nFull != null ? tm.nFull : null,
+    r0(ms), tm ? r0(tm.even) : null, tm ? r0(tm.full) : null, tm ? r0(tm.up) : null, tm && tm.skipped ? 1 : 0, has ? 1 : 0, idx]);
+  if (tm && tm.nFull != null) TEST.now[kind] = tm.nFull;
+  if (TEST.log.length === 1) TEST.keepNext = performance.now() + 1000;
+  TEST.live = {kind, sharp, idx};
+  if (kept && kept.err) TEST.keepErr = kept.err;
+  if (has) {
+    const q = P => P && P.topLeft ? [P.topLeft, P.topRight, P.bottomRight, P.bottomLeft].flatMap(c => [Math.round(c.x), Math.round(c.y)]) : null;
+    TEST.keep.push({t, frame: TEST.frames, kind, w, h, sharp, glare: tm && tm.glare != null ? Math.round(tm.glare * 1000) / 1000 : null, cam: camNow(), blob: kept.orig, crop: kept.crop || null,
+      reads: res.map((r, j) => [idx[j], r.up ? 1 : 0, q(r.pos)])});
+    TEST.keepN++;
+    if (kept.evened) TEST.evened[kind] = {blob: kept.evened, frame: TEST.frames, t};
+    if (TEST.keep.length > KEEP_MAX) { TEST.keep = TEST.keep.filter((x, i) => i % 2 === 0); TEST.keepGap *= 2; }
+    TEST.keepNext = performance.now() + TEST.keepGap;
+  }
+  paintLive();
+}
+// THE LITTLE MAP AND THE NUMBERS BESIDE THE STOP BUTTON (Test mode, redrawn every frame): there for a SCREEN RECORDING to
+// capture - "I hope taking a screen recorded video of the test run is sufficient". The map is the printed sheet in view,
+// five by ten: bright = read in the frame just read, dim = read earlier, dark = never; so the recording shows which codes
+// each frame gets, and when the last ones come in. The numbers: frames a second and the kind of the frame just read
+// (E evened, B boosted, P plain), its sharpness, the glare, what the whole pass last read on each kind, seconds since a
+// new code, pictures kept.
+const LIVE = {cells: null, sheet: 0};
+function paintLive() {
+  const st = $('live-stat'), mp = $('live-map'); if (!st || !mp) return;
+  if (!(UI.test && UI.rec && TEST.live)) { if (st.textContent) st.textContent = ''; if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
+  const L = TEST.live, N = TEST.now, d = v => v == null ? '-' : v;
+  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s · ' + L.kind[0].toUpperCase() + '\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nE ' + d(N.ev) + ' B ' + d(N.bo) + ' P ' + d(N.pl) +
+    '\nnew ' + Math.max(0, (performance.now() - (SCAN.lastNew || 0)) / 1000).toFixed(0) + ' s ago\npics ' + TEST.keep.length;
+  let top = 0, best = 2; for (const [sh, n] of TEST.sheetN) if (n > best) { best = n; top = sh; }
+  if (!top) { if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
+  if (!LIVE.cells || LIVE.sheet !== top || mp.childNodes.length !== 50) { mp.innerHTML = '<b></b>'.repeat(50); LIVE.cells = [...mp.childNodes]; LIVE.sheet = top; }
+  const state = new Uint8Array(50);
+  for (const r of TEST.reads.values()) { const at = SHEET_OF.get(r.text); if (at && at[0] === top) state[at[1]] = 1; }
+  const order = [...TEST.reads.values()];
+  for (const i of L.idx) { const r = order[i], at = r && SHEET_OF.get(r.text); if (at && at[0] === top) state[at[1]] = 2; }
+  for (let i = 0; i < 50; i++) { const c = state[i] === 2 ? 'n' : state[i] ? 'r' : ''; if (LIVE.cells[i].className !== c) LIVE.cells[i].className = c; }
 }
 // Brett, 2026-11-09: "something where your feedback is more reliable than some screenshots" - Test mode's numbers as text
 // to paste into the chat: the camera, the speed, how sharp the frames were (blur vs too little detail), every code with
@@ -667,13 +749,59 @@ const perFrame = (c, n) => n ? Math.round(c / n * 10) / 10 : null;
 function testReport() {
   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
   const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
-  return {report: 'Slab Show Scanner test', version: APP_VERSION, at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+  return {report: 'Slab Show Scanner test', version: APP_VERSION, test: TEST.step ? {number: TEST.step, of: TEST_PLAN.length, what: TEST.label} : null, at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '', browser: navigator.userAgent, homeScreenApp: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)), screen: [window.innerWidth, window.innerHeight, window.devicePixelRatio || 1],
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
     timing: {wholeMs: med(TEST.tw), quarterMs: med(TEST.tu), quartersPerFrame: TEST.mode === 'live' ? SCAN.tiles : 4, evenMs: med(TEST.te)}, lightEvened: SCAN.even, glarePct: TEST.tg.length ? Math.round(med(TEST.tg) * 1000) / 10 : null, wholePassCodesPerFrame: {evened: perFrame(TEST.evC, TEST.evN), evenedFrames: TEST.evN, boosted: perFrame(TEST.boC, TEST.boN), boostedFrames: TEST.boN, plain: perFrame(TEST.plC, TEST.plN), plainFrames: TEST.plN}, mostCodesInOneFrame: TEST.maxPer,
     framesWithNoCode: TEST.empty, framesDroppedEarly: TEST.cut,
     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.rows.length, onlyEnlarged: st.onlyUp, neverOnPlainFrames: st.rows.filter(r => !r.pl).length, onlyOnBoostedFrames: st.rows.filter(r => r.bo && !r.ev && !r.pl).length, onlyOnPlainFrames: st.rows.filter(r => r.pl && !r.ev && !r.bo).length,
     list: st.rows.sort((a, b) => a.first - b.first).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.full ? 'whole' : 'enlarged', (r.ev ? 'E' : '') + (r.bo ? 'B' : '') + (r.pl ? 'P' : '')])};
+}
+// THE TEST-DATA FILE: a ZIP, made here (the pictures are JPEGs already, so they are stored as they are - no compressing).
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function zipStore(files) {              // [{name, blob}] -> a Blob
+  const enc = new TextEncoder(), parts = [], cen = [], d = new Date(); let off = 0;
+  const date = (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate(), time = d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1;
+  for (const f of files) {
+    const data = new Uint8Array(await f.blob.arrayBuffer()), name = enc.encode(f.name), crc = crc32(data), n = data.length;
+    const lh = new DataView(new ArrayBuffer(30)), ch = new DataView(new ArrayBuffer(46));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true); lh.setUint32(18, n, true); lh.setUint32(22, n, true); lh.setUint16(26, name.length, true);
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true); ch.setUint32(20, n, true); ch.setUint32(24, n, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
+    parts.push(lh.buffer, name, f.blob); cen.push(ch.buffer, name); off += 30 + name.length + n;
+  }
+  let size = 0; for (const c of cen) size += c.byteLength;
+  const eo = new DataView(new ArrayBuffer(22)); eo.setUint32(0, 0x06054b50, true); eo.setUint16(8, files.length, true); eo.setUint16(10, files.length, true); eo.setUint32(12, size, true); eo.setUint32(16, off, true);
+  return new Blob([...parts, ...cen, eo.buffer], {type: 'application/zip'});
+}
+async function buildTestZip() {               // made at Stop: report.json (the numbers, every frame's line, what each kept picture holds) + the pictures
+  const rep = testReport(), p2 = n => ('0' + n).slice(-2), d = new Date(), files = [];
+  rep.codes = [...TEST.reads.values()].map(r => [fmtName(r.format), r.text]);
+  rep.frameFields = LOG_FIELDS; rep.frameLog = TEST.log;
+  rep.pictures = TEST.keep.map((k, i) => {
+    const name = 'frame-' + p2(i + 1) + '-' + (k.t / 1000).toFixed(1) + 's-' + k.kind + '.jpg'; files.push({name, blob: k.blob});
+    if (k.crop) files.push({name: 'frame-' + p2(i + 1) + '-middle-lossless.png', blob: k.crop});
+    return {file: name, msSinceStart: k.t, frame: k.frame, readAs: k.kind === 'ev' ? 'evened' : k.kind === 'bo' ? 'evened + boosted' : 'as it is', width: k.w, height: k.h, sharpness: k.sharp, glare: k.glare, camera: k.cam, readsFields: ['code (number in codes[])', 'only in an enlarged piece', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
+  });
+  rep.evenedPictures = Object.keys(TEST.evened).map(kind => { const e = TEST.evened[kind], name = 'evened-' + kind + '-frame' + e.frame + '-quarter-size.jpg'; files.push({name, blob: e.blob}); return {file: name, kind, frame: e.frame, msSinceStart: e.t}; });
+  rep.keepSettings = {most: KEEP_MAX, jpegQuality: KEEP_Q, lastGapMs: TEST.keepGap, error: TEST.keepErr};
+  files.unshift({name: 'report.json', blob: new Blob([JSON.stringify(rep)], {type: 'application/json'})});
+  const blob = await zipStore(files), name = 'scanner-test-' + APP_VERSION + (TEST.step ? '-t' + TEST.step : '') + '-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + '.zip';
+  let file = null; try { file = new File([blob], name, {type: 'application/zip'}); } catch (e) {}
+  return {blob, name, file, pics: TEST.keep.length, mb: Math.max(0.1, Math.round(blob.size / 104857.6) / 10), saved: false, note: ''};
+}
+// One tap: the phone's share sheet with the file (AirDrop, Save to Files...). It has to open straight from the tap, so
+// nothing is awaited before it - the file was made at Stop. Where a browser will not share a file, it is downloaded.
+function saveTestData() {
+  const z = TEST.zip; if (!z) return;
+  const download = why => {
+    const a = document.createElement('a'); a.href = z.url || (z.url = URL.createObjectURL(z.blob)); a.download = z.name; document.body.appendChild(a); a.click(); a.remove();
+    z.saved = true; z.note = (why ? why + ' ' : '') + 'Downloaded as ' + z.name + ' (Files app > Downloads on an iPhone). If nothing arrived, open the scanner in Safari itself and run the test there.'; paintScan();
+  };
+  let can = false; try { can = !!(z.file && navigator.share && navigator.canShare && navigator.canShare({files: [z.file]})); } catch (e) {}
+  if (!can) return download('');
+  navigator.share({files: [z.file]}).then(() => { z.saved = true; z.note = 'Handed over as ' + z.name + '. (Tap again to send it once more.)'; paintScan(); },
+    e => { if (e && e.name === 'AbortError') return; download('The share sheet did not open (' + String(e && e.message || e).slice(0, 60) + ').'); });
 }
 async function copyReport() {
   if (!TEST.frames) return toast('Record a test first, then copy its report.');
@@ -727,6 +855,10 @@ function newTable() {                        // the next table, with the vendor 
 async function startRec(tableId) {
   if (VREAD.on) return;
   const now = Date.now();
+  if (UI.test) {                               // every recording is its own test (no more "tap Clear first"); the last test's file stays until this one has its own
+    if (TEST.zip && !TEST.zip.saved && !TEST.zip.warned) { TEST.zip.warned = true; return toast('The last test\'s file is not saved yet - tap Save test data, or tap record again to go on without it.'); }
+    testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = TEST_STEP + 1; TEST.label = TEST_PLAN[TEST_STEP];
+  }
   const id = UI.test ? null : (tableId || newTable());
   Object.assign(UI, {rec: true, recTable: id, recStart: now, feed: [], dup: null, tab: 'scan', openTable: null, camErr: null});
   SCAN.lastHit = SCAN.lastNew = performance.now(); SCAN.cntSeen = -1; SCAN.glare = 0; SCAN.bestPx = 0; SCAN.revived = 0; SCAN.reviving = false;
@@ -759,6 +891,9 @@ function stopRec() {
   if (UI.test) {
     Object.assign(UI, {rec: false, recTable: null, feed: [], dup: null}); render();
     setTimeout(() => { const c = $('sheet-card'); if (c) c.scrollIntoView({block: 'start'}); }, 80);
+    if (TEST.frames) testStep(1);
+    const seq = ++TEST.zipSeq;                 // (a file still being made when the next test starts is dropped)
+    if (TEST.frames) buildTestZip().then(z => { if (seq !== TEST.zipSeq) return; TEST.zip = z; if (!UI.rec) paintScan(); }, e => { if (seq !== TEST.zipSeq) return; TEST.zip = null; TEST.keepErr = 'file: ' + String(e && e.message || e).slice(0, 100); if (!UI.rec) paintScan(); });
     return;
   }
   sendScans();
@@ -784,6 +919,7 @@ async function readVideo(file) {
   fv.muted = true; fv.playsInline = true; fv.setAttribute('playsinline', ''); fv.setAttribute('muted', ''); fv.preload = 'auto';
   const url = URL.createObjectURL(file); fv.src = url;
   const tid = UI.test ? null : newTable();
+  if (UI.test) { testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = 0; TEST.label = ''; }   // a video read in Test mode is a test of its own too
   Object.assign(VREAD, {on: true, stop: false, el: fv, pct: 0, w: 0, h: 0, frames: 0, tid, name: file.name || 'video'});
   Object.assign(UI, {recTable: tid, feed: [], dup: null, camErr: null, scanMsg: null, tab: 'scan', openTable: null});
   wakeOn(); render();
@@ -805,7 +941,12 @@ async function readVideo(file) {
   URL.revokeObjectURL(url); fv.removeAttribute('src'); try { fv.load(); } catch (e) {}
   const name = VREAD.name;
   Object.assign(VREAD, {on: false, el: null}); wakeOff(); SCAN.boxes = [];
-  if (UI.test) { UI.recTable = null; UI.camErr = err ? 'Video: ' + (err.message || err) : null; return render(); }
+  if (UI.test) {
+    UI.recTable = null; UI.camErr = err ? 'Video: ' + (err.message || err) : null;
+    const seq = ++TEST.zipSeq;
+    if (TEST.frames) buildTestZip().then(z => { if (seq === TEST.zipSeq) { TEST.zip = z; if (!UI.rec && !VREAD.on) paintScan(); } }, () => {});
+    return render();
+  }
   sendScans();
   finishTable(tid, err ? 'Video: ' + (err.message || err) : 'No PSA or CGC barcode was read in ' + name + '. Try Test mode on it to see what the reader picks up.');
 }
@@ -953,7 +1094,7 @@ function scanHtml() {
     '<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div><canvas class="vfboxes" id="vf-boxes"></canvas>' +
     '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Hold 8–10 inches away and pause over each group of slabs</div></div>' +
     '<div id="vid-prog"></div>' +
-    '<div class="recwrap"><button class="recbtn" id="rec-btn" data-a="rec" aria-label="Start recording"><span class="core"></span></button><span class="small muted" id="rec-hint">Tap to record this table</span></div>' +
+    '<div class="recwrap"><div class="livestat" id="live-stat"></div><div class="livemap" id="live-map"></div><button class="recbtn" id="rec-btn" data-a="rec" aria-label="Start recording"><span class="core"></span></button><span class="small muted" id="rec-hint">Tap to record this table</span></div>' +
     '<div class="toolrow" id="toolrow"><label class="btn" id="vid-btn">Read a video<input class="vh" type="file" accept="video/*" id="vid-in"></label>' +
     '<button class="btn" id="test-btn" data-a="test" aria-pressed="false">Test mode: Off</button></div>' +
     '<div id="cam-err"></div><div id="scan-msg"></div><div class="feed" id="feed"></div><div id="test-panel"></div>' +
@@ -989,6 +1130,7 @@ function sheetCard() {
   }).join('');
   const firsts = all.filter(r => SHEET_OF.has(r.text)).map(r => r.first).sort((a, b) => a - b), mark = n => firsts.length >= n ? firsts[n - 1].toFixed(1) : '-';
   const lines = [                              // short lines: each fits a phone's width without wrapping
+    ...(TEST.step ? ['test ' + TEST.step + ': ' + TEST.label.slice(0, 38)] : []),
     APP_VERSION + ' · ' + TEST.w + '×' + TEST.h + ' · ' + (TEST.mode === 'video' ? 'video file' : TEST.lens + ' · ' + (cam.frameRate || '?') + 'fps · light ' + (cam.light ? 'on' : 'off')),
     Math.round(secs) + ' s · ' + TEST.frames + ' frames (' + (secs ? (TEST.frames / secs).toFixed(1) : '-') + '/s) · most/frame ' + TEST.maxPer,
     'whole ' + med(TEST.tw) + ' ms · quarter ' + med(TEST.tu) + ' ms ×' + (TEST.mode === 'live' ? SCAN.tiles : 4) + ' · evening ' + (SCAN.even ? med(TEST.te) + ' ms' + (SCAN.even === 'low' ? '' : ' ' + SCAN.even) : 'NO'),
@@ -1008,14 +1150,18 @@ function testHtml() {
   const speed = (UI.rec || VREAD.on) && SCAN.fps ? ', ' + SCAN.fps.toFixed(1) + ' frames read a second' : '';
   const st = testStats();
   return '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Test mode</span>' + (rows.length || TEST.frames ? '<button class="linkbtn" style="min-height:0;padding:0" data-a="testclear">Clear</button>' : '') + '</div>' +
+    (UI.rec || VREAD.on ? '' : '<div class="tplan"><button class="minibtn" data-a="teststep" data-v="-1" aria-label="Previous test">‹</button><div class="tplan-t"><b>Next: test ' + (TEST_STEP + 1) + ' of ' + TEST_PLAN.length + '</b>' + esc(TEST_PLAN[TEST_STEP]) + '</div><button class="minibtn" data-a="teststep" data-v="1" aria-label="Next test">›</button></div>') +
     (sheetCard() || '<div class="tbig"><b>' + rows.length + '</b>different code' + (rows.length === 1 ? '' : 's') + ' read</div>') +
     (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
     (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (rows.length ? ', ' + st.onlyUp + ' code' + (st.onlyUp === 1 ? '' : 's') + ' found only by the enlarged reads' : '') + '</div>' : '') +
-    (TEST.frames && !(UI.rec || VREAD.on) ? '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
+    (TEST.frames && !(UI.rec || VREAD.on) ? (TEST.zip ? '<button class="btn green" data-a="testsave">Save test data (' + (TEST.zip.pics ? TEST.zip.pics + ' picture' + (TEST.zip.pics === 1 ? '' : 's') + ', ' : '') + TEST.zip.mb + ' MB)</button>' +
+        '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>'
+      : '<div class="small muted">' + (TEST.keepErr && !TEST.keep.length ? 'No pictures were kept (' + esc(TEST.keepErr) + ').' : 'Preparing the test file…') + '</div>') +
+      '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
     (UI.reportText ? '<textarea class="input" style="height:120px;font-size:12px" readonly>' + esc(UI.reportText) + '</textarea>' : '') +
     rows.slice(0, 60).map(r => '<div class="trow"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
       (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
-    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge - slab barcodes need the phone about 8–10 inches away with 1x. Movement across the bars smears them (a smear of two bars’ width and nothing reads): hold still over each group, or move the way the bars point, and try the Light. With one of the printed test sheets in view, a map of the sheet shows which codes were read - after a run, one screenshot of it says everything (or Copy report for the full numbers). Tap Clear before each run.</p></div>';
+    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge - slab barcodes need the phone about 8–10 inches away with 1x. Movement across the bars smears them (a smear of two bars’ width and nothing reads): hold still over each group, or move the way the bars point, and try the Light. With one of the printed test sheets in view, a map of the sheet shows which codes were read. Each recording is a test of its own: after Stop, Save test data hands over the pictures kept from it and a log of every frame, in one file (or screenshot the map; or Copy report for the numbers alone).</p></div>';
 }
 function paintScan() {
   if (UI.tab !== 'scan' || !$('rec-btn')) return;
@@ -1046,9 +1192,10 @@ function paintScan() {
       (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
     : VREAD.on && VREAD.w ? '<div class="vfinfo">' + resLabel(VREAD.w, VREAD.h) + ' video</div>' : '';
   $('vf-hint').hidden = cam || VREAD.on;
+  if (!(UI.test && UI.rec)) paintLive();
   $('rec-btn').classList.toggle('on', busy);
   $('rec-btn').setAttribute('aria-label', VREAD.on ? 'Stop reading the video' : UI.rec ? 'Stop recording' : 'Start recording');
-  $('rec-hint').textContent = VREAD.on ? 'Tap to stop reading the video' : UI.rec ? (lensLabel() === '3x' ? '3x focuses from about 2 feet away - tap to stop' : UI.test ? 'Tap to stop the test' : 'Tap to stop - the slabs go to this table') : UI.test ? 'Tap to test the reader' : 'Tap to record this table';
+  $('rec-hint').textContent = VREAD.on ? 'Tap to stop reading the video' : UI.rec ? (lensLabel() === '3x' ? '3x focuses from about 2 feet away - tap to stop' : UI.test ? 'Test ' + TEST.step + ' - tap to stop' : 'Tap to stop - the slabs go to this table') : UI.test ? 'Test ' + (TEST_STEP + 1) + ' of ' + TEST_PLAN.length + ': ' + TEST_PLAN[TEST_STEP] + ' - tap to record' : 'Tap to record this table';
   $('toolrow').hidden = busy;
   $('test-btn').textContent = 'Test mode: ' + (UI.test ? 'On' : 'Off'); $('test-btn').classList.toggle('on', UI.test); $('test-btn').setAttribute('aria-pressed', UI.test ? 'true' : 'false');
   $('vid-prog').innerHTML = VREAD.on ? '<div class="progress" style="margin-top:2px"><span style="width:' + Math.round(VREAD.pct * 100) + '%"></span></div>' : '';
@@ -1289,7 +1436,9 @@ async function act(a, ds, el) {
     case 'tab': if ((UI.rec || VREAD.on) && ds.v !== 'scan') return toast(VREAD.on ? 'Stop reading the video first.' : 'Stop recording first.'); UI.tab = ds.v; UI.openTable = null; break;
     case 'rec': if (VREAD.on) { VREAD.stop = true; return; } if (UI.rec) return stopRec(); return startRec(null);
     case 'test': if (UI.rec || VREAD.on) return; UI.test = !UI.test; UI.scanMsg = null; UI.camErr = null; break;
-    case 'testclear': testClear(); UI.reportText = null; return paintScan();
+    case 'testclear': testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; return paintScan();
+    case 'testsave': return saveTestData();
+    case 'teststep': testStep(+ds.v || 0); return paintScan();
     case 'testcopy': return copyReport();
     case 'lens': return setLens(ds.v);
     case 'light': return setTorch(!SCAN.torch);

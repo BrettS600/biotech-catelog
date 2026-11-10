@@ -80,7 +80,16 @@ a{color:var(--blt)}
 .flabel{height:22px;border-radius:3px;background:#1C232D;display:flex;align-items:center;padding:0 4px}
 .fbar{height:12px;flex:1;background:repeating-linear-gradient(90deg,#7C8794 0 1px,transparent 1px 3px,#7C8794 3px 5px,transparent 5px 6px)}
 .fart{flex:1;border-radius:3px;background:#18202A}
-.recwrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin:14px 0 2px}
+.recwrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;margin:14px 0 2px}
+.livestat{position:absolute;left:0;top:0;font:500 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#C9D2DC;white-space:pre;pointer-events:none}
+.livemap{position:absolute;right:0;top:0;display:grid;grid-template-columns:repeat(5,12px);gap:2px;pointer-events:none}
+.livemap b{width:12px;height:9px;border-radius:2px;background:var(--s2)}
+.tplan{display:flex;align-items:center;gap:10px}
+.tplan-t{flex:1;font-size:13px;line-height:1.35}
+.tplan-t b{display:block;font:700 11px Inter,sans-serif;color:var(--am);letter-spacing:.03em;text-transform:uppercase;margin-bottom:2px}
+#rec-hint{text-align:center;max-width:64%}
+.livemap b.r{background:rgba(61,214,140,.38)}
+.livemap b.n{background:var(--gr)}
 .recbtn{width:80px;height:80px;border-radius:50%;border:4px solid var(--tx);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .recbtn .core{width:60px;height:60px;border-radius:50%;background:var(--rd);transition:all .2s ease}
 .recbtn.on .core{width:30px;height:30px;border-radius:7px}

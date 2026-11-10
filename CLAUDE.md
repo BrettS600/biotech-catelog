@@ -2894,6 +2894,50 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   The site run that followed (#205) built fine and its DEPLOY job failed again ("Deployment failed, try again later" -
   GitHub's side, as with g11j); "Re-run jobs > Re-run failed jobs" on the run's page in the same signed-in Chrome
   published it in 1m 18s - quicker than another patch. Live at 02:07 UTC, the four app files byte-identical to the tested.
+  g12 (2026-11-10, the same evening) - THE BUILD THAT COLLECTS DATA. Brett's plan: "I'm going to try it two more times" -
+  this build, his test, a second build from what the test shows, then "I'll probably test it against Scandit". "I feel
+  as if the previous builds have not been effective enough because the data that was collected from the test runs was
+  insufficient ... if there's any stuff you can add to the build for collecting data, then please do so on the video
+  side." He would like a screen recording to be enough; he has NO real slabs (only the Staples sheets); he opens the
+  scanner from its Home Screen icon; he AirDrops files to the Mac and drags them into ~/Pokemon (the folder connected to
+  the session: device_list_dir / device_stage_files there - never ask for Downloads). And: "this is just one lighting
+  condition ... the angles are going to be different. Everything is going to be different ... I want this test to
+  translate across other conditions." A screen recording has a third of the camera's detail - the bars are not in it -
+  so until now the reader was tuned on simulated pictures only. g12 (the reader itself is g11l's, unchanged):
+  - THE TESTS TO RUN (app.js TEST_PLAN, 8 of them; localStorage ssc-test-step): Test mode names the next test under the
+    record button and in its card (arrows to go back/on): sleeve + room light at 9 in; Light on; bare paper; as far as it
+    reads; tilted 45 degrees; a steady sweep; another light (dim / a side lamp); his choice. Every recording is a test of
+    its own now (no "tap Clear"), and Stop moves on to the next one.
+  - ON SCREEN FOR A SCREEN RECORDING (paintLive, beside the Stop button, every frame): frames a second and the kind of
+    the frame just read (E/B/P), sharpness, glare, the whole pass's last count on each kind, seconds since a new code,
+    pictures kept; and a 5 x 10 map of the sheet - bright = read in the frame just read, dim = earlier, dark = never.
+  - "SAVE TEST DATA" (buildTestZip / zipStore / saveTestData; made at Stop so the tap can open the share sheet at once;
+    navigator.share with the file, else a download): scanner-test-g12-t<N>-<date>-<time>.zip =
+      report.json: the old report + test {number, of, what}, browser, homeScreenApp, codes[] (every code, numbered),
+        frameFields + frameLog (one line a frame: ms since start, kind, deep, sharpness, glare per mille, whole-pass
+        codes, reading / evening / whole / quarter ms, cut, picture kept, the codes read), pictures[] (file, when, read
+        as which kind, sharpness, glare, the camera's settings, every code read in it with its four corners),
+        evenedPictures[], keepSettings;
+      frame-NN-<s>s-<ev|bo|pl>.jpg: up to 10 frames AS THE CAMERA GAVE THEM (JPEG 0.92, made in the worker before the
+        evening: plan.keep): the first a second after the first frame, then every 1.5 s; past 10, every other one goes
+        and the gap doubles - so the file is ~25 MB at 4K however long the test runs;
+      frame-01-middle-lossless.png (640 x 640): what the JPEG costs, how grainy the camera is;
+      evened-<ev|bo>-frame<N>-quarter-size.jpg: the evened picture as the phone made it - compare it with our own
+        evening of the same frame (does Safari's blend equal Chromium's?).
+    A reminder if the last test's file was not saved when the next recording starts (a second tap goes on).
+  - WHAT TO DO WITH THE FILES: copy the frames into a real-picture set (/tmp/claude-0/ga/real/<test>/), run them
+    through the worker's own evenLight + the reader (apptest3/shade_bench.py takes any pictures) as plain / evened /
+    boosted, compare with what the phone read in that frame (pictures[].reads) and over the run (frameLog by kind);
+    then put the REAL frames through extra shadows, tilt, blur, dimming and glare here, so build 2 is tuned on a spread
+    of conditions and not on one table under one lamp. Check the report's "not on a sheet" codes (misreads) too.
+  - Not tried on an iPhone: convertToBlob in the worker (the hello message says: SCAN.blobOk; without it the file holds
+    the numbers only) and sharing a .zip from a Home Screen app (the note under the button says what happened).
+  - Tests: apptest3/zipcheck.py (records, saves, opens the file), longrun.py (thinning, the reminder).
+  CARD LADDER THAT EVENING: the evening check came 1.5 h late (the long publishing turn held the session) and the loop
+  had read 6 pages since 8 pm; restarted at 02:11 UTC it ran about 2 pages a minute. Brett: the Mac is awake and plugged
+  in from 8 pm to 7 am, so it was NOT sleep, and he wants no keep-awake. What was seen: nothing read from 01:00 until the
+  Chrome extension was first used (the first card-inbox batch at 01:53:06, the minute a tab was created). Cause not
+  established - compare pages_today with the clock at every check, and during long turns check the tab by hand.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

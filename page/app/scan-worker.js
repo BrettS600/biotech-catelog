@@ -51,7 +51,12 @@
    paper). Same pictures: 45 degrees 133 (99) -> 171 (124); the plain sheet's whole pass 146 -> 174, in the shadow 144
    -> 177; where the table shares the rows 191 (141) -> 195 (151); slabs 105 -> 105; at 9 inches one code of 200 is
    LOST to it (200 -> 199, boost 1: three or four) - so the unboosted evened frame stays in the turn. In the app on
-   the simulated 45-degree camera: 46 codes where g11k read 39. t.boost = the boost this frame got. */
+   the simulated 45-degree camera: 46 codes where g11k read 39. t.boost = the boost this frame got.
+   KEPT PICTURES (plan.keep, Test mode, 2026-11-10 - Brett: "the data that was collected from the test runs was
+   insufficient ... access to all of the footage"): the frame as the camera gave it, as a JPEG (keep.orig; made before
+   the evening and outside the reader's timings), the lossless middle of the first one (keep.crop), and a quarter-size
+   copy of the evened picture (keep.evened). The page puts them, with a log of every frame, into one file he can send:
+   real frames to replay here, where until now there were only simulated ones. */
 'use strict';
 importScripts('zxing/reader.js');
 const READY = ZXingWASM.prepareZXingModule({
@@ -165,15 +170,36 @@ self.onmessage = async e => {
     if (m.bm) draw(m.bm);
     const n = Math.min(512, W, H), sx = Math.round((W - n) / 2), sy = Math.round((H - n) / 2);
     const sharp = m.bm ? sharpness(CX.getImageData(sx, sy, n, n).data, n, 0, 0, n) : sharpness(new Uint8ClampedArray(m.buf), W, sx, sy, n);
+    let kept = null, lost = 0;                 // lost: time spent on kept pictures after t0 - not the reader's
+    if (m.bm && plan.keep) {                   // Test mode keeps this frame's picture for the test-data file: as the camera gave it
+      kept = {};
+      try {
+        kept.orig = await CV.convertToBlob({type: 'image/jpeg', quality: plan.keep.q || 0.92});
+        if (plan.keep.crop) {                  // ...and its middle without any loss (how much does the JPEG cost? how grainy is the camera?)
+          const c = Math.min(plan.keep.crop, W, H), cv = new OffscreenCanvas(c, c);
+          cv.getContext('2d').drawImage(CV, Math.round((W - c) / 2), Math.round((H - c) / 2), c, c, 0, 0, c, c);
+          kept.crop = await cv.convertToBlob({type: 'image/png'});
+        }
+      } catch (err) { kept.err = String(err && err.message || err).slice(0, 120); }
+    }
     const t0 = performance.now();
     if (m.bm && plan.even !== false && dodgeWorks()) {
       if (evenLight(plan.boost || 0)) { CX.getImageData(0, 0, 1, 1); t.even = performance.now() - t0; if (plan.boost) t.boost = plan.boost; }   // (the one dot read back makes the browser finish drawing, so the time is the evening's own)
       t.glare = EV.glare;                      // the share of the picture that is blown out
+      if (kept && plan.keep.evened && t.even != null) {   // a quarter-size copy of what the reader gets after the evening: does this phone's browser even the light as the test machines do?
+        const tk = performance.now();
+        try {
+          const cv = new OffscreenCanvas(Math.round(W / 4), Math.round(H / 4)), cx = cv.getContext('2d');
+          cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'medium'; cx.drawImage(CV, 0, 0, W, H, 0, 0, cv.width, cv.height);
+          kept.evened = await cv.convertToBlob({type: 'image/jpeg', quality: 0.85});
+        } catch (err) { kept.err = String(err && err.message || err).slice(0, 120); }
+        lost = performance.now() - tk;
+      }
     }
     if (plan.full !== false || !m.bm) {
       const img = m.bm ? CX.getImageData(0, 0, W, H) : new ImageData(new Uint8ClampedArray(m.buf), W, H);
       keep((await ZXingWASM.readBarcodes(img, m.opts)).filter(r => r.isValid !== false).map(r => slim(r, 0, 0, 1)));
-      t.full = performance.now() - t0 - (t.even || 0); t.nFull = out.length;
+      t.full = performance.now() - t0 - (t.even || 0) - lost; t.nFull = out.length;
     }
     if (plan.gate && t.nFull === 0 && m.bm && plan.up) t.skipped = true;
     const ups = m.bm && plan.up && !t.skipped ? (Array.isArray(plan.up) ? plan.up : [plan.up]) : [];
@@ -186,9 +212,9 @@ self.onmessage = async e => {
       t.up = (performance.now() - t1) / ups.length;
     }
     if (m.bm) m.bm.close();
-    self.postMessage({id: m.id, w: W, h: H, ms: performance.now() - t0, sharp, res: out, t});
+    self.postMessage({id: m.id, w: W, h: H, ms: performance.now() - t0 - lost, sharp, res: out, t, keep: kept});
   } catch (err) {
     self.postMessage({id: m.id, err: String(err && err.message || err)});
   }
 };
-self.postMessage({hello: 1, offscreen: OFFSCREEN, even: OFFSCREEN && dodgeWorks() ? SMOOTH : false});
+self.postMessage({hello: 1, offscreen: OFFSCREEN, even: OFFSCREEN && dodgeWorks() ? SMOOTH : false, blob: OFFSCREEN && typeof OffscreenCanvas.prototype.convertToBlob === 'function'});
