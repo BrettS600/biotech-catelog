@@ -1,0 +1,509 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 881e687..ad140a1 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3051,6 +3051,38 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+     a reader that tries hundreds of times a minute needs a second witness (another reader, or another frame) before a
+     number counts; (3) a phone held still shows the same misreading again and again - the weak class had to be made
+     stricter after a looping test counted one four times.
++  g13a (the same night, an hour after g13 went up; found by going on trying REAL frames in ways his seven tests had
++  not - each of these would have been a bad surprise on real slabs):
++  - A LINE BESIDE A CODE THAT LIES ASLANT, AND TWO LINES SIDE BY SIDE. dropLines stepped in whole blocks and asked for
++    exactly one block's width: a border beside a code turned 30 degrees crosses the blocks in a staircase and stayed
++    (3 codes of 47 read, 1 of 50), two lines side by side stayed at any slant (8 of 47). Now: at most LINE_WIDE 3 blocks
++    in a row along the code - counting only blocks at least half as strong as the block itself - and LINE_MIN 6 or more
++    across it, stepped in the code's own direction; and a slanted-stripe block must itself be a quarter as strong as
++    its strongest neighbour (the "in step" test pools the neighbours, so faint blocks beside a line borrowed it and
++    made the line a band). Now 29-33 of 47 and 34-40 of 50 (bench7.js on real/rot/xt*: the border-line frames turned
++    30 and 45 degrees), about as without the lines (32-33, 38-40).
++  - CODES SEEN FROM CLOSE BY. A real frame's middle enlarged (real/scale, bench9.js): 1.5 times (as from 6 inches)
++    13 codes of 32 read, twice 6 of 18, three times none - bars many dots wide leave a block of 8 with one edge or
++    none, and the patch falls to pieces. blockSums now also keeps COARSE sums (16 x 16 blocks, changes over 4 dots, at
++    two dots of each block row; the same rules with nr doubled), find() takes the coarse level's boxes of coarseMin
++    280 dots or longer and drops the fine pieces lying on them (unless a fine box is the whole code): 21 of 32, 14 of
++    18, 4 of 4. Nothing changes for smaller codes.
++  - A FAINT CODE (a label behind glass, haze, a frosted case). A real frame at 45% of its contrast (real/deg "flat",
++    bench10.js) gave NO BOX AT ALL: 0 codes of 47 and 0 of 50 - the stripe threshold T was 0.22 of a block's
++    brightness. T is 0.08 now: 33 and 36 (the readers even the light themselves, so once a code is found its contrast
++    hardly matters), and the full-contrast frames read a little better too (9 inches 86%, tilted 46%). More patches
++    pass, so the caps (110 cut, 80 kept) are reached on a full sheet: about a sixth more time a frame there.
++    bench10.js also holds grain (fine), blur (0.8 dots fine; 1.3 dots: half at 9 inches, hardly any at 13), a dark
++    picture (fine), a strong lean (fine).
++  - THE FAINT CLASS D. The grey-line reader's weak readings (fit >= 0.84, ahead by 0.08) are class D now, apart from
++    C: over all 106 test frames (as they are, turned, with lines, enlarged, made worse: 3,985 grey-line readings,
++    1,071 of them wrong) the strong ones were 2,479 right and none wrong, the faint ones 87 right and 1 wrong - and
++    a fake camera that looped one blurred frame showed that wrong one four times, so it counted. A D sighting is
++    half a point as C is, but a number counts only with at least one SOLID point (A, B or C): app.js tally().
++  - blockSums' inner loop is written out dot by dot for inner blocks (the same sums to the bit, a fifth quicker).
++  - In Chromium on fake cameras (apptest4): close views 25 and 21 counted; faint frames 46; a mix of grainy, blurred,
++    dark and leaning frames 50 with the wrong one only "sighted"; the earlier views 48-50, 41, 42. No number that is
++    not on the sheet counted anywhere. sw.js: ssc-v14; the app says g13a.
+   CARD LADDER THAT NIGHT: restarted by hand at 03:47 and 05:24 UTC (each time the loop had done 180 pages), now always
+   with KEEP - a Web Lock ("clrun-keepalive") held for good and a watcher that logs freeze / resume / visibility to
+   localStorage clr-freeze-log; the topic and key are carried over the reload in sessionStorage (and removed), so they are
+diff --git a/page/app/app.js b/page/app/app.js
+index bafbcb1..d68ecd8 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -372,7 +372,7 @@ const TEST_PLAN = [
+ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step13', 0) || 0));
+ function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step13', TEST_STEP); }
+ function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
+-const APP_VERSION = 'g13';
++const APP_VERSION = 'g13a';
+ // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
+ // sheet, row by row; 10 digits = CGC Code 128, 9 = PSA Code 128 with the thinnest bars, 8 = PSA ITF). Test mode knows
+ // them so that a run can be shown as a map of the sheet: which codes were read and which were not (sheetCard).
+@@ -408,13 +408,21 @@ const readerOpts = (b, formats) => ({formats, maxNumberOfSymbols: 255, tryHarder
+ // misread about once in a hundred tries, and a phone tries hundreds of times a minute. Every reading now comes with how
+ // sure it is (scan-worker.js: A sure - two readers that work differently agree, or a QR; B strong; C weak) and a number is
+ // taken once it has NEED points: an A at once, a B on its second sighting, a C on its fourth. On the test frames - as
+-// they are, turned every way, with border lines drawn beside the codes - the A and B readings held no wrong number.
+-const NEED = 2, POINTS = {A: 2, B: 1, C: 0.5};
+-function sighted(key, cls) {                 // one more sighting of a code -> its tally {pts, n, ok}
+-  let e = SCAN.seen.get(key); if (!e) SCAN.seen.set(key, e = {pts: 0, n: 0, ok: false});
+-  e.pts += POINTS[cls] || 0.5; e.n++; if (e.pts >= NEED) e.ok = true;
++// they are, turned every way, with border lines beside the codes, enlarged, blurred, grainy, faint (106 frames) - the A
++// and B readings held no wrong number (2,479 strong grey-line readings among them). D, the grey-line reader's FAINT
++// reading, was wrong once in 88 - and a phone held still shows the same wrong reading again and again (a fake camera
++// that looped one blurred frame counted it): D helps a number along but never makes it count - one of its two points
++// must be SOLID (from A, B or C).
++const NEED = 2, POINTS = {A: 2, B: 1, C: 0.5, D: 0.5};
++function tally(e, cls) {                     // one more sighting on a tally {pts, solid, n, ok}
++  const p = POINTS[cls] || 0.5; e.pts += p; if (cls !== 'D') e.solid += p; e.n++;
++  if (e.pts >= NEED && e.solid >= 1) e.ok = true;
+   return e;
+ }
++function sighted(key, cls) {                 // one more sighting of a slab's code at a show -> its tally
++  let e = SCAN.seen.get(key); if (!e) SCAN.seen.set(key, e = {pts: 0, solid: 0, n: 0, ok: false});
++  return tally(e, cls);
++}
+ const GLARE_MIN = 0.012;                     // this share of the picture blown out to white = glare worth a word (the glare hint in paintScan)
+ // TOO FAR FOR THIS LENS (g13; Brett: "depth is one of my biggest concerns ... at least 2 feet instead of 1 foot"). His
+ // 2-foot test with the 1x lens: bars 0.8-0.96 of a dot wide - under one dot nothing can be read, by any reader. The 3x
+@@ -633,18 +641,18 @@ function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
+     if (res.length > TEST.maxPer) TEST.maxPer = res.length;
+     if (!res.length) TEST.empty++;
+   }
+-  const idx = [], cnt = {A: 0, B: 0, C: 0}; let dup = false;
++  const idx = [], cnt = {A: 0, B: 0, C: 0, D: 0}; let dup = false;
+   for (const r of res) {
+     const cls = POINTS[r.cls] ? r.cls : 'C', kc = certOf(r.text, r.format); let ok = false;
+     cnt[cls]++;
+     if (UI.test) { const e = testRead(r, cls); idx.push(e.i + cls); ok = e.ok; }
+     else if (kc && tid) { ok = sighted(kc[0] + '|' + kc[1], cls).ok; if (ok) { addScan(kc[0], kc[1], {table: tid, live: true, quiet: true}); dup = true; } }
+-    if (ok || cls !== 'C') SCAN.lastHit = now;
++    if (ok || cls === 'A' || cls === 'B') SCAN.lastHit = now;
+     SCAN.boxes.push({pos: r.pos, w, h, t: now, ok});         // grey until the number counts, then green
+   }
+   SCAN.boxes = SCAN.boxes.filter(b => now - b.t < 1400);
+   if (res.length && !SCAN.raf) SCAN.raf = requestAnimationFrame(drawBoxes);
+-  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt); }
++  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C + cnt.D; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt); }
+   else if (dup) paintScan();                 // once a frame, however many slabs it held (a slab already on the table: "Already read")
+ }
+ // Test mode's record of a code: every sighting with how sure it was and which reader gave it (g the grey-line reader, z
+@@ -653,11 +661,11 @@ function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
+ function testRead(r, cls) {
+   const key = r.format + '|' + r.text, dt = detailOf(r), now = Date.now(), secs = Math.round((now - (TEST.t0 || now)) / 100) / 10;
+   let e = TEST.reads.get(key);
+-  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, A: 0, B: 0, C: 0, g: false, z: false, w: false});
+-  e.n++; e.last = dt; e.at = now; e[cls]++; e.pts += POINTS[cls];
++  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, solid: 0, A: 0, B: 0, C: 0, D: 0, g: false, z: false, w: false});
++  const was = e.ok; tally(e, cls); const now_ok = e.ok; e.ok = was; e.last = dt; e.at = now; e[cls]++;
+   const by = String(r.by || ''); if (by.includes('g')) e.g = true; if (by.includes('z')) e.z = true; if (by.includes('w')) e.w = true;
+   if (dt != null && (e.min == null || dt < e.min)) e.min = dt;
+-  if (!e.ok && e.pts >= NEED) {
++  if (!e.ok && now_ok) {
+     e.ok = true; e.first = secs;
+     const at = SHEET_OF.get(r.text); if (at) TEST.sheetN.set(at[0], (TEST.sheetN.get(at[0]) || 0) + 1);
+     beep(); setTimeout(paintScan, 0);
+@@ -674,7 +682,7 @@ const testOk = () => { let n = 0; for (const r of TEST.reads.values()) if (r.ok)
+ // what was read in each and where, the camera's settings at that moment, and for every frame a line (LOG_FIELDS).
+ // "Save test data" (saveTestData) hands all of it over as one file. THE SEVEN FILES OF 2026-11-09 ARE WHAT g13 WAS BUILT
+ // ON: real frames with known answers, replayed through every idea before it went into the app.
+-const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak', 'picture kept', 'codes: number in codes[] + A sure / B strong / C weak'];
++const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak or faint', 'picture kept', 'codes: number in codes[] + A sure / B strong / C weak / D faint (the grey-line reader alone: helps, never counts by itself)'];
+ function camNow() {                           // what the camera says of itself right now (a phone gives few of these; a focus distance would show hunting)
+   const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0], o = {};
+   try { const st = tr.getSettings(); for (const k of ['width', 'height', 'frameRate', 'zoom', 'torch', 'focusDistance', 'focusMode', 'exposureMode', 'exposureTime', 'exposureCompensation', 'iso', 'whiteBalanceMode', 'colorTemperature']) if (st[k] != null) o[k] = typeof st[k] === 'number' ? Math.round(st[k] * 1000) / 1000 : st[k]; } catch (e) {}
+@@ -683,7 +691,7 @@ function camNow() {                           // what the camera says of itself
+ function testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt) {
+   const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig), st = (tm && tm.st) || {}, T = tm || {};
+   TEST.log.push([t, T.full != null ? 1 : 0, sharp == null ? null : sharp, T.glare != null ? Math.round(T.glare * 1000) : null, st.boxes == null ? null : st.boxes, st.kept == null ? null : st.kept, T.len || null,
+-    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C, has ? 1 : 0, idx]);
++    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C + cnt.D, has ? 1 : 0, idx]);
+   if (TEST.log.length === 1) TEST.keepNext = performance.now() + 1000;
+   TEST.live = {sharp, idx, cnt, st};
+   if (kept && kept.err) TEST.keepErr = kept.err;
+@@ -709,7 +717,7 @@ function paintLive() {
+   const st = $('live-stat'), mp = $('live-map'); if (!st || !mp) return;
+   if (!(UI.test && UI.rec && TEST.live)) { if (st.textContent) st.textContent = ''; if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
+   const L = TEST.live, d = v => v == null ? '-' : v;
+-  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nboxes ' + d(L.st.kept) + '/' + d(L.st.boxes) + '\nA ' + L.cnt.A + ' B ' + L.cnt.B + ' C ' + L.cnt.C +
++  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nboxes ' + d(L.st.kept) + '/' + d(L.st.boxes) + '\nA ' + L.cnt.A + ' B ' + L.cnt.B + ' C ' + (L.cnt.C + L.cnt.D) +
+     '\nnew ' + Math.max(0, (performance.now() - (SCAN.lastNew || 0)) / 1000).toFixed(0) + ' s ago\npics ' + TEST.keep.length;
+   let top = 0, best = 2; for (const [sh, n] of TEST.sheetN) if (n > best) { best = n; top = sh; }
+   if (!top) { if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
+@@ -739,8 +747,8 @@ function testReport() {
+     framesWithNoCode: TEST.empty,
+     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.ok.length, sightedButNotCounted: st.rows.length - st.ok.length,
+     countedBy: {greyLineOnly: st.ok.filter(r => r.g && !r.z && !r.w).length, zxingOnly: st.ok.filter(r => !r.g).length, both: st.ok.filter(r => r.g && (r.z || r.w)).length},
+-    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame'],
+-    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : '')])};
++    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak / faint sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame'],
++    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C + '/' + r.D, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : '')])};
+ }
+ // THE TEST-DATA FILE: a ZIP, made here (the pictures are JPEGs already, so they are stored as they are - no compressing).
+ const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+@@ -767,7 +775,7 @@ async function buildTestZip() {               // made at Stop: report.json (the
+     const name = 'frame-' + p2(i + 1) + '-' + (k.t / 1000).toFixed(1) + 's-' + k.kind + '.jpg'; files.push({name, blob: k.blob});
+     if (k.crop) files.push({name: 'frame-' + p2(i + 1) + '-middle-lossless.png', blob: k.crop});
+     return {file: name, msSinceStart: k.t, frame: k.frame, readBy: k.kind === 'fw' ? 'the finder, and zxing on the whole frame' : 'the finder', width: k.w, height: k.h, sharpness: k.sharp, glare: k.glare, camera: k.cam,
+-      readsFields: ['code (number in codes[]) + A sure / B strong / C weak', 'readers: g grey-line, z zxing on the lines, w zxing on the whole frame', 'lines zxing read it on', 'grey-line fit', 'grey-line lead over its next best reading', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
++      readsFields: ['code (number in codes[]) + A sure / B strong / C weak / D faint', 'readers: g grey-line, z zxing on the lines, w zxing on the whole frame', 'lines zxing read it on', 'grey-line fit', 'grey-line lead over its next best reading', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
+   });
+   if (TEST.rowsPic) {                          // the first kept frame's codes as zxing was handed them: one row a line, three treatments of each
+     const name = 'lines-frame' + TEST.rowsPic.frame + '.png'; files.push({name, blob: TEST.rowsPic.blob});
+diff --git a/page/app/finder.js b/page/app/finder.js
+index 2269946..b18ef92 100644
+--- a/page/app/finder.js
++++ b/page/app/finder.js
+@@ -14,6 +14,9 @@
+    (findSlant), and cut by turning (turnPatch). The same frames turned by 10 to 80 degrees read as they do straight - before
+    that, nothing was found between 25 and 65 degrees. Upside down is the readers' business (zxing reads a row both ways;
+    SlabC128 does too).
++   g13a, from trying real frames in ways his tests had not: a LINE beside a code (a label's border, a case's edge) is told
++   from its bars (dropLines; patches' core rows), a code seen from CLOSE BY is found on a coarser level of the same sums
++   (blockSums .coarse, 16 x 16 blocks), and a code of LOW CONTRAST (haze, glass) is found at all (T 0.08, was 0.22).
+    Plain arithmetic on the frame's own bytes (its green dots): the same file runs in the worker on the phone and under Node
+    on the test frames (tools: /tmp/claude-0/ga/fx - bench5.js the straight frames, bench6.js turned by quarter turns,
+    bench7.js turned by any angle). */
+@@ -21,10 +24,13 @@
+ (function (root) {
+ const BLK = 8;                                // the stripe search works on 8 x 8 dot blocks
+ const DEF = {
+-  T: 0.22,                                    // a block has stripes when the mean change across is over T x (its brightness + 16)
++  T: 0.08,                                    // a block has stripes when the mean change across is over T x (its brightness + 16).
++                                              // (0.22 until g13a: a label seen through haze or glass - a real frame at 45% of its contrast - then
++                                              // gave NO box at all, 0 codes of 47 and of 50; at 0.08: 33 and 36, and the full-contrast frames a little better)
+   R: 0.5,                                     // ...and the change along the stripes is under R x the change across
+   minLen: 80, maxCands: 110, maxKept: 80,     // a code shorter than 80 dots has bars under a dot wide: nothing reads it; the biggest 110 patches are cut, until 80 hold bars
+   maxLen: 1600, maxThick: 200,                // a patch bigger than this is no slab's code in focus (a striped cloth, a fence): not cut (a huge code is the whole-frame pass's)
++  coarseMin: 280,                             // the coarse level (16 x 16 blocks) looks for codes this long or longer
+   S: 0,                                       // samples per picture dot in a folded line (0: 3 for a small code, fewer for a big one)
+   margin: 0.14, marginPx: 8,                  // quiet zone kept either side: this share of the code's length + this many dots
+   closeW: 31, blurS: 6, pct: 0.02,            // (in samples) the evening: how wide a bar it fills in, how soft, what counts as black
+@@ -41,56 +47,99 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
+ // both; a code lying on its side the reverse. D = the frame's RGBA bytes.
+ // For a code lying ASLANT both are big - as they are for print. What tells them apart: across slanted stripes the two
+ // changes rise and fall TOGETHER at every dot (their products add up: gxy against gxx and gyy), in print they do not.
++// A CODE SEEN FROM CLOSE BY (g13a): its bars are many dots wide, a block of 8 holds one edge or none, and the patch falls
++// to pieces (a real frame enlarged 1.5 times: 13 codes of 32 read; twice: 6 of 18; three times: none). So the same sums
++// are also kept COARSE: per 16 x 16 block, with changes taken over 4 dots instead of 2 (at two dots of each block row;
++// .coarse has the same fields, the across-sum doubled so that the same rules hold with nr twice as big). With it the
++// same enlarged frames: 21 of 32, 14 of 18, 2 of 4 - and nothing changes for codes under coarseMin dots long.
+ function blockSums(D, W, H, rows) {
+   const wb = W >> 3, hb = H >> 3, sx = new Int32Array(wb * hb), sy = new Int32Array(wb * hb), sm = new Int32Array(wb * hb);
+   const gxx = new Int32Array(wb * hb), gyy = new Int32Array(wb * hb), gxy = new Int32Array(wb * hb);
+-  const W4 = W * 4, last = wb * 8 === W ? wb - 1 : -1;
++  const wc = wb >> 1, hc = hb >> 1, NC = wc * hc, cx = new Int32Array(NC), cy = new Int32Array(NC), cm = new Int32Array(NC), cxx = new Int32Array(NC), cyy = new Int32Array(NC), cxy = new Int32Array(NC);
++  const W4 = W * 4, W8 = W * 8, last = wb * 8 === W ? wb - 1 : -1;
+   for (let by = 0; by < hb; by++) {
+-    const o = by * wb;
++    const o = by * wb, oc = (by >> 1) < hc ? (by >> 1) * wc : -1;
+     for (let ri = 0; ri < rows.length; ri++) {
+       const y = by * 8 + rows[ri]; if (y < 1 || y >= H - 1) continue;
++      const W8f = y >= 2 && y < H - 2 ? W8 : 0;                // (the coarse change down reaches two rows up and down; at the picture's edge: none)
+       let p = y * W4 + 1;                                     // the green of dot (0, y)
+       for (let bx = 0; bx < wb; bx++, p += 32) {
+-        let ax = 0, ay = 0, am = 0, xx = 0, yy = 0, xy = 0;
++        let ax = 0, ay = 0, am = 0, xx = 0, yy = 0, xy = 0, bx4 = 0, by4 = 0, m4 = 0, x4 = 0, y4 = 0, xy4 = 0;
++        if (bx > 0 && bx !== last) {                          // an inner block: its 8 dots written out (a third quicker than the loop below)
++          let d, e, v, d4, e4;
++          d = D[p + 4] - D[p - 4]; ax += d < 0 ? -d : d;
++          d = D[p + 8] - D[p]; ax += d < 0 ? -d : d;
++          e = D[p + 4 + W4] - D[p + 4 - W4]; v = D[p + 4]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
++          d4 = D[p + 12] - D[p - 4]; e4 = D[p + 4 + W8f] - D[p + 4 - W8f]; bx4 += d4 < 0 ? -d4 : d4; by4 += e4 < 0 ? -e4 : e4; m4 += v; x4 += d4 * d4; y4 += e4 * e4; xy4 += d4 * e4;
++          d = D[p + 12] - D[p + 4]; ax += d < 0 ? -d : d;
++          d = D[p + 16] - D[p + 8]; ax += d < 0 ? -d : d;
++          e = D[p + 12 + W4] - D[p + 12 - W4]; v = D[p + 12]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
++          d = D[p + 20] - D[p + 12]; ax += d < 0 ? -d : d;
++          d = D[p + 24] - D[p + 16]; ax += d < 0 ? -d : d;
++          e = D[p + 20 + W4] - D[p + 20 - W4]; v = D[p + 20]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
++          d4 = D[p + 28] - D[p + 12]; e4 = D[p + 20 + W8f] - D[p + 20 - W8f]; bx4 += d4 < 0 ? -d4 : d4; by4 += e4 < 0 ? -e4 : e4; m4 += v; x4 += d4 * d4; y4 += e4 * e4; xy4 += d4 * e4;
++          d = D[p + 28] - D[p + 20]; ax += d < 0 ? -d : d;
++          d = D[p + 32] - D[p + 24]; ax += d < 0 ? -d : d;
++          e = D[p + 28 + W4] - D[p + 28 - W4]; v = D[p + 28]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
++        } else {
+         const k0 = bx === 0 ? 1 : 0, k1 = bx === last ? 7 : 8;
+         for (let k = k0; k < k1; k++) {
+           const j = p + k * 4, d = D[j + 4] - D[j - 4]; ax += d < 0 ? -d : d;
+-          if (k & 1) { const e = D[j + W4] - D[j - W4]; ay += e < 0 ? -e : e; am += D[j]; xx += d * d; yy += e * e; xy += d * e; }
++          if (k & 1) {
++            const e = D[j + W4] - D[j - W4], v = D[j]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
++            if ((k & 3) === 1) {                              // the coarse level: dots 1 and 5 of the block
++              const d4 = D[j + 8] - D[j - 8], e4 = D[j + W8f] - D[j - W8f];
++              bx4 += d4 < 0 ? -d4 : d4; by4 += e4 < 0 ? -e4 : e4; m4 += v; x4 += d4 * d4; y4 += e4 * e4; xy4 += d4 * e4;
++            }
++          }
++        }
+         }
+         sx[o + bx] += ax; sy[o + bx] += ay; sm[o + bx] += am; gxx[o + bx] += xx; gyy[o + bx] += yy; gxy[o + bx] += xy;
++        const q = bx >> 1;
++        if (oc >= 0 && q < wc) { const i = oc + q; cx[i] += 2 * bx4; cy[i] += by4; cm[i] += m4; cxx[i] += x4; cyy[i] += y4; cxy[i] += xy4; }
+       }
+     }
+   }
+-  return {wb, hb, sx, sy, sm, gxx, gyy, gxy, nr: rows.length};
++  return {wb, hb, sx, sy, sm, gxx, gyy, gxy, nr: rows.length, blk: 8,
++    coarse: {wb: wc, hb: hc, sx: cx, sy: cy, sm: cm, gxx: cxx, gyy: cyy, gxy: cxy, nr: rows.length * 2, blk: 16}};
+ }
+ // A LINE IS NOT A CODE (g13b). A slab's label has a border and the case an edge a few millimetres from the barcode: a line
+ // square to the code gives the same kind of block as the code's bars, and the patch then is a code with a fence post
+ // through it - not long and thin, and thrown out (a line drawn 1.5-2.5 mm from each code's ends on Brett's real frames:
+ // 4 codes read of 47, 1 of 50, 0 of 50; with what follows 33, 39, 37 - as without the lines). A line is one block wide
+-// and long ACROSS the code: blocks in a run of LINE_MIN or more across, with nothing beside them ALONG the code, go.
+-// (ux, uy): one step along the code for every block - or phi, each block's own direction.
+-const LINE_MIN = 6;
+-function dropLines(m, wb, hb, ux0, uy0, phi) {
++// (or two, or three) and long ACROSS the code: blocks in a run of LINE_MIN or more across, with next to nothing beside
++// them ALONG the code, go. (ux, uy): one step along the code for every block - or phi, each block's own direction.
++const LINE_MIN = 6, LINE_WIDE = 3;
++function dropLines(m, wb, hb, ux0, uy0, phi, en, half) {
++  // (g13a: "nothing beside it" was one block exactly, and the steps were whole blocks - so a line beside a code lying
++  // 30 degrees aslant, which crosses the blocks in a staircase, and two lines side by side stayed: 3 codes of 47 read,
++  // 1 of 50. Now: at most LINE_WIDE blocks in a row along the code, LINE_MIN or more across it, stepped in the code's
++  // own direction. And "beside it" counts only blocks at least half as strong as the block itself (en: each block's
++  // change across the stripes; half: 0.5, or 0.25 where en is a square): the faint blocks around a line - paper,
++  // haze, what the low threshold T lets in - are not what makes bars wide.)
+   let any = false;
+-  for (let y = 1; y < hb - 1; y++) for (let x = 1, i = y * wb + 1; x < wb - 1; x++, i++) {
++  for (let y = 0; y < hb; y++) for (let x = 0, i = y * wb; x < wb; x++, i++) {
+     if (!m[i]) continue;
+-    const ux = phi ? Math.round(Math.cos(phi[i])) : ux0, uy = phi ? Math.round(Math.sin(phi[i])) : uy0, st = uy * wb + ux;
+-    if (m[i + st] || m[i - st]) continue;
+-    let run = 1;                                                   // across: (-uy, ux)
+-    for (let k = 1, X = x - uy, Y = y + ux; k < LINE_MIN && X >= 0 && Y >= 0 && X < wb && Y < hb && m[Y * wb + X]; k++, X -= uy, Y += ux) run++;
+-    for (let k = 1, X = x + uy, Y = y - ux; k < LINE_MIN && run < LINE_MIN && X >= 0 && Y >= 0 && X < wb && Y < hb && m[Y * wb + X]; k++, X += uy, Y -= ux) run++;
+-    if (run >= LINE_MIN) { m[i] = 3; any = true; }
++    const ux = phi ? Math.cos(phi[i]) : ux0, uy = phi ? Math.sin(phi[i]) : uy0, need = en[i] * half;
++    let al = 1;                                                    // along the code
++    for (let k = 1; k <= LINE_WIDE; k++) { const X = Math.round(x + k * ux), Y = Math.round(y + k * uy); if (X < 0 || Y < 0 || X >= wb || Y >= hb) break; const j = Y * wb + X; if (!m[j] || en[j] < need) break; al++; }
++    for (let k = 1; k <= LINE_WIDE && al <= LINE_WIDE; k++) { const X = Math.round(x - k * ux), Y = Math.round(y - k * uy); if (X < 0 || Y < 0 || X >= wb || Y >= hb) break; const j = Y * wb + X; if (!m[j] || en[j] < need) break; al++; }
++    if (al > LINE_WIDE) continue;
++    let ac = 1;                                                    // across it: (-uy, ux)
++    for (let k = 1; k < LINE_MIN; k++) { const X = Math.round(x - k * uy), Y = Math.round(y + k * ux); if (X < 0 || Y < 0 || X >= wb || Y >= hb || !m[Y * wb + X]) break; ac++; }
++    for (let k = 1; k < LINE_MIN && ac < LINE_MIN; k++) { const X = Math.round(x + k * uy), Y = Math.round(y - k * ux); if (X < 0 || Y < 0 || X >= wb || Y >= hb || !m[Y * wb + X]) break; ac++; }
++    if (ac >= LINE_MIN) { m[i] = 3; any = true; }
+   }
+   if (any) for (let i = 0, N = wb * hb; i < N; i++) if (m[i] === 3) m[i] = 0;
+ }
+ // boxes of stripe blocks: [{cx, cy, len, thick, ang (radians, the code's own direction), n, side}]
+ function findBoxes(bs, o, side) {
+-  const {wb, hb, sx, sy, sm, nr} = bs, N = wb * hb, m = new Uint8Array(N);
++  const {wb, hb, sx, sy, sm, nr} = bs, N = wb * hb, m = new Uint8Array(N), blk = bs.blk || BLK;
+   // per block: sx sums 8 dots x nr rows, sy and sm 4 dots x nr rows -> mean change across > T (mean + 16) <=> sx > 2T (sm + 64 nr)
+   const T2 = 2 * o.T, R = o.R, bias = 64 * nr;
+   if (!side) { for (let i = 0; i < N; i++) if (sx[i] > T2 * (sm[i] + bias) && 2 * sy[i] < R * sx[i]) m[i] = 1; }
+   else { for (let i = 0; i < N; i++) if (sy[i] > o.T * (sm[i] + bias) && sx[i] < 2 * R * sy[i]) m[i] = 1; }
+-  dropLines(m, wb, hb, side ? 0 : 1, side ? 1 : 0, null);
++  dropLines(m, wb, hb, side ? 0 : 1, side ? 1 : 0, null, side ? sy : sx, 0.5);
+   // close gaps of up to 4 blocks along the code (a wide space, a worn bar)
+   if (!side) {
+     for (let y = 0; y < hb; y++) { let last = -1; const r = y * wb;
+@@ -99,14 +148,14 @@ function findBoxes(bs, o, side) {
+     for (let x = 0; x < wb; x++) { let last = -1;
+       for (let y = 0; y < hb; y++) if (m[y * wb + x]) { if (last >= 0 && y - last > 1 && y - last <= 5) for (let k = last + 1; k < y; k++) m[k * wb + x] = 1; last = y; } }
+   }
+-  return patches(m, wb, hb, o, ang => { const lim = 40 * Math.PI / 180; return (side ? Math.abs(Math.abs(ang) - Math.PI / 2) : Math.abs(ang)) > lim ? -1 : side ? 1 : 0; }, null, {side: side ? 1 : 0, a: new Int32Array(Math.max(wb, hb)), b: new Int32Array(Math.max(wb, hb)), on: new Uint8Array(Math.max(wb, hb))});
++  return patches(m, wb, hb, o, ang => { const lim = 40 * Math.PI / 180; return (side ? Math.abs(Math.abs(ang) - Math.PI / 2) : Math.abs(ang)) > lim ? -1 : side ? 1 : 0; }, null, {side: side ? 1 : 0, a: new Int32Array(Math.max(wb, hb)), b: new Int32Array(Math.max(wb, hb)), on: new Uint8Array(Math.max(wb, hb))}, blk);
+ }
+ // the patches of a mask (blocks touching, corners too) that are long and thin -> boxes; side(ang) says which way a patch
+ // of that direction is to be cut (0 across the picture, 1 down it) or -1 to leave it
+ // phi (slanted codes): the direction the stripes of each block run across - two blocks join only when theirs differ by
+ // less than DIAG.join degrees (a code's blocks all point one way; the print under it points every way), and side() is told
+ // the patch's mean direction
+-function patches(m, wb, hb, o, side, phi, core) {
++function patches(m, wb, hb, o, side, phi, core, blk) {
+   const N = wb * hb, out = [], stack = new Int32Array(N), mem = new Int32Array(N), tol = DIAG.join * Math.PI / 180;
+   for (let s = 0; s < N; s++) {
+     if (m[s] !== 1) continue;
+@@ -149,33 +198,33 @@ function patches(m, wb, hb, o, side, phi, core) {
+         for (let q = lo; q <= hi; q++) core.on[q] = 0;
+         n2 = 0; Sx = Sy = Sxx = Syy = Sxy = 0;
+         for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb, qa = vert ? x : y, qb = vert ? y : x; if (cntA[qa] < 0 && qb >= bestA && qb <= bestB) { const t = mem[n2]; mem[n2++] = i; mem[k] = t; Sx += x; Sy += y; Sxx += x * x; Syy += y * y; Sxy += x * y; } }
+-        if (n2 >= 5) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1);
++        if (n2 >= 5) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1, blk);
+       } else {
+-        box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1);
++        box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1, blk);
+         if (!box) {                                             // no code as a whole: its core rows alone?
+           n2 = 0; Sx = Sy = Sxx = Syy = Sxy = 0;
+           for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb; if (cntA[vert ? x : y] < 0) { const t = mem[n2]; mem[n2++] = i; mem[k] = t; Sx += x; Sy += y; Sxx += x * x; Syy += y * y; Sxy += x * y; } }
+-          if (n2 >= 5 && n2 < n) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1);
++          if (n2 >= 5 && n2 < n) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1, blk);
+         }
+       }
+       for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb; cntA[vert ? x : y] = 0; cntB[vert ? y : x] = 0; }
+-    } else box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2);
++    } else box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2, blk);
+     if (box) out.push(box);
+   }
+   return out;
+ }
+ // a patch's blocks -> its box, or null when it is not long and thin the right way
+-function boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2) {
++function boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2, blk) {
+   const mx = Sx / n, my = Sy / n, cxx = Sxx / n - mx * mx, cyy = Syy / n - my * my, cxy = Sxy / n - mx * my;
+   const ang = 0.5 * Math.atan2(2 * cxy, cxx - cyy), sd = side(ang, 0.5 * Math.atan2(S2, C2));   // the long axis
+   if (sd < 0) return null;
+   const ux = Math.cos(ang), uy = Math.sin(ang);
+   let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
+   for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb, a = (x - mx) * ux + (y - my) * uy, b = -(x - mx) * uy + (y - my) * ux; if (a < a0) a0 = a; if (a > a1) a1 = a; if (b < b0) b0 = b; if (b > b1) b1 = b; }
+-  const len = (a1 - a0 + 1) * BLK, thick = (b1 - b0 + 1) * BLK;
++  const B = blk || BLK, len = (a1 - a0 + 1) * B, thick = (b1 - b0 + 1) * B;
+   if (len < o.minLen || len / thick < 2.2) return null;
+   const ca = (a0 + a1) / 2, cb = (b0 + b1) / 2;
+-  return {cx: (mx + ca * ux - cb * uy + 0.5) * BLK, cy: (my + ca * uy + cb * ux + 0.5) * BLK, len, thick, ang, n, side: sd};
++  return {cx: (mx + ca * ux - cb * uy + 0.5) * B, cy: (my + ca * uy + cb * ux + 0.5) * B, len, thick, ang, n, area: n * B * B, side: sd};
+ }
+ // CODES LYING ASLANT (g13b; slabs lie at every angle on a table, and until now a code turned more than about 25 degrees
+ // from straight or from upright was not found at all). A block of slanted stripes: enough change across and down taken
+@@ -187,14 +236,23 @@ const DIAG = {rho: 0.6, lo: 0.32, a0: 17, a1: 73, join: 12, reach: 4};
+ function findSlant(bs, o) {
+   const {wb, hb, sx, sy, sm, gxx, gyy, gxy, nr} = bs, N = wb * hb, bias = 64 * nr, out = [], r2 = DIAG.rho * DIAG.rho, lo = DIAG.lo, T = o.T;
+   // "together" is judged over a block and its eight neighbours: 72 dots say it far more surely than 8, and bars run on
+-  const ms = [new Uint8Array(N), new Uint8Array(N)], any = [0, 0], phis = [new Float32Array(N), new Float32Array(N)];   // rising to the right (in the picture: y grows downwards), falling
+-  for (let y = 1; y < hb - 1; y++) for (let x = 1, i = y * wb + 1; x < wb - 1; x++, i++) {
+-    const own = gxy[i]; if (own === 0) continue;
++  const ms = [new Uint8Array(N), new Uint8Array(N)], any = [0, 0], phis = [new Float32Array(N), new Float32Array(N)], en = new Float32Array(N);   // rising to the right (in the picture: y grows downwards), falling
++  // every block's change across its stripes, squared (0 where it is too little or too one-sided to be slanted stripes)
++  for (let i = 0; i < N; i++) {
+     const ax = sx[i] * 0.5, ay = sy[i]; if (ay < lo * ax || ax < lo * ay) continue;       // (sx sums 8 dots a row, sy and sm 4)
+-    const t = T * (sm[i] + bias); if (ax * ax + ay * ay <= t * t) continue;
+-    let pxx = 0, pyy = 0, pxy = 0;
+-    for (let j = i - wb - 1; j <= i + wb - 1; j += wb) { pxx += gxx[j] + gxx[j + 1] + gxx[j + 2]; pyy += gyy[j] + gyy[j + 1] + gyy[j + 2]; pxy += gxy[j] + gxy[j + 1] + gxy[j + 2]; }
++    const t = T * (sm[i] + bias), e2 = ax * ax + ay * ay; if (e2 > t * t) en[i] = e2;
++  }
++  for (let y = 1; y < hb - 1; y++) for (let x = 1, i = y * wb + 1; x < wb - 1; x++, i++) {
++    const e2 = en[i], own = gxy[i]; if (e2 === 0 || own === 0) continue;
++    let pxx = 0, pyy = 0, pxy = 0, top = 0;
++    for (let j = i - wb - 1; j <= i + wb - 1; j += wb) {
++      pxx += gxx[j] + gxx[j + 1] + gxx[j + 2]; pyy += gyy[j] + gyy[j + 1] + gyy[j + 2]; pxy += gxy[j] + gxy[j + 1] + gxy[j + 2];
++      if (en[j] > top) top = en[j]; if (en[j + 1] > top) top = en[j + 1]; if (en[j + 2] > top) top = en[j + 2];
++    }
+     if (pxy * pxy < r2 * pxx * pyy || pxy * own <= 0) continue;
++    // "together" came from the neighbours too: a faint block beside a strong line or code only borrows it (with a low
++    // T such blocks made every line a band) - a block must itself be a quarter as strong as its strongest neighbour
++    if (e2 * 16 < top) continue;
+     const k = pxy > 0 ? 0 : 1; ms[k][i] = 1; any[k]++;
+     phis[k][i] = 0.5 * Math.atan2(2 * pxy, pxx - pyy);                                   // the way the brightness changes = the way the code runs
+   }
+@@ -202,22 +260,41 @@ function findSlant(bs, o) {
+   for (let k = 0; k < 2; k++) {
+     if (any[k] < 5) continue;
+     const m = ms[k], phi = phis[k];
+-    dropLines(m, wb, hb, 0, 0, phi);
++    dropLines(m, wb, hb, 0, 0, phi, en, 0.25);
+     const side = (ang, mphi) => { let d = Math.abs(ang - mphi); if (d > Math.PI / 2) d = Math.PI - d; const A = Math.abs(ang); return d <= agree && A >= a0 && A <= a1 ? (A > Math.PI / 4 ? 1 : 0) : -1; };
+-    for (const c of patches(m, wb, hb, o, side, phi)) { c.diag = 1; out.push(c); }
++    for (const c of patches(m, wb, hb, o, side, phi, null, bs.blk || BLK)) { c.diag = 1; out.push(c); }
+   }
+   return out;
+ }
+-function find(D, W, H, opt) {
+-  const o = Object.assign({}, DEF, opt), bs = blockSums(D, W, H, o.findRows || [2, 6]);
+-  let c = findBoxes(bs, o, 0).concat(findBoxes(bs, o, 1));
+-  if (o.slant !== false) {                                   // a code turned 17-25 degrees can be found both ways: the bigger patch stays
++// the boxes of one level: straight, on their side, aslant (a code turned 17-25 degrees can be found both ways: the bigger patch stays)
++function boxesOf(bs, o) {
++  const c = findBoxes(bs, o, 0).concat(findBoxes(bs, o, 1));
++  if (o.slant !== false) {
+     for (const d of findSlant(bs, o)) {
+       const k = c.findIndex(b => !b.diag && Math.hypot(b.cx - d.cx, b.cy - d.cy) < 0.4 * Math.max(b.len, d.len));
+       if (k < 0) c.push(d); else if (d.n > 1.25 * c[k].n) c[k] = d;
+     }
+   }
+-  c.sort((a, b) => b.n - a.n);                               // the biggest patches first: a code is bigger than a word of print
++  return c;
++}
++function find(D, W, H, opt) {
++  const o = Object.assign({}, DEF, opt), bs = blockSums(D, W, H, o.findRows || [2, 6]);
++  let c = boxesOf(bs, o);
++  if (o.coarse !== false) {
++    // the coarse level's boxes: codes o.coarseMin dots long or more. The fine boxes lying on such a code are pieces of it
++    // and go - unless one of them is the whole code (then the fine box stays, and the coarse one is not needed).
++    for (const d of boxesOf(bs.coarse, Object.assign({}, o, {minLen: o.coarseMin}))) {
++      const ux = Math.cos(d.ang), uy = Math.sin(d.ang); let whole = false;
++      c = c.filter(b => {
++        const dx = b.cx - d.cx, dy = b.cy - d.cy;
++        if (Math.abs(dx * ux + dy * uy) > 0.55 * d.len || Math.abs(dy * ux - dx * uy) > 0.6 * d.thick + 8) return true;
++        if (b.len >= 0.8 * d.len) { whole = true; return true; }
++        return false;
++      });
++      if (!whole) { d.coarse = 1; c.push(d); }
++    }
++  }
++  c.sort((a, b) => b.area - a.area);                         // the biggest patches first: a code is bigger than a word of print
+   if (c.length > o.maxCands) c.length = o.maxCands;
+   let g = 0; const lim = 1000 * bs.nr, N = bs.wb * bs.hb; for (let i = 0; i < N; i++) if (bs.sm[i] >= lim) g++;   // blocks blown out to white
+   c.glare = g / N;
+@@ -491,7 +568,9 @@ function prepare(D, W, H, opt) {
+   // What was read, and how sure. zres[k] = zxing's results for lay.pics[k].
+   //   sure 'A': the grey-line reader and zxing read the same Code 128 (two readers that work differently)
+   //   strong 'B': the grey-line reader alone, well ahead of its next best reading; or zxing's ITF on four lines or more
+-  //   weak 'C': the grey-line reader ahead by less; zxing alone on two lines or more where the grey-line reader sees no Code 128
++  //   weak 'C': zxing alone on two lines or more where the grey-line reader sees no Code 128
++  //   faint 'D': the grey-line reader alone, ahead by less (0.08). The only class that was ever wrong on the test frames (1 of 88,
++  //     and a phone held still shows the same wrong reading again and again): the page lets it help, never count by itself
+   // On Brett's 26 test frames (2026-11-09): A and B together 677 right Code 128 readings, none wrong. Over those frames
+   // as they are, turned every way and with border lines drawn in (2,330 grey-line readings, 574 of them wrong): of the
+   // 1,523 that were strong, none was wrong (the wrong ones were ahead of their runner-up by under 0.08; a strong one needs 0.11)
+@@ -509,7 +588,7 @@ function prepare(D, W, H, opt) {
+       if (g && g.text) {
+         st.grey++;
+         const same = zs.find(e => e.format === 'Code128' && e.text === g.text), far = g.gap >= (g.sig >= 0.66 ? 0.2 : 0.11) && g.fit >= 0.86;
+-        const cls = same ? 'A' : far ? 'B' : g.fit >= 0.84 && g.gap >= 0.08 && g.sig < 0.66 ? 'C' : null;
++        const cls = same ? 'A' : far ? 'B' : g.fit >= 0.84 && g.gap >= 0.08 && g.sig < 0.66 ? 'D' : null;
+         if (cls) out.push({text: g.text, format: 'Code128', cls, lines: same ? same.lines : 0, fit: g.fit, gap: g.gap, dots: (g.b - g.a) / c.S, ci, pos: posOf(ci, g.a, g.b), by: same ? 'gz' : 'g'});
+       }
+       for (const e of zs) {
+diff --git a/page/app/scan-worker.js b/page/app/scan-worker.js
+index 1b06ec1..3cca523 100644
+--- a/page/app/scan-worker.js
++++ b/page/app/scan-worker.js
+@@ -14,8 +14,9 @@
+    down for the grey-line reader, was not read at all at first). What comes back for each code says how sure it is (cls):
+      'A' sure   - the grey-line reader and zxing agree (or a QR / Data Matrix, which correct their own errors)
+      'B' strong - the grey-line reader alone, well ahead of its next best reading; zxing's ITF on four lines or more
+-     'C' weak   - anything less; and whatever only the whole-frame pass read (strong, on a frame the finder did not read)
+-   and the page takes a number once it has two points (A = 2, B = 1, C = half).
++     'C' weak   - zxing alone on fewer lines; and whatever only the whole-frame pass read (strong, on a frame the finder did not read)
++     'D' faint  - the grey-line reader alone, not far ahead of its next best reading
++   and the page takes a number once it has two points (A = 2, B = 1, C and D = half; D never by itself).
+    THE WHOLE-FRAME PASS (plan.full; the page asks for it on one frame in four): zxing on the frame as it is, for the QR
+    and Data Matrix codes the finder does not look for, and as a net under the finder.
+    SHARPNESS: every frame gets a score, the variance of the Laplacian of a 512 x 512 patch from its middle.
+@@ -50,7 +51,7 @@ function sharpness(d, rowW, x0, y0, n) {      // variance of the 4-neighbour Lap
+   }
+   return c ? Math.round(s2 / c - (s / c) * (s / c)) : 0;
+ }
+-const RANK = {A: 3, B: 2, C: 1};
++const RANK = {A: 4, B: 3, C: 2, D: 1};
+ self.onmessage = async e => {
+   const m = e.data, plan = m.plan || {find: true, full: true};
+   try {
+diff --git a/page/app/sw.js b/page/app/sw.js
+index d908309..53d9603 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v13';
++const CACHE = 'ssc-v14';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
