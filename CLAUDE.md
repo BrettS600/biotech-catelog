@@ -2352,6 +2352,33 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   RUN (still to do when the first pass ends, ~44 nights): the refresh loop (recorded / spotchecked slabs, green rows,
   busiest lines, rotation, within 900 a night) needs a refresh list the Card Ladder tab can read (card-inbox) and a
   cl_tab.js change applied in a daytime restart; the ~49 cards without lines go first.
+- PC CERT AND CL CERT COLUMNS (2026-11-10, Brett: "all of the auth columns are derived from auth cert ... we could label
+  all of those columns, to say PC Cert ... then we add a copy of each column, but have it start with CL Cert ... the cl
+  cert number can be found in the images. when you hit the review button for each, the cl listings have an image. on
+  that image their is a cert number. if we compare the reads of the pc certs, and the cgc certs, then we will know
+  exactly what matches"; then "just prepare the columns for now and only fill out the column for cl cert. we can remove
+  the illustrator column. do not include verdict coliumn"). (1) RENAMED: the Auth columns are the PC Cert columns (Auth
+  Cert -> PC Cert, Auth Name -> PC Cert Name ... Auth Estimate -> PC Cert Estimate; the Auth read button -> PC Cert
+  read, Review's side "(PC Cert)", the Side button's "PC Cert"); the slab is the one read off PriceCharting's photo and
+  the lookups are unchanged. Auth Illustrator (row 66, always none) is gone. (2) CL CERT (row 83, link row 84) after CL
+  Release: the cert number on Card Ladder's picture of the row's grade (the picture Review shows), linked to PSA's /
+  CGC's cert page; otherwise a word - not read (not read yet, or a failed download to be tried again), none (Card Ladder
+  has no picture of that grade), unreadable, two slabs (two certs on one picture, neither taken), picture gone (failed
+  three times), pending / no match as the other CL cells. Searchable. (3) THE ELEVEN CL CERT COLUMNS (rows 85-95) after
+  PC Cert Estimate: CL Cert Name, Set, Set/Card No., Rarity/Finish, Release, Language, Grade, Label, Pop, Pop Higher,
+  Estimate - only prepared: a row with a CL cert says "not looked up" (no lookups yet, as Brett asked), else the CL Cert
+  word. No verdict column. cfg.inserted v10 (at 29, n -1), v11 (at 16, n 1), v12 (at 28, n 11); grRawCells 7 + 22 + 2
+  + 2 dashes; help g_clcert / g_ccx. THE READER: cl_certs.js (its header has everything) reads each PSA / CGC picture
+  once with the scanner's own zxing build and finder (page/app), PSA / CGC cert rules as the PriceCharting slab pass,
+  writes card-data data/cardladder/pic_certs/reads_<YYYY-MM>.csv; graded_site.load_pic_certs -> cards[id].clc {gk:
+  [status, cert]} ("wait" = not read). .github/workflows/cl_certs.yml runs it every two hours (40 minutes, 3 downloads
+  a second; ~89,000 pictures, about a day for the first pass), commits the reads to card-data; the site build's
+  checkout of data/cardladder/ (but sales/) already holds them. Trial: 200 random pictures read in a browser with this
+  code - 186 certs (93%), 12 unreadable, 2 did not download, no wrong or double readings; one card (844639 PSA 9)
+  shows the same cert on both sides. Page tested (Playwright, the 2026-11-10 card-data copy with those 200 reads plus a
+  made-up two slabs / picture gone / failed-once row): header and cell counts equal in both views (66), the words and
+  links right, a cert found by search, a layout saved on the old page (a moved column, four hidden ones incl. Auth
+  Illustrator) kept on the new one with the new columns in place, no page errors.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

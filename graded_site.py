@@ -27,6 +27,8 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
   cardhedge/certs.csv                      each slab as Card Hedge relays it from GemRate, and Card Hedge's matched card
   certs/results.csv                        the PSA / CGC cert pages Brett opened himself (his Cert Reader extension, via
                                            card-inbox and card-data's hourly ingest): one row per cert (optional)
+  cardladder/pic_certs/reads_*.csv         the cert number read off Card Ladder's picture of each grade's slab (cl_certs.js,
+                                           every two hours) - the CL Cert column (optional)
 and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
 PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
 
@@ -456,6 +458,23 @@ def load_page_certs(cd):
         return {}
     with open(p, newline="", encoding="utf-8-sig") as f:
         return {(r["grader"].lower(), re.sub(r"\D", "", r["cert"])): r for r in csv.DictReader(f) if r.get("cert") and r.get("grader")}
+
+
+def load_pic_certs(cd):
+    """{picture code: [status, cert, tries]} from cardladder/pic_certs/reads_*.csv (cl_certs.js): the cert number read off
+    each of Card Ladder's per-grade pictures - status ok / none (no cert of the grader's kind on it) / many (two slabs'
+    certs) / err (did not download or decode; tries counts them, cl_certs.js gives up after three). Newest row wins."""
+    import csv
+    out = {}
+    for f in sorted(glob.glob(os.path.join(cd, "cardladder", "pic_certs", "reads_*.csv"))):
+        with open(f, newline="", encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                pic = r.get("pic") or ""
+                if not pic:
+                    continue
+                st, prev = r.get("status") or "", out.get(pic)
+                out[pic] = [st, r.get("cert") or "", (prev[2] if prev else 0) + (1 if st == "err" else 0)]
+    return out
 
 
 def tofloat(v):
@@ -900,6 +919,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     tdet = load_tcg_details(cd)
     pop_hist = load_pop_hist(cd, sorted(matched), last_m)   # for Review's Number graded: matched cards only
     psa_c, ch_c, pg_c = load_psa_certs(cd), load_ch_certs(cd), load_page_certs(cd)
+    pic_c = load_pic_certs(cd)                            # the CL Cert column: certs read off Card Ladder's pictures
     checks = []
     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
@@ -1124,6 +1144,15 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
             "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
         }
+        # the CL Cert column (2026-11-10, Brett: "these columns will show data that from the cl cert number. the cl cert
+        # number can be found in the images"): per grade, what cl_certs.js read off that grade's picture (the one Review
+        # shows) - [status, cert]; "wait" = not read yet (or a failed download still to be tried again)
+        clc = {}
+        for gk_, pic in cards[str(cid)]["imgs"].items():
+            x_ = pic_c.get(pic)
+            clc[gk_] = ["wait", ""] if not x_ or (x_[0] == "err" and x_[2] < 3) else [x_[0], x_[1] if x_[0] == "ok" else ""]
+        if clc:
+            cards[str(cid)]["clc"] = clc
         lr = sorted(match_pairs(mon, psales.get(cid) or {}, (pmon.get(cid) or {}).get("psa_10", [])))
         cards[str(cid)]["mc"] = {"n": len(lr), "r": round(math.exp(lr[len(lr) // 2]), 2) if lr else None,
                                  "far": round(sum(1 for v in lr if abs(v) > math.log(1.5)) / len(lr), 2) if lr else None}
