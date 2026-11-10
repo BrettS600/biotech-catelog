@@ -2883,6 +2883,17 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   brightest-only, "R1"/"R3" other reaches, "B0.7" a boost), realeven.py runs it on his screenshots, card.py records a
   Test run at phone size and screenshots the map, camwatch.py / camwatch2.py end or shrink the camera's picture under
   the app, glare.py watches the glare hint.
+  HOW g11l WAS PUBLISHED - THE ROUTE FOR A BIG PATCH: its diff was 54 KB, too long to type into the GitHub connector's
+  push_files without a slip (every byte passes through the model; an added line with a typo still applies). The two
+  files, written as /home/claude/g11l.diff and g11l.msg, were UPLOADED BYTE FOR BYTE through Brett's signed-in Chrome:
+  a new tab at github.com/BrettS600/biotech-catelog/upload/main/patches, the Claude-in-Chrome file_upload tool on the
+  page's file input (it takes files under the session's working directory /home/claude; /mnt/user-data/outputs was
+  refused), the commit summary "patches: <name> (apply)", "Commit directly to the main branch", Commit changes. The
+  apply workflow ran as for any push, and the uploaded blobs' hashes equalled git hash-object of the local files. Tell
+  Brett when this route was used. (The container's own git cannot push: its proxy holds no credential for the repo.)
+  The site run that followed (#205) built fine and its DEPLOY job failed again ("Deployment failed, try again later" -
+  GitHub's side, as with g11j); "Re-run jobs > Re-run failed jobs" on the run's page in the same signed-in Chrome
+  published it in 1m 18s - quicker than another patch. Live at 02:07 UTC, the four app files byte-identical to the tested.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
