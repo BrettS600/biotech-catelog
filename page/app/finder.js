@@ -14,6 +14,9 @@
    (findSlant), and cut by turning (turnPatch). The same frames turned by 10 to 80 degrees read as they do straight - before
    that, nothing was found between 25 and 65 degrees. Upside down is the readers' business (zxing reads a row both ways;
    SlabC128 does too).
+   g13a, from trying real frames in ways his tests had not: a LINE beside a code (a label's border, a case's edge) is told
+   from its bars (dropLines; patches' core rows), a code seen from CLOSE BY is found on a coarser level of the same sums
+   (blockSums .coarse, 16 x 16 blocks), and a code of LOW CONTRAST (haze, glass) is found at all (T 0.08, was 0.22).
    Plain arithmetic on the frame's own bytes (its green dots): the same file runs in the worker on the phone and under Node
    on the test frames (tools: /tmp/claude-0/ga/fx - bench5.js the straight frames, bench6.js turned by quarter turns,
    bench7.js turned by any angle). */
@@ -21,10 +24,13 @@
 (function (root) {
 const BLK = 8;                                // the stripe search works on 8 x 8 dot blocks
 const DEF = {
-  T: 0.22,                                    // a block has stripes when the mean change across is over T x (its brightness + 16)
+  T: 0.08,                                    // a block has stripes when the mean change across is over T x (its brightness + 16).
+                                              // (0.22 until g13a: a label seen through haze or glass - a real frame at 45% of its contrast - then
+                                              // gave NO box at all, 0 codes of 47 and of 50; at 0.08: 33 and 36, and the full-contrast frames a little better)
   R: 0.5,                                     // ...and the change along the stripes is under R x the change across
   minLen: 80, maxCands: 110, maxKept: 80,     // a code shorter than 80 dots has bars under a dot wide: nothing reads it; the biggest 110 patches are cut, until 80 hold bars
   maxLen: 1600, maxThick: 200,                // a patch bigger than this is no slab's code in focus (a striped cloth, a fence): not cut (a huge code is the whole-frame pass's)
+  coarseMin: 280,                             // the coarse level (16 x 16 blocks) looks for codes this long or longer
   S: 0,                                       // samples per picture dot in a folded line (0: 3 for a small code, fewer for a big one)
   margin: 0.14, marginPx: 8,                  // quiet zone kept either side: this share of the code's length + this many dots
   closeW: 31, blurS: 6, pct: 0.02,            // (in samples) the evening: how wide a bar it fills in, how soft, what counts as black
@@ -41,56 +47,99 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 // both; a code lying on its side the reverse. D = the frame's RGBA bytes.
 // For a code lying ASLANT both are big - as they are for print. What tells them apart: across slanted stripes the two
 // changes rise and fall TOGETHER at every dot (their products add up: gxy against gxx and gyy), in print they do not.
+// A CODE SEEN FROM CLOSE BY (g13a): its bars are many dots wide, a block of 8 holds one edge or none, and the patch falls
+// to pieces (a real frame enlarged 1.5 times: 13 codes of 32 read; twice: 6 of 18; three times: none). So the same sums
+// are also kept COARSE: per 16 x 16 block, with changes taken over 4 dots instead of 2 (at two dots of each block row;
+// .coarse has the same fields, the across-sum doubled so that the same rules hold with nr twice as big). With it the
+// same enlarged frames: 21 of 32, 14 of 18, 2 of 4 - and nothing changes for codes under coarseMin dots long.
 function blockSums(D, W, H, rows) {
   const wb = W >> 3, hb = H >> 3, sx = new Int32Array(wb * hb), sy = new Int32Array(wb * hb), sm = new Int32Array(wb * hb);
   const gxx = new Int32Array(wb * hb), gyy = new Int32Array(wb * hb), gxy = new Int32Array(wb * hb);
-  const W4 = W * 4, last = wb * 8 === W ? wb - 1 : -1;
+  const wc = wb >> 1, hc = hb >> 1, NC = wc * hc, cx = new Int32Array(NC), cy = new Int32Array(NC), cm = new Int32Array(NC), cxx = new Int32Array(NC), cyy = new Int32Array(NC), cxy = new Int32Array(NC);
+  const W4 = W * 4, W8 = W * 8, last = wb * 8 === W ? wb - 1 : -1;
   for (let by = 0; by < hb; by++) {
-    const o = by * wb;
+    const o = by * wb, oc = (by >> 1) < hc ? (by >> 1) * wc : -1;
     for (let ri = 0; ri < rows.length; ri++) {
       const y = by * 8 + rows[ri]; if (y < 1 || y >= H - 1) continue;
+      const W8f = y >= 2 && y < H - 2 ? W8 : 0;                // (the coarse change down reaches two rows up and down; at the picture's edge: none)
       let p = y * W4 + 1;                                     // the green of dot (0, y)
       for (let bx = 0; bx < wb; bx++, p += 32) {
-        let ax = 0, ay = 0, am = 0, xx = 0, yy = 0, xy = 0;
+        let ax = 0, ay = 0, am = 0, xx = 0, yy = 0, xy = 0, bx4 = 0, by4 = 0, m4 = 0, x4 = 0, y4 = 0, xy4 = 0;
+        if (bx > 0 && bx !== last) {                          // an inner block: its 8 dots written out (a third quicker than the loop below)
+          let d, e, v, d4, e4;
+          d = D[p + 4] - D[p - 4]; ax += d < 0 ? -d : d;
+          d = D[p + 8] - D[p]; ax += d < 0 ? -d : d;
+          e = D[p + 4 + W4] - D[p + 4 - W4]; v = D[p + 4]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
+          d4 = D[p + 12] - D[p - 4]; e4 = D[p + 4 + W8f] - D[p + 4 - W8f]; bx4 += d4 < 0 ? -d4 : d4; by4 += e4 < 0 ? -e4 : e4; m4 += v; x4 += d4 * d4; y4 += e4 * e4; xy4 += d4 * e4;
+          d = D[p + 12] - D[p + 4]; ax += d < 0 ? -d : d;
+          d = D[p + 16] - D[p + 8]; ax += d < 0 ? -d : d;
+          e = D[p + 12 + W4] - D[p + 12 - W4]; v = D[p + 12]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
+          d = D[p + 20] - D[p + 12]; ax += d < 0 ? -d : d;
+          d = D[p + 24] - D[p + 16]; ax += d < 0 ? -d : d;
+          e = D[p + 20 + W4] - D[p + 20 - W4]; v = D[p + 20]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
+          d4 = D[p + 28] - D[p + 12]; e4 = D[p + 20 + W8f] - D[p + 20 - W8f]; bx4 += d4 < 0 ? -d4 : d4; by4 += e4 < 0 ? -e4 : e4; m4 += v; x4 += d4 * d4; y4 += e4 * e4; xy4 += d4 * e4;
+          d = D[p + 28] - D[p + 20]; ax += d < 0 ? -d : d;
+          d = D[p + 32] - D[p + 24]; ax += d < 0 ? -d : d;
+          e = D[p + 28 + W4] - D[p + 28 - W4]; v = D[p + 28]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
+        } else {
         const k0 = bx === 0 ? 1 : 0, k1 = bx === last ? 7 : 8;
         for (let k = k0; k < k1; k++) {
           const j = p + k * 4, d = D[j + 4] - D[j - 4]; ax += d < 0 ? -d : d;
-          if (k & 1) { const e = D[j + W4] - D[j - W4]; ay += e < 0 ? -e : e; am += D[j]; xx += d * d; yy += e * e; xy += d * e; }
+          if (k & 1) {
+            const e = D[j + W4] - D[j - W4], v = D[j]; ay += e < 0 ? -e : e; am += v; xx += d * d; yy += e * e; xy += d * e;
+            if ((k & 3) === 1) {                              // the coarse level: dots 1 and 5 of the block
+              const d4 = D[j + 8] - D[j - 8], e4 = D[j + W8f] - D[j - W8f];
+              bx4 += d4 < 0 ? -d4 : d4; by4 += e4 < 0 ? -e4 : e4; m4 += v; x4 += d4 * d4; y4 += e4 * e4; xy4 += d4 * e4;
+            }
+          }
+        }
         }
         sx[o + bx] += ax; sy[o + bx] += ay; sm[o + bx] += am; gxx[o + bx] += xx; gyy[o + bx] += yy; gxy[o + bx] += xy;
+        const q = bx >> 1;
+        if (oc >= 0 && q < wc) { const i = oc + q; cx[i] += 2 * bx4; cy[i] += by4; cm[i] += m4; cxx[i] += x4; cyy[i] += y4; cxy[i] += xy4; }
       }
     }
   }
-  return {wb, hb, sx, sy, sm, gxx, gyy, gxy, nr: rows.length};
+  return {wb, hb, sx, sy, sm, gxx, gyy, gxy, nr: rows.length, blk: 8,
+    coarse: {wb: wc, hb: hc, sx: cx, sy: cy, sm: cm, gxx: cxx, gyy: cyy, gxy: cxy, nr: rows.length * 2, blk: 16}};
 }
 // A LINE IS NOT A CODE (g13b). A slab's label has a border and the case an edge a few millimetres from the barcode: a line
 // square to the code gives the same kind of block as the code's bars, and the patch then is a code with a fence post
 // through it - not long and thin, and thrown out (a line drawn 1.5-2.5 mm from each code's ends on Brett's real frames:
 // 4 codes read of 47, 1 of 50, 0 of 50; with what follows 33, 39, 37 - as without the lines). A line is one block wide
-// and long ACROSS the code: blocks in a run of LINE_MIN or more across, with nothing beside them ALONG the code, go.
-// (ux, uy): one step along the code for every block - or phi, each block's own direction.
-const LINE_MIN = 6;
-function dropLines(m, wb, hb, ux0, uy0, phi) {
+// (or two, or three) and long ACROSS the code: blocks in a run of LINE_MIN or more across, with next to nothing beside
+// them ALONG the code, go. (ux, uy): one step along the code for every block - or phi, each block's own direction.
+const LINE_MIN = 6, LINE_WIDE = 3;
+function dropLines(m, wb, hb, ux0, uy0, phi, en, half) {
+  // (g13a: "nothing beside it" was one block exactly, and the steps were whole blocks - so a line beside a code lying
+  // 30 degrees aslant, which crosses the blocks in a staircase, and two lines side by side stayed: 3 codes of 47 read,
+  // 1 of 50. Now: at most LINE_WIDE blocks in a row along the code, LINE_MIN or more across it, stepped in the code's
+  // own direction. And "beside it" counts only blocks at least half as strong as the block itself (en: each block's
+  // change across the stripes; half: 0.5, or 0.25 where en is a square): the faint blocks around a line - paper,
+  // haze, what the low threshold T lets in - are not what makes bars wide.)
   let any = false;
-  for (let y = 1; y < hb - 1; y++) for (let x = 1, i = y * wb + 1; x < wb - 1; x++, i++) {
+  for (let y = 0; y < hb; y++) for (let x = 0, i = y * wb; x < wb; x++, i++) {
     if (!m[i]) continue;
-    const ux = phi ? Math.round(Math.cos(phi[i])) : ux0, uy = phi ? Math.round(Math.sin(phi[i])) : uy0, st = uy * wb + ux;
-    if (m[i + st] || m[i - st]) continue;
-    let run = 1;                                                   // across: (-uy, ux)
-    for (let k = 1, X = x - uy, Y = y + ux; k < LINE_MIN && X >= 0 && Y >= 0 && X < wb && Y < hb && m[Y * wb + X]; k++, X -= uy, Y += ux) run++;
-    for (let k = 1, X = x + uy, Y = y - ux; k < LINE_MIN && run < LINE_MIN && X >= 0 && Y >= 0 && X < wb && Y < hb && m[Y * wb + X]; k++, X += uy, Y -= ux) run++;
-    if (run >= LINE_MIN) { m[i] = 3; any = true; }
+    const ux = phi ? Math.cos(phi[i]) : ux0, uy = phi ? Math.sin(phi[i]) : uy0, need = en[i] * half;
+    let al = 1;                                                    // along the code
+    for (let k = 1; k <= LINE_WIDE; k++) { const X = Math.round(x + k * ux), Y = Math.round(y + k * uy); if (X < 0 || Y < 0 || X >= wb || Y >= hb) break; const j = Y * wb + X; if (!m[j] || en[j] < need) break; al++; }
+    for (let k = 1; k <= LINE_WIDE && al <= LINE_WIDE; k++) { const X = Math.round(x - k * ux), Y = Math.round(y - k * uy); if (X < 0 || Y < 0 || X >= wb || Y >= hb) break; const j = Y * wb + X; if (!m[j] || en[j] < need) break; al++; }
+    if (al > LINE_WIDE) continue;
+    let ac = 1;                                                    // across it: (-uy, ux)
+    for (let k = 1; k < LINE_MIN; k++) { const X = Math.round(x - k * uy), Y = Math.round(y + k * ux); if (X < 0 || Y < 0 || X >= wb || Y >= hb || !m[Y * wb + X]) break; ac++; }
+    for (let k = 1; k < LINE_MIN && ac < LINE_MIN; k++) { const X = Math.round(x + k * uy), Y = Math.round(y - k * ux); if (X < 0 || Y < 0 || X >= wb || Y >= hb || !m[Y * wb + X]) break; ac++; }
+    if (ac >= LINE_MIN) { m[i] = 3; any = true; }
   }
   if (any) for (let i = 0, N = wb * hb; i < N; i++) if (m[i] === 3) m[i] = 0;
 }
 // boxes of stripe blocks: [{cx, cy, len, thick, ang (radians, the code's own direction), n, side}]
 function findBoxes(bs, o, side) {
-  const {wb, hb, sx, sy, sm, nr} = bs, N = wb * hb, m = new Uint8Array(N);
+  const {wb, hb, sx, sy, sm, nr} = bs, N = wb * hb, m = new Uint8Array(N), blk = bs.blk || BLK;
   // per block: sx sums 8 dots x nr rows, sy and sm 4 dots x nr rows -> mean change across > T (mean + 16) <=> sx > 2T (sm + 64 nr)
   const T2 = 2 * o.T, R = o.R, bias = 64 * nr;
   if (!side) { for (let i = 0; i < N; i++) if (sx[i] > T2 * (sm[i] + bias) && 2 * sy[i] < R * sx[i]) m[i] = 1; }
   else { for (let i = 0; i < N; i++) if (sy[i] > o.T * (sm[i] + bias) && sx[i] < 2 * R * sy[i]) m[i] = 1; }
-  dropLines(m, wb, hb, side ? 0 : 1, side ? 1 : 0, null);
+  dropLines(m, wb, hb, side ? 0 : 1, side ? 1 : 0, null, side ? sy : sx, 0.5);
   // close gaps of up to 4 blocks along the code (a wide space, a worn bar)
   if (!side) {
     for (let y = 0; y < hb; y++) { let last = -1; const r = y * wb;
@@ -99,14 +148,14 @@ function findBoxes(bs, o, side) {
     for (let x = 0; x < wb; x++) { let last = -1;
       for (let y = 0; y < hb; y++) if (m[y * wb + x]) { if (last >= 0 && y - last > 1 && y - last <= 5) for (let k = last + 1; k < y; k++) m[k * wb + x] = 1; last = y; } }
   }
-  return patches(m, wb, hb, o, ang => { const lim = 40 * Math.PI / 180; return (side ? Math.abs(Math.abs(ang) - Math.PI / 2) : Math.abs(ang)) > lim ? -1 : side ? 1 : 0; }, null, {side: side ? 1 : 0, a: new Int32Array(Math.max(wb, hb)), b: new Int32Array(Math.max(wb, hb)), on: new Uint8Array(Math.max(wb, hb))});
+  return patches(m, wb, hb, o, ang => { const lim = 40 * Math.PI / 180; return (side ? Math.abs(Math.abs(ang) - Math.PI / 2) : Math.abs(ang)) > lim ? -1 : side ? 1 : 0; }, null, {side: side ? 1 : 0, a: new Int32Array(Math.max(wb, hb)), b: new Int32Array(Math.max(wb, hb)), on: new Uint8Array(Math.max(wb, hb))}, blk);
 }
 // the patches of a mask (blocks touching, corners too) that are long and thin -> boxes; side(ang) says which way a patch
 // of that direction is to be cut (0 across the picture, 1 down it) or -1 to leave it
 // phi (slanted codes): the direction the stripes of each block run across - two blocks join only when theirs differ by
 // less than DIAG.join degrees (a code's blocks all point one way; the print under it points every way), and side() is told
 // the patch's mean direction
-function patches(m, wb, hb, o, side, phi, core) {
+function patches(m, wb, hb, o, side, phi, core, blk) {
   const N = wb * hb, out = [], stack = new Int32Array(N), mem = new Int32Array(N), tol = DIAG.join * Math.PI / 180;
   for (let s = 0; s < N; s++) {
     if (m[s] !== 1) continue;
@@ -149,33 +198,33 @@ function patches(m, wb, hb, o, side, phi, core) {
         for (let q = lo; q <= hi; q++) core.on[q] = 0;
         n2 = 0; Sx = Sy = Sxx = Syy = Sxy = 0;
         for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb, qa = vert ? x : y, qb = vert ? y : x; if (cntA[qa] < 0 && qb >= bestA && qb <= bestB) { const t = mem[n2]; mem[n2++] = i; mem[k] = t; Sx += x; Sy += y; Sxx += x * x; Syy += y * y; Sxy += x * y; } }
-        if (n2 >= 5) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1);
+        if (n2 >= 5) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1, blk);
       } else {
-        box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1);
+        box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1, blk);
         if (!box) {                                             // no code as a whole: its core rows alone?
           n2 = 0; Sx = Sy = Sxx = Syy = Sxy = 0;
           for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb; if (cntA[vert ? x : y] < 0) { const t = mem[n2]; mem[n2++] = i; mem[k] = t; Sx += x; Sy += y; Sxx += x * x; Syy += y * y; Sxy += x * y; } }
-          if (n2 >= 5 && n2 < n) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1);
+          if (n2 >= 5 && n2 < n) box = boxOf(mem, n2, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, 0, 1, blk);
         }
       }
       for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb; cntA[vert ? x : y] = 0; cntB[vert ? y : x] = 0; }
-    } else box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2);
+    } else box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2, blk);
     if (box) out.push(box);
   }
   return out;
 }
 // a patch's blocks -> its box, or null when it is not long and thin the right way
-function boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2) {
+function boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2, blk) {
   const mx = Sx / n, my = Sy / n, cxx = Sxx / n - mx * mx, cyy = Syy / n - my * my, cxy = Sxy / n - mx * my;
   const ang = 0.5 * Math.atan2(2 * cxy, cxx - cyy), sd = side(ang, 0.5 * Math.atan2(S2, C2));   // the long axis
   if (sd < 0) return null;
   const ux = Math.cos(ang), uy = Math.sin(ang);
   let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
   for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb, a = (x - mx) * ux + (y - my) * uy, b = -(x - mx) * uy + (y - my) * ux; if (a < a0) a0 = a; if (a > a1) a1 = a; if (b < b0) b0 = b; if (b > b1) b1 = b; }
-  const len = (a1 - a0 + 1) * BLK, thick = (b1 - b0 + 1) * BLK;
+  const B = blk || BLK, len = (a1 - a0 + 1) * B, thick = (b1 - b0 + 1) * B;
   if (len < o.minLen || len / thick < 2.2) return null;
   const ca = (a0 + a1) / 2, cb = (b0 + b1) / 2;
-  return {cx: (mx + ca * ux - cb * uy + 0.5) * BLK, cy: (my + ca * uy + cb * ux + 0.5) * BLK, len, thick, ang, n, side: sd};
+  return {cx: (mx + ca * ux - cb * uy + 0.5) * B, cy: (my + ca * uy + cb * ux + 0.5) * B, len, thick, ang, n, area: n * B * B, side: sd};
 }
 // CODES LYING ASLANT (g13b; slabs lie at every angle on a table, and until now a code turned more than about 25 degrees
 // from straight or from upright was not found at all). A block of slanted stripes: enough change across and down taken
@@ -187,14 +236,23 @@ const DIAG = {rho: 0.6, lo: 0.32, a0: 17, a1: 73, join: 12, reach: 4};
 function findSlant(bs, o) {
   const {wb, hb, sx, sy, sm, gxx, gyy, gxy, nr} = bs, N = wb * hb, bias = 64 * nr, out = [], r2 = DIAG.rho * DIAG.rho, lo = DIAG.lo, T = o.T;
   // "together" is judged over a block and its eight neighbours: 72 dots say it far more surely than 8, and bars run on
-  const ms = [new Uint8Array(N), new Uint8Array(N)], any = [0, 0], phis = [new Float32Array(N), new Float32Array(N)];   // rising to the right (in the picture: y grows downwards), falling
-  for (let y = 1; y < hb - 1; y++) for (let x = 1, i = y * wb + 1; x < wb - 1; x++, i++) {
-    const own = gxy[i]; if (own === 0) continue;
+  const ms = [new Uint8Array(N), new Uint8Array(N)], any = [0, 0], phis = [new Float32Array(N), new Float32Array(N)], en = new Float32Array(N);   // rising to the right (in the picture: y grows downwards), falling
+  // every block's change across its stripes, squared (0 where it is too little or too one-sided to be slanted stripes)
+  for (let i = 0; i < N; i++) {
     const ax = sx[i] * 0.5, ay = sy[i]; if (ay < lo * ax || ax < lo * ay) continue;       // (sx sums 8 dots a row, sy and sm 4)
-    const t = T * (sm[i] + bias); if (ax * ax + ay * ay <= t * t) continue;
-    let pxx = 0, pyy = 0, pxy = 0;
-    for (let j = i - wb - 1; j <= i + wb - 1; j += wb) { pxx += gxx[j] + gxx[j + 1] + gxx[j + 2]; pyy += gyy[j] + gyy[j + 1] + gyy[j + 2]; pxy += gxy[j] + gxy[j + 1] + gxy[j + 2]; }
+    const t = T * (sm[i] + bias), e2 = ax * ax + ay * ay; if (e2 > t * t) en[i] = e2;
+  }
+  for (let y = 1; y < hb - 1; y++) for (let x = 1, i = y * wb + 1; x < wb - 1; x++, i++) {
+    const e2 = en[i], own = gxy[i]; if (e2 === 0 || own === 0) continue;
+    let pxx = 0, pyy = 0, pxy = 0, top = 0;
+    for (let j = i - wb - 1; j <= i + wb - 1; j += wb) {
+      pxx += gxx[j] + gxx[j + 1] + gxx[j + 2]; pyy += gyy[j] + gyy[j + 1] + gyy[j + 2]; pxy += gxy[j] + gxy[j + 1] + gxy[j + 2];
+      if (en[j] > top) top = en[j]; if (en[j + 1] > top) top = en[j + 1]; if (en[j + 2] > top) top = en[j + 2];
+    }
     if (pxy * pxy < r2 * pxx * pyy || pxy * own <= 0) continue;
+    // "together" came from the neighbours too: a faint block beside a strong line or code only borrows it (with a low
+    // T such blocks made every line a band) - a block must itself be a quarter as strong as its strongest neighbour
+    if (e2 * 16 < top) continue;
     const k = pxy > 0 ? 0 : 1; ms[k][i] = 1; any[k]++;
     phis[k][i] = 0.5 * Math.atan2(2 * pxy, pxx - pyy);                                   // the way the brightness changes = the way the code runs
   }
@@ -202,22 +260,41 @@ function findSlant(bs, o) {
   for (let k = 0; k < 2; k++) {
     if (any[k] < 5) continue;
     const m = ms[k], phi = phis[k];
-    dropLines(m, wb, hb, 0, 0, phi);
+    dropLines(m, wb, hb, 0, 0, phi, en, 0.25);
     const side = (ang, mphi) => { let d = Math.abs(ang - mphi); if (d > Math.PI / 2) d = Math.PI - d; const A = Math.abs(ang); return d <= agree && A >= a0 && A <= a1 ? (A > Math.PI / 4 ? 1 : 0) : -1; };
-    for (const c of patches(m, wb, hb, o, side, phi)) { c.diag = 1; out.push(c); }
+    for (const c of patches(m, wb, hb, o, side, phi, null, bs.blk || BLK)) { c.diag = 1; out.push(c); }
   }
   return out;
 }
-function find(D, W, H, opt) {
-  const o = Object.assign({}, DEF, opt), bs = blockSums(D, W, H, o.findRows || [2, 6]);
-  let c = findBoxes(bs, o, 0).concat(findBoxes(bs, o, 1));
-  if (o.slant !== false) {                                   // a code turned 17-25 degrees can be found both ways: the bigger patch stays
+// the boxes of one level: straight, on their side, aslant (a code turned 17-25 degrees can be found both ways: the bigger patch stays)
+function boxesOf(bs, o) {
+  const c = findBoxes(bs, o, 0).concat(findBoxes(bs, o, 1));
+  if (o.slant !== false) {
     for (const d of findSlant(bs, o)) {
       const k = c.findIndex(b => !b.diag && Math.hypot(b.cx - d.cx, b.cy - d.cy) < 0.4 * Math.max(b.len, d.len));
       if (k < 0) c.push(d); else if (d.n > 1.25 * c[k].n) c[k] = d;
     }
   }
-  c.sort((a, b) => b.n - a.n);                               // the biggest patches first: a code is bigger than a word of print
+  return c;
+}
+function find(D, W, H, opt) {
+  const o = Object.assign({}, DEF, opt), bs = blockSums(D, W, H, o.findRows || [2, 6]);
+  let c = boxesOf(bs, o);
+  if (o.coarse !== false) {
+    // the coarse level's boxes: codes o.coarseMin dots long or more. The fine boxes lying on such a code are pieces of it
+    // and go - unless one of them is the whole code (then the fine box stays, and the coarse one is not needed).
+    for (const d of boxesOf(bs.coarse, Object.assign({}, o, {minLen: o.coarseMin}))) {
+      const ux = Math.cos(d.ang), uy = Math.sin(d.ang); let whole = false;
+      c = c.filter(b => {
+        const dx = b.cx - d.cx, dy = b.cy - d.cy;
+        if (Math.abs(dx * ux + dy * uy) > 0.55 * d.len || Math.abs(dy * ux - dx * uy) > 0.6 * d.thick + 8) return true;
+        if (b.len >= 0.8 * d.len) { whole = true; return true; }
+        return false;
+      });
+      if (!whole) { d.coarse = 1; c.push(d); }
+    }
+  }
+  c.sort((a, b) => b.area - a.area);                         // the biggest patches first: a code is bigger than a word of print
   if (c.length > o.maxCands) c.length = o.maxCands;
   let g = 0; const lim = 1000 * bs.nr, N = bs.wb * bs.hb; for (let i = 0; i < N; i++) if (bs.sm[i] >= lim) g++;   // blocks blown out to white
   c.glare = g / N;
@@ -491,7 +568,9 @@ function prepare(D, W, H, opt) {
   // What was read, and how sure. zres[k] = zxing's results for lay.pics[k].
   //   sure 'A': the grey-line reader and zxing read the same Code 128 (two readers that work differently)
   //   strong 'B': the grey-line reader alone, well ahead of its next best reading; or zxing's ITF on four lines or more
-  //   weak 'C': the grey-line reader ahead by less; zxing alone on two lines or more where the grey-line reader sees no Code 128
+  //   weak 'C': zxing alone on two lines or more where the grey-line reader sees no Code 128
+  //   faint 'D': the grey-line reader alone, ahead by less (0.08). The only class that was ever wrong on the test frames (1 of 88,
+  //     and a phone held still shows the same wrong reading again and again): the page lets it help, never count by itself
   // On Brett's 26 test frames (2026-11-09): A and B together 677 right Code 128 readings, none wrong. Over those frames
   // as they are, turned every way and with border lines drawn in (2,330 grey-line readings, 574 of them wrong): of the
   // 1,523 that were strong, none was wrong (the wrong ones were ahead of their runner-up by under 0.08; a strong one needs 0.11)
@@ -509,7 +588,7 @@ function prepare(D, W, H, opt) {
       if (g && g.text) {
         st.grey++;
         const same = zs.find(e => e.format === 'Code128' && e.text === g.text), far = g.gap >= (g.sig >= 0.66 ? 0.2 : 0.11) && g.fit >= 0.86;
-        const cls = same ? 'A' : far ? 'B' : g.fit >= 0.84 && g.gap >= 0.08 && g.sig < 0.66 ? 'C' : null;
+        const cls = same ? 'A' : far ? 'B' : g.fit >= 0.84 && g.gap >= 0.08 && g.sig < 0.66 ? 'D' : null;
         if (cls) out.push({text: g.text, format: 'Code128', cls, lines: same ? same.lines : 0, fit: g.fit, gap: g.gap, dots: (g.b - g.a) / c.S, ci, pos: posOf(ci, g.a, g.b), by: same ? 'gz' : 'g'});
       }
       for (const e of zs) {

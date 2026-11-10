@@ -372,7 +372,7 @@ const TEST_PLAN = [
 let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step13', 0) || 0));
 function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step13', TEST_STEP); }
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
-const APP_VERSION = 'g13';
+const APP_VERSION = 'g13a';
 // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
 // sheet, row by row; 10 digits = CGC Code 128, 9 = PSA Code 128 with the thinnest bars, 8 = PSA ITF). Test mode knows
 // them so that a run can be shown as a map of the sheet: which codes were read and which were not (sheetCard).
@@ -408,12 +408,20 @@ const readerOpts = (b, formats) => ({formats, maxNumberOfSymbols: 255, tryHarder
 // misread about once in a hundred tries, and a phone tries hundreds of times a minute. Every reading now comes with how
 // sure it is (scan-worker.js: A sure - two readers that work differently agree, or a QR; B strong; C weak) and a number is
 // taken once it has NEED points: an A at once, a B on its second sighting, a C on its fourth. On the test frames - as
-// they are, turned every way, with border lines drawn beside the codes - the A and B readings held no wrong number.
-const NEED = 2, POINTS = {A: 2, B: 1, C: 0.5};
-function sighted(key, cls) {                 // one more sighting of a code -> its tally {pts, n, ok}
-  let e = SCAN.seen.get(key); if (!e) SCAN.seen.set(key, e = {pts: 0, n: 0, ok: false});
-  e.pts += POINTS[cls] || 0.5; e.n++; if (e.pts >= NEED) e.ok = true;
+// they are, turned every way, with border lines beside the codes, enlarged, blurred, grainy, faint (106 frames) - the A
+// and B readings held no wrong number (2,479 strong grey-line readings among them). D, the grey-line reader's FAINT
+// reading, was wrong once in 88 - and a phone held still shows the same wrong reading again and again (a fake camera
+// that looped one blurred frame counted it): D helps a number along but never makes it count - one of its two points
+// must be SOLID (from A, B or C).
+const NEED = 2, POINTS = {A: 2, B: 1, C: 0.5, D: 0.5};
+function tally(e, cls) {                     // one more sighting on a tally {pts, solid, n, ok}
+  const p = POINTS[cls] || 0.5; e.pts += p; if (cls !== 'D') e.solid += p; e.n++;
+  if (e.pts >= NEED && e.solid >= 1) e.ok = true;
   return e;
+}
+function sighted(key, cls) {                 // one more sighting of a slab's code at a show -> its tally
+  let e = SCAN.seen.get(key); if (!e) SCAN.seen.set(key, e = {pts: 0, solid: 0, n: 0, ok: false});
+  return tally(e, cls);
 }
 const GLARE_MIN = 0.012;                     // this share of the picture blown out to white = glare worth a word (the glare hint in paintScan)
 // TOO FAR FOR THIS LENS (g13; Brett: "depth is one of my biggest concerns ... at least 2 feet instead of 1 foot"). His
@@ -633,18 +641,18 @@ function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
     if (res.length > TEST.maxPer) TEST.maxPer = res.length;
     if (!res.length) TEST.empty++;
   }
-  const idx = [], cnt = {A: 0, B: 0, C: 0}; let dup = false;
+  const idx = [], cnt = {A: 0, B: 0, C: 0, D: 0}; let dup = false;
   for (const r of res) {
     const cls = POINTS[r.cls] ? r.cls : 'C', kc = certOf(r.text, r.format); let ok = false;
     cnt[cls]++;
     if (UI.test) { const e = testRead(r, cls); idx.push(e.i + cls); ok = e.ok; }
     else if (kc && tid) { ok = sighted(kc[0] + '|' + kc[1], cls).ok; if (ok) { addScan(kc[0], kc[1], {table: tid, live: true, quiet: true}); dup = true; } }
-    if (ok || cls !== 'C') SCAN.lastHit = now;
+    if (ok || cls === 'A' || cls === 'B') SCAN.lastHit = now;
     SCAN.boxes.push({pos: r.pos, w, h, t: now, ok});         // grey until the number counts, then green
   }
   SCAN.boxes = SCAN.boxes.filter(b => now - b.t < 1400);
   if (res.length && !SCAN.raf) SCAN.raf = requestAnimationFrame(drawBoxes);
-  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt); }
+  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C + cnt.D; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt); }
   else if (dup) paintScan();                 // once a frame, however many slabs it held (a slab already on the table: "Already read")
 }
 // Test mode's record of a code: every sighting with how sure it was and which reader gave it (g the grey-line reader, z
@@ -653,11 +661,11 @@ function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
 function testRead(r, cls) {
   const key = r.format + '|' + r.text, dt = detailOf(r), now = Date.now(), secs = Math.round((now - (TEST.t0 || now)) / 100) / 10;
   let e = TEST.reads.get(key);
-  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, A: 0, B: 0, C: 0, g: false, z: false, w: false});
-  e.n++; e.last = dt; e.at = now; e[cls]++; e.pts += POINTS[cls];
+  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, solid: 0, A: 0, B: 0, C: 0, D: 0, g: false, z: false, w: false});
+  const was = e.ok; tally(e, cls); const now_ok = e.ok; e.ok = was; e.last = dt; e.at = now; e[cls]++;
   const by = String(r.by || ''); if (by.includes('g')) e.g = true; if (by.includes('z')) e.z = true; if (by.includes('w')) e.w = true;
   if (dt != null && (e.min == null || dt < e.min)) e.min = dt;
-  if (!e.ok && e.pts >= NEED) {
+  if (!e.ok && now_ok) {
     e.ok = true; e.first = secs;
     const at = SHEET_OF.get(r.text); if (at) TEST.sheetN.set(at[0], (TEST.sheetN.get(at[0]) || 0) + 1);
     beep(); setTimeout(paintScan, 0);
@@ -674,7 +682,7 @@ const testOk = () => { let n = 0; for (const r of TEST.reads.values()) if (r.ok)
 // what was read in each and where, the camera's settings at that moment, and for every frame a line (LOG_FIELDS).
 // "Save test data" (saveTestData) hands all of it over as one file. THE SEVEN FILES OF 2026-11-09 ARE WHAT g13 WAS BUILT
 // ON: real frames with known answers, replayed through every idea before it went into the app.
-const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak', 'picture kept', 'codes: number in codes[] + A sure / B strong / C weak'];
+const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak or faint', 'picture kept', 'codes: number in codes[] + A sure / B strong / C weak / D faint (the grey-line reader alone: helps, never counts by itself)'];
 function camNow() {                           // what the camera says of itself right now (a phone gives few of these; a focus distance would show hunting)
   const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0], o = {};
   try { const st = tr.getSettings(); for (const k of ['width', 'height', 'frameRate', 'zoom', 'torch', 'focusDistance', 'focusMode', 'exposureMode', 'exposureTime', 'exposureCompensation', 'iso', 'whiteBalanceMode', 'colorTemperature']) if (st[k] != null) o[k] = typeof st[k] === 'number' ? Math.round(st[k] * 1000) / 1000 : st[k]; } catch (e) {}
@@ -683,7 +691,7 @@ function camNow() {                           // what the camera says of itself 
 function testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt) {
   const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig), st = (tm && tm.st) || {}, T = tm || {};
   TEST.log.push([t, T.full != null ? 1 : 0, sharp == null ? null : sharp, T.glare != null ? Math.round(T.glare * 1000) : null, st.boxes == null ? null : st.boxes, st.kept == null ? null : st.kept, T.len || null,
-    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C, has ? 1 : 0, idx]);
+    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C + cnt.D, has ? 1 : 0, idx]);
   if (TEST.log.length === 1) TEST.keepNext = performance.now() + 1000;
   TEST.live = {sharp, idx, cnt, st};
   if (kept && kept.err) TEST.keepErr = kept.err;
@@ -709,7 +717,7 @@ function paintLive() {
   const st = $('live-stat'), mp = $('live-map'); if (!st || !mp) return;
   if (!(UI.test && UI.rec && TEST.live)) { if (st.textContent) st.textContent = ''; if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
   const L = TEST.live, d = v => v == null ? '-' : v;
-  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nboxes ' + d(L.st.kept) + '/' + d(L.st.boxes) + '\nA ' + L.cnt.A + ' B ' + L.cnt.B + ' C ' + L.cnt.C +
+  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nboxes ' + d(L.st.kept) + '/' + d(L.st.boxes) + '\nA ' + L.cnt.A + ' B ' + L.cnt.B + ' C ' + (L.cnt.C + L.cnt.D) +
     '\nnew ' + Math.max(0, (performance.now() - (SCAN.lastNew || 0)) / 1000).toFixed(0) + ' s ago\npics ' + TEST.keep.length;
   let top = 0, best = 2; for (const [sh, n] of TEST.sheetN) if (n > best) { best = n; top = sh; }
   if (!top) { if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
@@ -739,8 +747,8 @@ function testReport() {
     framesWithNoCode: TEST.empty,
     sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.ok.length, sightedButNotCounted: st.rows.length - st.ok.length,
     countedBy: {greyLineOnly: st.ok.filter(r => r.g && !r.z && !r.w).length, zxingOnly: st.ok.filter(r => !r.g).length, both: st.ok.filter(r => r.g && (r.z || r.w)).length},
-    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame'],
-    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : '')])};
+    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak / faint sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame'],
+    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C + '/' + r.D, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : '')])};
 }
 // THE TEST-DATA FILE: a ZIP, made here (the pictures are JPEGs already, so they are stored as they are - no compressing).
 const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -767,7 +775,7 @@ async function buildTestZip() {               // made at Stop: report.json (the 
     const name = 'frame-' + p2(i + 1) + '-' + (k.t / 1000).toFixed(1) + 's-' + k.kind + '.jpg'; files.push({name, blob: k.blob});
     if (k.crop) files.push({name: 'frame-' + p2(i + 1) + '-middle-lossless.png', blob: k.crop});
     return {file: name, msSinceStart: k.t, frame: k.frame, readBy: k.kind === 'fw' ? 'the finder, and zxing on the whole frame' : 'the finder', width: k.w, height: k.h, sharpness: k.sharp, glare: k.glare, camera: k.cam,
-      readsFields: ['code (number in codes[]) + A sure / B strong / C weak', 'readers: g grey-line, z zxing on the lines, w zxing on the whole frame', 'lines zxing read it on', 'grey-line fit', 'grey-line lead over its next best reading', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
+      readsFields: ['code (number in codes[]) + A sure / B strong / C weak / D faint', 'readers: g grey-line, z zxing on the lines, w zxing on the whole frame', 'lines zxing read it on', 'grey-line fit', 'grey-line lead over its next best reading', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
   });
   if (TEST.rowsPic) {                          // the first kept frame's codes as zxing was handed them: one row a line, three treatments of each
     const name = 'lines-frame' + TEST.rowsPic.frame + '.png'; files.push({name, blob: TEST.rowsPic.blob});

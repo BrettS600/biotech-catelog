@@ -3051,6 +3051,38 @@ no Apple account, no Xcode), "everything now", the sample show kept.
     a reader that tries hundreds of times a minute needs a second witness (another reader, or another frame) before a
     number counts; (3) a phone held still shows the same misreading again and again - the weak class had to be made
     stricter after a looping test counted one four times.
+  g13a (the same night, an hour after g13 went up; found by going on trying REAL frames in ways his seven tests had
+  not - each of these would have been a bad surprise on real slabs):
+  - A LINE BESIDE A CODE THAT LIES ASLANT, AND TWO LINES SIDE BY SIDE. dropLines stepped in whole blocks and asked for
+    exactly one block's width: a border beside a code turned 30 degrees crosses the blocks in a staircase and stayed
+    (3 codes of 47 read, 1 of 50), two lines side by side stayed at any slant (8 of 47). Now: at most LINE_WIDE 3 blocks
+    in a row along the code - counting only blocks at least half as strong as the block itself - and LINE_MIN 6 or more
+    across it, stepped in the code's own direction; and a slanted-stripe block must itself be a quarter as strong as
+    its strongest neighbour (the "in step" test pools the neighbours, so faint blocks beside a line borrowed it and
+    made the line a band). Now 29-33 of 47 and 34-40 of 50 (bench7.js on real/rot/xt*: the border-line frames turned
+    30 and 45 degrees), about as without the lines (32-33, 38-40).
+  - CODES SEEN FROM CLOSE BY. A real frame's middle enlarged (real/scale, bench9.js): 1.5 times (as from 6 inches)
+    13 codes of 32 read, twice 6 of 18, three times none - bars many dots wide leave a block of 8 with one edge or
+    none, and the patch falls to pieces. blockSums now also keeps COARSE sums (16 x 16 blocks, changes over 4 dots, at
+    two dots of each block row; the same rules with nr doubled), find() takes the coarse level's boxes of coarseMin
+    280 dots or longer and drops the fine pieces lying on them (unless a fine box is the whole code): 21 of 32, 14 of
+    18, 4 of 4. Nothing changes for smaller codes.
+  - A FAINT CODE (a label behind glass, haze, a frosted case). A real frame at 45% of its contrast (real/deg "flat",
+    bench10.js) gave NO BOX AT ALL: 0 codes of 47 and 0 of 50 - the stripe threshold T was 0.22 of a block's
+    brightness. T is 0.08 now: 33 and 36 (the readers even the light themselves, so once a code is found its contrast
+    hardly matters), and the full-contrast frames read a little better too (9 inches 86%, tilted 46%). More patches
+    pass, so the caps (110 cut, 80 kept) are reached on a full sheet: about a sixth more time a frame there.
+    bench10.js also holds grain (fine), blur (0.8 dots fine; 1.3 dots: half at 9 inches, hardly any at 13), a dark
+    picture (fine), a strong lean (fine).
+  - THE FAINT CLASS D. The grey-line reader's weak readings (fit >= 0.84, ahead by 0.08) are class D now, apart from
+    C: over all 106 test frames (as they are, turned, with lines, enlarged, made worse: 3,985 grey-line readings,
+    1,071 of them wrong) the strong ones were 2,479 right and none wrong, the faint ones 87 right and 1 wrong - and
+    a fake camera that looped one blurred frame showed that wrong one four times, so it counted. A D sighting is
+    half a point as C is, but a number counts only with at least one SOLID point (A, B or C): app.js tally().
+  - blockSums' inner loop is written out dot by dot for inner blocks (the same sums to the bit, a fifth quicker).
+  - In Chromium on fake cameras (apptest4): close views 25 and 21 counted; faint frames 46; a mix of grainy, blurred,
+    dark and leaning frames 50 with the wrong one only "sighted"; the earlier views 48-50, 41, 42. No number that is
+    not on the sheet counted anywhere. sw.js: ssc-v14; the app says g13a.
   CARD LADDER THAT NIGHT: restarted by hand at 03:47 and 05:24 UTC (each time the loop had done 180 pages), now always
   with KEEP - a Web Lock ("clrun-keepalive") held for good and a watcher that logs freeze / resume / visibility to
   localStorage clr-freeze-log; the topic and key are carried over the reload in sessionStorage (and removed), so they are

@@ -14,8 +14,9 @@
    down for the grey-line reader, was not read at all at first). What comes back for each code says how sure it is (cls):
      'A' sure   - the grey-line reader and zxing agree (or a QR / Data Matrix, which correct their own errors)
      'B' strong - the grey-line reader alone, well ahead of its next best reading; zxing's ITF on four lines or more
-     'C' weak   - anything less; and whatever only the whole-frame pass read (strong, on a frame the finder did not read)
-   and the page takes a number once it has two points (A = 2, B = 1, C = half).
+     'C' weak   - zxing alone on fewer lines; and whatever only the whole-frame pass read (strong, on a frame the finder did not read)
+     'D' faint  - the grey-line reader alone, not far ahead of its next best reading
+   and the page takes a number once it has two points (A = 2, B = 1, C and D = half; D never by itself).
    THE WHOLE-FRAME PASS (plan.full; the page asks for it on one frame in four): zxing on the frame as it is, for the QR
    and Data Matrix codes the finder does not look for, and as a net under the finder.
    SHARPNESS: every frame gets a score, the variance of the Laplacian of a 512 x 512 patch from its middle.
@@ -50,7 +51,7 @@ function sharpness(d, rowW, x0, y0, n) {      // variance of the 4-neighbour Lap
   }
   return c ? Math.round(s2 / c - (s / c) * (s / c)) : 0;
 }
-const RANK = {A: 3, B: 2, C: 1};
+const RANK = {A: 4, B: 3, C: 2, D: 1};
 self.onmessage = async e => {
   const m = e.data, plan = m.plan || {find: true, full: true};
   try {
