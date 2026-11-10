@@ -1,0 +1,35 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 32177b8..cef2758 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2815,2 +2815,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   PSA ITF) is slab-barcode-test-key.csv, sent with the PDF on 2026-11-05 - check a pasted report's codes against it.
++  g11k (2026-11-10 00:15 UTC): g11j's site build was fine but its Pages DEPLOY job failed ("Timeout reached, aborting!"
++  after 10 min - GitHub's side; run 203), so the site stayed on g11i. A failed deploy is retried with "Re-run failed jobs"
++  on the run's page (signed in) or, as here, by the next patch that touches page/. This one: the nothing-readable line
++  says "hold still, or try the Light" while the camera has a light that is off. /home/claude/check_report.py checks a
++  pasted report against the answer key (rewrite it from this note if the session's files are gone).
+ - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
+diff --git a/page/app/app.js b/page/app/app.js
+index 7950f2f..5cdfc81 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -676,3 +676,3 @@ function testReport() {
+   const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
+-  return {report: 'Slab Show Scanner test', version: 'g11j', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
++  return {report: 'Slab Show Scanner test', version: 'g11k', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
+@@ -1004,3 +1004,3 @@ function paintScan() {
+       (UI.test && window.ImageCapture ? '<button class="lightbtn photobtn" data-a="photo"' + (SCAN.photoBusy ? ' disabled' : '') + '>' + (SCAN.photoBusy ? 'Photo…' : 'Photo test') + '</button>' : '') +
+-      (idle && !SCAN.photoBusy ? '<div class="vfcoach">Nothing readable - hold still, 8–10 inches away</div>' : '') +
++      (idle && !SCAN.photoBusy ? '<div class="vfcoach">' + (SCAN.caps && SCAN.caps.torch && !SCAN.torch ? 'Nothing readable - hold still, or try the Light' : 'Nothing readable - hold still, 8–10 inches away') + '</div>' : '') +
+       (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
+diff --git a/page/app/sw.js b/page/app/sw.js
+index e59929b..86b933a 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -3,3 +3,3 @@
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v8';
++const CACHE = 'ssc-v9';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
