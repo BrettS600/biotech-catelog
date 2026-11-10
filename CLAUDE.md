@@ -2650,7 +2650,8 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   phone-width screen the button goes to app/ itself. The home-screen icon is made from app/ (its manifest start_url ./),
   so it opens straight into the app, never the website (and skips the site's staticrypt page). iOS keeps a home-screen
   app's storage apart from Safari's: the password and the PSA token are entered once inside the icon's app.
-- Where: page/app/ (index.html, app.css, app.js, sw.js, manifest.webmanifest, icons, zxing/ = zxing-wasm 3.1.6 reader
+- Where: page/app/ (index.html, app.css, app.js, scan-worker.js, finder.js (g13: the barcode finder and the grey-line
+  Code 128 reader), sw.js, manifest.webmanifest, icons, zxing/ = zxing-wasm 3.1.6 reader
   build, vendored so a show hall without signal still scans). build_catalog.py copies page/app to public/app as it is
   (NOT staticrypted: it holds no data and no key). URL: https://bretts600.github.io/biotech-catelog/app/ - Safari's
   Share > Add to Home Screen. sw.js keeps the app on the phone (cached first, refreshed behind) and data.bin (network
@@ -2940,6 +2941,121 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   in from 8 pm to 7 am, so it was NOT sleep, and he wants no keep-awake. What was seen: nothing read from 01:00 until the
   Chrome extension was first used (the first card-inbox batch at 01:53:06, the minute a tab was created). Cause not
   established - compare pages_today with the clock at every check, and during long turns check the tab by hand.
+  g13 (2026-11-10, in the night after g12a) - THE LAST BUILD OF THE SCANNER: THE CODES ARE FOUND FIRST, AND READ WITHOUT
+  DECIDING BLACK OR WHITE. Brett ran seven of g12a's eight tests (not "bare paper": "I do not have the barcodes in bare
+  print form. I only have them in laminated form") and AirDropped the seven files to ~/scan-test on the Mac (a second
+  connected folder, for these files only). His words: "the whole light on thing, I don't think we should be testing that
+  because I'm not going to be able to put my light on at a vendor show ... I don't want to" (so: no advice about the
+  Light anywhere any more; the button stays). "The moving while scanning wasn't that effective, and ... most
+  importantly, depth is very much limited ... in step 8, I got 1 read, and depth is one of my biggest concerns. I want
+  to be able to read codes more than 2 feet, or at least 2 feet instead of 1 foot away." "If you come across something
+  that has a lot of potential, then go through with it. If you don't ... we don't have to go through the build. But if
+  you do go through with the next build, it will be the last build to the scanner app. And after that, I will try to
+  use and compare it to Scandit's free trial ... do the best you possibly can." And: look first for what others have
+  built ("maybe try seeing if there's a GitHub code already around").
+  - WHAT THE SEVEN FILES SHOWED (all sheet 2, 1x, 4K 2160 x 3840 at 30 fps, iOS 18.7; /tmp/claude-0/ga/real/t1..t8,
+    gt.json = every frame registered against the sheet's PDF, so each code's place and number is known): codes read
+    over the whole test 37/50 (+1 wrong), 47 (+2), 33, 38 (+1), 2 (moving), 23 (+1, dim), 1 (two feet). His phone read
+    2.5-2.9 frames a second: 343 ms a frame, 139 of them the evening. Detail (camera dots per millimetre -> dots per
+    thinnest bar): 9 in 12.0 -> 2.1 (PSA Code 128) / 2.5 (CGC) / 3.3 (ITF); 13 in 8.1 -> 1.4 / 1.65 / 2.2; dim room 10.5;
+    two feet 4.7 -> 0.8 / 0.96 / 1.3: UNDER ONE DOT A BAR, which no reader reads - with the 1x lens. The moving test's
+    frames were smeared (sharpness 38 against 200-400). In ONE frame g12a read 49% of the codes in view at 9 in, 69% in
+    the second test, 22% at 13 in, 15% tilted, 7% in the dim room. Why: zxing looks at one row in seven of a 3840-high
+    picture (rowStep = height / 512), decides black or white with one threshold a row, and measures run lengths - at
+    1.4-2 dots a bar the runs come out wrong, and sometimes wrong in a way the check symbol accepts (the 5 wrong numbers).
+  - WHAT WAS LOOKED FOR FIRST (2026-11-10): no open-source reader for the web does better at this detail - zxing-wasm
+    3.1.6 (what the app has) is the newest zxing-cpp; ZBar-wasm, rxing/wascan and Quagga are not better on bars under
+    two dots; Safari's own BarcodeDetector is switched off (a feature flag) on iOS 17-26. The paid SDKs (Scandit, STRICH,
+    Dynamsoft) win by finding the code first, cleaning its picture and using decoders of their own. The method taken
+    from the literature: Gallo & Manduchi 2011, "Reading 1-D barcodes with mobile phones using deformable templates" -
+    compare the grey line with every pattern as blurred, never binarize. (Brett's earlier Reddit / GitHub links were in
+    a part of the conversation that could not be read back; nothing of them was used.)
+  - HOW g13 READS A FRAME (scan-worker.js -> finder.js, which is two files in one: /tmp/claude-0/ga/fx/finder.js and
+    tdec.js, concatenated; under Node they run on the real frames):
+    1. FIND (SlabFinder.find): per 8 x 8 block, how much the green changes across, how much down, and whether the two
+       change TOGETHER. Bars standing upright: much across, little down (findBoxes side 0; on its side: side 1; each
+       within about 25 degrees). Bars ASLANT: both, and in step - the products of the two changes summed over a block
+       and its eight neighbours are at least DIAG.rho 0.6 of what they could be (findSlant; print has both but not in
+       step). Blocks join into patches (aslant: only blocks pointing the same way within 12 degrees, and across gaps of
+       up to 4 blocks along the code); a patch that is long and thin (2.2 to 1, 80 dots or more) is a box. LINES ARE
+       NOT CODES (dropLines): a label's border or a case's edge a few millimetres from the code is a "bar" as far as
+       a block can tell, and the patch became a code with a fence post through it - thrown out (on Brett's frames with a
+       line drawn 1.5-2.5 mm from each code's ends: 4 of 47 read, 1 of 50, 0 of 50; now 36, 39, 37 - as without lines;
+       found because the old simulated slab video read 6 codes of 36: his sheets have no borders, real labels do).
+       Blocks in a run of 6 or more ACROSS the code with nothing beside them along it go before patches are made; a
+       patch with columns much taller than its code rows are many is cut down to the code (patches: core rows, line
+       columns). The biggest 110 patches are cut (none over 1,600 dots long or 200 thick), until 80 hold bars.
+    2. CUT (prepare): a straight box by SHEARING (shearPatch: every column of the patch is one column of the picture -
+       no blending along the code - and climb() follows the code if the cut is not quite along it); a slanted box by
+       TURNING (turnPatch: cubic, each row a third of a dot further along than the one above, so the rows hold the code
+       at three places between the dots). barRows finds the rows with bars; lean() the lean of the bars that folds the
+       rows crispest; rows that do not agree with each other (minFold 0.5) are print and dropped.
+    3. LINES (lines): the rows folded into lines of brightness at 3 samples a dot (2 or 1 for a code filling the
+       picture) - the two halves and four quarters of the rows, each evened (the white level along the line: a closing,
+       then smoothed; its darkest 2% = black) plain and sharpened two ways: 18 lines a box, stacked as one small grey
+       picture for zxing (formats Code 128 + ITF, GlobalHistogram, minLineCount 1, no turning, every row looked at).
+       And the whole fold, evened, in LINEAR light (grey ^ 1.6), for:
+    4. THE GREY-LINE CODE 128 READER (SlabC128.decode, tdec.js): the 103 patterns as they look blurred by 0.22-0.8 of
+       a module, each symbol of the line correlated against all of them (the 16 best again a third of a module either
+       side), and by dynamic programming over the running check sum the best reading WHOSE CHECK SYMBOL AGREES - with
+       its fit (mean resemblance) and its gap (how far ahead of the next best). Lengths 7 to 13 symbols (8 digits and
+       up: a dashed line read as "2525" once, strongly); the code is the widest GROUP of bars in the line (no white
+       wider than 6% of the code inside: a border beside the code is a group of its own); read left to right and,
+       unless strong already, right to left (a slab lies any way round; the way that read strongly last goes first).
+    5. HOW SURE (decide; then scan-worker's add()): A sure = the grey-line reader and zxing read the same Code 128
+       (or a QR / Data Matrix from the whole pass); B strong = the grey-line reader alone with fit >= 0.86 and gap >=
+       0.11 (0.2 when the blur is 0.66 of a module or more), or zxing's ITF on 4 lines or more; C weak = fit >= 0.84
+       and gap >= 0.08 not blurred, zxing alone on 2 lines where the grey-line reader sees no Code 128, or a linear
+       code only the whole-frame pass read. app.js sighted(): a number COUNTS at NEED 2 points - A 2, B 1, C half - the
+       same rule at a show and in Test mode (testRead). Every recording starts the tally anew.
+    6. THE WHOLE-FRAME PASS (plan.full, one frame in four; every eighth for any code at all in Test mode): zxing on the
+       frame as it is - the QR codes, and a net under the finder. (zxing on his frames as they are gave 562 linear
+       readings, none wrong: g12's wrong numbers came from the evened / boosted / enlarged passes, which are gone -
+       and with them 139 ms a frame.)
+  - WHAT IT DOES ON HIS FRAMES (fx/bench5.js; sure + strong per frame against g12a's whole pipeline per frame): 9 in
+    83% (49%), second test 91% (69%), 13 in 64% (22%), tilted 44% (15%), dim 74% (7%), moving 0 (0), two feet 0-1 code
+    (0). The same with the frames turned a quarter and upside down (bench6.js), turned by 3-80 degrees (bench7.js;
+    before findSlant: nothing between 25 and 65 degrees), and with border lines drawn in (bench8.js). Wrong numbers
+    among sure and strong readings: none, over all of those (gstat.js: 2,330 grey-line readings, 574 of them wrong;
+    1,523 strong, none of the strong wrong - every wrong one was ahead of its runner-up by under 0.08). Node here: 85-175 ms a frame with 50 codes in view (find 25-45, cut 4-20,
+    lines 10-45, zxing 4-17, grey-line 30-55); his phone ran g12's zxing about 1.7 times slower than this machine.
+    In the app, in Chromium, on a fake camera made of his frames (apptest4/run.py; the frames loop, so a test is 5
+    frames seen many times): 9 in 49 of 50 counted in 12 s, 40 of them in the first second; dim room 49; 13 in (a part
+    view) 39; tilted + upside down 40; turned 30 degrees 43; with border lines 41 - and no number that is not on the
+    sheet. g12a's own totals for those tests on his phone: 37, 23, 33, 38.
+  - DEPTH. Two feet with 1x is under one dot a bar: g13 moves 1x from "9-10 inches" to about 13-14, not to 24. Two
+    feet and more is the 3x lens (the 1x | 3x buttons on the picture; "Back Telephoto Camera" is in his phone's list):
+    3x at 2 feet shows a code as 1x does at 8 inches, at 3 feet as at 12. When the codes the finder sees are under
+    SMALL_LEN 125 dots long and nothing new has counted for 4 seconds the picture says "Too far for 1x - move closer,
+    or tap 3x" (paintScan; "Too far for 3x - move closer" on 3x; "Nothing readable - hold still, about a foot away"
+    as before when nothing is seen at all).
+  - TEST MODE (TEST_PLAN, 8 tests, localStorage ssc-test-step13): 9 in 1x; 14 in 1x; 2 feet 3x; 3 feet 3x; tilted;
+    the sheet turned (side, upside down, aslant); moving with pauses; his choice. The map: green = counted (outlined:
+    by the grey-line reader alone), AMBER = sighted but never surely enough to count, red = never. The numbers beside
+    the Stop button: frames a second, sharpness, glare, boxes kept / found, this frame's A B C, seconds since a new
+    code, pictures. report.json: timing {pixels, find, lines, zxing on lines, grey-line, whole pass}, perFrame {boxes,
+    sure, strong, weak}, codes counted and "sightedButNotCounted", countedBy, the list with each code's A/B/C
+    sightings and readers (g / z / w), the frame log (LOG_FIELDS), pictures with every reading's class, readers, fit and
+    gap; and lines-frameN.png: the first kept frame's lines as zxing got them.
+  - NOT TRIED ON AN IPHONE (nothing here can be): how long a frame takes there (the report's timing says), the 3x
+    lens with the finder, the lines picture (a PNG made in the worker). So there is a net: should the finder throw
+    there, the frame goes to the whole-frame pass instead (its linear codes then strong: two sightings count), and
+    Test mode's numbers end in "FINDER ERROR: ..." (report.json finderError) - tried here with a finder made to throw:
+    24 of 50 counted where the finder gives 49, which is also what g13 adds over zxing alone on those frames.
+  - Tools: /tmp/claude-0/ga/fx (finder.js, tdec.js, zx.js = the app's zxing under Node, bench5-8.js, gstat.js),
+    realtools (rf.py registration, mkrot.py turned frames, mklines.py border lines), apptest4 (mkcam.py: a .y4m fake
+    camera from the real frames; run.py Test mode end to end + the file; real.py a real table with PSA and ntfy
+    stubbed; video.py a video file + the offline cache; hint.py the words on the picture).
+  - WHAT TO REMEMBER: (1) simulated pictures were too easy and the printed sheet has no borders - try every change on
+    REAL frames, and on real frames with what a real slab has around its code; (2) a check symbol is one chance in 103:
+    a reader that tries hundreds of times a minute needs a second witness (another reader, or another frame) before a
+    number counts; (3) a phone held still shows the same misreading again and again - the weak class had to be made
+    stricter after a looping test counted one four times.
+  CARD LADDER THAT NIGHT: restarted by hand at 03:47 and 05:24 UTC (each time the loop had done 180 pages), now always
+  with KEEP - a Web Lock ("clrun-keepalive") held for good and a watcher that logs freeze / resume / visibility to
+  localStorage clr-freeze-log; the topic and key are carried over the reload in sessionStorage (and removed), so they are
+  never read out. With it the hidden tab ran 110-119 pages an hour for hours and the log shows no freeze: 233 pages at
+  04:13, 295 at 04:44, 332 at 05:03, 370 at 05:24.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

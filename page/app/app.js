@@ -15,10 +15,11 @@
    is found by name until the Card Hedge step. Record Purchases sends a 'gplan' to the collector, as the website's button.
    The scanner upgrade (2026-11-09; Brett: depth, angles, glare, glass cases, "the barcodes are just automatically picked
    up during the recording"): the camera at the most it gives (4K where it can), every frame read at full size in a worker
-   (scan-worker.js), the two zxing binarizers by turns (the second copes better with glare and uneven light), the main or
-   the 3x telephoto lens, boxes on what was read, a beep, the screen kept awake; a video from the Camera app read frame by
-   frame; Test mode (nothing saved, looked up or sent; every code with its detail in camera dots per bar); enlarged reads
-   for the smallest codes (a piece of the frame drawn 1.5x bigger, after Brett's first sheet test). Every real slab
+   (scan-worker.js), the main or the 3x telephoto lens, boxes on what was read, a beep, the screen kept awake; a video
+   from the Camera app read frame by frame; Test mode (nothing saved, looked up or sent; every code with its detail in
+   camera dots per bar). g13 (2026-11-10, the last build of the scanner, after Brett's seven test files): the barcodes
+   are FOUND in the frame first, whichever way round they lie, and each is read from its own lines by two readers
+   (finder.js); a number counts once the reading is sure (see "WHEN A NUMBER COUNTS"). Every real slab
    read goes to the collector ('scan') and on into card-data's data/scans/scans.csv as its PSA / CGC cert link. */
 'use strict';
 const $ = id => document.getElementById(id);
@@ -348,11 +349,11 @@ const VIDEO = document.createElement('video');
 VIDEO.setAttribute('playsinline', ''); VIDEO.setAttribute('muted', ''); VIDEO.muted = true; VIDEO.autoplay = true;
 const SCAN = {stream: null, timer: null, busy: false, canvas: document.createElement('canvas'), zx: null, sim: null, tick: null,
   worker: null, pend: new Map(), wid: 0, offscreen: false, k: 0, cams: null, caps: null, boxes: [], raf: 0, wake: null, audio: null,
-  fpsN: 0, fpsT: 0, fps: 0, ms: 0, tFull: 0, tUp: 0, tiles: 0, kn: 0, lastHit: 0, lastWhole: 0, skipRun: 0, even: false, bestPx: 0, revived: 0, reviving: false, glare: 0, lastNew: 0, cntSeen: -1, blobOk: false};
+  fpsN: 0, fpsT: 0, fps: 0, ms: 0, lastHit: 0, finder: false, seen: new Map(), lastLen: 0, lastSharp: 0, bestPx: 0, revived: 0, reviving: false, glare: 0, lastNew: 0, cntSeen: -1, blobOk: false};
 const VREAD = {on: false, stop: false, el: null, pct: 0, w: 0, h: 0, frames: 0, tid: null, name: ''};
 // A test's numbers. keep: the frames whose pictures are kept for the test-data file; log: one line a frame (testFrame).
-const testFresh = () => ({frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tw: [], tu: [], te: [], tg: [], maxPer: 0, cut: 0, empty: 0,
-  evN: 0, evC: 0, boN: 0, boC: 0, plN: 0, plC: 0, log: [], keep: [], keepN: 0, keepNext: Infinity, keepGap: KEEP_GAP_MS, evened: {}, sheetN: new Map(), live: null, now: {}, keepErr: null});
+const testFresh = () => ({frames: 0, sharps: [], ms: [], t0: 0, last: 0, mode: '', w: 0, h: 0, lens: '', cam: null, tget: [], tf: [], tl: [], tr: [], ty: [], tw: [], tg: [], lens_: [], maxPer: 0, empty: 0,
+  stN: 0, boxes: 0, kept: 0, sure: 0, strong: 0, weak: 0, ferr: null, log: [], keep: [], keepN: 0, keepNext: Infinity, keepGap: KEEP_GAP_MS, rowsPic: null, sheetN: new Map(), live: null, keepErr: null});
 const KEEP_MAX = 10, KEEP_Q = 0.92, KEEP_GAP_MS = 1500, KEEP_CROP = 640;   // pictures kept a test at most; their JPEG quality; the first gap between two; the side of the lossless middle piece
 const TEST = Object.assign({reads: new Map(), zip: null, zipSeq: 0, step: 0, label: ''}, testFresh());
 // THE TESTS TO RUN (2026-11-10; Brett: "this is just one lighting condition ... the angles are going to be different.
@@ -360,18 +361,18 @@ const TEST = Object.assign({reads: new Map(), zip: null, zipSeq: 0, step: 0, lab
 // next test - another light, distance, angle or movement each time - and every test's file and map carry its number and
 // words, so the pictures that come back are labelled and cover more than one table under one lamp.
 const TEST_PLAN = [
-  'Sheet in its sleeve, flat, room light, about 9 inches, hold still',
-  'The same with the Light on',
-  'Sheet out of its sleeve (bare paper), about 9 inches, hold still',
-  'In the sleeve, from as far as it still reads (14 inches or more), hold still',
-  'Phone tilted about 45 degrees to the sheet, hold still',
-  'Moving: sweep steadily down the sheet, 6 to 8 inches away',
-  'Another light: a dim room, or one lamp from the side',
-  'Your choice: anything like a show table (window light, under glass, another room)'];
-let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step', 0) || 0));
-function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step', TEST_STEP); }
-function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); }
-const APP_VERSION = 'g12a';
+  'Sheet flat, room light, about 9 inches, 1x, hold still',
+  'About 14 inches, 1x, hold still',
+  'About 2 feet: tap 3x, hold still',
+  'About 3 feet, 3x, hold still',
+  'Phone tilted about 45 degrees, about a foot away, 1x',
+  'Sheet turned: on its side, then upside down, then aslant - about a foot away, 1x',
+  'Moving: glide slowly over the sheet at 8 to 10 inches, a short pause on each part',
+  'Your choice: another light, another room, under glass'];
+let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-step13', 0) || 0));
+function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step13', TEST_STEP); }
+function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
+const APP_VERSION = 'g13';
 // THE PRINTED TEST SHEETS (slab-barcode-test-sheets.pdf, 2026-11-05: 8 sheets of 50 codes, five across, ten down - sheet by
 // sheet, row by row; 10 digits = CGC Code 128, 9 = PSA Code 128 with the thinnest bars, 8 = PSA ITF). Test mode knows
 // them so that a run can be shown as a map of the sheet: which codes were read and which were not (sheetCard).
@@ -398,41 +399,28 @@ const SLAB_FORMATS = ['QRCode', 'Code128', 'ITF', 'DataMatrix'];
 const LINEAR_FORMATS = ['Code128', 'ITF'];
 const wideFormats = () => UI.test ? [] : SLAB_FORMATS;
 const readerOpts = (b, formats) => ({formats, maxNumberOfSymbols: 255, tryHarder: true, tryRotate: true, tryInvert: false, binarizer: b ? 'GlobalHistogram' : 'LocalAverage'});
-// ENLARGED READS (Brett's first test, 2026-11-09: "results weren't that great" - at a foot the 4K camera gives the slab
-// barcodes' ~0.2 mm bars only ~1.7 dots each, at 45 degrees less): a piece of the frame is drawn 1.5x bigger before it is
-// read (scan-worker.js); on a test frame the codes at 1.45 dots per bar went from 0 of 10 to 9 of 10.
-// EVERY FRAME, WHOLE AND ENLARGED (2026-11-09, a code review before Brett's fourth test). Until now every other frame was
-// read whole and the others as one enlarged piece, so a corner of the picture got its enlarged look once in 16 frames -
-// two or three seconds, while a hand holds still for a moment at most. Now every frame is read whole AND as its four
-// quarters (overlapping by more than a barcode's width), each drawn 1.5x bigger: on the simulated sheet one frame gives all
-// 50 codes (the old whole + middle pair gave 43-46). The quarters look for the linear slab codes only. The whole pass
-// looks for every slab format: two frames in three with the quick GlobalHistogram binarizer (with no QR in view that costs
-// no more than a linear-only pass), every third frame with LocalAverage for the QR codes. Every sixth frame, instead of
-// the quarters, the middle of the picture is enlarged and given that LocalAverage search too (a QR too small for the whole
-// pass was read in an enlarged piece 15 times in 16, in the whole frame once in 8 - so a small QR is read when it is held
-// in the middle), and in Test mode that frame's whole pass looks for any code at all. Drawing a quarter bigger
-// with the smooth scaling the smallest codes need is the dear part (in a desktop browser ~60 ms of a quarter's ~90;
-// cheaper scaling or widening only lost 3-8 codes on the test pictures), so a phone gets as many quarters a frame as fit
-// BUDGET_MS: four, two (diagonal pairs by turns) or one - the worker says how long each pass took.
-const QUADS = [{x: 0, y: 0, w: 0.56, h: 0.56}, {x: 0.44, y: 0, w: 0.56, h: 0.56}, {x: 0, y: 0.44, w: 0.56, h: 0.56}, {x: 0.44, y: 0.44, w: 0.56, h: 0.56}];
-const MIDDLE = {x: 0.22, y: 0.22, w: 0.56, h: 0.56};
-// 220 ms: frames still come often enough to catch the moments a hand holds still (in a desktop browser: two quarters a
-// frame at ~4.5 frames a second - as many whole-frame looks as before, and five times the enlarged looks at the corners).
-const BUDGET_MS = 220;                       // the reading time one frame may take
-// A SMEARED FRAME IS DROPPED EARLY (2026-11-09; a simulated hand that only pauses - 1 camera frame in 5 sharp, the rest
-// smeared - showed the price of reading every frame so thoroughly: fewer frames a second, so fewer of the sharp moments
-// caught). While whole-frame passes have been reading codes (one did within GATE_MS), a whole pass that reads nothing
-// means a smeared frame, and a smear that empties the whole pass empties the quarters too: the worker skips them and the
-// next frame is grabbed at once. Never more than GATE_RUN frames in a row, so a place with only the smallest codes (which
-// the whole pass never reads) still gets its quarters.
-const GATE_MS = 2500, GATE_RUN = 3;
-const BOOST = 0.7;                           // how far printed places are brightened on the boosted frames (scan-worker.js evenLight)
-const GLARE_MIN = 0.012;                     // this share of the picture blown out to white = glare worth a word (the glare hint in paintScan)
-function liveTiles() {                       // this frame's quarters (i counts the frames whose quarters were read)
-  const a = SCAN.tFull, b = SCAN.tUp, n = !b ? 2 : a + 4 * b <= BUDGET_MS ? 4 : a + 2 * b <= BUDGET_MS ? 2 : 1, i = SCAN.kn;
-  SCAN.tiles = n;
-  return n === 4 ? QUADS : n === 2 ? (i % 2 ? [QUADS[1], QUADS[2]] : [QUADS[0], QUADS[3]]) : [QUADS[i % 4]];
+// HOW A FRAME IS READ (g13, 2026-11-10). Brett's seven test files were the first REAL frames the reader could be tried on
+// here (the sheet's answers known): one frame of g12 read 49% of the codes in view at 9 inches, 22% at 13 inches, 15% with
+// the phone tilted, 7% in a dim room, and his phone read 2.5 frames a second. Now the worker FINDS the linear codes in
+// every frame, whichever way round they lie, and reads each from its own folded lines (finder.js; the same frames: 83%,
+// 64%, 44%, 74%), and one frame in four also goes to zxing whole, as it is, for the QR codes and as a net.
+// WHEN A NUMBER COUNTS. His seven tests held 5 wrong numbers: at 1.4-2 dots a bar a Code 128's check symbol agrees with a
+// misread about once in a hundred tries, and a phone tries hundreds of times a minute. Every reading now comes with how
+// sure it is (scan-worker.js: A sure - two readers that work differently agree, or a QR; B strong; C weak) and a number is
+// taken once it has NEED points: an A at once, a B on its second sighting, a C on its fourth. On the test frames - as
+// they are, turned every way, with border lines drawn beside the codes - the A and B readings held no wrong number.
+const NEED = 2, POINTS = {A: 2, B: 1, C: 0.5};
+function sighted(key, cls) {                 // one more sighting of a code -> its tally {pts, n, ok}
+  let e = SCAN.seen.get(key); if (!e) SCAN.seen.set(key, e = {pts: 0, n: 0, ok: false});
+  e.pts += POINTS[cls] || 0.5; e.n++; if (e.pts >= NEED) e.ok = true;
+  return e;
 }
+const GLARE_MIN = 0.012;                     // this share of the picture blown out to white = glare worth a word (the glare hint in paintScan)
+// TOO FAR FOR THIS LENS (g13; Brett: "depth is one of my biggest concerns ... at least 2 feet instead of 1 foot"). His
+// 2-foot test with the 1x lens: bars 0.8-0.96 of a dot wide - under one dot nothing can be read, by any reader. The 3x
+// lens (already a button on the picture) gives 2 feet what 1x gives 8 inches. The finder knows how long the codes it
+// finds are: under SMALL_LEN dots (a slab's ~17.5 mm code then has bars near one dot) with nothing read, the picture says so.
+const SMALL_LEN = 125;
 function zxReady() {
   if (!SCAN.zx && window.ZXingWASM) SCAN.zx = ZXingWASM.prepareZXingModule({overrides: {locateFile: (p, prefix) => p.endsWith('.wasm') ? 'zxing/' + p : prefix + p}, fireImmediately: true});
   return SCAN.zx;
@@ -442,7 +430,7 @@ function workerReady() {                     // the reader in its own thread; fa
   try {
     const w = new Worker('scan-worker.js');
     w.onmessage = e => {
-      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; SCAN.even = m.even || false; SCAN.blobOk = !!m.blob; return; }
+      const m = e.data; if (m.hello) { SCAN.offscreen = !!m.offscreen; SCAN.finder = !!m.finder; SCAN.blobOk = !!m.blob; return; }
       const p = SCAN.pend.get(m.id); if (!p) return;
       SCAN.pend.delete(m.id); if (m.err) p.rej(new Error(m.err)); else p.res(m);
     };
@@ -456,16 +444,16 @@ function grab(src, w, h) {                   // a frame's pixels at full size
   const ctx = cv.getContext('2d', {willReadFrequently: true}); ctx.drawImage(src, 0, 0, w, h);
   return ctx.getImageData(0, 0, w, h);
 }
-const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version});
-async function readImage(src, w, h, opts, plan, optsUp) {   // -> {res: [{text, format, pos, version}], ms, t}; optsUp: the enlarged pieces' own options
+const slim = r => ({text: r.text, format: r.format, pos: r.position, version: r.version, cls: /qr|matrix/i.test(String(r.format)) ? 'A' : 'B', by: 'w'});   // (read on the page, without the finder: strong)
+async function readImage(src, w, h, opts, plan) {   // -> {res: [{text, format, pos, version, cls, by}], ms, sharp, t}; opts: the whole-frame pass's (plan.full)
   const wk = workerReady();
   if (wk) {
     const id = ++SCAN.wid;
     const p = new Promise((res, rej) => { SCAN.pend.set(id, {res, rej}); setTimeout(() => { if (SCAN.pend.delete(id)) rej(new Error('the reader took too long')); }, 20000); });
     let bm = null;
     if (SCAN.offscreen && window.createImageBitmap) { try { bm = window.ImageBitmap && src instanceof ImageBitmap ? src : await createImageBitmap(src); } catch (e) { bm = null; } }
-    if (bm) wk.postMessage({id, bm, opts, optsUp, plan}, [bm]);
-    else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts, plan}, [img.data.buffer]); }   // raw pixels: the whole frame only
+    if (bm) wk.postMessage({id, bm, opts, plan}, [bm]);
+    else { const img = grab(src, w, h); wk.postMessage({id, w, h, buf: img.data.buffer, opts, plan}, [img.data.buffer]); }   // raw pixels
     return p;
   }
   await zxReady();
@@ -608,32 +596,18 @@ function beep() {
     o.connect(g); g.connect(A.destination); o.start(t); o.stop(t + 0.1);
   } catch (e) {}
 }
-// THE LIGHT IS EVENED BEFORE A FRAME IS READ (2026-11-10, Brett's fourth test: 37, 37 and 36 of the sheet's 50 - the codes
-// never read lay in the shadow of his phone and hand; with the Light on, in its glare and fall-off). The worker divides
-// each part of the picture by how bright white paper is around it (scan-worker.js evenLight), so one threshold fits a
-// whole row again. THREE KINDS OF FRAME BY TURNS: evened; evened and BOOSTED (print brightened further, for small and
-// tilted codes whose thin gaps the reader's high threshold calls black - 45 degrees: 46 codes of the simulated sheet
-// against 39); and the LocalAverage frame AS IT IS (plan.even false) - a QR never needed evening, and if evening ever
-// hurts in a light no test picture had, a third of the frames still read as before. Test mode counts what the
-// whole-frame pass read on each kind (TEST.evC / boC / plC) and remembers for every code which kinds ever read it: on
-// the simulated shadow 40 codes a frame evened against 24 as it is - the same numbers from his phone say what each is worth.
+// One frame: the finder and its readers on every frame (plan.find), and on one frame in four zxing on the whole frame
+// too (plan.full; LocalAverage, the binarizer a QR needs) - every eighth frame for any code at all in Test mode.
 async function scanFrame() {
   if (!UI.rec || SCAN.busy || !SCAN.stream || !VIDEO.videoWidth) return;
   SCAN.busy = true;
   try {
-    const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, quick = k % 3 !== 2, deep = k % 6 === 5, boost = k % 3 === 1 ? BOOST : 0, ema = (a, v) => a ? a * 0.7 + v * 0.3 : v;
-    const opts = quick ? readerOpts(1, SLAB_FORMATS) : readerOpts(0, deep ? wideFormats() : SLAB_FORMATS);
-    const gate = !!SCAN.lastWhole && performance.now() - SCAN.lastWhole < GATE_MS && SCAN.skipRun < GATE_RUN;
-    const fk = !quick ? 'pl' : boost ? 'bo' : 'ev';   // kept pictures take the three kinds of frame by turns, so each kind's reads are on record with a picture
-    const keep = UI.test && SCAN.blobOk && performance.now() >= TEST.keepNext && fk === ['pl', 'ev', 'bo'][TEST.keepN % 3] ? {q: KEEP_Q, crop: TEST.keepN ? 0 : KEEP_CROP, evened: quick && !TEST.evened[fk]} : null;
-    const out = await readImage(VIDEO, w, h, opts, {full: true, up: deep ? [MIDDLE] : liveTiles(), gate, even: quick, boost, keep}, deep ? readerOpts(0, SLAB_FORMATS) : readerOpts(1, LINEAR_FORMATS));
-    const cut = !!(out.t && out.t.skipped);
-    if (out.t && out.t.nFull) SCAN.lastWhole = performance.now();
-    SCAN.skipRun = cut ? SCAN.skipRun + 1 : 0;
-    if (!deep && !cut) SCAN.kn++;
-    if (out.t && k) { if (!deep && out.t.up != null) SCAN.tUp = ema(SCAN.tUp, out.t.up); if (quick && out.t.full != null) SCAN.tFull = ema(SCAN.tFull, out.t.full); }   // not the first frame ever: the reader is still warming up
-    if (out.t && deep) out.t.deep = true;
+    const k = SCAN.k++, w = VIDEO.videoWidth, h = VIDEO.videoHeight, full = k % 4 === 3, deep = k % 8 === 7;
+    const keep = UI.test && SCAN.blobOk && performance.now() >= TEST.keepNext ? {q: KEEP_Q, crop: TEST.keepN ? 0 : KEEP_CROP, rows: !TEST.rowsPic} : null;
+    const out = await readImage(VIDEO, w, h, readerOpts(0, deep ? wideFormats() : SLAB_FORMATS), {find: true, full, keep});
     if (out.t && out.t.glare != null) SCAN.glare = SCAN.glare * 0.6 + out.t.glare * 0.4;
+    if (out.t && out.t.len != null) SCAN.lastLen = out.t.len;
+    if (out.sharp != null) SCAN.lastSharp = out.sharp;
     if (UI.rec) gotReads(out.res, out.w || w, out.h || h, out.ms, UI.recTable, out.sharp, out.t, out.keep);
     if (UI.camErr && UI.camErr.startsWith('Reader')) UI.camErr = null;
   } catch (e) { UI.camErr = 'Reader: ' + (e.message || e); }
@@ -642,74 +616,83 @@ async function scanFrame() {
 // what one frame gave: slabs for the table (or Test mode's list), boxes on the picture, the reading speed
 function gotReads(res, w, h, ms, tid, sharp, tm, kept) {
   const now = performance.now();
-  SCAN.ms = ms; SCAN.fpsN++; if (res.length) SCAN.lastHit = now;
+  SCAN.ms = ms; SCAN.fpsN++;
   if (now - SCAN.fpsT > 2000) { SCAN.fps = SCAN.fpsT ? SCAN.fpsN * 1000 / (now - SCAN.fpsT) : 0; SCAN.fpsN = 0; SCAN.fpsT = now; }
-  if (UI.test) {                             // what the report needs: frames, how sharp, how long each read took
+  if (UI.test) {                             // what the report needs: frames, how sharp, how long each step took
     if (!TEST.t0) TEST.t0 = Date.now();
     TEST.last = Date.now(); TEST.frames++; TEST.ms.push(Math.round(ms || 0)); if (sharp != null) TEST.sharps.push(sharp);
     Object.assign(TEST, {mode: VREAD.on ? 'video' : 'live', w, h, lens: VREAD.on ? 'video' : lensLabel()});
     if (!VREAD.on && TEST.frames % 10 === 1) TEST.cam = camInfo();
-    if (tm && tm.full != null) TEST.tw.push(Math.round(tm.full));
-    if (tm && tm.up != null && !tm.deep) TEST.tu.push(Math.round(tm.up));
-    if (tm && tm.even != null) TEST.te.push(Math.round(tm.even));
-    if (tm && tm.glare != null) TEST.tg.push(tm.glare);
-    if (tm && tm.nFull != null) { const e = frameKind(tm); TEST[e + 'N']++; TEST[e + 'C'] += tm.nFull; }
+    if (tm) {
+      for (const [k, a] of [['get', TEST.tget], ['find', TEST.tf], ['lines', TEST.tl], ['rows', TEST.tr], ['grey', TEST.ty], ['full', TEST.tw]]) if (tm[k] != null) a.push(Math.round(tm[k]));
+      if (tm.glare != null) TEST.tg.push(tm.glare);
+      if (tm.len) TEST.lens_.push(tm.len);
+      if (tm.st) { TEST.stN++; TEST.boxes += tm.st.boxes; TEST.kept += tm.st.kept; }
+      if (tm.ferr) TEST.ferr = tm.ferr;
+    }
     if (res.length > TEST.maxPer) TEST.maxPer = res.length;
-    if (tm && tm.skipped) TEST.cut++;
     if (!res.length) TEST.empty++;
   }
-  const ev = frameKind(tm), idx = [];         // how this frame was read: 'ev' its light evened, 'bo' evened and boosted, 'pl' as it is
+  const idx = [], cnt = {A: 0, B: 0, C: 0}; let dup = false;
   for (const r of res) {
-    const kc = certOf(r.text, r.format);
-    if (UI.test) idx.push(testRead(r, ev));
-    else if (kc && tid) addScan(kc[0], kc[1], {table: tid, live: true});
-    SCAN.boxes.push({pos: r.pos, w, h, t: now, ok: UI.test || !!kc});
+    const cls = POINTS[r.cls] ? r.cls : 'C', kc = certOf(r.text, r.format); let ok = false;
+    cnt[cls]++;
+    if (UI.test) { const e = testRead(r, cls); idx.push(e.i + cls); ok = e.ok; }
+    else if (kc && tid) { ok = sighted(kc[0] + '|' + kc[1], cls).ok; if (ok) { addScan(kc[0], kc[1], {table: tid, live: true, quiet: true}); dup = true; } }
+    if (ok || cls !== 'C') SCAN.lastHit = now;
+    SCAN.boxes.push({pos: r.pos, w, h, t: now, ok});         // grey until the number counts, then green
   }
   SCAN.boxes = SCAN.boxes.filter(b => now - b.t < 1400);
   if (res.length && !SCAN.raf) SCAN.raf = requestAnimationFrame(drawBoxes);
-  if (UI.test) testFrame(res, idx, w, h, ms, sharp, tm, ev, kept);
+  if (UI.test) { TEST.sure += cnt.A; TEST.strong += cnt.B; TEST.weak += cnt.C; testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt); }
+  else if (dup) paintScan();                 // once a frame, however many slabs it held (a slab already on the table: "Already read")
 }
-const frameKind = tm => !tm || tm.even == null ? 'pl' : tm.boost ? 'bo' : 'ev';
-function testRead(r, kind) {                 // kind: 'ev' | 'bo' | 'pl' - each code remembers which kinds of frame ever read it; -> the code's number in this test
-  const key = r.format + '|' + r.text, dt = detailOf(r), have = TEST.reads.get(key);
-  if (!have) {
+// Test mode's record of a code: every sighting with how sure it was and which reader gave it (g the grey-line reader, z
+// zxing on the code's lines, w zxing on the whole frame); it COUNTS (ok, and the map turns green) by the same rule as a
+// slab at a show - NEED points.
+function testRead(r, cls) {
+  const key = r.format + '|' + r.text, dt = detailOf(r), now = Date.now(), secs = Math.round((now - (TEST.t0 || now)) / 100) / 10;
+  let e = TEST.reads.get(key);
+  if (!e) TEST.reads.set(key, e = {i: TEST.reads.size, format: r.format, text: r.text, n: 0, min: dt, last: dt, at: now, seen: secs, first: null, ok: false, pts: 0, A: 0, B: 0, C: 0, g: false, z: false, w: false});
+  e.n++; e.last = dt; e.at = now; e[cls]++; e.pts += POINTS[cls];
+  const by = String(r.by || ''); if (by.includes('g')) e.g = true; if (by.includes('z')) e.z = true; if (by.includes('w')) e.w = true;
+  if (dt != null && (e.min == null || dt < e.min)) e.min = dt;
+  if (!e.ok && e.pts >= NEED) {
+    e.ok = true; e.first = secs;
     const at = SHEET_OF.get(r.text); if (at) TEST.sheetN.set(at[0], (TEST.sheetN.get(at[0]) || 0) + 1);
-    TEST.reads.set(key, {i: TEST.reads.size, format: r.format, text: r.text, n: 1, min: dt, last: dt, at: Date.now(), first: Math.round((Date.now() - (TEST.t0 || Date.now())) / 100) / 10, full: !r.up, ev: kind === 'ev', bo: kind === 'bo', pl: kind === 'pl'});
     beep(); setTimeout(paintScan, 0);
-    return TEST.reads.size - 1;
   }
-  have.n++; have.last = dt; have.at = Date.now(); if (!r.up) have.full = true; have[kind] = true; if (dt != null && (have.min == null || dt < have.min)) have.min = dt;
-  return have.i;
+  return e;
 }
+const testOk = () => { let n = 0; for (const r of TEST.reads.values()) if (r.ok) n++; return n; };
 // EVERY FRAME OF A TEST LEAVES A LINE, AND SOME LEAVE THEIR PICTURE (2026-11-10; Brett: "the previous builds have not been
 // effective enough because the data that was collected from the test runs was insufficient ... if there's any stuff you
-// can add to the build for collecting data, then please do so"). Until now the reader was tuned on simulated pictures:
-// a screenshot or a screen recording has a third of the camera's detail - the bars are not in it. So Test mode keeps up
-// to KEEP_MAX frames as the camera gave them (the worker makes the JPEG before anything touches the frame; the first one
-// a second into the test, then every KEEP_GAP_MS - and when there are too many, every other one goes and the gap
-// doubles, so a test of any length is covered end to end), what was read in each and where, the camera's settings at
-// that moment, and for every frame a line: when, which kind, how sharp, how much glare, how many codes, how long each
-// step took, and which codes. "Save test data" (saveTestData) hands all of it over as one file.
-const LOG_FIELDS = ['ms since start', 'kind e|b|p', 'deep', 'sharpness', 'glare per mille', 'codes in the whole pass', 'reading ms', 'evening ms', 'whole ms', 'ms a quarter', 'cut', 'picture kept', 'codes read (numbers in codes[])'];
+// can add to the build for collecting data, then please do so"). A screenshot or a screen recording has a third of the
+// camera's detail - the bars are not in it. So Test mode keeps up to KEEP_MAX frames as the camera gave them (the worker
+// makes the JPEG before anything touches the frame; the first one a second into the test, then every KEEP_GAP_MS - and
+// when there are too many, every other one goes and the gap doubles, so a test of any length is covered end to end),
+// what was read in each and where, the camera's settings at that moment, and for every frame a line (LOG_FIELDS).
+// "Save test data" (saveTestData) hands all of it over as one file. THE SEVEN FILES OF 2026-11-09 ARE WHAT g13 WAS BUILT
+// ON: real frames with known answers, replayed through every idea before it went into the app.
+const LOG_FIELDS = ['ms since start', 'whole-frame pass too', 'sharpness', 'glare per mille', 'boxes found', 'boxes kept', 'median box length', 'reading ms', 'pixels ms', 'find ms', 'lines ms', 'zxing on lines ms', 'grey-line ms', 'whole pass ms', 'sure', 'strong', 'weak', 'picture kept', 'codes: number in codes[] + A sure / B strong / C weak'];
 function camNow() {                           // what the camera says of itself right now (a phone gives few of these; a focus distance would show hunting)
   const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0], o = {};
   try { const st = tr.getSettings(); for (const k of ['width', 'height', 'frameRate', 'zoom', 'torch', 'focusDistance', 'focusMode', 'exposureMode', 'exposureTime', 'exposureCompensation', 'iso', 'whiteBalanceMode', 'colorTemperature']) if (st[k] != null) o[k] = typeof st[k] === 'number' ? Math.round(st[k] * 1000) / 1000 : st[k]; } catch (e) {}
   return o;
 }
-function testFrame(res, idx, w, h, ms, sharp, tm, kind, kept) {
-  const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig);
-  TEST.log.push([t, kind[0], tm && tm.deep ? 1 : 0, sharp == null ? null : sharp, tm && tm.glare != null ? Math.round(tm.glare * 1000) : null, tm && tm.nFull != null ? tm.nFull : null,
-    r0(ms), tm ? r0(tm.even) : null, tm ? r0(tm.full) : null, tm ? r0(tm.up) : null, tm && tm.skipped ? 1 : 0, has ? 1 : 0, idx]);
-  if (tm && tm.nFull != null) TEST.now[kind] = tm.nFull;
+function testFrame(res, idx, w, h, ms, sharp, tm, kept, cnt) {
+  const t = Date.now() - TEST.t0, r0 = v => v == null ? null : Math.round(v), has = !!(kept && kept.orig), st = (tm && tm.st) || {}, T = tm || {};
+  TEST.log.push([t, T.full != null ? 1 : 0, sharp == null ? null : sharp, T.glare != null ? Math.round(T.glare * 1000) : null, st.boxes == null ? null : st.boxes, st.kept == null ? null : st.kept, T.len || null,
+    r0(ms), r0(T.get), r0(T.find), r0(T.lines), r0(T.rows), r0(T.grey), r0(T.full), cnt.A, cnt.B, cnt.C, has ? 1 : 0, idx]);
   if (TEST.log.length === 1) TEST.keepNext = performance.now() + 1000;
-  TEST.live = {kind, sharp, idx};
+  TEST.live = {sharp, idx, cnt, st};
   if (kept && kept.err) TEST.keepErr = kept.err;
   if (has) {
     const q = P => P && P.topLeft ? [P.topLeft, P.topRight, P.bottomRight, P.bottomLeft].flatMap(c => [Math.round(c.x), Math.round(c.y)]) : null;
-    TEST.keep.push({t, frame: TEST.frames, kind, w, h, sharp, glare: tm && tm.glare != null ? Math.round(tm.glare * 1000) / 1000 : null, cam: camNow(), blob: kept.orig, crop: kept.crop || null,
-      reads: res.map((r, j) => [idx[j], r.up ? 1 : 0, q(r.pos)])});
+    TEST.keep.push({t, frame: TEST.frames, kind: T.full != null ? 'fw' : 'f', w, h, sharp, glare: T.glare != null ? Math.round(T.glare * 1000) / 1000 : null, cam: camNow(), blob: kept.orig, crop: kept.crop || null,
+      reads: res.map((r, j) => [idx[j], String(r.by || ''), r.lines || 0, r.fit == null ? null : r.fit, r.gap == null ? null : r.gap, q(r.pos)])});
     TEST.keepN++;
-    if (kept.evened) TEST.evened[kind] = {blob: kept.evened, frame: TEST.frames, t};
+    if (kept.rows && !TEST.rowsPic) TEST.rowsPic = {blob: kept.rows, frame: TEST.frames, t};
     if (TEST.keep.length > KEEP_MAX) { TEST.keep = TEST.keep.filter((x, i) => i % 2 === 0); TEST.keepGap *= 2; }
     TEST.keepNext = performance.now() + TEST.keepGap;
   }
@@ -717,33 +700,32 @@ function testFrame(res, idx, w, h, ms, sharp, tm, kind, kept) {
 }
 // THE LITTLE MAP AND THE NUMBERS BESIDE THE STOP BUTTON (Test mode, redrawn every frame): there for a SCREEN RECORDING to
 // capture - "I hope taking a screen recorded video of the test run is sufficient". The map is the printed sheet in view,
-// five by ten: bright = read in the frame just read, dim = read earlier, dark = never; so the recording shows which codes
-// each frame gets, and when the last ones come in. The numbers: frames a second and the kind of the frame just read
-// (E evened, B boosted, P plain), its sharpness, the glare, what the whole pass last read on each kind, seconds since a
-// new code, pictures kept.
+// five by ten: bright = sighted in the frame just read, dim = counted earlier, dark = not yet; so the recording shows
+// which codes each frame gets, and when the last ones come in. The numbers: frames a second, the frame's sharpness, the
+// glare, the boxes the finder kept of those it found, this frame's sure / strong / weak readings, seconds since a new
+// code counted, pictures kept.
 const LIVE = {cells: null, sheet: 0};
 function paintLive() {
   const st = $('live-stat'), mp = $('live-map'); if (!st || !mp) return;
   if (!(UI.test && UI.rec && TEST.live)) { if (st.textContent) st.textContent = ''; if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
-  const L = TEST.live, N = TEST.now, d = v => v == null ? '-' : v;
-  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s · ' + L.kind[0].toUpperCase() + '\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nE ' + d(N.ev) + ' B ' + d(N.bo) + ' P ' + d(N.pl) +
+  const L = TEST.live, d = v => v == null ? '-' : v;
+  st.textContent = (SCAN.fps ? SCAN.fps.toFixed(1) : '-') + ' f/s\nsharp ' + d(L.sharp) + '\nglare ' + (SCAN.glare * 100).toFixed(1) + '%\nboxes ' + d(L.st.kept) + '/' + d(L.st.boxes) + '\nA ' + L.cnt.A + ' B ' + L.cnt.B + ' C ' + L.cnt.C +
     '\nnew ' + Math.max(0, (performance.now() - (SCAN.lastNew || 0)) / 1000).toFixed(0) + ' s ago\npics ' + TEST.keep.length;
   let top = 0, best = 2; for (const [sh, n] of TEST.sheetN) if (n > best) { best = n; top = sh; }
   if (!top) { if (mp.firstChild) mp.innerHTML = ''; LIVE.cells = null; return; }
   if (!LIVE.cells || LIVE.sheet !== top || mp.childNodes.length !== 50) { mp.innerHTML = '<b></b>'.repeat(50); LIVE.cells = [...mp.childNodes]; LIVE.sheet = top; }
-  const state = new Uint8Array(50);
-  for (const r of TEST.reads.values()) { const at = SHEET_OF.get(r.text); if (at && at[0] === top) state[at[1]] = 1; }
-  const order = [...TEST.reads.values()];
-  for (const i of L.idx) { const r = order[i], at = r && SHEET_OF.get(r.text); if (at && at[0] === top) state[at[1]] = 2; }
+  const state = new Uint8Array(50), order = [...TEST.reads.values()];
+  for (const r of order) { const at = r.ok && SHEET_OF.get(r.text); if (at && at[0] === top) state[at[1]] = 1; }
+  for (const x of L.idx) { const r = order[parseInt(x, 10)], at = r && SHEET_OF.get(r.text); if (at && at[0] === top) state[at[1]] = 2; }
   for (let i = 0; i < 50; i++) { const c = state[i] === 2 ? 'n' : state[i] ? 'r' : ''; if (LIVE.cells[i].className !== c) LIVE.cells[i].className = c; }
 }
 // Brett, 2026-11-09: "something where your feedback is more reliable than some screenshots" - Test mode's numbers as text
 // to paste into the chat: the camera, the speed, how sharp the frames were (blur vs too little detail), every code with
-// its finest detail, how often and when it was read, and whether only the enlarged reads found it.
+// its finest detail, how often and how surely it was read, by which reader, and when it counted.
 function testStats() {
   const sh = TEST.sharps.slice().sort((a, b) => a - b), q = p => sh.length ? sh[Math.min(sh.length - 1, Math.floor(p * sh.length))] : null;
   const best = q(0.9), rows = [...TEST.reads.values()];
-  return {sh, q, best, sharpPct: best ? Math.round(100 * sh.filter(v => v >= best / 2).length / sh.length) : null, onlyUp: rows.filter(r => !r.full).length, rows};
+  return {sh, q, best, sharpPct: best ? Math.round(100 * sh.filter(v => v >= best / 2).length / sh.length) : null, rows, ok: rows.filter(r => r.ok)};
 }
 const perFrame = (c, n) => n ? Math.round(c / n * 10) / 10 : null;
 function testReport() {
@@ -752,10 +734,13 @@ function testReport() {
   return {report: 'Slab Show Scanner test', version: APP_VERSION, test: TEST.step ? {number: TEST.step, of: TEST_PLAN.length, what: TEST.label} : null, at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '', browser: navigator.userAgent, homeScreenApp: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)), screen: [window.innerWidth, window.innerHeight, window.devicePixelRatio || 1],
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
-    timing: {wholeMs: med(TEST.tw), quarterMs: med(TEST.tu), quartersPerFrame: TEST.mode === 'live' ? SCAN.tiles : 4, evenMs: med(TEST.te)}, lightEvened: SCAN.even, glarePct: TEST.tg.length ? Math.round(med(TEST.tg) * 1000) / 10 : null, wholePassCodesPerFrame: {evened: perFrame(TEST.evC, TEST.evN), evenedFrames: TEST.evN, boosted: perFrame(TEST.boC, TEST.boN), boostedFrames: TEST.boN, plain: perFrame(TEST.plC, TEST.plN), plainFrames: TEST.plN}, mostCodesInOneFrame: TEST.maxPer,
-    framesWithNoCode: TEST.empty, framesDroppedEarly: TEST.cut,
-    sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.rows.length, onlyEnlarged: st.onlyUp, neverOnPlainFrames: st.rows.filter(r => !r.pl).length, onlyOnBoostedFrames: st.rows.filter(r => r.bo && !r.ev && !r.pl).length, onlyOnPlainFrames: st.rows.filter(r => r.pl && !r.ev && !r.bo).length,
-    list: st.rows.sort((a, b) => a.first - b.first).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.full ? 'whole' : 'enlarged', (r.ev ? 'E' : '') + (r.bo ? 'B' : '') + (r.pl ? 'P' : '')])};
+    timing: {pixelsMs: med(TEST.tget), findMs: med(TEST.tf), linesMs: med(TEST.tl), zxingOnLinesMs: med(TEST.tr), greyLineMs: med(TEST.ty), wholePassMs: med(TEST.tw)}, finder: SCAN.finder, finderError: TEST.ferr, glarePct: TEST.tg.length ? Math.round(med(TEST.tg) * 1000) / 10 : null,
+    perFrame: {boxesFound: perFrame(TEST.boxes, TEST.stN), boxesKept: perFrame(TEST.kept, TEST.stN), medianBoxLength: med(TEST.lens_), sure: perFrame(TEST.sure, TEST.frames), strong: perFrame(TEST.strong, TEST.frames), weak: perFrame(TEST.weak, TEST.frames)}, mostCodesInOneFrame: TEST.maxPer,
+    framesWithNoCode: TEST.empty,
+    sharpness: {low: st.q(0.1), median: st.q(0.5), high: st.best}, sharpFramesPct: st.sharpPct, codes: st.ok.length, sightedButNotCounted: st.rows.length - st.ok.length,
+    countedBy: {greyLineOnly: st.ok.filter(r => r.g && !r.z && !r.w).length, zxingOnly: st.ok.filter(r => !r.g).length, both: st.ok.filter(r => r.g && (r.z || r.w)).length},
+    listFields: ['kind', 'text', 'finest detail (dots a bar)', 'sightings', 'second it counted (null: never)', 'second first sighted', 'sure / strong / weak sightings', 'readers: g grey-line, z zxing on lines, w zxing on the whole frame'],
+    list: st.rows.sort((a, b) => (a.first == null ? 1e9 : a.first) - (b.first == null ? 1e9 : b.first)).map(r => [fmtName(r.format), r.text, r.min == null ? null : Math.round(r.min * 100) / 100, r.n, r.first, r.seen, r.A + '/' + r.B + '/' + r.C, (r.g ? 'g' : '') + (r.z ? 'z' : '') + (r.w ? 'w' : '')])};
 }
 // THE TEST-DATA FILE: a ZIP, made here (the pictures are JPEGs already, so they are stored as they are - no compressing).
 const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -781,9 +766,13 @@ async function buildTestZip() {               // made at Stop: report.json (the 
   rep.pictures = TEST.keep.map((k, i) => {
     const name = 'frame-' + p2(i + 1) + '-' + (k.t / 1000).toFixed(1) + 's-' + k.kind + '.jpg'; files.push({name, blob: k.blob});
     if (k.crop) files.push({name: 'frame-' + p2(i + 1) + '-middle-lossless.png', blob: k.crop});
-    return {file: name, msSinceStart: k.t, frame: k.frame, readAs: k.kind === 'ev' ? 'evened' : k.kind === 'bo' ? 'evened + boosted' : 'as it is', width: k.w, height: k.h, sharpness: k.sharp, glare: k.glare, camera: k.cam, readsFields: ['code (number in codes[])', 'only in an enlarged piece', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
+    return {file: name, msSinceStart: k.t, frame: k.frame, readBy: k.kind === 'fw' ? 'the finder, and zxing on the whole frame' : 'the finder', width: k.w, height: k.h, sharpness: k.sharp, glare: k.glare, camera: k.cam,
+      readsFields: ['code (number in codes[]) + A sure / B strong / C weak', 'readers: g grey-line, z zxing on the lines, w zxing on the whole frame', 'lines zxing read it on', 'grey-line fit', 'grey-line lead over its next best reading', 'corners x,y: top-left, top-right, bottom-right, bottom-left'], reads: k.reads};
   });
-  rep.evenedPictures = Object.keys(TEST.evened).map(kind => { const e = TEST.evened[kind], name = 'evened-' + kind + '-frame' + e.frame + '-quarter-size.jpg'; files.push({name, blob: e.blob}); return {file: name, kind, frame: e.frame, msSinceStart: e.t}; });
+  if (TEST.rowsPic) {                          // the first kept frame's codes as zxing was handed them: one row a line, three treatments of each
+    const name = 'lines-frame' + TEST.rowsPic.frame + '.png'; files.push({name, blob: TEST.rowsPic.blob});
+    rep.linesPicture = {file: name, frame: TEST.rowsPic.frame, msSinceStart: TEST.rowsPic.t};
+  }
   rep.keepSettings = {most: KEEP_MAX, jpegQuality: KEEP_Q, lastGapMs: TEST.keepGap, error: TEST.keepErr};
   files.unshift({name: 'report.json', blob: new Blob([JSON.stringify(rep)], {type: 'application/json'})});
   const blob = await zipStore(files), name = 'scanner-test-' + APP_VERSION + (TEST.step ? '-t' + TEST.step : '') + '-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + '.zip';
@@ -836,7 +825,7 @@ function addScan(grader, cert, opts) {
   const tid = (opts && opts.table) || UI.recTable, live = !!(opts && opts.live), busy = UI.rec || VREAD.on;
   if (!tid) return null;
   const have = slabsArr().find(sl => sl.t === tid && !sl.demo && sl.cert === cert);
-  if (have) { if (busy) { UI.dup = 'Already read: ' + gkLabelShort(have) + ' (counted once)'; paintScan(); } return have; }
+  if (have) { if (busy) { UI.dup = 'Already read: ' + gkLabelShort(have) + ' (counted once)'; if (!(opts && opts.quiet)) paintScan(); } return have; }
   const sid = 's' + (S.seq++) + '-' + Date.now().toString(36);
   const sl = {id: sid, t: tid, grader, cert, at: Date.now(), look: 'queued', mode: 'pct', vd: null, vp: null, st: 'new'};
   S.slabs[sid] = sl; save();
@@ -862,6 +851,7 @@ async function startRec(tableId) {
     testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = TEST_STEP + 1; TEST.label = TEST_PLAN[TEST_STEP];
   }
   const id = UI.test ? null : (tableId || newTable());
+  SCAN.seen.clear(); SCAN.lastLen = 0;         // the sightings are counted anew for every table
   Object.assign(UI, {rec: true, recTable: id, recStart: now, feed: [], dup: null, tab: 'scan', openTable: null, camErr: null});
   SCAN.lastHit = SCAN.lastNew = performance.now(); SCAN.cntSeen = -1; SCAN.glare = 0; SCAN.bestPx = 0; SCAN.revived = 0; SCAN.reviving = false;
   audioOn(); wakeOn();
@@ -921,6 +911,7 @@ async function readVideo(file) {
   fv.muted = true; fv.playsInline = true; fv.setAttribute('playsinline', ''); fv.setAttribute('muted', ''); fv.preload = 'auto';
   const url = URL.createObjectURL(file); fv.src = url;
   const tid = UI.test ? null : newTable();
+  SCAN.seen.clear();
   if (UI.test) { testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; TEST.step = 0; TEST.label = ''; }   // a video read in Test mode is a test of its own too
   Object.assign(VREAD, {on: true, stop: false, el: fv, pct: 0, w: 0, h: 0, frames: 0, tid, name: file.name || 'video'});
   Object.assign(UI, {recTable: tid, feed: [], dup: null, camErr: null, scanMsg: null, tab: 'scan', openTable: null});
@@ -934,8 +925,8 @@ async function readVideo(file) {
     if (!w || !h) throw new Error('no picture in this file');
     for (let t = 0, k = 0; t < dur && !VREAD.stop; t += VIDEO_STEP_S, k++) {
       await seekTo(fv, Math.min(t, Math.max(0, dur - 0.01)));
-      const opts = readerOpts(k & 1, wideFormats());       // no hurry: both binarizers by turns, all four quarters - with the QR search too on the LocalAverage frames
-      const out = await readImage(fv, w, h, opts, {full: true, up: QUADS, even: !!(k & 1), boost: k % 4 === 3 ? BOOST : 0}, k & 1 ? readerOpts(1, LINEAR_FORMATS) : opts);
+      // no hurry: the finder and the whole-frame pass on every frame, the two binarizers by turns for the whole pass
+      const out = await readImage(fv, w, h, readerOpts(k & 1, wideFormats()), {find: true, full: true});
       gotReads(out.res, out.w || w, out.h || h, out.ms, tid, out.sharp, out.t);
       VREAD.frames++; VREAD.pct = Math.min(1, (t + VIDEO_STEP_S) / dur); paintScan();
     }
@@ -1094,7 +1085,7 @@ function scanHtml() {
     '<label class="field" id="vendor-field"><span class="label">Vendor or booth</span><input class="input" type="text" placeholder="Optional - e.g. Booth 214" value="' + esc(UI.draftVendor) + '" data-in="draftVendor"></label>' +
     '<div class="viewfinder" id="vf"><div class="vfslabs" id="vfslabs">' + '<div class="fslab"><div class="flabel"><div class="fbar"></div></div><div class="fart"></div></div>'.repeat(8) + '</div>' +
     '<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div><canvas class="vfboxes" id="vf-boxes"></canvas>' +
-    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Hold 8–10 inches away and pause over each group of slabs</div></div>' +
+    '<div id="vf-rec"></div><div id="vf-tools"></div><div class="vfhint" id="vf-hint">Hold about a foot away (with 3x: 2 feet or more) and pause over each group of slabs</div></div>' +
     '<div id="vid-prog"></div>' +
     '<div class="recwrap"><div class="livestat" id="live-stat"></div><div class="livemap" id="live-map"></div><button class="recbtn" id="rec-btn" data-a="rec" aria-label="Start recording"><span class="core"></span></button><span class="small muted" id="rec-hint">Tap to record this table</span></div>' +
     '<div class="toolrow" id="toolrow"><label class="btn" id="vid-btn">Read a video<input class="vh" type="file" accept="video/*" id="vid-in"></label>' +
@@ -1105,66 +1096,67 @@ function scanHtml() {
 const detCls = v => v == null ? 'lo' : v >= 2 ? 'hi' : v >= 1.5 ? 'mid' : 'lo';
 // THE MAP OF THE SHEET (2026-11-10; Brett sent screenshots, not the pasted report: "Can i just record my screen next
 // time"). With a printed test sheet in view, Test mode shows the sheet as it is laid out - five across, ten down, each
-// code green with the second it was first read, or red if it never was - and under it the run's numbers in a few lines,
-// so ONE screenshot after a run carries what the pasted report did: which codes were missed (and so where on the sheet,
-// and of which kind), the camera, the speed, the timings.
-function sheetDone() {                       // every code of a printed sheet has been read: nothing is hiding any more
-  const n = new Map();
-  for (const r of TEST.reads.values()) { const at = SHEET_OF.get(r.text); if (at) n.set(at[0], (n.get(at[0]) || 0) + 1); }
-  for (const v of n.values()) if (v >= 50) return true;
+// code green with the second it counted, amber if it was sighted but never surely enough to count, red if it never was -
+// and under it the run's numbers in a few lines, so ONE screenshot after a run carries what the pasted report did: which
+// codes were missed (and so where on the sheet, and of which kind), the camera, the speed, the timings.
+function sheetDone() {                       // every code of a printed sheet has counted: nothing is hiding any more
+  for (const v of TEST.sheetN.values()) if (v >= 50) return true;
   return false;
 }
 function sheetCard() {
-  const hit = new Map(), all = [...TEST.reads.values()];
+  const hit = new Map(), all = [...TEST.reads.values()], okN = m => { let n = 0; for (const r of m.values()) if (r.ok) n++; return n; };
   for (const r of all) { const at = SHEET_OF.get(r.text); if (at) { if (!hit.has(at[0])) hit.set(at[0], new Map()); hit.get(at[0]).set(at[1], r); } }
-  const sheets = [...hit.entries()].filter(e => e[1].size >= 3).sort((a, b) => b[1].size - a[1].size).slice(0, 2);
+  const sheets = [...hit.entries()].filter(e => e[1].size >= 3).sort((a, b) => okN(b[1]) - okN(a[1]) || b[1].size - a[1].size).slice(0, 2);
   if (!sheets.length) return '';
   const off = all.filter(r => !SHEET_OF.has(r.text)), st = testStats(), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0, cam = TEST.cam || {};
   const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : '-'; };
-  const kind = n => n.length === 10 ? 'C' : n.length === 9 ? 'P' : 'I';
+  const kind = n => n.length === 10 ? 'C' : n.length === 9 ? 'P' : 'I', d = v => v == null ? '-' : v;
   const maps = sheets.map(([sh, got]) => {
     const nums = TEST_SHEETS[sh - 1].split(','), by = {C: [0, 0], P: [0, 0], I: [0, 0]};
-    const cells = nums.map((n, k) => { const r = got.get(k), kd = kind(n); by[kd][1]++; if (r) by[kd][0]++;
-      return '<span class="tc ' + (r ? r.pl ? 'ok' : 'ok evo' : 'no') + '">' + (k + 1) + '<i>' + kd + '</i>' + (r ? '<em>' + (r.first < 100 ? r.first.toFixed(1) : Math.round(r.first)) + '</em>' : '') + '</span>'; }).join('');
-    return '<div class="tbig"><b>' + got.size + '</b>of 50 read on sheet ' + sh + '</div>' +
+    const cells = nums.map((n, k) => { const r = got.get(k), kd = kind(n), ok = r && r.ok; by[kd][1]++; if (ok) by[kd][0]++;
+      return '<span class="tc ' + (ok ? r.z || r.w ? 'ok' : 'ok evo' : r ? 'un' : 'no') + '">' + (k + 1) + '<i>' + kd + '</i>' + (ok ? '<em>' + (r.first < 100 ? r.first.toFixed(1) : Math.round(r.first)) + '</em>' : '') + '</span>'; }).join('');
+    return '<div class="tbig"><b>' + okN(got) + '</b>of 50 read on sheet ' + sh + '</div>' +
       '<div class="small muted">CGC ' + by.C[0] + '/' + by.C[1] + ' · PSA Code 128 (thinnest bars) ' + by.P[0] + '/' + by.P[1] + ' · PSA ITF ' + by.I[0] + '/' + by.I[1] + '</div>' +
       '<div class="tmap">' + cells + '</div>';
   }).join('');
-  const firsts = all.filter(r => SHEET_OF.has(r.text)).map(r => r.first).sort((a, b) => a - b), mark = n => firsts.length >= n ? firsts[n - 1].toFixed(1) : '-';
+  const firsts = st.ok.filter(r => SHEET_OF.has(r.text)).map(r => r.first).sort((a, b) => a - b), mark = n => firsts.length >= n ? firsts[n - 1].toFixed(1) : '-';
+  const offOk = off.filter(r => r.ok);
   const lines = [                              // short lines: each fits a phone's width without wrapping
     ...(TEST.step ? ['test ' + TEST.step + ': ' + TEST.label.slice(0, 38)] : []),
-    APP_VERSION + ' · ' + TEST.w + '×' + TEST.h + ' · ' + (TEST.mode === 'video' ? 'video file' : TEST.lens + ' · ' + (cam.frameRate || '?') + 'fps · light ' + (cam.light ? 'on' : 'off')),
+    APP_VERSION + ' · ' + TEST.w + '×' + TEST.h + ' · ' + (TEST.mode === 'video' ? 'video file' : TEST.lens + ' · ' + (cam.frameRate || '?') + 'fps'),
     Math.round(secs) + ' s · ' + TEST.frames + ' frames (' + (secs ? (TEST.frames / secs).toFixed(1) : '-') + '/s) · most/frame ' + TEST.maxPer,
-    'whole ' + med(TEST.tw) + ' ms · quarter ' + med(TEST.tu) + ' ms ×' + (TEST.mode === 'live' ? SCAN.tiles : 4) + ' · evening ' + (SCAN.even ? med(TEST.te) + ' ms' + (SCAN.even === 'low' ? '' : ' ' + SCAN.even) : 'NO'),
-    'per frame: even ' + (TEST.evN ? perFrame(TEST.evC, TEST.evN) : '-') + ' · boost ' + (TEST.boN ? perFrame(TEST.boC, TEST.boN) : '-') + ' · plain ' + (TEST.plN ? perFrame(TEST.plC, TEST.plN) : '-'),
-    'frames ev/boost/plain ' + TEST.evN + '/' + TEST.boN + '/' + TEST.plN + ' · empty ' + TEST.empty + ' · cut ' + TEST.cut,
-    'never plain ' + all.filter(r => !r.pl).length + ' · boost only ' + all.filter(r => r.bo && !r.ev && !r.pl).length + ' · plain only ' + all.filter(r => r.pl && !r.ev && !r.bo).length,
-    'sharp ' + st.q(0.1) + '/' + st.q(0.5) + '/' + st.best + ' · glare ' + (TEST.tg.length ? (med(TEST.tg) * 100).toFixed(1) + '%' : '-') + ' · only enlarged ' + st.onlyUp,
+    'ms: pixels ' + med(TEST.tget) + ' · find ' + med(TEST.tf) + ' · lines ' + med(TEST.tl),
+    'ms: zxing ' + med(TEST.tr) + ' · grey ' + med(TEST.ty) + ' · whole ' + med(TEST.tw),
+    'per frame: boxes ' + d(perFrame(TEST.kept, TEST.stN)) + '/' + d(perFrame(TEST.boxes, TEST.stN)) + ' · A ' + d(perFrame(TEST.sure, TEST.frames)) + ' B ' + d(perFrame(TEST.strong, TEST.frames)) + ' C ' + d(perFrame(TEST.weak, TEST.frames)),
+    'counted ' + st.ok.length + ' · sighted only ' + (all.length - st.ok.length) + ' · empty frames ' + TEST.empty,
+    'by: grey-line only ' + st.ok.filter(r => r.g && !r.z && !r.w).length + ' · zxing only ' + st.ok.filter(r => !r.g).length + ' · both ' + st.ok.filter(r => r.g && (r.z || r.w)).length,
+    'sharp ' + st.q(0.1) + '/' + st.q(0.5) + '/' + st.best + ' · glare ' + (TEST.tg.length ? (med(TEST.tg) * 100).toFixed(1) + '%' : '-') + ' · code length ' + med(TEST.lens_),
     'secs to 10/25/40/45/50: ' + [10, 25, 40, 45, 50].map(mark).join('/'),
-    'not on a sheet: ' + off.length + (off.length ? ' (' + off.slice(0, 3).map(r => r.text.slice(0, 12)).join(', ') + ')' : '')];
+    'not on a sheet: counted ' + offOk.length + (offOk.length ? ' (' + offOk.slice(0, 3).map(r => r.text.slice(0, 12)).join(', ') + ')' : '') + ' · sighted ' + (off.length - offOk.length),
+    ...(SCAN.finder && !TEST.ferr ? [] : ['FINDER ' + (TEST.ferr ? 'ERROR: ' + TEST.ferr.slice(0, 60) : 'NOT LOADED')])];
   return '<div id="sheet-card">' + maps + '<div class="tstat">' + lines.map(esc).join('<br>') + '</div>' +
-    '<div class="small muted">Green = read, with the second it was first read; outlined = only ever read with the light evened; red = never read. C = CGC, P = PSA Code 128, I = PSA ITF.</div></div>';
+    '<div class="small muted">Green = read, with the second it counted (outlined: by the grey-line reader alone); amber = sighted, never surely enough to count; red = never. C = CGC, P = PSA Code 128, I = PSA ITF.</div></div>';
 }
 function testHtml() {
   const rows = [...TEST.reads.values()].sort((a, b) => b.at - a.at);
   const cam = UI.rec && SCAN.stream && VIDEO.videoWidth ? 'Camera ' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' (' + VIDEO.videoWidth + '×' + VIDEO.videoHeight + '), ' + lensLabel() + ' lens'
     : VREAD.on && VREAD.w ? 'Video ' + VREAD.w + '×' + VREAD.h : '';
   const speed = (UI.rec || VREAD.on) && SCAN.fps ? ', ' + SCAN.fps.toFixed(1) + ' frames read a second' : '';
-  const st = testStats();
+  const nOk = testOk(), more = rows.length - nOk;
   return '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Test mode</span>' + (rows.length || TEST.frames ? '<button class="linkbtn" style="min-height:0;padding:0" data-a="testclear">Clear</button>' : '') + '</div>' +
     (UI.rec || VREAD.on ? '' : '<div class="tplan"><button class="minibtn" data-a="teststep" data-v="-1" aria-label="Previous test">‹</button><div class="tplan-t"><b>Next: test ' + (TEST_STEP + 1) + ' of ' + TEST_PLAN.length + '</b>' + esc(TEST_PLAN[TEST_STEP]) + '</div><button class="minibtn" data-a="teststep" data-v="1" aria-label="Next test">›</button></div>') +
-    (sheetCard() || '<div class="tbig"><b>' + rows.length + '</b>different code' + (rows.length === 1 ? '' : 's') + ' read</div>') +
+    (sheetCard() || '<div class="tbig"><b>' + nOk + '</b>different code' + (nOk === 1 ? '' : 's') + ' read</div>') +
     (cam ? '<div class="small muted">' + esc(cam + speed) + '</div>' : '') +
-    (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (rows.length ? ', ' + st.onlyUp + ' code' + (st.onlyUp === 1 ? '' : 's') + ' found only by the enlarged reads' : '') + '</div>' : '') +
+    (TEST.frames ? '<div class="small muted">' + TEST.frames + ' frames read' + (more ? ', ' + more + ' more code' + (more === 1 ? '' : 's') + ' sighted but not surely enough to count' : '') + '</div>' : '') +
     (TEST.frames && !(UI.rec || VREAD.on) ? (TEST.zip ? '<button class="btn green" data-a="testsave">Save test data (' + (TEST.zip.pics ? TEST.zip.pics + ' picture' + (TEST.zip.pics === 1 ? '' : 's') + ', ' : '') + TEST.zip.mb + ' MB)</button>' +
         '<div class="small muted">' + esc(TEST.zip.note || 'One file: the pictures kept from this test as the camera gave them, and a log of every frame. Nothing is sent anywhere - you choose where it goes (AirDrop, Files).') + '</div>' +
         (TEST.zip.parts && TEST.zip.parts.length > 1 ? '<button class="linkbtn" style="min-height:0;padding:0;text-align:left" data-a="testsaveparts">…or share them as ' + TEST.zip.parts.length + ' separate files</button>' : '')
       : '<div class="small muted">' + (TEST.keepErr && !TEST.keep.length ? 'No pictures were kept (' + esc(TEST.keepErr) + ').' : 'Preparing the test file…') + '</div>') +
       '<button class="btn" data-a="testcopy">Copy report for Claude</button>' : '') +
     (UI.reportText ? '<textarea class="input" style="height:120px;font-size:12px" readonly>' + esc(UI.reportText) + '</textarea>' : '') +
-    rows.slice(0, 60).map(r => '<div class="trow"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
-      (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
-    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). About 2 or more reads easily; 1.5 is the edge - slab barcodes need the phone about 8–10 inches away with 1x. Movement across the bars smears them (a smear of two bars’ width and nothing reads): hold still over each group, or move the way the bars point, and try the Light. With one of the printed test sheets in view, a map of the sheet shows which codes were read. Each recording is a test of its own: after Stop, Save test data hands over the pictures kept from it and a log of every frame, in one file (or screenshot the map; or Copy report for the numbers alone).</p></div>';
+    rows.slice(0, 60).map(r => '<div class="trow' + (r.ok ? '' : ' un') + '"><span class="tfmt">' + esc(fmtName(r.format)) + '</span><span class="ttext">' + esc(r.text) + '</span>' +
+      (r.ok ? '' : '<span class="tdet lo">not counted</span>') + (r.min == null ? '' : '<span class="tdet ' + detCls(r.min) + '">' + r.min.toFixed(1) + ' dots/bar</span>') + '</div>').join('') +
+    '<p class="note" style="margin:0">Nothing is saved, looked up or sent in Test mode. A code counts once the reader is sure of it - its two readers agreeing on one frame, or one of them on a second frame - the same rule as at a show. Dots/bar = the finest detail each code was still read at: camera dots per thin bar (per square for a QR). With 1x a slab’s barcode reads to about 13 inches; from 2 feet or more, tap 3x on the picture. Movement across the bars smears them: a short pause over each group reads them. With one of the printed test sheets in view, a map of the sheet shows which codes counted. Each recording is a test of its own: after Stop, Save test data hands over the pictures kept from it and a log of every frame, in one file (or screenshot the map; or Copy report for the numbers alone).</p></div>';
 }
 function paintScan() {
   if (UI.tab !== 'scan' || !$('rec-btn')) return;
@@ -1175,23 +1167,30 @@ function paintScan() {
   $('vendor-field').hidden = busy || UI.test;
   $('vf').classList.toggle('rec', busy);
   $('vfslabs').hidden = cam || VREAD.on;
-  const secs = UI.rec ? Math.floor((Date.now() - UI.recStart) / 1000) : 0, cnt = UI.test ? TEST.reads.size : t ? slabsArr().filter(sl => sl.t === t.id).length : 0;
+  const secs = UI.rec ? Math.floor((Date.now() - UI.recStart) / 1000) : 0, cnt = UI.test ? testOk() : t ? slabsArr().filter(sl => sl.t === t.id).length : 0;
   const what = UI.test ? (cnt === 1 ? ' code' : ' codes') : ' read';
   $('vf-rec').innerHTML = UI.rec ? '<div class="scanline"></div><div class="recbadge"><span class="recdot"></span>' + (UI.test ? 'TEST ' : 'REC ') + Math.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2) + ' · ' + cnt + what + '</div>'
     : VREAD.on ? '<div class="recbadge"><span class="recdot"></span>VIDEO ' + Math.round(VREAD.pct * 100) + '% · ' + cnt + what + '</div>' : '';
   const ch = lensChoices(), cur = S.settings.lens;
   const fr = SCAN.settings && SCAN.settings.frameRate ? ' · ' + Math.round(SCAN.settings.frameRate) + 'fps' : '';
   // Nothing read for three seconds while the camera runs: say what makes a frame readable (2026-11-09 - on the simulated
-  // frames a sideways smear of 4 camera dots, two bars' width, read nothing at all; the same smear along the bars cost nothing).
+  // frames a sideways smear of 4 camera dots, two bars' width, read nothing at all; the same smear along the bars cost
+  // nothing). g13: and when the codes the finder sees are too small for this lens (SMALL_LEN), say that instead - with
+  // the 3x lens named where the phone has one. (No word of the Light any more: Brett will not use it at a show.)
   const idle = cam && VIDEO.videoWidth && performance.now() - (SCAN.lastHit || 0) > 3000;
   // GLARE (2026-11-10, Brett's fourth test: what the shadow did not hide, glare on the sheet's plastic sleeve did - a
   // blown-out patch holds no code for any reader, but it moves when the phone does): while codes are being read but no
   // NEW one has come for four seconds and over GLARE_MIN of the picture is blown out (the worker counts it), say so.
   if (cnt !== SCAN.cntSeen) { SCAN.cntSeen = cnt; SCAN.lastNew = performance.now(); }
-  const glare = cam && VIDEO.videoWidth && !idle && SCAN.glare >= GLARE_MIN && performance.now() - (SCAN.lastNew || 0) > 4000 && !(UI.test && sheetDone());
+  const stale = performance.now() - (SCAN.lastNew || 0) > 4000 && !(UI.test && sheetDone());
+  const glare = cam && VIDEO.videoWidth && !idle && SCAN.glare >= GLARE_MIN && stale;
+  // TOO FAR comes first: the codes the finder sees are under SMALL_LEN dots long and nothing new has counted for four seconds
+  const tele = lensLabel() === '3x', far = SCAN.lastLen > 0 && SCAN.lastLen < SMALL_LEN && (idle || stale);
+  const coach = !(cam && VIDEO.videoWidth) ? '' : far ? (tele ? 'Too far for 3x - move closer' : lensChoices().some(c => c[0] === 'tele') ? 'Too far for 1x - move closer, or tap 3x' : 'Too far - move closer, to about a foot')
+    : idle ? (tele ? 'Nothing readable - 3x needs 2 feet or more, held still' : 'Nothing readable - hold still, about a foot away') : glare ? 'Glare - shift or tilt the phone a little' : '';
   $('vf-tools').innerHTML = cam && VIDEO.videoWidth ? '<div class="vfinfo">' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' · ' + lensLabel() + fr + '</div>' +
       (SCAN.caps && SCAN.caps.torch ? '<button class="lightbtn' + (SCAN.torch ? ' on' : '') + '" data-a="light" aria-pressed="' + (SCAN.torch ? 'true' : 'false') + '">Light ' + (SCAN.torch ? 'on' : 'off') + '</button>' : '') +
-      (idle ? '<div class="vfcoach">' + (SCAN.caps && SCAN.caps.torch && !SCAN.torch ? 'Nothing readable - hold still, or try the Light' : 'Nothing readable - hold still, 8–10 inches away') + '</div>' : glare ? '<div class="vfcoach">Glare - shift or tilt the phone a little</div>' : '') +
+      (coach ? '<div class="vfcoach">' + coach + '</div>' : '') +
       (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
     : VREAD.on && VREAD.w ? '<div class="vfinfo">' + resLabel(VREAD.w, VREAD.h) + ' video</div>' : '';
   $('vf-hint').hidden = cam || VREAD.on;
