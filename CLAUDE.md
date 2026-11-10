@@ -2813,6 +2813,11 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   framesWithNoCode and framesDroppedEarly. along.y4m (the same smear along the bars): every version reads 49-50 at once.
   The answer key of Brett's printed sheets (400 codes, 8 sheets of 50; thin bar 0.173 mm PSA Code 128, 0.204 CGC, 0.273
   PSA ITF) is slab-barcode-test-key.csv, sent with the PDF on 2026-11-05 - check a pasted report's codes against it.
+  g11k (2026-11-10 00:15 UTC): g11j's site build was fine but its Pages DEPLOY job failed ("Timeout reached, aborting!"
+  after 10 min - GitHub's side; run 203), so the site stayed on g11i. A failed deploy is retried with "Re-run failed jobs"
+  on the run's page (signed in) or, as here, by the next patch that touches page/. This one: the nothing-readable line
+  says "hold still, or try the Light" while the camera has a light that is off. /home/claude/check_report.py checks a
+  pasted report against the answer key (rewrite it from this note if the session's files are gone).
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -

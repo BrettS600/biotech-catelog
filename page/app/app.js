@@ -674,7 +674,7 @@ function testStats() {
 function testReport() {
   const st = testStats(), ms = TEST.ms.slice().sort((a, b) => a - b), secs = TEST.t0 ? (TEST.last - TEST.t0) / 1000 : 0;
   const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
-  return {report: 'Slab Show Scanner test', version: 'g11j', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
+  return {report: 'Slab Show Scanner test', version: 'g11k', at: new Date().toISOString(), phone: (/\(([^)]+)\)/.exec(navigator.userAgent) || [])[1] || '',
     mode: TEST.mode, camera: TEST.w + 'x' + TEST.h, lens: TEST.lens, cameraDetails: TEST.mode === 'live' ? TEST.cam || camInfo() : null, seconds: Math.round(secs), frames: TEST.frames,
     framesPerSecond: secs ? Math.round(TEST.frames / secs * 10) / 10 : null, msPerRead: ms.length ? ms[Math.floor(ms.length / 2)] : null,
     timing: {wholeMs: med(TEST.tw), quarterMs: med(TEST.tu), quartersPerFrame: TEST.mode === 'live' ? SCAN.tiles : 4}, mostCodesInOneFrame: TEST.maxPer,
@@ -1002,7 +1002,7 @@ function paintScan() {
   $('vf-tools').innerHTML = cam && VIDEO.videoWidth ? '<div class="vfinfo">' + resLabel(VIDEO.videoWidth, VIDEO.videoHeight) + ' · ' + lensLabel() + fr + '</div>' +
       (SCAN.caps && SCAN.caps.torch ? '<button class="lightbtn' + (SCAN.torch ? ' on' : '') + '" data-a="light" aria-pressed="' + (SCAN.torch ? 'true' : 'false') + '">Light ' + (SCAN.torch ? 'on' : 'off') + '</button>' : '') +
       (UI.test && window.ImageCapture ? '<button class="lightbtn photobtn" data-a="photo"' + (SCAN.photoBusy ? ' disabled' : '') + '>' + (SCAN.photoBusy ? 'Photo…' : 'Photo test') + '</button>' : '') +
-      (idle && !SCAN.photoBusy ? '<div class="vfcoach">Nothing readable - hold still, 8–10 inches away</div>' : '') +
+      (idle && !SCAN.photoBusy ? '<div class="vfcoach">' + (SCAN.caps && SCAN.caps.torch && !SCAN.torch ? 'Nothing readable - hold still, or try the Light' : 'Nothing readable - hold still, 8–10 inches away') + '</div>' : '') +
       (ch.length ? '<div class="lensbar" role="group" aria-label="Lens">' + ch.map(c => '<button class="' + ((cur === c[0] || (c[0] === 'main' && !ch.some(x => x[0] === cur))) ? 'on' : '') + '" data-a="lens" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' : '')
     : VREAD.on && VREAD.w ? '<div class="vfinfo">' + resLabel(VREAD.w, VREAD.h) + ' video</div>' : '';
   $('vf-hint').hidden = cam || VREAD.on;
