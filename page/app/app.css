@@ -179,6 +179,13 @@ a{color:var(--blt)}
 .tdet{flex:none;font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;font-variant-numeric:tabular-nums}
 .lightbtn{position:absolute;top:10px;right:10px;min-height:34px;padding:0 12px;border-radius:17px;border:0;background:rgba(6,9,13,.72);color:var(--tx);font:700 12px Inter,sans-serif;cursor:pointer}
 .lightbtn.on{background:var(--am);color:#1A1204}
-.photobtn{top:52px}
 .vfcoach{position:absolute;left:50%;transform:translateX(-50%);bottom:62px;max-width:92%;background:rgba(6,9,13,.78);color:var(--tx);font:600 12px Inter,sans-serif;padding:6px 10px;border-radius:8px;white-space:nowrap;pointer-events:none}
-.photobtn:disabled{opacity:.6}
+.tmap{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.tc{display:flex;align-items:baseline;justify-content:center;gap:3px;height:23px;line-height:23px;border-radius:5px;font:700 12px Inter,sans-serif;font-variant-numeric:tabular-nums}
+.tc i{font:600 9px Inter,sans-serif;font-style:normal;opacity:.75}
+.tc em{font:600 10px Inter,sans-serif;font-style:normal;opacity:.9}
+.tc.ok{background:rgba(61,214,140,.2);color:var(--grt)}
+.tc.no{background:#4A2629;color:var(--rdt)}
+.tc.evo{box-shadow:inset 0 0 0 1.5px var(--grt)}
+.tstat{font:500 10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx);background:var(--s2);border-radius:8px;padding:8px 9px;word-break:break-word}
+#sheet-card{display:flex;flex-direction:column;gap:8px;scroll-margin-top:4px}

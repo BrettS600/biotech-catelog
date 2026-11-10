@@ -2785,7 +2785,8 @@ no Apple account, no Xcode), "everything now", the sample show kept.
     read (sampling phase) - a hand's own movement varies that. BUDGET_MS = 220: the worker reports t.full and t.up and
     the page reads 4, 2 (diagonal pairs by turns) or 1 quarter a frame to fit; tune it from Brett's report (timing:
     wholeMs, quarterMs, quartersPerFrame, framesPerSecond). A video file: whole + all four quarters every frame.
-  - TEST MODE'S "PHOTO TEST" BUTTON (photoTest): one tap reads a video frame, a still photo (ImageCapture.takePhoto) and,
+  - (REMOVED in g11l - on his phone it blacked out the live picture and its photo read nothing.) TEST MODE'S "PHOTO
+    TEST" BUTTON (photoTest): one tap reads a video frame, a still photo (ImageCapture.takePhoto) and,
     when the camera offers a bigger one, a still at the largest size - each whole + four quarters - and notes the counts
     (report: photoTests). Why: Brett keeps asking to use "my actual ios camera". A page cannot reach the Camera app;
     WebKit's ImageCapture (UnifiedWebPreferences ImageCaptureEnabled: stable, on for Cocoa) takes a real still through
@@ -2818,6 +2819,70 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   on the run's page (signed in) or, as here, by the next patch that touches page/. This one: the nothing-readable line
   says "hold still, or try the Light" while the camera has a light that is off. /home/claude/check_report.py checks a
   pasted report against the answer key (rewrite it from this note if the session's files are gone).
+  g11l (2026-11-10): BRETT'S FOURTH TEST CAME AS 12 SCREENSHOTS, not the pasted report ("Can i just record my screen
+  next time" - yes; the screenshots are how the cause was found). What they show: Safari gives the camera at 4K, 1x,
+  30 fps (not the 60 asked for); three runs on sheet 2 stopped at 37, 37 and 36 of 50. RUN 1 (Light off): THE CODES
+  NEVER READ ARE THE ONES IN THE SHADOW OF HIS PHONE AND HAND (lower-left: columns 1-2, rows 4-10), fat-barred ITF
+  among them - so not detail, not blur - plus two or three under a room light's glare on the sheet's plastic sleeve.
+  Measured in the screenshots: lit paper 200-210, shaded paper 78-98 (38-47%), the black mat 16-25 (10%), glare
+  245-250. RUNS 2-3 (Light on): the shaded codes read, but the torch's glare on the sleeve wipes out the middle-right,
+  the paper falls off to 136-165 on the left, and the mat rises to 23-44. THE PHOTO TEST (ImageCapture.takePhoto,
+  g11i-g11k) LEFT THE LIVE PICTURE BLACK AND 144 x 192, and its 2160 x 3840 photo read no code: a page cannot use
+  stills on an iPhone - the Photo test is removed (button, report fields), and camWatch() (once a second while
+  recording) stops and starts the camera when its track has ended or the picture is under a quarter of its best size,
+  three times a recording at most.
+  THE FIX - THE LIGHT IS EVENED BEFORE A FRAME IS READ (scan-worker.js evenLight; its header has the reasoning and the
+  numbers). zxing reads a linear code with one threshold for a whole row of the picture, about 2/3 of the way from the
+  row's dark group of dots to its white group: shaded paper becomes the dark group. Each part of the frame is divided
+  by the white level around it: shrink to 1/16 by halving four times (a mean of 2 x 2 each time - a sparse sample made
+  a blotchy map that lost codes), the white level = a CLOSING of that map (the brightest block within REACH 2, then
+  the darkest within the same reach: bars and print are filled with the white around them, while the edge of a shadow,
+  of glare, of the sheet stays where it is - brightest-only read 176 codes of 200 under a hard-edged shadow, the
+  closing 200), a 3 x 3 smooth, then the canvas's "color-dodge" blend (picture / (1 - layer)) of the small map drawn
+  back over the frame. WHAT IS NOT PAPER IS LEFT ALONE - blocks under DARK0 (17%) of the picture's own white (the level
+  1 block in 100 is brighter than) keep their brightness, a ramp to DARK1 (25%): a mat lifted halfway raises the row's
+  dark group and the threshold with it (45 degrees fell from 123 codes to 91). RELATIVE cut-offs, not fixed levels:
+  with 40/60 a dim scene read 157 of 200 where it read 183 untouched; relative, 200. Nothing bright in the picture
+  (white under 64): left as it is. dodgeWorks() tries the blend (100 under 128 must give 201) and the halving (a
+  black-and-white board must come out grey; SMOOTH = the first smoothing setting that does) once; where either fails
+  the frames are read as before and the report says lightEvened false.
+  Simulated, four frames of 50 codes, whole pass + quarters (the whole pass alone in brackets), as it is -> evened:
+  his depth of shadow at 9 inches 186 (120) -> 200 (199); a hard-edged shadow 183 -> 200; a table sharing the rows
+  with the sheet (a foot away): mat 158 -> 191, grey felt 87 -> 183, wood 107 -> 190; a dim scene 183 -> 200; the
+  plain sheet 190 -> 193; 45 degrees 123 -> 133; slabs in 4K 104 (72) -> 105 (89). HIS OWN SCREENSHOT through the
+  same code (apptest3/realeven.py) comes out with the shadow gone - the before/after picture he was sent.
+  THE BOOSTED FRAMES (plan.boost 0.7): the reader's threshold 2/3 of the way to white suits crisp print; in a small or
+  tilted code the thin white gaps no longer reach white and are called black. Where there is print (a block's own mean
+  under its white level) the divisor becomes white^(1-boost) x mean^boost: 45 degrees 133 -> 171, the plain sheet's
+  whole pass 146 -> 174 - but at 9 inches one code of 200 is lost to it, so it is one kind of frame among three.
+  THREE KINDS OF FRAME BY TURNS (app.js scanFrame, k % 3): evened; evened + boosted; the LocalAverage frame AS IT IS
+  (the safety net if evening hurts in a light no test picture had; a QR never needed it). In the app on the simulated
+  cameras, g11k -> g11l: his shadow at 30% 28 of 40 -> 40; 45 degrees 39 -> 46; a foot away with the shadow 46 -> 50;
+  far 47 -> 50; the plain sheet, the slabs (38) and the pausing hand unchanged; ~4.5-5 frames a second as before.
+  Test mode counts the whole-frame pass's codes on each kind (report wholePassCodesPerFrame {evened, boosted, plain})
+  and remembers for every code which kinds ever read it (the report list's 7th field: letters E, B, P). THOSE NUMBERS
+  FROM HIS PHONE SAY WHAT EACH KIND IS WORTH THERE - read them first, then set the turn (drop the plain frames to one
+  in six, more or fewer boosted). The simulation is EASIER than his table: at his depth of shadow (43%) g11k still read
+  all 40 codes in view within a second and only stalled (28 of 40) at 30% - real frames are harder than simulated
+  ones, and only his test counts.
+  GLARE cannot be evened (the dots are 255): the worker counts the blocks blown out (t.glare), and while codes are
+  read but no NEW one has come for 4 s and over 1.2% of the picture is blown out, the picture says "Glare - shift or
+  tilt the phone a little" (not once a whole test sheet is read).
+  THE MAP OF THE SHEET (app.js sheetCard, TEST_SHEETS = the 400 numbers of slab-barcode-test-key.csv, checked against
+  it): with a printed sheet in view Test mode shows "N of 50 read on sheet S", the counts by kind, the sheet as a
+  5 x 10 grid (green with the second a code was first read, OUTLINED if no plain frame ever read it, red if never; C =
+  CGC, P = PSA Code 128, I = PSA ITF) and nine short lines of numbers (version, size, lens, fps, light; seconds,
+  frames, most codes in a frame; whole / quarter / evening ms; codes a frame even / boost / plain; frame counts;
+  never plain / boost only / plain only; sharpness, glare %, only enlarged; seconds to 10/25/40/45/50 codes; codes not
+  on a sheet). After Stop the page scrolls to it: ONE SCREENSHOT carries what the pasted report did. Copy report still
+  works (/home/claude/check_report.py reads it; rewrite it from this note if the session's files are gone).
+  Known limits: a code under glare waits until the glare moves; the white level is a 16-dot-block map, so a code right
+  on a razor-sharp shadow edge can still fail in that frame. Test pictures: /tmp/claude-0/ga/bc5 (gen.py NAME BG DIM
+  SHADE [x|-] [dots per mm] [t]; EDGE=12 for a hard shadow edge) on mats, felt, wood, dim scenes, close up, straight
+  and tilted; apptest3/shade_bench.py runs the worker's OWN evenLight() on them (VARIANTS: "W" as shipped, "W0"
+  brightest-only, "R1"/"R3" other reaches, "B0.7" a boost), realeven.py runs it on his screenshots, card.py records a
+  Test run at phone size and screenshots the map, camwatch.py / camwatch2.py end or shrink the camera's picture under
+  the app, glare.py watches the glare hint.
 - SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
