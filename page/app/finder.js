@@ -31,6 +31,7 @@ const DEF = {
   minLen: 80, maxCands: 110, maxKept: 80,     // a code shorter than 80 dots has bars under a dot wide: nothing reads it; the biggest 110 patches are cut, until 80 hold bars
   maxLen: 1600, maxThick: 200,                // a patch bigger than this is no slab's code in focus (a striped cloth, a fence): not cut (a huge code is the whole-frame pass's)
   coarseMin: 280,                             // the coarse level (16 x 16 blocks) looks for codes this long or longer
+  cutMs: 120,                                 // the cutting stops for this frame after so many ms (patches are cut in order of promise: find())
   S: 0,                                       // samples per picture dot in a folded line (0: 3 for a small code, fewer for a big one)
   margin: 0.14, marginPx: 8,                  // quiet zone kept either side: this share of the code's length + this many dots
   closeW: 31, blurS: 6, pct: 0.02,            // (in samples) the evening: how wide a bar it fills in, how soft, what counts as black
@@ -148,21 +149,22 @@ function findBoxes(bs, o, side) {
     for (let x = 0; x < wb; x++) { let last = -1;
       for (let y = 0; y < hb; y++) if (m[y * wb + x]) { if (last >= 0 && y - last > 1 && y - last <= 5) for (let k = last + 1; k < y; k++) m[k * wb + x] = 1; last = y; } }
   }
-  return patches(m, wb, hb, o, ang => { const lim = 40 * Math.PI / 180; return (side ? Math.abs(Math.abs(ang) - Math.PI / 2) : Math.abs(ang)) > lim ? -1 : side ? 1 : 0; }, null, {side: side ? 1 : 0, a: new Int32Array(Math.max(wb, hb)), b: new Int32Array(Math.max(wb, hb)), on: new Uint8Array(Math.max(wb, hb))}, blk);
+  return patches(m, wb, hb, o, ang => { const lim = 40 * Math.PI / 180; return (side ? Math.abs(Math.abs(ang) - Math.PI / 2) : Math.abs(ang)) > lim ? -1 : side ? 1 : 0; }, null, {side: side ? 1 : 0, a: new Int32Array(Math.max(wb, hb)), b: new Int32Array(Math.max(wb, hb)), on: new Uint8Array(Math.max(wb, hb))}, blk, {a: side ? sy : sx, k: side ? 1 : 0.5, sm, bias});
 }
 // the patches of a mask (blocks touching, corners too) that are long and thin -> boxes; side(ang) says which way a patch
 // of that direction is to be cut (0 across the picture, 1 down it) or -1 to leave it
 // phi (slanted codes): the direction the stripes of each block run across - two blocks join only when theirs differ by
 // less than DIAG.join degrees (a code's blocks all point one way; the print under it points every way), and side() is told
 // the patch's mean direction
-function patches(m, wb, hb, o, side, phi, core, blk) {
+function patches(m, wb, hb, o, side, phi, core, blk, con) {
   const N = wb * hb, out = [], stack = new Int32Array(N), mem = new Int32Array(N), tol = DIAG.join * Math.PI / 180;
   for (let s = 0; s < N; s++) {
     if (m[s] !== 1) continue;
     let sp = 0, n = 0; stack[sp++] = s; m[s] = 2;
-    let Sx = 0, Sy = 0, Sxx = 0, Syy = 0, Sxy = 0, C2 = 0, S2 = 0;
+    let Sx = 0, Sy = 0, Sxx = 0, Syy = 0, Sxy = 0, C2 = 0, S2 = 0, cn = 0, cd = 0;
     while (sp) {
       const i = stack[--sp], x = i % wb, y = (i - x) / wb; mem[n++] = i;
+      cn += con.k === 2 ? Math.sqrt(con.a[i]) : con.a[i] * con.k; cd += con.sm[i] + con.bias;
       Sx += x; Sy += y; Sxx += x * x; Syy += y * y; Sxy += x * y;
       if (phi) { C2 += Math.cos(2 * phi[i]); S2 += Math.sin(2 * phi[i]); }
       if (!phi) {
@@ -209,7 +211,7 @@ function patches(m, wb, hb, o, side, phi, core, blk) {
       }
       for (let k = 0; k < n; k++) { const i = mem[k], x = i % wb, y = (i - x) / wb; cntA[vert ? x : y] = 0; cntB[vert ? y : x] = 0; }
     } else box = boxOf(mem, n, wb, o, side, Sx, Sy, Sxx, Syy, Sxy, S2, C2, blk);
-    if (box) out.push(box);
+    if (box) { box.con = cd > 0 ? cn / cd : 0; out.push(box); }
   }
   return out;
 }
@@ -262,7 +264,7 @@ function findSlant(bs, o) {
     const m = ms[k], phi = phis[k];
     dropLines(m, wb, hb, 0, 0, phi, en, 0.25);
     const side = (ang, mphi) => { let d = Math.abs(ang - mphi); if (d > Math.PI / 2) d = Math.PI - d; const A = Math.abs(ang); return d <= agree && A >= a0 && A <= a1 ? (A > Math.PI / 4 ? 1 : 0) : -1; };
-    for (const c of patches(m, wb, hb, o, side, phi, null, bs.blk || BLK)) { c.diag = 1; out.push(c); }
+    for (const c of patches(m, wb, hb, o, side, phi, null, bs.blk || BLK, {a: en, k: 2, sm, bias})) { c.diag = 1; out.push(c); }
   }
   return out;
 }
@@ -294,7 +296,12 @@ function find(D, W, H, opt) {
       if (!whole) { d.coarse = 1; c.push(d); }
     }
   }
-  c.sort((a, b) => b.area - a.area);                         // the biggest patches first: a code is bigger than a word of print
+  // THE ORDER THEY ARE CUT IN: big and of strong contrast first (area x contrast squared; contrast = a patch's change
+  // across its stripes against its brightness: black bars on white 0.2-0.4, a word of print 0.1-0.2, the grain of a
+  // wooden table or a woven cloth 0.09). The cutting has a time limit (o.cutMs in prepare): on a picture full of
+  // texture that runs one way - 100 slanted patches of wood grain took 150 ms to cut - the codes must come first.
+  for (const b of c) b.score = b.area * b.con * b.con;
+  c.sort((a, b) => b.score - a.score);
   if (c.length > o.maxCands) c.length = o.maxCands;
   let g = 0; const lim = 1000 * bs.nr, N = bs.wb * bs.hb; for (let i = 0; i < N; i++) if (bs.sm[i] >= lim) g++;   // blocks blown out to white
   c.glare = g / N;
@@ -463,7 +470,7 @@ function prepare(D, W, H, opt) {
   const cands = find(D, W, H, o); t.find = now() - ta; ta = now();
   const cuts = []; let keptN = 0;
   for (let ci = 0; ci < cands.length; ci++) {
-    if (keptN >= o.maxKept || cands[ci].len > o.maxLen || cands[ci].thick > o.maxThick) { cuts.push(null); continue; }
+    if (keptN >= o.maxKept || cands[ci].len > o.maxLen || cands[ci].thick > o.maxThick || t.cut + t.lean > o.cutMs) { cuts.push(null); continue; }
     const c = cands[ci], turn = c.diag && o.turn !== false;
     const along = c.diag && !turn ? (c.side ? Math.abs(Math.sin(c.ang)) : Math.cos(c.ang)) : 1;   // a slanted code cut by shearing: the share of its length that lies along the cut
     const span = c.len * along, mrg = Math.round(span * o.margin) + o.marginPx, w = Math.round(span) + 2 * mrg, h = Math.round(c.thick / along) + 6;

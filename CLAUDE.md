@@ -3083,6 +3083,16 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   - In Chromium on fake cameras (apptest4): close views 25 and 21 counted; faint frames 46; a mix of grainy, blurred,
     dark and leaning frames 50 with the wrong one only "sighted"; the earlier views 48-50, 41, 42. No number that is
     not on the sheet counted anywhere. sw.js: ssc-v14; the app says g13a.
+  g13b (half an hour later) - A PICTURE FULL OF TEXTURE THAT RUNS ONE WAY (a wooden table's grain, a woven cloth; made
+  up here: real/tex, bench12.js - nothing is ever "read" in them, but with T at 0.08 a slanted fine grain gave 100
+  slanted patches and took 150 ms to cut, 290 ms a frame). Patches are now cut in order of PROMISE - area x contrast
+  squared (each box's .con: its blocks' change across the stripes against their brightness: bars 0.2-0.4, print
+  0.1-0.2, grain 0.09) instead of by size alone, and the cutting stops for the frame after cutMs 120 ms: 200 ms, and
+  a real sheet laid over that grain reads as on a plain table (39 codes counted in Chromium, none wrong). Every other
+  suite reads as with g13a. The app says g13b; sw.js: ssc-v15.
+  THE NUMBERS TO QUOTE (final, fx/bench5.js, sure + strong per frame, g12a in brackets): 9 in 86% (49%), light-on test
+  91% (69%), 13 in 63% (22%), tilted 47% (15%), dim 74% (7%); quarter turns and upside down the same; any angle the
+  same; with border lines the same; a faint frame 70-75%; from close by 65-80%.
   CARD LADDER THAT NIGHT: restarted by hand at 03:47 and 05:24 UTC (each time the loop had done 180 pages), now always
   with KEEP - a Web Lock ("clrun-keepalive") held for good and a watcher that logs freeze / resume / visibility to
   localStorage clr-freeze-log; the topic and key are carried over the reload in sessionStorage (and removed), so they are
