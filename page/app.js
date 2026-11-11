@@ -1582,6 +1582,7 @@ function showTab(id) {
   auMode();                                             // the top boxes are out of play only while Raw Data shows auctions
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.t)));
+const START_HASH = location.hash;                       // (kept before the tab's own address replaces it: the iPhone app's #review/... - graded.js grReviewOpen)
 showTab(Object.keys(TAB_HASH).find(k => TAB_HASH[k] === location.hash.slice(1).split('/')[0]) || 'pc');
 
 /* ---------------- eBay live data ----------------

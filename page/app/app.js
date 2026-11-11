@@ -20,7 +20,16 @@
    camera dots per bar). g13 (2026-11-10, the last build of the scanner, after Brett's seven test files): the barcodes
    are FOUND in the frame first, whichever way round they lie, and each is read from its own lines by two readers
    (finder.js); a number counts once the reading is sure (see "WHEN A NUMBER COUNTS"). Every real slab
-   read goes to the collector ('scan') and on into card-data's data/scans/scans.csv as its PSA / CGC cert link. */
+   read goes to the collector ('scan') and on into card-data's data/scans/scans.csv as its PSA / CGC cert link.
+   THE NATIVE APP (g15, 2026-11-11; Brett: "I intend to use the native app rather than the browser app ... make the native
+   app look identical to the browser app, but with a few exceptions. Keep the testing part for the barcode scanner"): the
+   iPhone app "Slab Scanner" shows THIS page in a web view, so it is the same app; where it finds itself inside (NATIVE)
+   it differs in three places only - a recording is filmed and read by the phone's own camera and readers (the shutter,
+   focus and lamp the browser cannot reach, Apple's reader and this page's finder + zxing on every frame) and each slab
+   it counts comes back to addScan (sscNativeIn); Test mode opens the native app's own test screen; and on a slab's sheet
+   "Review: is it the right card?" gives way to the website's own blue Review button, which opens the website's Review
+   of that card and grade (Brett: "remove that part and replace it with the review button that we have on the site"),
+   with "Yes, this card / No - find it" and "Wrong card? Find the right one" kept as small buttons beside it. */
 'use strict';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -29,6 +38,8 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
   del(k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
+const NATIVE = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sscNative) || null;   // inside the iPhone app
+function nativePost(o) { try { NATIVE.postMessage(o); } catch (e) {} }
 const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the buyer tax on it (the website's 14.11%)
 const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
 const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
@@ -391,7 +402,7 @@ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-ste
 function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
 UI.tpol = planPol();
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
-const APP_VERSION = 'g14';
+const APP_VERSION = 'g15';
 // Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
 // and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
 const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
@@ -1137,6 +1148,22 @@ function addScan(grader, cert, opts) {
   return sl;
 }
 const gkLabelShort = sl => { const x = calc(sl); return x.name + (x.known && x.gk ? ' · ' + gkLabel(x.gk) : ''); };
+// what the iPhone app says while it films a table (it counts a number by its own rule - two readers, one place one code)
+window.sscNativeIn = {
+  read(text, kind) {
+    const c = certOf(text, kind === 'Code 128' ? 'Code128' : kind);
+    if (c && UI.rec && UI.recTable) addScan(c[0], c[1], {live: true});
+  },
+  unread(text, kind) {                       // a number it took back (another was read far more often at the same place)
+    const c = certOf(text, kind === 'Code 128' ? 'Code128' : kind); if (!c || !UI.recTable) return;
+    const sl = slabsArr().find(x => x.t === UI.recTable && !x.demo && x.cert === c[1] && x.st === 'new'); if (!sl) return;
+    delete S.slabs[sl.id]; UI.feed = UI.feed.filter(f => f.sid !== sl.id);
+    LS.set(SCANQ, LS.get(SCANQ, []).filter(q => !(q[0] === c[0] && q[1] === c[1])));
+    save(); paintScan();
+  },
+  stop() { if (UI.rec) stopRec(); },
+  lens(v) { S.settings.lens = v === 'tele' ? 'tele' : 'main'; save(); }
+};
 function newTable() {                        // the next table, with the vendor typed on Scan
   const now = Date.now(), n = S.tables.reduce((m, t) => Math.max(m, t.n), 0) + 1, id = 't' + now.toString(36);
   S.tables.push({id, n, vendor: UI.draftVendor || '', at: now}); save();
@@ -1157,6 +1184,12 @@ async function startRec(tableId) {
   SCAN.lastHit = SCAN.lastNew = performance.now(); SCAN.cntSeen = -1; SCAN.glare = 0; SCAN.bestPx = 0; SCAN.revived = 0; SCAN.reviving = false;
   audioOn(); wakeOn();
   render();
+  if (NATIVE && !UI.test) {                    // the iPhone app films and reads; each slab it counts comes back through sscNativeIn.read
+    const t = tableOf(id);
+    nativePost({cmd: 'scanStart', title: 'Table ' + (t ? t.n : '') + (t && t.vendor ? ' · ' + t.vendor : ''), lens: S.settings.lens === 'tele' ? 'tele' : 'main'});
+    SCAN.tick = setInterval(paintScan, 1000);
+    return paintScan();
+  }
   // (the camera's frame callback asks for each frame to be read; where a browser has none, or it falls silent, this timer does)
   try { workerReady(); zxReady(); await camStart(); fwStart(); SCAN.timer = setInterval(() => { if (!VIDEO.requestVideoFrameCallback || performance.now() - FW.at > 250) scanFrame(null); }, 50); }
   catch (e) {
@@ -1180,6 +1213,7 @@ function simStart() {                        // no camera and no card data: samp
   }, 1150);
 }
 function stopRec() {
+  if (NATIVE && !UI.test) nativePost({cmd: 'scanStop'});   // (the app closes its camera screen, if this stop did not come from it)
   clearInterval(SCAN.timer); clearInterval(SCAN.sim); clearInterval(SCAN.tick); SCAN.timer = SCAN.sim = SCAN.tick = null;
   fwStop();
   if (UI.test) { tev('stop', TEST.frames + ' frames read'); TEST.platP = SCAN.stream && TEST.frames ? framePlat() : null; motionStop(); }
@@ -1519,6 +1553,13 @@ function paintScan() {
     const right = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? '<span class="tag t-look">Looking up</span>' : !sl.demo && sl.look === 'manual' ? '<span class="tag t-check">Find card</span>' : '<span class="' + pillCls(x) + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</span>';
     return '<div class="chip' + (k === 0 ? ' fresh' : '') + '"><span class="tick">' + ICON.check + '</span><span class="ctext"><b>' + esc(x.name) + '</b>' + (x.known && x.gk ? ' · ' + esc(gkLabel(x.gk)) : '') + '</span>' + right + '</div>'; }).join('');
   $('feed').innerHTML = busy && !UI.test ? (UI.dup ? '<div class="dup">' + esc(UI.dup) + '</div>' : '') + feed : '';
+  if (NATIVE && UI.rec && !UI.test) {          // the app's camera screen shows the same list
+    const tmp = document.createElement('div'), items = UI.feed.map(f => { const sl = S.slabs[f.sid]; if (!sl) return ''; const x = calc(sl);
+      tmp.innerHTML = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? 'Looking up' : !sl.demo && sl.look === 'manual' ? 'Find card' : x.chance == null ? '-' : pctS(x.chance);
+      return [x.name + (x.known && x.gk ? ' · ' + gkLabel(x.gk) : ''), tmp.textContent]; }).filter(Boolean);
+    const msg = JSON.stringify({n: cnt, items, dup: UI.dup || ''});
+    if (msg !== SCAN.nativeFeed) { SCAN.nativeFeed = msg; nativePost({cmd: 'feed', n: cnt, items, dup: UI.dup || ''}); }
+  }
   $('test-panel').innerHTML = UI.test ? testHtml() : '';
   $('scan-note').innerHTML = UI.test ? '' : DSTATE !== 'ok' ? 'Sample mode: unlock on the Show tab to look real slabs up. Without a camera, sample slabs appear as if read.'
     : 'Each slab’s barcode or QR is read once per table; PSA slabs are looked up with PSA right away, and each cert’s link goes to scans.csv. Read a video: a clip you filmed with the Camera app, read frame by frame into a new table.';
@@ -1647,7 +1688,7 @@ function slabHtml(sl, x) {
   let idbox = '';
   if (!sl.demo && sl.look !== 'ok') {
     if (sl.look === 'queued' || sl.look === 'looking') idbox = '<div class="note">Looking this slab up with PSA…</div>';
-    else if (sl.look === 'check') idbox = '<div class="warnbox">' + (sl.how === 'spec' ? 'PSA’s spec fits ' + (sl.cands || []).length + ' catalog cards; this is the first.' : 'Best guess from PSA’s label (card number and name) - not a spec match.') + ' Open Review to confirm it or pick the right one.</div>';
+    else if (sl.look === 'check') idbox = '<div class="warnbox">' + (sl.how === 'spec' ? 'PSA’s spec fits ' + (sl.cands || []).length + ' catalog cards; this is the first.' : 'Best guess from PSA’s label (card number and name) - not a spec match.') + ' ' + (NATIVE ? 'Confirm it below, or find the right one.' : 'Open Review to confirm it or pick the right one.') + '</div>';
     else idbox = '<div class="warnbox">' + esc(WHY[sl.lookWhy] || 'Not identified yet.') + '</div><button class="btn primary" data-a="search">Find the card</button>';
   }
   const status = [['asked', 'Asked'], ['declined', 'No deal'], ['agreed', 'Agreed'], ['bought', 'Bought']].map(q => '<button class="' + (sl.st === q[0] ? 's-' + q[0] : '') + '" data-a="st" data-v="' + q[0] + '">' + q[1] + '</button>').join('');
@@ -1665,10 +1706,19 @@ function slabHtml(sl, x) {
     '<div class="kv"><span class="k">PriceCharting (reference)</span><span class="v">' + money(x.pc) + '</span></div>' +
     '<div class="kv"><span class="k">Sold last month</span><span class="v">CL ' + (x.sold == null ? '-' : x.sold) + ' · PC ' + (x.soldPC == null ? '-' : x.soldPC) + '</span></div>' +
     (x.n12 != null ? '<div class="kv"><span class="k">Card Ladder sales a year</span><span class="v">' + x.n12 + '</span></div>' : '') + '</div>' +
-    (identified(sl) || sl.demo ? '<button class="btn" data-a="review">Review: is it the right card?' + (!sl.demo && sl.look === 'check' ? ' <span class="tag t-check">Check it</span>' : '') + '</button>' : '') +
+    (NATIVE && !sl.demo && identified(sl) ? nativeReviewHtml(sl, x)
+      : identified(sl) || sl.demo ? '<button class="btn" data-a="review">Review: is it the right card?' + (!sl.demo && sl.look === 'check' ? ' <span class="tag t-check">Check it</span>' : '') + '</button>' : '') +
     '<div class="card stack" style="gap:6px"><span class="label">Rank</span><span style="font-weight:600">' + (x.pct == null ? 'Not ranked' : ord(Math.round(x.pct * 100)) + ' percentile · group ' + Math.min(10, Math.floor(x.pct * 10) + 1) + ' of 10') + '</span>' +
     '<span class="small muted">' + (x.pct == null ? 'Card Ladder has too few sales of this grade (or a price under $25) to rank it.' : x.pct >= 0.5 ? 'Its price sits below its own 12-month level - the deeper, the higher the percentile.' : 'Its price sits near or above its own 12-month level.') + '</span></div>' +
     '<button class="linkbtn" style="color:var(--rdt);align-self:flex-start" data-a="remove">Remove this slab from the table</button>';
+}
+// inside the iPhone app: the website's own Review button (its look, its same / not-the-same colours), and beside it the two
+// jobs the old Review screen did that the website's cannot - confirming PSA's best guess, and picking another card
+function nativeReviewHtml(sl, x) {
+  const mark = S.marks[sl.cid] !== undefined ? S.marks[sl.cid] : (x.card || [])[9];
+  return '<div class="nrv"><button class="rvb' + (mark === 1 ? ' same' : mark === 0 ? ' diff' : '') + '" data-a="sitereview">Review</button>' +
+    (sl.look === 'check' ? '<button class="btn sm green" data-a="confirm">Yes, this card</button><button class="btn sm" data-a="search">No - find it</button>' : '') +
+    '<button class="linkbtn" data-a="search">Wrong card? Find the right one</button></div>';
 }
 function reviewHtml(sl, x) {
   const back = '<button class="back" data-a="view" data-v="slab">' + ICON.back + 'Slab</button>';
@@ -1749,7 +1799,7 @@ async function act(a, ds, el) {
   switch (a) {
     case 'tab': if ((UI.rec || VREAD.on) && ds.v !== 'scan') return toast(VREAD.on ? 'Stop reading the video first.' : 'Stop recording first.'); UI.tab = ds.v; UI.openTable = null; break;
     case 'rec': if (VREAD.on) { VREAD.stop = true; return; } if (UI.rec) return stopRec(); return startRec(null);
-    case 'test': if (UI.rec || VREAD.on) return; UI.test = !UI.test; UI.scanMsg = null; UI.camErr = null; break;
+    case 'test': if (UI.rec || VREAD.on) return; if (NATIVE) return nativePost({cmd: 'test'}); UI.test = !UI.test; UI.scanMsg = null; UI.camErr = null; break;
     case 'testclear': testClear(); TEST.zip = null; TEST.zipSeq++; UI.reportText = null; return paintScan();
     case 'testsave': return saveTestData();
     case 'testsaveparts': return saveTestData(true);
@@ -1784,6 +1834,7 @@ async function act(a, ds, el) {
     case 'st': if (sl) { sl.st = sl.st === ds.v ? 'new' : ds.v; save(); } break;
     case 'remove': if (sl) { delete S.slabs[sl.id]; UI.sheet = null; save(); } break;
     case 'review': UI.view = 'review'; break;
+    case 'sitereview': if (sl && sl.cid != null) { const x = calc(sl); nativePost({cmd: 'review', cid: String(sl.cid), gk: x.gk || '', name: x.name + (x.gk ? ' · ' + gkLabel(x.gk) : '')}); } return;
     case 'search': UI.view = 'search'; UI.q = UI.q || (sl && sl.auth ? norm(sl.auth.subject + ' ' + sl.auth.num) : ''); UI.pickGk = sl ? sl.gk : null; break;
     case 'pickgk': UI.pickGk = ds.v; break;
     case 'pickcid': if (sl) { sl.cid = +ds.v; sl.gk = UI.pickGk || sl.gk; sl.look = sl.gk ? 'ok' : 'manual'; sl.how = 'manual'; sl.lookWhy = sl.gk ? null : 'nf'; sl.cands = null; UI.view = sl.gk ? 'slab' : 'search'; save(); if (!sl.gk) toast('Pick the grade too.'); } break;

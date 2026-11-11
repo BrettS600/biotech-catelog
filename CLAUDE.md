@@ -3491,7 +3491,42 @@ n4 (built with no error and no warning at the first try, installed 04:52 UTC Nov
 - NOT SEEN FROM HERE: Xcode showed "Launching SlabScanner is taking longer than expected" over the window and the
   box could not be clicked (his screen was a full-screen app) - Brett was asked to click Stop in it and to tell
   whether the status line says "ours 2/2".
-NOT DONE YET: the web app's wrong-number fix; then the $99 and the full app.
+NOT DONE YET: the web app's wrong-number fix; then the $99.
+THE FULL APP (n5 + the web app's g15, 2026-11-11). Brett, before testing n4 ("I will proceed with ... the experiments once
+I get more fable data"): "I intend to use the native app rather than the browser app ... make the native app look
+identical to the browser app, but with a few exceptions. Keep the testing part for the barcode scanner ... because we are
+still optimizing it", and on a slab's sheet "remove that part [Review: is it the right card?] and replace it with the
+review button that we have on the site". Asked, he chose: the website's OWN Review (not a copy in the app; it needs signal
+and the site password once), and the old screen's two other jobs kept as small buttons beside it.
+- THE NATIVE APP NOW SHOWS THE WEBSITE'S APP ITSELF (ios/SlabScanner/SlabScanner/WebApp.swift): a WKWebView on
+  https://bretts600.github.io/biotech-catelog/app/, live - identical by construction, and page/app changes reach the
+  phone without a reinstall. Its storage is the app's own: the site password typed once on the Show tab, the PSA token
+  pasted once (the home-screen web app's tables do not carry over). No service worker in a WKWebView without App-Bound
+  Domains (not used: they would switch off script messages on our reader's slab:// pages), so the app needs signal to
+  OPEN - opened once before walking in, the page and its card data stay loaded while the app runs.
+- page/app/app.js (g15; sw.js ssc-v17) finds itself inside (NATIVE = window.webkit.messageHandlers.sscNative) and differs
+  in three places only: startRec posts scanStart and the app's camera screen (ScannerView.swift: the table's name, REC
+  time and count, the hint, 1x / 3x - saved back to the page's lens setting -, Light auto / on / off, the page's own feed
+  of the slabs as they are looked up, Stop) films and reads with both readers; each number the app COUNTS (Engine
+  forward/outbox -> tick -> onCode) comes back as sscNativeIn.read(text, kind) -> certOf -> addScan, one TAKEN BACK as
+  sscNativeIn.unread (the slab, its feed line and its scans.csv entry dropped while still new); Stop ->
+  sscNativeIn.stop() -> stopRec -> the table opens. Test mode posts 'test' and the app's test screen (ContentView, the
+  n4 plan unchanged) slides over the page with a Close button. On a slab's sheet nativeReviewHtml replaces "Review: is it
+  the right card?": the website's blue Review button (button.rvb, its same / not-the-same colours from the app's marks)
+  posts 'review' (card, grade) and, beside it, "Yes, this card / No - find it" when PSA's label was only a best guess
+  (look 'check') and "Wrong card? Find the right one" (the app's own search). Sample slabs keep the old button.
+- THE WEBSITE'S REVIEW IN THE APP: a sheet with a second web view on https://bretts600.github.io/biotech-catelog/#review/
+  <card>/<grader>/<grade>; kept for the next time (then grReviewOpen(key) straight away). page/app.js keeps START_HASH
+  before showTab rewrites the address; page/graded.js grReviewOpen loads the graded data and opens grOpenReview(key) -
+  or says the graded view has no such row / its data did not load; a MutationObserver on #bov tells the app (sscReview
+  'closed') and the sheet closes. The site asks for its password once in that web view (staticrypt, "Remember me").
+  Links that leave the website open in Safari.
+- Native structure: MainView (SlabScannerApp.swift) = the page + ScannerView / ContentView laid OVER it (not presented:
+  the page and our reader's two web views - now hosted in the page's container - must stay in the window while the
+  camera runs) + the Review sheet. One Engine: openCamera(scan: lens | nil = the test plan) / closeCamera (camera, lamp
+  and reading off, the screen may sleep again).
+- Checked here: the page in Chromium with a stand-in for the app (scanStart, the feed, read / unread / stop, Test,
+  the Review block's look - a screenshot); the Swift by a syntax parser. Built and installed: see below.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

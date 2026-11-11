@@ -1,8 +1,9 @@
-//  The one screen: the camera's picture on top, the test and the switches under it.
+//  The test screen (opened by Test mode in the website's app): the camera's picture on top, the test and the switches under it.
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var engine = Engine()
+    @ObservedObject var engine: Engine
+    var close: () -> Void = {}
 
     var body: some View {
         GeometryReader { geo in
@@ -35,6 +36,13 @@ struct ContentView: View {
                 .background(Color.black)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Scanner test").font(.headline)
+                            Spacer()
+                            Button("Close") { close() }
+                                .buttonStyle(.bordered)
+                                .disabled(engine.recording || engine.saving)
+                        }
                         counter
                         planBlock
                         buttons
@@ -47,7 +55,6 @@ struct ContentView: View {
                 .scrollDismissesKeyboard(.immediately)
             }
         }
-        .onAppear { engine.start() }
     }
 
     private var counter: some View {

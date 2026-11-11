@@ -57,8 +57,8 @@ struct PreviewView: UIViewRepresentable {
         v.backgroundColor = .black
         v.previewLayer.session = engine.session
         v.previewLayer.videoGravity = .resizeAspect
-        engine.preview = v
-        engine.startWebReaders(host: v)         // our own reader's web views live inside the picture's view, unseen
+        engine.preview = v                      // (our own reader's web views live in the app's page view: WebApp.swift)
+        v.upright()
         return v
     }
 

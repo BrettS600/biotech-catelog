@@ -204,3 +204,9 @@ a{color:var(--blt)}
 .topt .input{flex:1;min-width:0;height:40px;font-size:13px}
 .optbtn{flex:1;min-height:40px;padding:0 8px;border-radius:10px;border:1px solid var(--ln);background:var(--s2);color:var(--mu);font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
 .optbtn.on{color:var(--tx);border-color:var(--gr)}
+/* inside the iPhone app (g15): the website's Review button, a touch larger, and the card fixes beside it */
+.nrv{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+button.rvb{font:600 14px Inter,sans-serif;min-height:38px;padding:0 16px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--bl);cursor:pointer;white-space:nowrap}
+button.rvb.same{color:var(--gr);border-color:var(--gr)}
+button.rvb.diff{color:var(--rd);border-color:var(--rd)}
+.btn.sm{min-height:38px;font-size:14px;padding:0 12px;border-radius:8px}

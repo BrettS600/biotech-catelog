@@ -155,6 +155,12 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     var speedNow = 0.0
     var resetHelpers = false
     var tooFastNow = false
+    // n5, THE APP'S OWN SCANNING: while the camera screen of the website's app is open, each slab number counted (and
+    // each taken back) goes to the website's app - collected here under the lock, handed on by tick() on the main thread
+    var forward = false
+    var outbox: [(String, String, Bool)] = []
+    var onCode: ((String, String, Bool) -> Void)?
+    @Published var scanLight: LightMode = .auto
     var webReaders: [WebReader] = []
     var webJobs: [Int: WebJob] = [:]    // frames our own reader is at: by the number the frame went out under
     var webSeq = 0
@@ -300,6 +306,44 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 self.lock.unlock()
             }
         }
+    }
+
+    // MARK: - the camera for the app's two camera screens (main thread)
+
+    /// Opens the camera: for the website's app's recording (scan: the lens it asked for) or for the test screen (nil:
+    /// the test plan's switches). The first time asks for the camera; its answer starts the session with these switches.
+    func openCamera(scan: Lens?) {
+        let first = !started
+        if first { start() }
+        if let l = scan {
+            lens = l
+            size = .mp12
+            shutter = .smart
+            focus = .auto
+            depthOn = false
+            videoOn = false
+            light = scanLight
+        } else {
+            loadPlan()
+            videoOn = true
+        }
+        UIApplication.shared.isIdleTimerDisabled = true
+        if !first { apply(startSession: true) }
+    }
+
+    /// Closes it again (the camera screen went away): no reading, no lamp, the camera off.
+    func closeCamera() {
+        live = false
+        setLive(false)
+        lock.lock()
+        forward = false
+        outbox.removeAll()
+        lock.unlock()
+        sessionQ.async {
+            self.setTorch(false)
+            if self.session.isRunning { self.session.stopRunning() }
+        }
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     // MARK: - the plan and the switches (main thread)
@@ -1380,12 +1424,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                         o.countedMs = nil
                         o.lost = true
                         counted -= 1
+                        if forward && rec == nil { outbox.append((o.kind, o.text, false)) }
                     }
                 }
             }
             if info.countedMs == nil && info.enough && info.score > best && !(info.lost && info.score <= 2 * best) {
                 info.countedMs = (now - t0) * 1000
                 counted += 1
+                if forward && rec == nil { outbox.append((info.kind, info.text, true)) }
             }
         }
         var sizeMm = -1
@@ -1591,7 +1637,12 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             webJobs.removeValue(forKey: k)
             j.r?.jobs -= 1
         }
+        let out = outbox
+        outbox.removeAll()
         lock.unlock()
+        if !out.isEmpty, let cb = onCode {
+            for o in out { cb(o.0, o.1, o.2) }
+        }
 
         rows = list
         countedN = n

@@ -1,7 +1,7 @@
 /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
-const CACHE = 'ssc-v16';
+const CACHE = 'ssc-v17';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

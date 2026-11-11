@@ -1146,3 +1146,31 @@ if ($('gov')) {
 }
 
 grShowMode();
+
+// THE IPHONE APP'S REVIEW BUTTON (2026-11-11; Brett: on a slab's sheet in the app, "remove that part and replace it with the
+// review button that we have on the site"): the app opens this page in its own web view at #review/<card>/<grader>/<grade>
+// (or, once the page is open, calls grReviewOpen) and this card's Review opens - the same Review as the graded view's
+// button, its Same card / Not the same card answers saved the same way. When the Review is closed the app is told, and
+// it closes its sheet.
+async function grReviewOpen(key) {
+  try { await grLoad(); } catch (e) {}
+  if (!GR.rows || !grRowOfKey(key)) {
+    const [c, g, k] = String(key).split('|');
+    $('btitle').textContent = 'Not in the graded view';
+    $('bsub').textContent = '';
+    $('bbody').innerHTML = GR.err ? '<p>The graded view’s data did not load: ' + esc(GR.err) + '</p>'
+      : '<p>The graded view has no ' + esc(String(g || '').toUpperCase() + ' ' + String(k || '').replace(/^g/, '').replace('_', '.')) + ' row for this card (PriceCharting card ' + esc(c) + '), so there is no Review to show for it yet.</p>';
+    $('bov').classList.add('open');
+    return;
+  }
+  grOpenReview(key);
+}
+(() => {
+  const app = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sscReview;
+  if (app) new MutationObserver(() => { if (!$('bov').classList.contains('open')) { try { app.postMessage({cmd: 'closed'}); } catch (e) {} } })
+    .observe($('bov'), {attributes: true, attributeFilter: ['class']});
+  const fromHash = h => { const m = /^#review\/(\d+)\/([a-z]+)\/(g[0-9a-z_]+)$/.exec(h || ''); return m ? m[1] + '|' + m[2] + '|' + m[3] : null; };
+  const first = fromHash(typeof START_HASH === 'string' ? START_HASH : location.hash);
+  if (first) grReviewOpen(first);
+  window.addEventListener('hashchange', () => { const k = fromHash(location.hash); if (k) { history.replaceState(null, '', location.pathname + location.search); grReviewOpen(k); } });
+})();
