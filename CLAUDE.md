@@ -3278,6 +3278,64 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   push rebased over, no key = waiting. (page/app/app.js scanLink() is display-only and unused; the collector makes the
   links.)
 
+## THE NATIVE TRIAL APP - "Slab Scanner" for the iPhone (2026-11-10, n1; ios/SlabScanner)
+WHY. Brett ran 16 tests with the web app g14 on 2026-11-10 (sheet 2: 50 codes; files in his ~/scan-test). What they said:
+- the reader got through 5-9 of the camera's ~25 frames a second (125-275 ms a frame with two readers);
+- a quarter to two thirds of the frames of every test were blurred (sharp frames 30-76%), worst with 3x;
+- Safari on his iPhone (13 Pro Max, iOS 26.6 - Safari's user agent says "18_7") offers zoom, torch, white balance and
+  frame rate only: no shutter, exposure or focus control (cameraRaw.capabilities / supportedConstraints in the files);
+- right codes of 50: 9 in 50 (half by 2.4 s), 14 in 45, 18 in 34, 2 ft with 1x 3 (1.0 dots a module), 2 ft 3x 41 (+2
+  wrong), 3 ft 3x 38, tilted 46 (+1 wrong), turned 44, dim room 44, the old way (test 12) 42 against 45 for test 2;
+- five wrong numbers counted in four tests: ITF parts "2517" and "341005", "62501915", "157210701524" twice (the
+  cert-format rule below refuses all but "62501915"; not yet fixed in the web app);
+- THE POLARIZER (Brett: "if I have to adjust the polarizer every time I change depth or angle, then I don't want to
+  use it ... if the polarizer barely makes a difference, then I don't want to use it"): 9 in 50 / 50, 2 ft 3x 41 / 35,
+  tilted 46 / 44, dim room 44 / 18 (the picture half as bright); no test had glare in it (glare 0-0.7% of the picture,
+  tests 10 and 17 skipped). Its ring must be turned again whenever the phone's angle to the light changes. Verdict: off.
+Brett then chose a native app ("it looks like I want to use the app"), THE FREE ROUTE FIRST (a free Apple account:
+the app runs 7 days, then is installed again from the Mac; $99 a year for the Developer Program only if the trial is
+clearly better - Apple sells no monthly plan), asked for every kind of data ("include any means of collecting data into
+the build, so that we can optimize") and for the scanner and the test to be optimized on what the 16 files said.
+WHAT IS BUILT (n1, a test reader - not yet the website's lookups / scans.csv; the plan for the full app is a thin shell
+around page/app with only camera and reading native):
+- ios/SlabScanner/SlabScanner/*.swift (SwiftUI, iOS 17+; ~2,000 lines; the headers of Engine.swift and EngineFiles.swift
+  say what and why): the shutter cap (activeMaxExposureDuration: the camera may not choose a slower shutter - "Smart" =
+  1/250 with 1x, 1/500 with 3x, one step slower when more than 1 EV too dark at the highest ISO; Auto; fixed caps),
+  4032 x 3024 at 30 a second or 4K at 60, focus continuous (not smooth) or locked, Apple's Vision barcode reader on
+  every frame it can take, two at a time, in turn on the whole picture (W), four overlapping tiles (Q) and nine (N);
+  a code counts when it looks like a cert (slabCert: PSA Code 128 of 8-9 digits or ITF of exactly 8, CGC Code 128 of
+  10, or 13 starting 1401) and was read in 2 frames (ITF 3); the LiDAR depth sensor (only with 1x - it is paired with
+  that lens; distance at the centre + a 5 x 5 grid ~15 times a second); per frame the shutter, ISO, focus position,
+  focus / exposure moving, exposure offset, brightness, sharpness; movement 100 times a second; heat and battery;
+  video of every frame (HEVC 24 Mbit/s); up to six lossless frames (the grey plane as .y8) - TO READ THEM AGAIN HERE
+  WITH THE WEB APP'S OWN READER (finder + zxing + grey line) and so compare Apple's reader with ours on the same dots;
+  Snap = a full photograph read once. TestPlan.swift: 15 tests that set the switches themselves and stop by themselves
+  (9 in, 14 in, 14 in without the depth sensor, 2 ft 1x, 2 ft 3x, 3 ft 3x, a shutter sweep at 3x and at 1x - auto,
+  1/60 ... 1/2000, 3 s each -, focus locked, moving at 12MP and at 4K60, dim 1x and 3x, snap, his choice).
+  The file: slab-native-n1-tNN-<date>-<time>.zip (report.json, frames.json, motion.json, depth.json, camera.json,
+  video.mov, frame-NN-WxH.y8, snap-NN.jpg) - Save test data (share sheet, AirDrop), or Files > On My iPhone > Slab
+  Scanner > tests. Whole numbers in small units; every file names its fields.
+- ios/SlabScanner/SlabScanner.xcodeproj: WRITTEN BY HAND (objectVersion 77, a "synchronized folder": every file in
+  SlabScanner/ belongs to the target, the project file never lists sources). Bundle id io.github.bretts600.slabscanner,
+  automatic signing; the team (his Personal Team) is in the copy on the Mac only. Debug builds are optimized (-O).
+  project.xcworkspace/xcuserdata/brettschroyer.xcuserdatad/WorkspaceSettings.xcsettings puts DerivedData inside the
+  project folder - so THE BUILD LOG CAN BE READ from the Mac's shell:
+    gunzip -c DerivedData/SlabScanner/Logs/Build/<newest>.xcactivitylog | tr '\r' '\n' | grep -aoE "[A-Za-z]+\.swift:[0-9]+:[0-9]+: (error|warning): [^\"]{0,300}"
+HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linux VM that sees the connected folders):
+- the project lives on the Mac at ~/scan-test/SlabScannerApp (files put there with device_commit_files from
+  /mnt/user-data/outputs/slabscanner; never recommit project.pbxproj - Xcode wrote the team into it);
+- Xcode (16.4 on macOS 15.5; it installs on his iOS 26.6 phone) is reached by computer use at tier "click": left
+  clicks only - no typing, no keys, NO MENUS (File > Open and Product > Run are refused), no dropdowns. Brett opened the
+  project (double-click in Finder), chose the team and the iPhone as the destination - once. A build + install + start
+  = one click on the Run arrow (at 245, 18 of the 1400 x 797 window; app_click on com.apple.dt.Xcode, in the
+  BACKGROUND - not full control, which would hide Chrome and its Card Ladder tab). Finder would not take background
+  clicks while his screen was a full-screen app.
+- first time on the phone: "Untrusted Developer" until Settings > General > VPN & Device Management > Trust.
+- 2026-11-10: built with no error and no warning at the first try and installed (01:38 UTC Nov 11).
+NEXT: his native test files -> compare with the 16 web files test by test; read the .y8 frames with the web reader
+(Node, as cl_certs.js does) against Vision's own finds in frames.json; the reading ms of W / Q / N decide the reading
+plan; the sweeps decide the shutter; then: is Apple's reader enough, or does ours come into the app; then the $99.
+
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
   fixtures with no network and no git; the jsdom refresh test (test_refresh.js in the harness) needs
