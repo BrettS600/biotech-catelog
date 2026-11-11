@@ -210,3 +210,8 @@ button.rvb{font:600 14px Inter,sans-serif;min-height:38px;padding:0 16px;border:
 button.rvb.same{color:var(--gr);border-color:var(--gr)}
 button.rvb.diff{color:var(--rd);border-color:var(--rd)}
 .btn.sm{min-height:38px;font-size:14px;padding:0 12px;border-radius:8px}
+/* links only (g15b): a table's slabs as their cert links */
+.lrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #222A35}
+.lrow:last-of-type{border-bottom:0}
+.lrow a{color:var(--blt);font:600 17px Inter,sans-serif;font-variant-numeric:tabular-nums;flex:1}
+.lrow .up{color:var(--grt)}

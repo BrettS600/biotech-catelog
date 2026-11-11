@@ -44,7 +44,7 @@ const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the b
 const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
 const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
 const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
-const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main'};
+const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main', lookup: false};
 
 /* ---------------- small helpers ---------------- */
 function money(v) { if (v == null || !isFinite(v)) return '-'; const a = Math.abs(v); const s = a >= 100 ? Math.round(a).toLocaleString('en-US') : a.toFixed(2); return (v < 0 ? '-$' : '$') + s; }
@@ -322,7 +322,20 @@ async function sendMark(cid, v) {
 // scans.csv (Brett: "when I scan a barcode, the link will appear in the CSV file"): every real slab read is queued here
 // and sent as {type: 'scan', t, c: [[grader, cert], ...]}; the collector turns each into its PSA / CGC cert link and adds
 // the new ones to card-data's data/scans/scans.csv. Kept on the phone until sent (no signal, or locked: sent later).
-const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c;
+const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c + '/psa';   // (scans.csv's own links)
+// LINKS ONLY (g15b, 2026-11-11; Brett: "use the record button and scan the codes. Duplicates obviously shouldn't be
+// recorded ... I don't want these scans to be the things to be read yet ... just show the links and they're hyperlinked,
+// the same format, and then they just go into scans.csv. I'll open scans.csv and verify that they are correct"): while
+// Show's "Look slabs up" is off - the default - a slab read is not looked up (no PSA call, no card, no price); its table
+// lists it as its cert link, scans.csv's link with the cert as its text, and it goes to scans.csv as every slab does.
+// Turning lookups on looks the waiting ones up. A cert is read once per show (a second read at any table is a duplicate).
+const linkOnly = sl => !sl.demo && !S.settings.lookup && sl.look === 'queued';
+const scanWaiting = sl => LS.get(SCANQ, []).some(q => q[0] === sl.grader && q[1] === sl.cert);
+function linkRowHtml(sl) {
+  const w = scanWaiting(sl);
+  return '<div class="lrow"><span class="tag t-look">' + esc(String(sl.grader || '').toUpperCase()) + '</span><a href="' + esc(scanLink(sl.grader, sl.cert)) + '" target="_blank" rel="noopener">' + esc(sl.cert) + '</a>' +
+    '<span class="small ' + (w ? 'muted' : 'up') + '">' + (w ? (KEY ? 'waiting to send' : 'unlock to send') : 'sent to scans.csv') + '</span></div>';
+}
 let SCAN_SEND_T = 0, SCAN_SENDING = false;
 function queueScan(grader, cert) {
   const q = LS.get(SCANQ, []);
@@ -344,6 +357,8 @@ async function sendScans() {
   } catch (e) { scheduleScanSend(30000); }    // no signal: again in half a minute
   SCAN_SENDING = false;
   const el = $('scans-line'); if (el) el.innerHTML = scansLine();
+  // (a table's link list says which went: drawn again, unless a box on it is being typed in)
+  if (UI.rec) paintScan(); else if (UI.tab === 'tables' && UI.openTable && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render();
 }
 function scansLine() {
   const q = LS.get(SCANQ, []).length, n = +LS.get(SCANN, 0) || 0;
@@ -402,7 +417,7 @@ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-ste
 function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
 UI.tpol = planPol();
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
-const APP_VERSION = 'g15';
+const APP_VERSION = 'g15b';
 // Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
 // and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
 const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
@@ -1134,8 +1149,8 @@ function drawBoxes() {                       // green boxes on each code read, f
 function addScan(grader, cert, opts) {
   const tid = (opts && opts.table) || UI.recTable, live = !!(opts && opts.live), busy = UI.rec || VREAD.on;
   if (!tid) return null;
-  const have = slabsArr().find(sl => sl.t === tid && !sl.demo && sl.cert === cert);
-  if (have) { if (busy) { UI.dup = 'Already read: ' + gkLabelShort(have) + ' (counted once)'; if (!(opts && opts.quiet)) paintScan(); } return have; }
+  const have = slabsArr().find(sl => !sl.demo && sl.grader === grader && sl.cert === cert);   // once a show, whichever table
+  if (have) { if (busy) { const ht = have.t !== tid ? tableOf(have.t) : null; UI.dup = 'Already read' + (ht ? ' at Table ' + ht.n : '') + ': ' + gkLabelShort(have) + ' (counted once)'; if (!(opts && opts.quiet)) paintScan(); } return have; }
   const sid = 's' + (S.seq++) + '-' + Date.now().toString(36);
   const sl = {id: sid, t: tid, grader, cert, at: Date.now(), look: 'queued', mode: 'pct', vd: null, vp: null, st: 'new'};
   S.slabs[sid] = sl; save();
@@ -1315,7 +1330,7 @@ function resolveCard(sl) {
 }
 let LQ = false;
 async function pumpLookups() {
-  if (LQ) return; LQ = true;
+  if (LQ || !S.settings.lookup) return; LQ = true;   // (links only: nothing is looked up)
   try {
     for (;;) {
       const sl = slabsArr().find(x => !x.demo && x.look === 'queued');
@@ -1550,11 +1565,12 @@ function paintScan() {
   $('cam-err').innerHTML = UI.camErr ? '<div class="warnbox">' + esc(UI.camErr) + '</div>' : '';
   $('scan-msg').innerHTML = UI.scanMsg && !busy ? '<div class="warnbox">' + esc(UI.scanMsg) + '</div>' : '';
   const feed = UI.feed.map((f, k) => { const sl = S.slabs[f.sid]; if (!sl) return ''; const x = calc(sl);
-    const right = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? '<span class="tag t-look">Looking up</span>' : !sl.demo && sl.look === 'manual' ? '<span class="tag t-check">Find card</span>' : '<span class="' + pillCls(x) + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</span>';
+    const right = linkOnly(sl) ? '<span class="tag t-look">' + (scanWaiting(sl) ? 'Link' : 'Sent') + '</span>' : !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? '<span class="tag t-look">Looking up</span>' : !sl.demo && sl.look === 'manual' ? '<span class="tag t-check">Find card</span>' : '<span class="' + pillCls(x) + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</span>';
     return '<div class="chip' + (k === 0 ? ' fresh' : '') + '"><span class="tick">' + ICON.check + '</span><span class="ctext"><b>' + esc(x.name) + '</b>' + (x.known && x.gk ? ' · ' + esc(gkLabel(x.gk)) : '') + '</span>' + right + '</div>'; }).join('');
   $('feed').innerHTML = busy && !UI.test ? (UI.dup ? '<div class="dup">' + esc(UI.dup) + '</div>' : '') + feed : '';
   if (NATIVE && UI.rec && !UI.test) {          // the app's camera screen shows the same list
     const tmp = document.createElement('div'), items = UI.feed.map(f => { const sl = S.slabs[f.sid]; if (!sl) return ''; const x = calc(sl);
+      if (linkOnly(sl)) return [String(sl.grader || '').toUpperCase() + ' ' + sl.cert, scanWaiting(sl) ? 'to scans.csv' : 'sent ✓'];
       tmp.innerHTML = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? 'Looking up' : !sl.demo && sl.look === 'manual' ? 'Find card' : x.chance == null ? '-' : pctS(x.chance);
       return [x.name + (x.known && x.gk ? ' · ' + gkLabel(x.gk) : ''), tmp.textContent]; }).filter(Boolean);
     const msg = JSON.stringify({n: cnt, items, dup: UI.dup || ''});
@@ -1578,14 +1594,17 @@ function tablesHtml() {
 }
 function tableHtml() {
   const P = plan(), T = tableOf(UI.openTable); if (!T) { UI.openTable = null; return tablesHtml(); }
-  const os = P.all.filter(o => o.sl.t === T.id).slice(), k = UI.sort;
+  const lk = slabsArr().filter(sl => sl.t === T.id && linkOnly(sl)).sort((a, b) => a.at - b.at);   // links only: listed as their links
+  const os = P.all.filter(o => o.sl.t === T.id && !linkOnly(o.sl)).slice(), k = UI.sort;
   os.sort(k === 'price' ? (a, b) => (b.x.std || 0) - (a.x.std || 0) : k === 'scan' ? (a, b) => a.sl.at - b.sl.at
     : (a, b) => (!!P.picks[b.sl.id] - !!P.picks[a.sl.id]) || ((b.sl.st !== 'declined') - (a.sl.st !== 'declined')) || ((b.x.chance || -1) - (a.x.chance || -1)));
   const here = os.filter(o => P.picks[o.sl.id]);
   return '<div class="stack"><button class="back" data-a="back">' + ICON.back + 'Tables</button>' +
     '<div class="spread"><h1 class="h1">Table ' + T.n + '</h1><span class="muted small">' + hhmm(T.at) + '</span></div>' +
     '<label class="field"><span class="label">Vendor or booth</span><input class="input" type="text" placeholder="Optional" value="' + esc(T.vendor) + '" data-in="tableVendor"></label>' +
-    '<div class="stats"><span class="stat"><b>' + os.length + '</b> slabs</span><span class="stat"><b>' + here.length + '</b> in your buys</span><span class="stat"><b>' + money(here.reduce((a, o) => a + o.x.pay, 0)) + '</b> to spend here</span></div>' +
+    (lk.length ? '<div class="card stack" style="gap:0"><div class="spread"><span class="label">Cert links · scans.csv</span><span class="small muted">' + lk.length + ' slab' + (lk.length === 1 ? '' : 's') + ', as scanned</span></div>' + lk.map(linkRowHtml).join('') +
+      '<p class="note" style="margin:8px 0 0">Not looked up (Show › Look slabs up is off). Each link goes to card-data’s scans.csv once.</p></div>' : '') +
+    '<div class="stats"><span class="stat"><b>' + (os.length + lk.length) + '</b> slabs</span><span class="stat"><b>' + here.length + '</b> in your buys</span><span class="stat"><b>' + money(here.reduce((a, o) => a + o.x.pay, 0)) + '</b> to spend here</span></div>' +
     '<div class="seg" role="group" aria-label="Sort">' + [['best', 'Best first'], ['price', 'Price'], ['scan', 'As scanned']].map(p => '<button class="' + (k === p[0] ? 'on' : '') + '" data-a="sort" data-v="' + p[0] + '">' + p[1] + '</button>').join('') + '</div>' +
     os.map(o => rowHtml(o, P, false)).join('') +
     '<button class="btn" data-a="scanmore">Scan more at this table</button>' +
@@ -1631,6 +1650,8 @@ function showHtml() {
     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
     '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
+    '<div class="frow"><span>Look slabs up (PSA, card, prices)</span><button class="btn" style="min-width:76px" data-a="lookup">' + (s.lookup ? 'On' : 'Off') + '</button></div>' +
+    (s.lookup ? '' : '<p class="note" style="margin:0">Off: a slab read is only listed as its cert link and sent to scans.csv.</p>') +
     '<p class="note">Chance = how often slabs like it made money over your hold, bought at that % under, after eBay’s fee (14.11%) and shipping - the website’s Recording math. The plan spends best chance first, up to your capital. Min sales last mo keeps slabs that sold fewer times on Card Ladder last month out of your buys.</p>' +
     '<h2 class="h2" style="margin-top:14px">Card data and lookups</h2>' +
     '<div class="' + (DSTATE === 'ok' ? 'okbox' : DSTATE === 'err' ? 'warnbox' : 'note') + '">' + dataLine + '</div>' +
@@ -1843,6 +1864,7 @@ async function act(a, ds, el) {
     case 'record': return recordPurchases();
     case 'hold': s.hold = +ds.v; save(); break;
     case 'gate': s.gate = !s.gate; save(); break;
+    case 'lookup': s.lookup = !s.lookup; save(); if (s.lookup) pumpLookups(); break;
     case 'bump': {
       const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k], lim = {under: [0, 60], bar: [5, 95], share: [5, 100], minSales: [0, 50]}[k];
       s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); break;

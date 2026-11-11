@@ -3526,7 +3526,19 @@ and the site password once), and the old screen's two other jobs kept as small b
   camera runs) + the Review sheet. One Engine: openCamera(scan: lens | nil = the test plan) / closeCamera (camera, lamp
   and reading off, the screen may sleep again).
 - Checked here: the page in Chromium with a stand-in for the app (scanStart, the feed, read / unread / stop, Test,
-  the Review block's look - a screenshot); the Swift by a syntax parser. Built and installed: see below.
+  the Review block's look - a screenshot); the Swift by a syntax parser. Built with no error or warning and installed
+  2026-11-11 18:12 UTC (runs to about Nov 18); the site with g15 live 18:11 UTC.
+- LINKS ONLY (g15b, sw.js ssc-v18; Brett, 2026-11-11: "instead of doing the test ... let's try to use the record button
+  and scan the codes. Duplicates obviously shouldn't be recorded. There's a file called scans.csv. And the scans should go
+  in there. I don't want these scans to be the things to be read yet ... just show the links and they're hyperlinked, the
+  same format, and then they just go into scans.csv. I'll open scans.csv and verify that they are correct"): Show's new
+  switch "Look slabs up (PSA, card, prices)", OFF BY DEFAULT (settings.lookup) - pumpLookups does nothing, a slab read
+  stays 'queued' and its table lists it under "Cert links · scans.csv" as scans.csv's own link (scanLink now ends PSA's in
+  /psa as the collector does) with the cert as the text, and "waiting to send" / "unlock to send" / "sent to scans.csv"
+  (its place in ssc-scan-q); the app's camera screen shows "PSA 43194922 · to scans.csv / sent". Turning it on looks the
+  waiting ones up. A CERT IS READ ONCE A SHOW now (addScan: any table, "Already read at Table N"). Sending still needs the
+  app unlocked once (the messages are signed with the site key); the collector writes the file. scans.csv held 48 of
+  sheet 2's 50 codes from the 2026-11-09 tests (not 172100519 and 119103691) - scanning sheet 2 adds only those two.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
