@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Slab reader</title>
+</head>
+<body>
+<!--
+  OUR OWN READER INSIDE THE APP (n4). The website's scanner (page/app: finder.js - the stripe finder and the grey-line
+  reader - and zxing) runs here in a web view nobody sees. The app hands it frames and takes its readings:
+    it asks  frame?id=..&n=..  and the app answers when it has a new frame: 16 bytes (frame number, width, height, 0 -
+    four whole numbers, low byte first) and then the frame's grey plane, width x height bytes, row by row;
+    it tells each frame's readings to  window.webkit.messageHandlers.slab  (the app).
+  Why: on Brett's saved frames (n2 and n3, 2026-11-11) this reader found 2 to 3 times as many codes as Apple's where
+  the codes are small or soft - 23 against 5-12 at 18 inches, 7-11 against 2-5 at 3 feet with 3x, 28 against 3-18 in
+  the dim room - and never a wrong one.
+  finder.js and zxing.js are the website's own files, unchanged (finder_js.txt = page/app/finder.js,
+  zxing_js.txt = page/app/zxing/reader.js, zxing_wasm.dat = page/app/zxing/zxing_reader.wasm).
+-->
+<script src="zxing.js"></script>
+<script src="finder.js"></script>
+<script>
+'use strict';
+const ROWS = {formats: ['Code128', 'ITF'], tryHarder: true, tryRotate: false, tryInvert: false, tryDownscale: false, maxNumberOfSymbols: 255, binarizer: 'GlobalHistogram', minLineCount: 1};
+const NATIVE = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.slab);
+const ID = new URLSearchParams(location.search).get('id') || '0';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function post(o) {
+  o.id = ID;
+  try {
+    if (NATIVE) window.webkit.messageHandlers.slab.postMessage(o);
+    else fetch('result', {method: 'POST', body: JSON.stringify(o)}).catch(() => {});
+  } catch (e) {}
+}
+window.onerror = (m, src, line) => { post({err: 'page: ' + String(m).slice(0, 160) + ' @' + line}); };
+function boxOf(p) {                       // the four corners -> [left, top, right, bottom] in dots of the frame
+  const xs = [p.topLeft.x, p.topRight.x, p.bottomRight.x, p.bottomLeft.x], ys = [p.topLeft.y, p.topRight.y, p.bottomRight.y, p.bottomLeft.y];
+  return [Math.round(Math.min(...xs)), Math.round(Math.min(...ys)), Math.round(Math.max(...xs)), Math.round(Math.max(...ys))];
+}
+let D = null, W = 0, H = 0, n = 0;
+async function boot() {
+  try {
+    if (typeof ZXingWASM === 'undefined' || typeof SlabFinder === 'undefined') throw new Error('the reader files did not load (zxing ' + typeof ZXingWASM + ', finder ' + typeof SlabFinder + ')');
+    const wasm = await (await fetch('zxing_reader.wasm')).arrayBuffer();
+    if (wasm.byteLength < 100000) throw new Error('zxing_reader.wasm is ' + wasm.byteLength + ' bytes');
+    await ZXingWASM.prepareZXingModule({overrides: {wasmBinary: wasm}, fireImmediately: true});
+    post({ready: 1, ua: navigator.userAgent.slice(0, 140)});
+  } catch (e) {
+    post({err: 'start: ' + String(e && e.message || e).slice(0, 200)});
+    return;
+  }
+  for (;;) {
+    let seq = -1;
+    try {
+      const r = await fetch('frame?id=' + ID + '&n=' + (n++), {cache: 'no-store'});
+      const buf = await r.arrayBuffer();
+      if (buf.byteLength < 16) { await sleep(60); continue; }
+      const head = new DataView(buf, 0, 16), w = head.getUint32(4, true), h = head.getUint32(8, true);
+      seq = head.getUint32(0, true);
+      if (w < 64 || h < 64 || buf.byteLength < 16 + w * h) { post({seq, err: 'frame: ' + buf.byteLength + ' bytes for ' + w + ' x ' + h}); await sleep(100); continue; }
+      const y = new Uint8Array(buf, 16, w * h), t0 = performance.now();
+      if (!D || W !== w || H !== h) { W = w; H = h; D = new Uint8ClampedArray(W * H * 4); }
+      for (let i = 0, j = 1, m = W * H; i < m; i++, j += 4) D[j] = y[i];      // the finder reads the green channel only
+      const t1 = performance.now();
+      const job = SlabFinder.prepare(D, W, H, {cutMs: 250}), lay = job.lines(), zres = [];
+      for (const pic of lay.pics) { let z = []; try { z = await ZXingWASM.readBarcodes(pic, ROWS); } catch (e) {} zres.push(z); }
+      const d = job.decide(lay, zres), reads = [];
+      for (const x of d.reads) {
+        if (x.cls === 'D' || !x.pos) continue;
+        const b = boxOf(x.pos);
+        reads.push([String(x.text), x.format === 'ITF' ? 'ITF' : 'Code 128', x.cls, b[0], b[1], b[2], b[3]]);
+      }
+      post({seq, w, h, ms: Math.round(performance.now() - t0), fill: Math.round(t1 - t0), boxes: d.st.boxes, kept: d.st.kept, reads});
+    } catch (e) {
+      post({seq, err: 'read: ' + String(e && e.message || e).slice(0, 200)});
+      await sleep(200);
+    }
+  }
+}
+boot();
+</script>
+</body>
+</html>

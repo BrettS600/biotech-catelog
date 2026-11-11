@@ -15,12 +15,22 @@
 //    sat out of focus through whole tests (3 feet, the focus-lock test, the first seconds of the sweep: the saved
 //    frames show plain defocus, the lens position never moved). When nothing is read the app asks for a refocus,
 //    and if that does not help it tries the lens positions itself and holds the sharpest - see focusHelper().
-//  - THE FRAMES READ by Apple's barcode reader (Vision), up to three at a time, as overlapping tiles - the reader
-//    reduces whatever region it gets, and found nothing in the whole 12 MP picture (see `rois` below).
-//    A code counts as a slab when it looks like a cert (slabCert) and was read in 2 frames (ITF, which has no check
-//    digit: 3 frames). n1 + n2: 17 tests, not one wrong number.
-//  - GLARE (n3): where part of the picture is blown out, every other half second is taken 1.5 EV darker
-//    (glareHelper) - a code washed out by a reflection may stand clear in the darker frame.
+//  - THE FRAMES READ BY TWO READERS (n4): Apple's barcode reader (Vision), up to two frames at a time, as overlapping
+//    tiles - it reduces whatever region it gets, and found nothing in the whole 12 MP picture (see `rois` below) - and
+//    OUR OWN (WebReader.swift: the website's finder + zxing in two web views), which found 2 to 3 times as many codes
+//    in the same frames where the codes are small or soft.
+//    A code counts as a slab when it looks like a cert (slabCert) and was read often enough (CodeInfo.enough: Apple's
+//    reader in 2 frames - ITF 3 -, ours surely in 2, or both once each) AND IS NOT OUTREAD AT ITS OWN PLACE: n3's
+//    glare test counted the first wrong number of 33 native tests - 02361231, Apple's reader misreading the small
+//    washed-out code 4054449650 the same way in 6 frames of a still phone, while it read the right number there in
+//    20. One place holds one code: numbers read at the same place are rivals, and the one read less does not count
+//    (absorb()).
+//  - GLARE: n3's darker frames in turn (-1.5 EV every other half second) found nothing more (30 codes against 29
+//    without, 10.9 codes a frame against 10.2; the reflection stayed blown out) - gone in n4. What helps is moving
+//    the reflection off the codes: held still 30 of 50, tilting and moving 44. A note on the picture says so.
+//  - TOO FAST (n4): Brett's real use is 2 to 3 feet at 45 degrees with 3x, the phone moving. In his own test of it
+//    the picture moved ~2,650 dots a second and 498 of 661 frames read found nothing; with 3x reads happen below
+//    ~600. A note on the picture says when the picture moves too fast to be read, and such frames are not read.
 //  - THE LAMP (n3): "Auto" switches it on when the light is too poor for a fast shutter and the phone is in a hand
 //    (lightHelper).
 //  - THE DEPTH SENSOR (LiDAR; with the 1x lens only - the sensor is paired with that lens): the distance at the centre
@@ -40,6 +50,14 @@ struct CamCfg: Equatable {
     var lens = Lens.wide
     var size = SizeMode.mp12
     var depth = true
+}
+
+/// A frame our own reader is at.
+struct WebJob {
+    let pts: Double
+    let at: Double
+    let fr: FrameRec?
+    let r: Recording?
 }
 
 final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
@@ -67,7 +85,6 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     @Published var depthOn = false
     @Published var videoOn = true
     @Published var light: LightMode = .off
-    @Published var glareHelp = true
     @Published var live = false
     @Published var step = 0
     @Published var note = ""
@@ -86,7 +103,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     let motion = CMMotionManager()
     let motionQ = OperationQueue()
     let lock = NSLock()
-    let maxReaders = 3
+    let maxReaders = 2              // Apple's reader, frames at once (n4: two, beside our own reader's two web views)
 
     var device: AVCaptureDevice?
     var cur = CamCfg()
@@ -131,13 +148,18 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     var lightMode = LightMode.off
     var torchIsOn = false
     var helperOn = true
-    var glareOn = true
     var rotEma = 0.0                // the phone's turning, rad/s, smoothed over about a tenth of a second
     var heatNow = 0
     var glareNow = false
     var fStateNow = 0
     var speedNow = 0.0
     var resetHelpers = false
+    var tooFastNow = false
+    var webReaders: [WebReader] = []
+    var webJobs: [Int: WebJob] = [:]    // frames our own reader is at: by the number the frame went out under
+    var webSeq = 0
+    var webNotes: [String] = []
+    var webFill: [Double] = []
 
     // the capture thread's own
     var lastSmart = 0.0
@@ -170,6 +192,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     var restSince = -1.0
     var readingSince = 0.0
     var wasReading = false
+    var fastSince = -1.0
 
     // n1's first two tests (2026-11-10): the whole picture (W) found NOTHING at 9 and at 14 inches - Apple's reader
     // reduces whatever region it is given to its own working size - while the four tiles (Q) found every code at
@@ -289,7 +312,6 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         focus = p.focus
         depthOn = p.depth
         light = p.light
-        glareHelp = p.glareHelp
     }
 
     func stepBy(_ d: Int) {
@@ -305,7 +327,6 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let sh = shutter
         let fo = focus
         let li = light
-        let gl = glareHelp
         sessionQ.async {
             if !self.configured || c != self.cur { self.configure(c) }
             self.lock.lock()
@@ -313,7 +334,6 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             self.lensNow = c.lens
             self.lightMode = li
             self.helperOn = fo == .auto
-            self.glareOn = gl
             self.resetHelpers = true
             self.lock.unlock()
             switch sh {
@@ -701,7 +721,6 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let lmode = lightMode
         let torch = torchIsOn
         let helper = helperOn
-        let glareHelpOn = glareOn
         let rot = rotEma
         let heat = heatNow
         let active = reading
@@ -741,9 +760,22 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             r.delivered += 1
             fr = f
         }
-        // a hot phone reads fewer frames at once (n2: "serious" heat from the eleventh test on, with three readers and the video)
-        let limit = heat >= 3 ? 1 : (heat >= 2 ? 2 : maxReaders)
-        let canRead = reading && inFlight < limit && (rec == nil || r != nil)   // not the frames from before the tap (n1 counted them)
+        // THE BLUR of this frame in dots: how far the picture moved while the shutter was open. Over 2 bars of a
+        // code for 0.4 s: the note "too fast" (a bar = a hundredth of the codes' length; 1.8 dots while none is read).
+        // Over 7 dots the frame is not read at all (n3: such frames found nothing - 498 of 661 in Brett's own test).
+        let blurPx = speedEma * expS
+        let bar = codePx > 0 ? max(1.0, Double(codePx) / 100) : 1.8
+        if blurPx > 2.0 * bar {
+            if fastSince < 0 { fastSince = pts }
+        } else {
+            fastSince = -1
+        }
+        tooFastNow = fastSince >= 0 && pts - fastSince > 0.4
+        let tooFast = blurPx > 7.0
+        // a hot phone reads fewer frames at once (n2 and n3: "serious" heat within ten tests, with the video being kept)
+        let limit = heat >= 3 ? 0 : (heat >= 2 ? 1 : maxReaders)
+        let mayRead = reading && !tooFast && (rec == nil || r != nil)   // not the frames from before the tap (n1 counted them)
+        let canRead = mayRead && inFlight < limit
         var seq = 0
         if canRead {
             inFlight += 1
@@ -751,6 +783,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             seq = jobSeq
             r?.jobs += 1
         }
+        let webs = mayRead ? webReaders : []
+        let webRoom = webJobs.count < (heat >= 3 ? 1 : 2)
         lock.unlock()
 
         if doReset || (active && !wasReading) {
@@ -804,14 +838,39 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             smart(pts, cap: cap, tele: tele, codePx: codePx)      // (not while the lens is being moved: a change of exposure sent n2's 3x lens hunting)
         }
         if dev != nil {
-            // (a frame taken darker for the glare help says nothing about the focus: its sharpness is lower by itself;
-            // and no darker frames while the lens is being moved)
-            let dark = bias < -0.3 || off < -0.7
+            // (a much underexposed frame says nothing about the focus: its sharpness is lower by itself)
+            let dark = off < -0.7
             if !(dark && (fState == 0 || fState == 3)) {
-                focusHelper(pts, sharp: st.sharp, lensPos: lensPos, af: af, tele: tele, sinceCode: sinceCode, lastSlab: lastSlab, on: helper && active && !sweeping)
+                focusHelper(pts, sharp: st.sharp, lensPos: lensPos, af: af, tele: tele, sinceCode: sinceCode, lastSlab: lastSlab, speed: speedEma, on: helper && active && !sweeping)
             }
-            glareHelper(pts, blown: st.blown, bias: bias, off: off, on: glareHelpOn && active && !sweeping && (fState == 0 || fState == 3))
+            if st.blown >= 5 {                  // glare: only a note on the picture (see the top of this file)
+                if blownSince < 0 { blownSince = pts }
+            } else if st.blown < 3 {
+                blownSince = -1
+            }
             lightHelper(pts, mode: lmode, isOn: torch, tele: tele, rot: rot, active: active)
+        }
+
+        // our own reader: a web view that is waiting gets this frame (one a frame - the other takes the next)
+        if webRoom {
+            for wr in webs where wr.wants {
+                lock.lock()
+                webSeq += 1
+                let ws = webSeq
+                lock.unlock()
+                if let packet = lumaPacket(pb, seq: ws) {
+                    lock.lock()
+                    webJobs[ws] = WebJob(pts: pts, at: CACurrentMediaTime(), fr: fr, r: r)
+                    r?.jobs += 1
+                    lock.unlock()
+                    if !wr.give(packet) {
+                        lock.lock()
+                        if webJobs.removeValue(forKey: ws) != nil { r?.jobs -= 1 }
+                        lock.unlock()
+                    }
+                }
+                break
+            }
         }
 
         if canRead {
@@ -850,12 +909,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let isoMove = tele ? 2200.0 : 1600.0
         var lo = 60.0
         if !tele && kEma * 60 > 2000 { lo = 30 }
-        let hi = tele ? 250.0 : 500.0
+        var hi = tele ? 250.0 : 500.0
         var den = isoStill / kEma
         if speedEma > 400 {
             let bar = codePx > 0 ? max(1.0, Double(codePx) / 100) : 1.8
             let want = speedEma / bar
-            den = max(den, min(want, isoMove / kEma))
+            // 3x WHILE MOVING (n4). n3's pan at 2 feet ran at 1/60-1/80 - the light rule would not pass ISO 2200 - and
+            // its frames above 600 dots a second read next to nothing (13 codes a frame under 300, 9 at 300-600, 2 at
+            // 600-900). Rather a darker picture than a smeared one: up to one stop under, never slower than 1/120,
+            // as fast as 1/400.
+            let room = tele ? 2.0 * isoMove / kEma : isoMove / kEma
+            den = max(den, min(want, room))
+            if tele {
+                den = max(den, 120)
+                hi = 400
+            }
         }
         den = min(hi, max(lo, den))
         var idx = 0
@@ -896,12 +964,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     ///   1  one fresh focus run on the middle of the picture; done when the lens has moved and stood for 3 frames
     ///      (1.5 s at most) -> 4.
     ///   4  0.7 s for a code to be read in a frame taken after that run: 3x holds where it is (-> 3), 1x goes back to
-    ///      the camera's own (-> 0). None read: 3x - or 1x still blurred - tries the positions itself -> 2.
+    ///      the camera's own (-> 0). None read: a picture still plainly blurred, and still, has the positions tried
+    ///      (-> 2); a sharp one with no read is no focus problem (3x holds -> 3, 1x -> 0).
+    ///   Nothing is asked or tried while the picture moves (n4): a moving picture is blurred whatever the lens does.
     ///   2  the lens to each position in turn, 0.13 s each (the last frame's sharpness stands for the position),
     ///      then 0.03 either side of the sharpest; the lens goes to the sharpest of all and is held -> 3.
     ///   3  held. No code for 2 s and the picture no longer sharp (under 0.6 of what it was) - or none for 6 s -> 0.
     /// After each refocus that did not end in a read the next one waits twice as long (1.5 s ... 8 s); a read resets it.
-    func focusHelper(_ pts: Double, sharp: Int, lensPos: Double, af: Bool, tele: Bool, sinceCode: Double, lastSlab: Double, on: Bool) {
+    func focusHelper(_ pts: Double, sharp: Int, lensPos: Double, af: Bool, tele: Bool, sinceCode: Double, lastSlab: Double, speed: Double, on: Bool) {
         if !on {
             if fState != 0 {
                 fState = 0
@@ -913,7 +983,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         switch fState {
         case 0:
             let wait = tele ? 0.8 : 1.5
-            if sinceCode > wait && pts >= fNextKick && !af && (tele || sharp < 50) {
+            // (n4: not while the picture moves - a moving picture is blurred whatever the lens does; n3's helper
+            // hunted through Brett's whole moving test, its sharpness curves flat)
+            if sinceCode > wait && pts >= fNextKick && !af && speed < 500 && (tele || sharp < 50) {
                 fState = 1
                 fSince = pts
                 fSawMoving = false
@@ -947,7 +1019,10 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 }
                 fSince = pts
             } else if pts - fSince > 0.7 {
-                if tele || sharp < 50 {
+                // (n4: the positions are tried only when the picture is plainly blurred and still. n3: after the
+                // refocus at 4 feet the lens stood right - the try found the same place - and nothing was read
+                // because the codes were too small; a sharp picture with no read is not a focus problem.)
+                if sharp < 50 && speed < 300 {
                     var list: [Double] = []
                     var p = tele ? 0.0 : 0.30       // n2, sharp at: 3x 0.20-0.23 at 2 feet (0 = nearest, 60 cm); 1x 0.47-0.50 at 9 in, 0.59 at 14 in, 0.67 at 2 ft
                     let end = tele ? 0.84 : 0.90
@@ -967,13 +1042,22 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                     let q = list[0]
                     sessionQ.async { self.lockFocus(at: q) }
                     event("focus", "no read after the refocus (sharpness \(sharp), lens at \(Int(lensPos * 1000))): trying the positions")
+                } else if tele {
+                    fState = 3
+                    fSince = pts
+                    fHeldSharp = Double(sharp)
                 } else {
                     fState = 0
                     sessionQ.async { self.setFocus(.auto) }
                 }
             }
         case 2:
-            if pts - fStepAt >= 0.13 {              // (four frames at 30 a second: the lens has arrived and this frame was taken there)
+            if speed > 800 {                        // the phone started moving: the try says nothing now
+                fState = 0
+                fNextKick = pts + 1.0
+                sessionQ.async { self.setFocus(.auto) }
+                event("focus", "the try was dropped: the picture is moving")
+            } else if pts - fStepAt >= 0.13 {              // (four frames at 30 a second: the lens has arrived and this frame was taken there)
                 let p = fList[fIdx]
                 fTrace += "\(Int((p * 1000).rounded())):\(sharp) "
                 if Double(sharp) > fBestSharp {
@@ -1001,7 +1085,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 }
             }
         case 3:
-            if pts - fSince > 2.0 && sinceCode > 2.0 && (Double(sharp) < 0.6 * fHeldSharp || sinceCode > 6.0) {
+            if speed < 500 && pts - fSince > 2.0 && sinceCode > 2.0 && (Double(sharp) < 0.6 * fHeldSharp || sinceCode > 6.0) {
                 fState = 0
                 fNextKick = pts + 0.3
                 sessionQ.async { self.setFocus(.auto) }
@@ -1009,30 +1093,6 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
         default:
             fState = 0
-        }
-    }
-
-    /// GLARE (n3). n2's glare test: a lamp's reflection blew out part of the sheet (13 per mille of the picture at
-    /// 250+), 13 of the 50 codes were never read. While more than 5 per mille is blown out (under 3: over), the
-    /// camera takes 0.6 s as it wants and 0.5 s darker by 1.5 EV, in turn: a code only washed out may stand clear in
-    /// the darker frames (one under a full mirror image of the lamp will not - tilting the phone moves that).
-    /// Only frames at the camera's own exposure are asked whether there is glare.
-    func glareHelper(_ pts: Double, blown: Int, bias: Double, off: Double, on: Bool) {
-        if bias > -0.3 && off > -0.5 {
-            if blown >= 5 {
-                if blownSince < 0 { blownSince = pts }
-            } else if blown < 3 {
-                blownSince = -1
-            }
-        }
-        var want: Float = 0
-        if on && blownSince >= 0 && pts - blownSince > 0.5 {
-            let ph = (pts - blownSince).truncatingRemainder(dividingBy: 1.1)
-            want = ph >= 0.6 ? -1.5 : 0
-        }
-        if want != biasWant {
-            biasWant = want
-            sessionQ.async { self.setBias(want) }
         }
     }
 
@@ -1142,6 +1202,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         return (out, (CACurrentMediaTime() - t) * 1000)
     }
 
+    /// (reader threads) What Apple's reader found in a frame.
     func merge(_ found: [Found], ms: Double, kind: String, pts: Double, fr: FrameRec?, r: Recording?, pw: Int, ph: Int) {
         let now = CACurrentMediaTime()
         lock.lock()
@@ -1153,11 +1214,97 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             a.append(ms)
             visionMs[kind] = a
         }
-        let t0 = r?.t0 ?? liveT0
+        let rows = absorb(found, by: kind, pts: pts, now: now, t0: r?.t0 ?? liveT0, pw: pw, ph: ph, fr: fr)
+        if let fr = fr {
+            fr.found = rows
+            fr.job = kind
+            fr.jobMs = ms
+            fr.doneT = (now - (r?.t0 ?? liveT0)) * 1000
+        }
+        lock.unlock()
+    }
+
+    /// (main thread) What our own reader found in a frame it was handed (WebReader).
+    func webResult(reader: Int, seq: Int, ms: Double, fill: Double, patches: Int, w: Int, h: Int, reads: [WebRead], failed: Bool) {
+        let now = CACurrentMediaTime()
+        lock.lock()
+        guard let job = webJobs.removeValue(forKey: seq) else {
+            lock.unlock()
+            return
+        }
+        job.r?.jobs -= 1
+        let same = (job.r == nil && rec == nil) || (job.r != nil && job.r === rec)
+        if failed || !same || w < 64 || h < 64 {        // (a frame of a test that is over is not read into the next one)
+            lock.unlock()
+            return
+        }
+        readTimes.append(now)
+        if job.r != nil {
+            var a = visionMs["F"] ?? []
+            a.append(ms)
+            visionMs["F"] = a
+            webFill.append(fill)
+        }
+        var found: [Found] = []
+        for x in reads {
+            // the page's dots count from the frame's top-left; a Found's box is 0-1 from the bottom-left, as Apple's
+            let bw = max(1.0, x.right - x.left)
+            let bh = max(1.0, x.bottom - x.top)
+            let box = CGRect(x: x.left / Double(w), y: 1.0 - x.bottom / Double(h), width: bw / Double(w), height: bh / Double(h))
+            found.append(Found(kind: x.kind, text: x.text, conf: x.cls == 3 ? 0.6 : 1.0, box: box, cls: x.cls))
+        }
+        let t0 = job.r?.t0 ?? liveT0
+        let rows = absorb(found, by: "F", pts: job.pts, now: now, t0: t0, pw: w, ph: h, fr: job.fr)
+        if let fr = job.fr {
+            fr.webFound = rows
+            fr.webMs = ms
+            fr.webBoxes = patches
+            fr.webDone = (now - t0) * 1000
+        }
+        lock.unlock()
+    }
+
+    /// (main thread) Our own reader's state: "ready", or why it is not.
+    func webNote(_ id: Int, _ s: String) {
+        lock.lock()
+        if webNotes.count < 40 { webNotes.append("reader \(id): " + s) }
+        lock.unlock()
+        event("our reader", "\(id): " + s)
+    }
+
+    /// (main thread) Starts our own reader's web views, once, inside `host`.
+    func startWebReaders(host: UIView) {
+        lock.lock()
+        let have = !webReaders.isEmpty
+        lock.unlock()
+        if have { return }
+        var made: [WebReader] = []
+        for i in 0..<2 {
+            let w = WebReader(id: i + 1, engine: self)
+            w.start(in: host)
+            made.append(w)
+        }
+        lock.lock()
+        webReaders = made
+        lock.unlock()
+    }
+
+    /// (under the lock) One frame's readings by one reader into the table of codes. Returns the frame's rows for
+    /// the test file: [number in the list, x, y, width, height per mille, confidence x100 or our reader's class].
+    ///
+    /// ONE PLACE HOLDS ONE CODE (n4). Two different slab numbers read within 0.35 s at the same place of a picture
+    /// that is not moving (their middles closer than 0.35 of a code's length) are rivals. A number counts when it
+    /// was read often enough (CodeInfo.enough) and no rival of it was read as often; a counted number whose rival
+    /// has since been read more than twice as often is taken back (n3: the wrong 02361231 in 6 frames, the right
+    /// 4054449650 at the same place in 20).
+    func absorb(_ found: [Found], by: String, pts: Double, now: Double, t0: Double, pw: Int, ph: Int, fr: FrameRec?) -> [[Any]] {
+        var rows: [[Any]] = []
         var seen = Set<String>()
         var bx: [Box] = []
         var sizes: [Double] = []
         var slabPx: [Int] = []
+        var touched: [CodeInfo] = []
+        let still = speedNow < 400
         for f in found {
             let key = f.kind + "|" + f.text
             let firstHere = seen.insert(key).inserted
@@ -1165,7 +1312,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             if c == nil {
                 let n = CodeInfo(kind: f.kind, text: f.text, index: order.count)
                 n.firstMs = (pts - t0) * 1000
-                n.firstBy = kind
+                n.firstBy = by
                 n.slab = slabCert(kind: f.kind, text: f.text)
                 n.need = f.kind == "ITF" ? 3 : 2
                 codes[key] = n
@@ -1173,16 +1320,26 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 c = n
             }
             guard let info = c else { continue }
-            let px = Int(max(f.box.width * CGFloat(pw), f.box.height * CGFloat(ph)).rounded())
+            let wpx = Double(f.box.width) * Double(pw)
+            let hpx = Double(f.box.height) * Double(ph)
+            let px = Int(max(wpx, hpx).rounded())
+            let good = f.cls == 0 ? f.conf >= 0.5 : true
             if firstHere {
-                if f.conf >= 0.5 {
-                    info.frames += 1
-                    info.by[kind] = (info.by[kind] ?? 0) + 1
+                if f.cls == 0 {
+                    if good {
+                        info.frames += 1
+                    } else {
+                        info.weak += 1          // n1: the one misread ("18562322") came with confidence 0.40, every right code 0.67+
+                    }
+                } else if f.cls == 3 {
+                    info.framesWC += 1
                 } else {
-                    info.weak += 1          // n1: the one misread ("18562322") came with confidence 0.40, every right code 0.67+
+                    info.framesW += 1
                 }
+                if good { info.by[by] = (info.by[by] ?? 0) + 1 }
+                touched.append(info)
             }
-            if info.slab && px > 20 && f.conf >= 0.5 {
+            if info.slab && px > 20 && good {
                 // a slab's barcode is 17.5 mm wide (PSA) or 18.4 mm (CGC: 10 or 13 digits): its size in dots gives the distance
                 let mm = (info.text.count == 10 || info.text.count == 13) ? 18.4 : 17.5
                 sizes.append(focalPx * mm / Double(px))
@@ -1193,13 +1350,42 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 info.maxPx = max(info.maxPx, px)
             }
             info.conf = max(info.conf, f.conf)
-            if info.countedMs == nil && info.slab && info.frames >= info.need {
-                info.countedMs = (now - t0) * 1000
-                counted += 1
+            if info.slab && good && px > 20 {
+                let cx = (Double(f.box.minX) + Double(f.box.width) / 2) * Double(pw)
+                let cy = (Double(f.box.minY) + Double(f.box.height) / 2) * Double(ph)
+                if still {
+                    for o in order where o.slab && o !== info && abs(o.lastPts - pts) < 0.35 && o.len > 20 {
+                        let reach = 0.35 * max(o.len, Double(px))
+                        if abs(o.cx - cx) < reach && abs(o.cy - cy) < reach {
+                            info.rivals.insert(o.kind + "|" + o.text)
+                            o.rivals.insert(key)
+                        }
+                    }
+                }
+                info.cx = cx
+                info.cy = cy
+                info.len = Double(px)
+                info.lastPts = pts
             }
             bx.append(Box(rect: CGRect(x: f.box.minX, y: 1 - f.box.maxY, width: f.box.width, height: f.box.height), counted: info.countedMs != nil))
-            if let fr = fr {
-                fr.found.append([info.index, Int(f.box.minX * 1000), Int(f.box.minY * 1000), Int(f.box.width * 1000), Int(f.box.height * 1000), Int(f.conf * 100)])
+            rows.append([info.index, Int(f.box.minX * 1000), Int(f.box.minY * 1000), Int(f.box.width * 1000), Int(f.box.height * 1000), f.cls == 0 ? Int(f.conf * 100) : f.cls])
+        }
+        // who counts now
+        for info in touched {
+            var best = 0
+            for k in info.rivals {
+                if let o = codes[k] {
+                    best = max(best, o.score)
+                    if o.countedMs != nil && info.score > 2 * o.score {       // the rival was counted and is now far outread: taken back
+                        o.countedMs = nil
+                        o.lost = true
+                        counted -= 1
+                    }
+                }
+            }
+            if info.countedMs == nil && info.enough && info.score > best && !(info.lost && info.score <= 2 * best) {
+                info.countedMs = (now - t0) * 1000
+                counted += 1
             }
         }
         var sizeMm = -1
@@ -1217,15 +1403,12 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 lastCodePxAt = pts
             }
         }
-        if let fr = fr {
-            fr.job = kind
-            fr.jobMs = ms
-            fr.doneT = (now - t0) * 1000
-            fr.sizeMm = sizeMm
+        if let fr = fr, sizeMm > 0 { fr.sizeMm = sizeMm }
+        if !bx.isEmpty || now - lastBoxesAt > 0.25 {
+            lastBoxes = bx
+            lastBoxesAt = now
         }
-        lastBoxes = bx
-        lastBoxesAt = now
-        lock.unlock()
+        return rows
     }
 
     // MARK: - the depth sensor (depth thread)
@@ -1376,7 +1559,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         while i >= 0 && list.count < 80 {
             let c = order[i]
             if c.slab {
-                list.append(CodeRow(id: c.kind + "|" + c.text, kind: c.kind, text: c.text, counted: c.countedMs != nil, sightings: c.frames))
+                list.append(CodeRow(id: c.kind + "|" + c.text, kind: c.kind, text: c.text, counted: c.countedMs != nil, sightings: c.score))
             }
             i -= 1
         }
@@ -1397,10 +1580,17 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let isStopping = r?.stopping ?? false
         let limit = r?.plan.seconds ?? 0
         let fs = fStateNow
-        let glare = glareNow && glareOn && reading
+        let glare = glareNow && reading
+        let fast = tooFastNow && reading
+        let ours = webReaders
         let lampAuto = torchIsOn && lightMode == .auto
         let heat = heatNow
         let sp = speedNow
+        // a frame our reader never answered for (its page failed, or was stopped) is given up after 4 s
+        for (k, j) in webJobs where now - j.at > 4.0 {
+            webJobs.removeValue(forKey: k)
+            j.r?.jobs -= 1
+        }
         lock.unlock()
 
         rows = list
@@ -1413,18 +1603,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         if smm > 0 { s += String(format: " · %.1f in", Double(smm) / 25.4) }
         if dmm > 0 { s += String(format: " · sensor %.1f in", Double(dmm) / 25.4) }
         s += " · \(rps) reads/s"
+        if !ours.isEmpty { s += " · ours \(ours.filter { $0.ready }.count)/\(ours.count)" }
         if sp > 400 { s += " · moving \(Int(sp))" }
         if w > 0 && w != 4032 { s += " · \(w)x\(h)" }
         status = s
         var hi = ""
-        if fs == 1 || fs == 2 || fs == 4 {
+        if fast {
+            hi = "Too fast to read: move slower"
+        } else if fs == 1 || fs == 2 || fs == 4 {
             hi = "Finding the focus…"
         } else if glare {
             hi = "Glare: tilt or move the phone a little"
         } else if lampAuto {
             hi = "Dim light: the lamp is on"
         }
-        if heat >= 2 { hi += (hi.isEmpty ? "" : " · ") + "The phone is hot: reading fewer frames" }
+        if heat >= 2 && hi.isEmpty { hi = "The phone is hot: reading fewer frames" }
         if hint != hi { hint = hi }
         if recording && r != nil && !isStopping {
             elapsed = now - t0

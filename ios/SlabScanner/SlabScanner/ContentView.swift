@@ -198,9 +198,6 @@ struct ContentView: View {
                 Toggle("Video", isOn: $engine.videoOn)
                     .font(.caption)
                     .fixedSize()
-                Toggle("Glare help", isOn: $engine.glareHelp)
-                    .font(.caption)
-                    .fixedSize()
                 Toggle("Depth", isOn: $engine.depthOn)
                     .font(.caption)
                     .fixedSize()
@@ -220,7 +217,6 @@ struct ContentView: View {
         .onChange(of: engine.focus) { engine.apply() }
         .onChange(of: engine.depthOn) { engine.apply() }
         .onChange(of: engine.light) { engine.apply() }
-        .onChange(of: engine.glareHelp) { engine.apply() }
         .onChange(of: engine.live) { engine.setLive(engine.live) }
     }
 

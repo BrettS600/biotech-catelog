@@ -3431,7 +3431,67 @@ phone - its JS + wasm in a web view fed by the native camera (the "thin shell ar
 with the finder ported - and measure its speed there.
 Dropping the thirty-six tiles cost nothing: every code counted in n2's tests 2, 3 and 15 (and all but one in 8) was
 read twice by N or S alone.
-NOT DONE YET: our reader inside the app (above); the web app's wrong-number fix; then the $99 and the full app.
+BRETT'S 16 n3 TESTS (2026-11-11 04:02-04:28 UTC; zips in ~/scan-test, JSONs on the Mac's VM at $HOME/n3 with sum.py).
+Right of 50 / wrong (n2 in brackets):
+   1  9 in, 1x             50 / 0  (47)   49 within 1 s; 1/120-1/160 at ISO 640
+   2  14 in, 1x            43 / 0  (42-45)
+   3  18 in, 1x            26 / 0         codes 118 dots; Apple's reader 5-12 a frame, ours 23 on the saved frame
+   4  2 ft, 3x             50 / 0  (44)   all within 1 s
+   5  3 ft, 3x              9 / 0  (0)    in focus now (the helper: asked, lens 0.584 -> 0.294, held), codes 178 dots, but
+                                          only 2.4 codes a frame: ISO 2000 at 1/120, a soft picture. Ours: 7-11 a frame.
+   6  4 ft, 3x              1 / 0         codes 133 dots at ISO 2500: past this lens in this light (ours 0-1)
+   7  moving slowly, 1x    50 / 0  (50)   48 by 5 s; 1/320-1/400 at ISO 1600; the picture ~820 dots a second
+   8  moving fast, 1x      42 / 0         ~2,860 dots a second
+   9  panning 3x, 2 ft     50 / 0         40 by 5 s - though the light rule had slowed the shutter to 1/60-1/80: codes a
+                                          frame 13 under 300 dots/s, 9 at 300-600, 2 at 600-900, ~0 above
+  10  dim, 1 ft, 1x, no lamp  26 / 0 (0)  1/60 at ISO 1250 (ours on the saved frame: 28 against 3-18)
+  11  dim, moving, lamp auto  50 / 0      the lamp came on after 0.6 s
+  12  dim, 2 ft, 3x, lamp auto 48 / 0 (0) 46 by 3 s
+  13  glare, held still, glare help  30 / 1 WRONG: 02361231 (Code 128, 6 frames, confidence 0.43-0.79) at the place of
+                                          4054449650, which was read there in 20 frames - THE FIRST WRONG NUMBER of 33
+                                          native tests: a small washed-out code misread the same way again and again by
+                                          Apple's reader while the phone stood still (two frames do not guard against that)
+  14  glare, no glare help    29 / 0      the darker frames found nothing more (10.9 codes a frame against 10.2; one
+                                          code seen only in them; the reflection stayed blown out at -1.5 EV)
+  15  glare, tilting and moving  44 / 0   moving the reflection off the codes is what helps
+  16  his choice: 3 ft, 45 degrees, 3x, moving - HIS REAL USE: 21 / 0 in 30 s. The picture moved ~2,650 dots a second;
+      498 of 661 frames read were above 1,800 and found nothing (3.5 codes a frame under 300). The focus helper hunted
+      all test (853 of 902 frames; its sharpness curves flat - a moving picture is blurred at every lens position).
+BRETT'S REAL USE (2026-11-11, his words): at a show he will stand "2 to 3 feet away at a 45 degree angle in well lit
+conditions", the slabs in a glass-panelled case the height of a nightstand, glare likely; "I'll probably like move the
+camera back and forth, like slightly"; he will not hold the phone over the case at a foot. And: the rounds of 15-16
+tests "take forever" - he hopes to be done after 5 builds (n2 = 1, n3 = 2). ANSWERED before n4 (as he asked): three
+more builds should reach what the 13 Pro Max can do IF the rounds are his real use only and short (5-6 tests): n4 =
+our reader inside, the 3x shutter while moving, the too-fast note, the focus fixed; the next = real slabs in a case;
+the last = tuning. The limit told to him: at 3 ft and 45 degrees the 3x lens puts 1.3-1.8 dots on a bar; 2-2.5 ft
+with a slow sweep should work well, 3 ft with a slow steady pass, fast waving at 3 ft will not read on this phone
+(about 2 inches a second across the case in his room's light; more light = faster). Hooking the scanner to the
+website is separate work, not in the five.
+n4 (built with no error and no warning at the first try, installed 04:52 UTC Nov 11):
+- OUR OWN READER INSIDE THE APP (WebReader.swift + reader_page.html): two web views nobody sees run page/app's
+  finder.js + zxing on frames the app hands them - the page asks slab://app/frame, the app answers with 16 bytes
+  (frame number, width, height, 0) + the grey plane when it has a frame to be read; readings come back as a message.
+  finder_js.txt / zxing_js.txt / zxing_wasm.dat ARE COPIES of page/app/finder.js, page/app/zxing/reader.js and
+  zxing_reader.wasm (text / data names so Xcode copies them and compiles nothing; the same git blobs - copy them
+  again when page/app changes). The page was run in Chromium here against two saved frames with a stand-in for
+  the app (47 and 23 codes, 150-420 ms a frame) BEFORE it went to the phone; on the phone Xcode's console showed the
+  two page processes start - whether they read there is in the next files (report.json "ourReader", the status line
+  "ours 2/2"). Apple's reader stays, two frames at once.
+- COUNTING (CodeInfo.enough + Engine.absorb): Apple's reader in 2 frames (ITF 3), or ours surely / strongly in 2, or
+  both once each - AND ONE PLACE HOLDS ONE CODE: two slab numbers read within 0.35 s at the same place of a still
+  picture are rivals; one counts only while no rival was read as often, and a counted one is taken back when its rival
+  is read more than twice as often.
+- 3x WHILE MOVING: up to one stop under, never slower than 1/120, as fast as 1/400. TOO FAST: over 2 bars of blur for
+  0.4 s -> the yellow note "Too fast to read: move slower"; over 7 dots of blur the frame is not read at all.
+- THE FOCUS HELPER asks and tries nothing while the picture moves; the positions are tried only when the picture is
+  plainly blurred and still.
+- GLARE: the darker frames are gone; only the note. Apple's reader: 2 frames at once, 1 when hot, 0 when "critical".
+- TestPlan n4, 6 tests, all 3x: 2 ft at 45 degrees held still; 3 ft; 2-3 ft moving slightly; the same with glare;
+  real slabs; his choice.
+- NOT SEEN FROM HERE: Xcode showed "Launching SlabScanner is taking longer than expected" over the window and the
+  box could not be clicked (his screen was a full-screen app) - Brett was asked to click Stop in it and to tell
+  whether the status line says "ours 2/2".
+NOT DONE YET: the web app's wrong-number fix; then the $99 and the full app.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

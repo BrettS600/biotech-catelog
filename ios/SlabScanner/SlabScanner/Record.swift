@@ -75,6 +75,7 @@ struct Found {
     let text: String
     let conf: Float
     let box: CGRect             // 0-1 of the whole picture, from the bottom-left (Vision's way)
+    var cls = 0                 // who read it: 0 Apple's reader; our own reader's class - 1 sure (A), 2 strong (B), 3 weak (C)
 }
 
 final class CodeInfo {
@@ -92,6 +93,25 @@ final class CodeInfo {
     var slab = false
     var need = 2
     var weak = 0                // reads Apple's reader was less than half sure of: written down, never counted
+    var framesW = 0             // frames our own reader read it in, sure or strong (class A or B)
+    var framesWC = 0            // ...and weakly (class C)
+    var rivals = Set<String>()  // other numbers read at the same place in the picture (one place holds one code)
+    var lost = false            // counted once, then a rival at its place was read far more often: taken back
+    var cx = 0.0                // where it was last read: its middle (dots) and long side, and that frame's time
+    var cy = 0.0
+    var len = 0.0
+    var lastPts = 0.0
+
+    var score: Int { frames + framesW }
+
+    /// Read often enough to count (n4): Apple's reader in 2 frames (ITF, which has no check digit: 3), or our reader
+    /// surely / strongly in 2, or both readers once each - two readers that work differently agreeing.
+    var enough: Bool {
+        if !slab { return false }
+        if frames >= need || framesW >= 2 { return true }
+        if kind == "ITF" { return frames >= 1 && framesW >= 1 }
+        return (frames >= 1 && framesW + framesWC >= 1) || (framesW >= 1 && framesWC >= 1)
+    }
 
     init(kind: String, text: String, index: Int) {
         self.kind = kind
@@ -129,6 +149,10 @@ final class FrameRec {
     var fstate = 0              // the focus helper: 0 the camera's own, 1 asked to refocus, 2 trying positions, 3 held
     var light = 0.0             // the light: ISO x seconds the camera needs for the exposure it wants
     var readers = 0             // frames being read when this one came
+    var webMs = -1.0            // our own reader: its reading time for this frame (-1: the frame was not given to it)
+    var webDone = 0.0           // ...and when its result was known, ms since the record tap
+    var webBoxes = 0            // ...how many striped patches it found
+    var webFound: [[Any]] = []  // ...and what it read
 }
 
 final class Recording {
@@ -305,6 +329,30 @@ func frameStats(_ pb: CVPixelBuffer) -> FrameStats {
     out.blown = hi * 1000 / n
     out.sharp = gn > 0 ? grad / gn : 0
     return out
+}
+
+/// A frame for our own reader (the web view): 16 bytes - the frame's number, width, height, 0, four whole numbers low
+/// byte first - then the grey plane row by row without the padding.
+func lumaPacket(_ pb: CVPixelBuffer, seq: Int) -> Data? {
+    CVPixelBufferLockBaseAddress(pb, .readOnly)
+    defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+    guard let base = CVPixelBufferGetBaseAddressOfPlane(pb, 0) else { return nil }
+    let w = CVPixelBufferGetWidthOfPlane(pb, 0)
+    let h = CVPixelBufferGetHeightOfPlane(pb, 0)
+    let rb = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
+    var d = Data(count: 16 + w * h)
+    d.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) in
+        guard let dp = dst.baseAddress else { return }
+        let head: [UInt32] = [UInt32(truncatingIfNeeded: seq), UInt32(w), UInt32(h), 0]
+        for (i, v) in head.enumerated() {
+            var le = v.littleEndian
+            memcpy(dp + i * 4, &le, 4)
+        }
+        for y in 0..<h {
+            memcpy(dp + 16 + y * w, base + y * rb, w)
+        }
+    }
+    return d
 }
 
 /// The grey plane of a frame, row by row without the padding: exactly the dots the reader saw.

@@ -49,7 +49,6 @@ extension Engine {
         st["depthSensor"] = depthOn
         st["video"] = videoOn
         st["light"] = light.rawValue
-        st["glareHelp"] = glareHelp
         st["focusHelper"] = focus == .auto
         st["special"] = plan.special
         st["stopsAfterSeconds"] = Int(plan.seconds)
@@ -218,6 +217,9 @@ extension Engine {
         let snaps = r.snaps
         let list = order
         let vms = visionMs
+        let webs = webReaders
+        let notes = webNotes
+        let fills = webFill
         lock.unlock()
 
         // the codes
@@ -225,6 +227,7 @@ extension Engine {
         var countedTimes: [Double] = []
         var sightedOnly = 0
         var other = 0
+        var takenBack = 0
         for c in list {
             var row: [Any] = []
             row.append(c.kind)
@@ -249,6 +252,11 @@ extension Engine {
             row.append(Int(c.conf * 100))
             row.append(c.slab)
             row.append(c.weak)
+            row.append(c.framesW)
+            row.append(c.framesWC)
+            row.append(c.rivals.sorted().map { String($0.split(separator: "|").last ?? "") }.joined(separator: " "))
+            row.append(c.lost)
+            if c.lost && c.countedMs == nil { takenBack += 1 }
             codeRows.append(row)
         }
         countedTimes.sort()
@@ -269,6 +277,7 @@ extension Engine {
         var darkN = 0
         var lampN = 0
         var helpN = 0
+        var webN = 0
         for f in frames {
             var row: [Any] = []
             row.append(f.n)
@@ -299,6 +308,11 @@ extension Engine {
             row.append(f.fstate)
             row.append(ji(f.light * 100))
             row.append(f.readers)
+            row.append(ji(f.webMs))
+            if f.webMs < 0 { row.append(NSNull()) } else { row.append(ji(f.webDone)) }
+            row.append(f.webBoxes)
+            row.append(f.webFound)
+            if f.webMs >= 0 { webN += 1 }
             frameRows.append(row)
             if f.speed >= 0 { speeds.append(Double(f.speed)) }
             if f.light > 0 { lights.append(f.light) }
@@ -315,7 +329,7 @@ extension Engine {
             if f.af { afN += 1 }
             if !f.job.isEmpty { readN += 1 }
         }
-        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (Q four tiles, N nine, S sixteen, T thirty-six; empty: not read, the readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)", "distance by the size of the codes read in this frame, mm (-1: none)", "the picture's movement against the frame before, dots a second (-1: not known)", "exposure bias in force, EV x100 (the glare help's darker frames: -150)", "lamp on", "focus helper (0 the camera's own focus, 1 asked to refocus, 2 trying positions, 3 held, 4 waiting for a read after the refocus)", "the light: ISO x seconds the camera needs, x100", "frames being read when this one came"]
+        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "Apple's reader: read as (Q four tiles, N nine, S sixteen; empty: not read by it)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)", "distance by the size of the codes read in this frame, mm (-1: none)", "the picture's movement against the frame before, dots a second (-1: not known)", "exposure bias in force, EV x100 (the glare help's darker frames: -150)", "lamp on", "focus helper (0 the camera's own focus, 1 asked to refocus, 2 trying positions, 3 held, 4 waiting for a read after the refocus)", "the light: ISO x seconds the camera needs, x100", "frames being read by Apple's reader when this one came", "our own reader: reading ms for this frame (-1: not given to it)", "our own reader: result known, ms since the record tap", "our own reader: striped patches found", "our own reader: codes in this frame [number in the list, x, y, width, height in per mille (from the bottom-left), class: 1 sure, 2 strong, 3 weak]"]
         var framesDoc: [String: Any] = [:]
         framesDoc["fields"] = frameFields
         framesDoc["rows"] = frameRows
@@ -361,6 +375,14 @@ extension Engine {
         rep["milliseconds"] = ji(seconds * 1000)
         rep["framesDelivered"] = frames.count
         rep["framesRead"] = readN
+        rep["framesReadByOurReader"] = webN
+        var our: [String: Any] = [:]
+        our["readers"] = webs.map { $0.state }
+        our["notes"] = notes
+        our["msToFillTheFrameMedian"] = ji(medianOf(fills))
+        our["framesRead"] = webN
+        rep["ourReader"] = our
+        rep["numbersTakenBack"] = takenBack
         rep["framesTheCameraDropped"] = r.cameraDropped
         if seconds > 0 { rep["framesReadPerSecond"] = ji(Double(readN) / seconds) }
         var vdoc: [String: Any] = [:]
@@ -379,7 +401,7 @@ extension Engine {
             rep["halfCountedByMs"] = ji(countedTimes[countedTimes.count / 2])
             rep["allCountedByMs"] = ji(countedTimes[countedTimes.count - 1])
         }
-        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (Q / N / S / T)", "frames by Q", "by N", "by S", "by T", "confidence x100", "looks like a slab cert", "weak reads (confidence under 0.5: not counted)"]
+        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (Q / N / S: Apple's reader; F: our own)", "frames by Q", "by N", "by S", "by T", "confidence x100", "looks like a slab cert", "weak reads (confidence under 0.5: not counted)", "frames by our own reader, sure or strong", "frames by our own reader, weak", "other numbers read at the same place (rivals)", "counted, then taken back (a rival at its place was read far more often)"]
         rep["list"] = codeRows
         var cam: [String: Any] = [:]
         cam["shutterMedianMicroseconds"] = ji(medianOf(exps) * 1e6)
@@ -450,7 +472,7 @@ extension Engine {
         if !countedTimes.isEmpty {
             line += String(format: " (half by %.1f s, all by %.1f s)", countedTimes[countedTimes.count / 2] / 1000, countedTimes[countedTimes.count - 1] / 1000)
         }
-        line += " · \(readN) of \(frames.count) frames read"
+        line += " · frames read: Apple's \(readN), ours \(webN) of \(frames.count)"
         if !exps.isEmpty { line += " · shutter 1/\(Int((1 / medianOf(exps)).rounded()))" }
         if !bySize.isEmpty { line += String(format: " · %.1f in", medianOf(bySize) / 25.4) }
         if !snaps.isEmpty { line += " · \(snaps.count) snaps" }

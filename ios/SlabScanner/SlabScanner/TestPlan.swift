@@ -35,33 +35,26 @@ struct TestStep {
     var focus: FocusMode = .auto
     var depth: Bool = false         // n2: with the depth sensor on the camera dropped a fifth to a third of its frames, and its distances were wrong
     var light: LightMode = .off
-    var glareHelp: Bool = true
     var special: String = ""        // "" | "sweep"
     var seconds: Double = 15        // the test stops by itself after this long
 }
 
 enum TestPlan {
-    static let version = "n3"
+    static let version = "n4"
     // the shutter sweep: 3 seconds at each of these (0 = the camera's own choice), 1/x of a second
     static let sweep: [Int] = [0, 60, 125, 250, 500, 1000, 2000]
     static let sweepSeconds = 3.0
 
+    // n4: BRETT'S REAL USE ONLY (2026-11-11: "2 to 3 feet away at a 45 degree angle in well lit conditions ... move the
+    // camera back and forth, like slightly"; a showcase the height of a nightstand, glare likely) - and short: n2's and
+    // n3's rounds of 15 and 16 tests "take forever". Close range, 2 feet square on, the dim room with the lamp and
+    // moving at close range are settled (n3: 50, 50, 48-50, 50 of 50).
     static let steps: [TestStep] = [
-        TestStep(what: "Sheet flat, room light, about 9 inches, 1x, hold still"),
-        TestStep(what: "About 14 inches, 1x, hold still"),
-        TestStep(what: "About 18 inches, 1x, hold still"),
-        TestStep(what: "About 2 feet, 3x, hold still", lens: .tele),
-        TestStep(what: "About 3 feet, 3x, hold still", lens: .tele),
-        TestStep(what: "About 4 feet, 3x, hold still", lens: .tele),
-        TestStep(what: "Moving: glide slowly over the sheet at 8 to 10 inches, a short pause on each part (20 seconds)", seconds: 20),
-        TestStep(what: "Moving fast: sweep over the sheet at 8 to 10 inches without stopping, back and forth"),
-        TestStep(what: "Moving with 3x: from about 2 feet, pan slowly over the sheet (20 seconds)", lens: .tele, seconds: 20),
-        TestStep(what: "Dim room, about a foot, 1x, hold still (the lamp stays off)"),
-        TestStep(what: "Dim room, moving: glide slowly at 8 to 10 inches (the lamp comes on by itself)", light: .auto, seconds: 20),
-        TestStep(what: "Dim room, about 2 feet, 3x, hold still (the lamp comes on by itself)", lens: .tele, light: .auto),
-        TestStep(what: "Glare: your room as in the last test 15, about 18 inches, 1x, hold still"),
-        TestStep(what: "Glare again, the same way, with the glare help off", glareHelp: false),
-        TestStep(what: "Glare, moving: tilt and move the phone slowly so the glare wanders over the sheet", seconds: 20),
-        TestStep(what: "Your choice: real slabs, a case, under glass (30 seconds at most)", light: .auto, seconds: 30)
+        TestStep(what: "Brightest room you have. About 2 feet away at 45 degrees, 3x, hold still", lens: .tele),
+        TestStep(what: "The same from about 3 feet at 45 degrees, 3x, hold still", lens: .tele),
+        TestStep(what: "2 to 3 feet at 45 degrees, 3x: move slightly back and forth, as you would at a show - slow down when the yellow note says too fast (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "The same with glare on the sheet: 2 to 3 feet, 45 degrees, 3x, moving slightly (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Real slabs if you have some (flat on a table, under glass if you can): 2 to 3 feet, 45 degrees, 3x, moving slightly (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Your choice (30 seconds at most)", lens: .tele, seconds: 30)
     ]
 }
