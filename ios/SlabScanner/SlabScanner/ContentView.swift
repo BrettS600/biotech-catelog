@@ -17,6 +17,19 @@ struct ContentView: View {
                         .background(Color.black.opacity(0.55))
                         .clipShape(Capsule())
                         .padding(.top, 4)
+                    if !engine.hint.isEmpty {
+                        VStack {
+                            Spacer()
+                            Text(engine.hint)
+                                .font(.footnote.bold())
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.yellow.opacity(0.9))
+                                .clipShape(Capsule())
+                                .padding(.bottom, 6)
+                        }
+                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height * 0.52)
                 .background(Color.black)
@@ -174,24 +187,28 @@ struct ContentView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 130)
-                Spacer()
-                Toggle("Depth", isOn: $engine.depthOn)
-                    .font(.caption)
-                    .fixedSize()
+                Picker("Lamp", selection: $engine.light) {
+                    ForEach(LightMode.allCases, id: \.self) { v in
+                        Text(v == .off ? "Lamp off" : v.rawValue).tag(v)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
             HStack(spacing: 14) {
                 Toggle("Video", isOn: $engine.videoOn)
                     .font(.caption)
                     .fixedSize()
-                Toggle("Light", isOn: $engine.lightOn)
+                Toggle("Glare help", isOn: $engine.glareHelp)
+                    .font(.caption)
+                    .fixedSize()
+                Toggle("Depth", isOn: $engine.depthOn)
                     .font(.caption)
                     .fixedSize()
                 Spacer()
             }
             Toggle("Scan without recording", isOn: $engine.live)
                 .font(.caption)
-            Text("A test stops by itself. Then Save test data hands over one file: the video, the lossless frames, what the camera did for every frame, the depth sensor, the phone's movement and every code. Green box: counted. Yellow: read, not counted yet.")
+            Text("A test stops by itself and moves on to the next; to do one again, tap ‹ first. Then Save test data hands over one file: the video, the lossless frames, what the camera did for every frame, the phone's movement and every code. Green box: counted. Yellow: read, not counted yet.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -202,7 +219,8 @@ struct ContentView: View {
         .onChange(of: engine.shutter) { engine.apply() }
         .onChange(of: engine.focus) { engine.apply() }
         .onChange(of: engine.depthOn) { engine.apply() }
-        .onChange(of: engine.lightOn) { engine.apply() }
+        .onChange(of: engine.light) { engine.apply() }
+        .onChange(of: engine.glareHelp) { engine.apply() }
         .onChange(of: engine.live) { engine.setLive(engine.live) }
     }
 

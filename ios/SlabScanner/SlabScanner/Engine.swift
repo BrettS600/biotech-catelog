@@ -4,16 +4,25 @@
 //  read 5-9 of the camera's 25 frames a second, a quarter to two thirds of the frames were blurred, and Safari offered
 //  no shutter, exposure or focus control):
 //  - THE SHUTTER: the camera keeps choosing its exposure, but may not use a shutter slower than a cap
-//    (activeMaxExposureDuration) - so it raises the sensitivity instead of blurring. "Smart" = 1/250 with 1x, 1/500 with
-//    3x, one step slower at a time when the picture is more than 1 EV too dark at the highest sensitivity, back when the
-//    light returns. "Auto" = the camera's own choice (what the web page got). Fixed caps for trying.
+//    (activeMaxExposureDuration). "Smart" (n3, from Brett's 15 n2 tests, 2026-11-10) sets the cap BY THE LIGHT AND
+//    THE MOVEMENT - see smart(). n2 held 1/250 (1x) whatever the light: in his dim room that meant ISO 5000 and not
+//    one code; his shutter sweep at 14 inches found 54 codes a frame at 1/60 (ISO 250), 52 at 1/120 (ISO 500), 42 at
+//    1/250 (ISO 1250), 17 at 1/500 (ISO 2500), 4 at 1/1000 (ISO 5000): the grain of a high sensitivity (and the
+//    camera's smoothing of it) costs far more than a slower shutter in a still hand.
+//    "Auto" = the camera's own choice (what the web page got). Fixed caps for trying.
 //  - THE SIZE: 4032 x 3024 at 30 a second (1.4 times the dots across of the page's 4K), or 4K at 60.
-//  - THE FOCUS: continuous (not the slow "smooth" kind), or locked where it is.
-//  - THE FRAMES READ by Apple's barcode reader (Vision), three at a time, as overlapping tiles: four (Q), nine (N),
-//    sixteen (S), thirty-six (T) in turn - the reader reduces whatever region it gets, and found nothing in the whole
-//    12 MP picture (see `cycle` below).
+//  - THE FOCUS: the camera's own, continuous (not the slow "smooth" kind) - and, n3, THE FOCUS HELPER: n2's 3x lens
+//    sat out of focus through whole tests (3 feet, the focus-lock test, the first seconds of the sweep: the saved
+//    frames show plain defocus, the lens position never moved). When nothing is read the app asks for a refocus,
+//    and if that does not help it tries the lens positions itself and holds the sharpest - see focusHelper().
+//  - THE FRAMES READ by Apple's barcode reader (Vision), up to three at a time, as overlapping tiles - the reader
+//    reduces whatever region it gets, and found nothing in the whole 12 MP picture (see `rois` below).
 //    A code counts as a slab when it looks like a cert (slabCert) and was read in 2 frames (ITF, which has no check
-//    digit: 3 frames).
+//    digit: 3 frames). n1 + n2: 17 tests, not one wrong number.
+//  - GLARE (n3): where part of the picture is blown out, every other half second is taken 1.5 EV darker
+//    (glareHelper) - a code washed out by a reflection may stand clear in the darker frame.
+//  - THE LAMP (n3): "Auto" switches it on when the light is too poor for a fast shutter and the phone is in a hand
+//    (lightHelper).
 //  - THE DEPTH SENSOR (LiDAR; with the 1x lens only - the sensor is paired with that lens): the distance at the centre
 //    and on a 5 x 5 grid, about 15 times a second. n1: it said 2 m with the sheet at 9 and 13 inches - not to be
 //    trusted this close (or through a glossy sleeve); THE DISTANCE BY THE CODES' SIZE (a slab's barcode is 17.5 or
@@ -48,15 +57,17 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     @Published var saving = false
     @Published var problem = ""
     @Published var snapNote = ""
+    @Published var hint = ""
 
     // the switches
     @Published var lens: Lens = .wide
     @Published var size: SizeMode = .mp12
     @Published var shutter: ShutterMode = .smart
     @Published var focus: FocusMode = .auto
-    @Published var depthOn = true
+    @Published var depthOn = false
     @Published var videoOn = true
-    @Published var lightOn = false
+    @Published var light: LightMode = .off
+    @Published var glareHelp = true
     @Published var live = false
     @Published var step = 0
     @Published var note = ""
@@ -114,18 +125,75 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     var focalPx = 3000.0            // the lens' focal length in dots of the picture (from its field of view)
     var lastSizeMm = -1
     var lastSizeAt = 0.0
+    var lastSlabPts = 0.0           // the newest frame (its own time) a slab's code was read in
+    var lastCodePx = 0              // the long side of the codes in the newest frame that held some, dots
+    var lastCodePxAt = 0.0
+    var lightMode = LightMode.off
+    var torchIsOn = false
+    var helperOn = true
+    var glareOn = true
+    var rotEma = 0.0                // the phone's turning, rad/s, smoothed over about a tenth of a second
+    var heatNow = 0
+    var glareNow = false
+    var fStateNow = 0
+    var speedNow = 0.0
+    var resetHelpers = false
 
     // the capture thread's own
     var lastSmart = 0.0
+    var lastCapChange = 0.0
     var depthCount = 0
+    var prevCols: [Float] = []
+    var prevRows: [Float] = []
+    var prevPts = 0.0
+    var speedEma = 0.0              // the picture's movement, dots a second (quick to rise, slow to fall)
+    var kEma = 0.0                  // the light: ISO x seconds the camera needs
+    var denWantIdx = -1
+    var denWantSince = 0.0
+    var fState = 0                  // the focus helper: 0 the camera's own, 1 asked to refocus, 2 trying positions, 3 held, 4 after the refocus
+    var fSince = 0.0
+    var fNextKick = 0.0
+    var fBackoff = 1.5
+    var fSawMoving = false
+    var fStill = 0
+    var fList: [Double] = []
+    var fIdx = 0
+    var fStepAt = 0.0
+    var fFine = false
+    var fBestPos = 0.0
+    var fBestSharp = -1.0
+    var fHeldSharp = 0.0
+    var fTrace = ""
+    var blownSince = -1.0
+    var biasWant: Float = 0
+    var dimSince = -1.0
+    var restSince = -1.0
+    var readingSince = 0.0
+    var wasReading = false
 
     // n1's first two tests (2026-11-10): the whole picture (W) found NOTHING at 9 and at 14 inches - Apple's reader
-    // reduces whatever region it is given to its own working size (a region took ~15 ms whatever its size: Q 62 ms
-    // for four, N 123 ms for nine, W 91 ms) - while the four tiles found every code at 9 inches and the nine tiles
-    // read the fine CGC codes at 14 inches twice as often as the four. So: tiles only, and finer ones in turn
-    // (S sixteen, T thirty-six - if a small region is enlarged to the working size, they reach further).
-    static let cycle = ["Q", "N", "S", "Q", "N", "T"]
+    // reduces whatever region it is given to its own working size - while the four tiles (Q) found every code at
+    // 9 inches and the nine tiles (N) read the fine CGC codes at 14 inches twice as often as the four.
+    // n2's 15 tests (codes found per frame read, and the reading time with three frames under way at once):
+    //   codes 223 dots long (9 in):  Q 44, N 45, S 45, T 34      Q ~200 ms, N ~220 ms, S ~400 ms, T ~650 ms
+    //   151 dots (14 in):            Q 24, N 33, S 36, T 36
+    //   124 dots (16 in, glare):     Q  3, N 16, S 19, T 19
+    //   275 dots (3x at 2 ft):       Q 28, N 30, S 29, T 28
+    // So the nine tiles are as good as any at every size but the smallest, at half the time of the sixteen; the
+    // thirty-six never earned their time. n3 reads N, with S every third frame while the codes are small or none
+    // has been read yet, and Q now and then while none has been read (a code filling a third of the picture).
     static let snapKinds = ["W", "Q", "N", "S", "T"]
+    static let ladder = [30, 40, 50, 60, 80, 100, 120, 160, 200, 250, 320, 400, 500]
+
+    static func kindFor(_ seq: Int, px: Int) -> String {
+        if px >= 150 { return "N" }
+        if px > 0 { return seq % 3 == 1 ? "S" : "N" }
+        switch seq % 4 {
+        case 1: return "S"
+        case 3: return "Q"
+        default: return "N"
+        }
+    }
     static let rois: [String: [CGRect]] = [
         "W": [CGRect(x: 0, y: 0, width: 1, height: 1)],
         "Q": Engine.tiles(2, 0.12),
@@ -177,8 +245,37 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         timer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        heatNow = ProcessInfo.processInfo.thermalState.rawValue
         NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
-            self?.event("heat", String(ProcessInfo.processInfo.thermalState.rawValue))
+            guard let self = self else { return }
+            let h = ProcessInfo.processInfo.thermalState.rawValue
+            self.lock.lock()
+            self.heatNow = h
+            self.lock.unlock()
+            self.event("heat", String(h))
+        }
+        // the phone's movement, always (the lamp's "in a hand" test needs it outside tests too); a test keeps every reading
+        motion.deviceMotionUpdateInterval = 0.01
+        if motion.isDeviceMotionAvailable {
+            motion.startDeviceMotionUpdates(to: motionQ) { [weak self] m, _ in
+                guard let self = self, let m = m else { return }
+                let w = (m.rotationRate.x * m.rotationRate.x + m.rotationRate.y * m.rotationRate.y + m.rotationRate.z * m.rotationRate.z).squareRoot()
+                self.lock.lock()
+                self.rotEma = 0.9 * self.rotEma + 0.1 * w
+                if let x = self.rec, !x.stopping {
+                    x.motion.append((m.timestamp - x.t0) * 1000)
+                    x.motion.append(m.rotationRate.x * 1000)
+                    x.motion.append(m.rotationRate.y * 1000)
+                    x.motion.append(m.rotationRate.z * 1000)
+                    x.motion.append(m.userAcceleration.x * 1000)
+                    x.motion.append(m.userAcceleration.y * 1000)
+                    x.motion.append(m.userAcceleration.z * 1000)
+                    x.motion.append(m.gravity.x * 1000)
+                    x.motion.append(m.gravity.y * 1000)
+                    x.motion.append(m.gravity.z * 1000)
+                }
+                self.lock.unlock()
+            }
         }
     }
 
@@ -191,6 +288,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         shutter = p.shutter
         focus = p.focus
         depthOn = p.depth
+        light = p.light
+        glareHelp = p.glareHelp
     }
 
     func stepBy(_ d: Int) {
@@ -205,20 +304,26 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let c = CamCfg(lens: lens, size: size, depth: depthOn)
         let sh = shutter
         let fo = focus
-        let li = lightOn
+        let li = light
+        let gl = glareHelp
         sessionQ.async {
             if !self.configured || c != self.cur { self.configure(c) }
             self.lock.lock()
             self.shutterMode = sh
             self.lensNow = c.lens
+            self.lightMode = li
+            self.helperOn = fo == .auto
+            self.glareOn = gl
+            self.resetHelpers = true
             self.lock.unlock()
             switch sh {
             case .auto: self.setCap(nil)
-            case .smart: self.setCap(c.lens == .tele ? 500 : 250)
+            case .smart: self.setCap(120)       // where room light puts both lenses; smart() takes it from there
             default: self.setCap(sh.den)
             }
+            self.setBias(0)
             self.setFocus(fo)
-            self.setTorch(li)
+            self.setTorch(li == .on)
             if startSession && !self.session.isRunning { self.session.startRunning() }
         }
     }
@@ -232,7 +337,12 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             liveT0 = CACurrentMediaTime()
         }
         reading = on || rec != nil
+        let idle = !reading
+        let li = lightMode
         lock.unlock()
+        if idle && li == .auto {                // the lamp that came on by itself goes off with the reading
+            sessionQ.async { self.setTorch(false) }
+        }
     }
 
     func event(_ what: String, _ detail: String) {
@@ -354,6 +464,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
             if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
             if d.isSmoothAutoFocusSupported { d.isSmoothAutoFocusEnabled = false }
+            if c.lens == .tele && d.isAutoFocusRangeRestrictionSupported { d.autoFocusRangeRestriction = .near }   // slabs are near; n2's 3x lens did not find its focus
             if d.isExposureModeSupported(.continuousAutoExposure) { d.exposureMode = .continuousAutoExposure }
             if d.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { d.whiteBalanceMode = .continuousAutoWhiteBalance }
             d.automaticallyAdjustsVideoHDREnabled = false
@@ -391,6 +502,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         info["photoWidth"] = Int(best.width)
         info["photoHeight"] = Int(best.height)
         info["lensAperture"] = Int(d.lensAperture * 100)
+        info["focusRangeNear"] = c.lens == .tele && d.isAutoFocusRangeRestrictionSupported
+        info["torch"] = d.hasTorch
+        info["exposureBiasLowestX100"] = Int(d.minExposureTargetBias * 100)
         device = d
         cur = c
         configured = true
@@ -403,6 +517,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         focalPx = fpx
         lastDepthMm = -1
         lastSizeMm = -1
+        lastCodePx = 0
+        torchIsOn = false           // the lamp went out with the camera it belonged to
+        resetHelpers = true
         lock.unlock()
         DispatchQueue.main.async {
             self.preview?.upright()
@@ -452,18 +569,62 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
     }
 
-    func setTorch(_ on: Bool) {
-        guard let d = device, d.hasTorch, d.isTorchAvailable else { return }
+    /// One fresh focus run on the middle of the picture (the camera's own search, from scratch).
+    func kickFocus() {
+        guard let d = device else { return }
         do {
             try d.lockForConfiguration()
-            if on {
-                try d.setTorchModeOn(level: 1.0)
+            if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5) }
+            if d.isFocusModeSupported(.autoFocus) { d.focusMode = .autoFocus }
+            d.unlockForConfiguration()
+        } catch {
+        }
+    }
+
+    /// The lens to a position of its travel (0 nearest - 1 farthest) and held there.
+    func lockFocus(at p: Double) {
+        guard let d = device, d.isLockingFocusWithCustomLensPositionSupported else { return }
+        do {
+            try d.lockForConfiguration()
+            d.setFocusModeLocked(lensPosition: Float(min(1.0, max(0.0, p))), completionHandler: nil)
+            d.unlockForConfiguration()
+        } catch {
+        }
+    }
+
+    /// The exposure the camera aims for, in EV against its own choice (the glare help's darker frames).
+    func setBias(_ ev: Float) {
+        guard let d = device else { return }
+        do {
+            try d.lockForConfiguration()
+            let v = min(d.maxExposureTargetBias, max(d.minExposureTargetBias, ev))
+            d.setExposureTargetBias(v, completionHandler: nil)
+            d.unlockForConfiguration()
+        } catch {
+        }
+    }
+
+    func setTorch(_ on: Bool) {
+        guard let d = device, d.hasTorch else { return }
+        var isOn = false
+        do {
+            try d.lockForConfiguration()
+            if on && d.isTorchAvailable {
+                // half power with 1x (8 to 14 inches away: plenty, less heat, a smaller reflection); full with 3x (2 feet and more)
+                let level: Float = d.deviceType == .builtInTelephotoCamera ? 1.0 : 0.5
+                try d.setTorchModeOn(level: min(level, AVCaptureDevice.maxAvailableTorchLevel))
+                isOn = true
             } else {
                 d.torchMode = .off
             }
             d.unlockForConfiguration()
         } catch {
         }
+        lock.lock()
+        let was = torchIsOn
+        torchIsOn = isOn
+        lock.unlock()
+        if was != isOn { event("light", isOn ? "on" : "off") }
     }
 
     // MARK: - every frame (capture thread)
@@ -480,6 +641,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
         var lensPos = 0.0
         var off = 0.0
+        var bias = 0.0
         var af = false
         var ae = false
         if let d = dev {
@@ -487,12 +649,38 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             if iso <= 0 { iso = Double(d.iso) }
             lensPos = Double(d.lensPosition)
             off = Double(d.exposureTargetOffset)
+            bias = Double(d.exposureTargetBias)
             af = d.isAdjustingFocus
             ae = d.isAdjustingExposure
         }
         let st = frameStats(pb)
         let pw = CVPixelBufferGetWidth(pb)
         let ph = CVPixelBufferGetHeight(pb)
+
+        // how far the picture moved since the frame before (dots a second), from the two frames' column and row sums
+        var speed = -1.0
+        let dt = pts - prevPts
+        if dt > 0.001 && dt < 0.2 && !st.cols.isEmpty && prevCols.count == st.cols.count && prevRows.count == st.rows.count {
+            if let dx = shiftOf(prevCols, st.cols, maxD: 30), let dy = shiftOf(prevRows, st.rows, maxD: 30) {
+                speed = (dx * dx + dy * dy).squareRoot() * 8 / dt
+            }
+        }
+        prevCols = st.cols
+        prevRows = st.rows
+        prevPts = pts
+        if speed >= 0 {
+            // (checked on n2's videos before n3 went out: this estimate agrees with the codes' own tracks - correlation
+            // 0.96, 79 dots a second apart on average - and, smoothed like this, a still hand is above 400 in 3% of
+            // its frames, a gliding one in 83%)
+            speedEma = speed > speedEma ? 0.65 * speedEma + 0.35 * speed : 0.8 * speedEma + 0.2 * speed
+        } else {
+            speedEma *= 0.9
+        }
+        // the light: ISO x seconds for the exposure the camera aims at (its bias and what it still lacks taken out)
+        if expS > 0 && iso > 0 && abs(off) < 2.0 {
+            let k = iso * expS * pow(2.0, -(off + bias))
+            kEma = kEma <= 0 ? k : 0.8 * kEma + 0.2 * k
+        }
 
         lock.lock()
         frameNo += 1
@@ -508,6 +696,20 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let cap = capDen
         let tele = lensNow == .tele
         let depthMm = (pts - lastDepthAt) < 0.5 ? lastDepthMm : -1
+        let lastSlab = lastSlabPts
+        let codePx = (pts - lastCodePxAt) < 2.0 ? lastCodePx : 0
+        let lmode = lightMode
+        let torch = torchIsOn
+        let helper = helperOn
+        let glareHelpOn = glareOn
+        let rot = rotEma
+        let heat = heatNow
+        let active = reading
+        let doReset = resetHelpers
+        resetHelpers = false
+        speedNow = speedEma
+        fStateNow = fState
+        glareNow = blownSince >= 0 && pts - blownSince > 0.5
         var fr: FrameRec? = nil
         var tRel = 0.0
         if let r = r {
@@ -529,11 +731,19 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             f.capDen = cap
             f.sweep = sweepStep
             f.depthMm = depthMm
+            f.speed = speed >= 0 ? Int(speed.rounded()) : -1
+            f.bias = bias
+            f.torch = torch
+            f.fstate = fState
+            f.light = kEma
+            f.readers = inFlight
             r.frames.append(f)
             r.delivered += 1
             fr = f
         }
-        let canRead = reading && inFlight < maxReaders && (rec == nil || r != nil)   // not the frames from before the tap (n1 counted them)
+        // a hot phone reads fewer frames at once (n2: "serious" heat from the eleventh test on, with three readers and the video)
+        let limit = heat >= 3 ? 1 : (heat >= 2 ? 2 : maxReaders)
+        let canRead = reading && inFlight < limit && (rec == nil || r != nil)   // not the frames from before the tap (n1 counted them)
         var seq = 0
         if canRead {
             inFlight += 1
@@ -542,6 +752,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             r?.jobs += 1
         }
         lock.unlock()
+
+        if doReset || (active && !wasReading) {
+            fState = 0
+            fNextKick = pts + 0.5
+            fBackoff = 1.5
+            denWantIdx = -1
+            blownSince = -1
+            biasWant = 0
+            dimSince = -1
+            restSince = -1
+            readingSince = pts
+            if doReset { kEma = 0 }
+        }
+        wasReading = active
+        let sinceCode = pts - max(lastSlab, readingSince)
 
         if let r = r {
             if r.wantVideo && !r.writerFailed { appendVideo(r, sampleBuffer, pw, ph) }
@@ -561,30 +786,36 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                     }
                 }
             }
-            if r.plan.special == "sweep" {
-                let i = Int(tRel / TestPlan.sweepSeconds)
-                if i != r.sweepIdx && i < TestPlan.sweep.count {
-                    r.sweepIdx = i
-                    let den = TestPlan.sweep[i]
-                    lock.lock()
-                    sweepStep = i
-                    lock.unlock()
-                    sessionQ.async { self.setCap(den == 0 ? nil : den) }
-                    event("shutter", den == 0 ? "the camera's own choice" : "1/\(den)")
-                }
-            } else if r.plan.special == "lockfocus" && !r.didLock && tRel >= 2.0 {
-                r.didLock = true
-                sessionQ.async { self.setFocus(.locked) }
-                event("focus", "locked at \(Int(lensPos * 1000)) per mille")
-            } else if mode == .smart {
-                smart(dev, pts, off: off, iso: iso, cap: cap, tele: tele)
+        }
+        var sweeping = false
+        if let r = r, r.plan.special == "sweep" {
+            sweeping = true
+            let i = Int(tRel / TestPlan.sweepSeconds)
+            if i != r.sweepIdx && i < TestPlan.sweep.count {
+                r.sweepIdx = i
+                let den = TestPlan.sweep[i]
+                lock.lock()
+                sweepStep = i
+                lock.unlock()
+                sessionQ.async { self.setCap(den == 0 ? nil : den) }
+                event("shutter", den == 0 ? "the camera's own choice" : "1/\(den)")
             }
-        } else if mode == .smart {
-            smart(dev, pts, off: off, iso: iso, cap: cap, tele: tele)
+        } else if mode == .smart && fState != 1 && fState != 2 {
+            smart(pts, cap: cap, tele: tele, codePx: codePx)      // (not while the lens is being moved: a change of exposure sent n2's 3x lens hunting)
+        }
+        if dev != nil {
+            // (a frame taken darker for the glare help says nothing about the focus: its sharpness is lower by itself;
+            // and no darker frames while the lens is being moved)
+            let dark = bias < -0.3 || off < -0.7
+            if !(dark && (fState == 0 || fState == 3)) {
+                focusHelper(pts, sharp: st.sharp, lensPos: lensPos, af: af, tele: tele, sinceCode: sinceCode, lastSlab: lastSlab, on: helper && active && !sweeping)
+            }
+            glareHelper(pts, blown: st.blown, bias: bias, off: off, on: glareHelpOn && active && !sweeping && (fState == 0 || fState == 3))
+            lightHelper(pts, mode: lmode, isOn: torch, tele: tele, rot: rot, active: active)
         }
 
         if canRead {
-            let kind = Engine.cycle[seq % Engine.cycle.count]
+            let kind = Engine.kindFor(seq, px: codePx)
             let rois = Engine.rois[kind] ?? []
             readers.async {
                 let handler = VNImageRequestHandler(cvPixelBuffer: pb, orientation: .up, options: [:])
@@ -600,21 +831,237 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         lock.unlock()
     }
 
-    /// "Smart" shutter: the fastest cap the light allows (see the top of this file).
-    func smart(_ dev: AVCaptureDevice?, _ pts: Double, off: Double, iso: Double, cap: Int, tele: Bool) {
-        guard let d = dev, cap > 0, pts - lastSmart > 0.4 else { return }
+    /// "Smart" shutter (n3): the cap by the light and the movement.
+    /// THE LIGHT is kEma = ISO x seconds the camera needs (Brett's room 4 with 1x and 13 with 3x, his dim room 20
+    /// and 83), so a shutter of 1/den needs ISO kEma x den.
+    /// STILL: the shutter that keeps the sensitivity at ISO 500 with 1x (his room: 1/120), 1600 with 3x (1/120 -
+    /// the step that found 54 codes a frame in his 3x sweep).
+    /// MOVING (the picture shifts more than 400 dots a second, smoothed; a still hand measures 100-300): the shutter
+    /// that holds the blur to one bar (a code is ~100 bars long), as far as ISO 1600 (1x) / 2200 (3x) allows. n2's
+    /// moving tests at 1/250, codes 250 dots long: 34 codes a frame at rest, 32 at 400-600 dots a second (blur 0.8
+    /// of a bar), 26 at 600-800 (1.1), 22 at 800-1000 (1.5), 8 above 1000 (1.8).
+    /// Never slower than 1/60 (1/30 with 1x when even that needs more than ISO 2000), never faster than 1/500
+    /// (1x) or 1/250 (3x). Faster at once; slower, and by a single step, only after 0.6 s; the 3x lens every 1.5 s
+    /// at most.
+    func smart(_ pts: Double, cap: Int, tele: Bool, codePx: Int) {
+        guard kEma > 0, pts - lastSmart > 0.25 else { return }
         lastSmart = pts
-        let maxISO = Double(d.activeFormat.maxISO)
-        let target = tele ? 500 : 250
-        var den = cap
-        if off < -1.0 && iso > 0.85 * maxISO && den > 30 {
-            den = max(30, den / 2)
-        } else if off > -0.3 && iso < 0.4 * maxISO && den < target {
-            den = min(target, den * 2)
+        let isoStill = tele ? 1600.0 : 500.0
+        let isoMove = tele ? 2200.0 : 1600.0
+        var lo = 60.0
+        if !tele && kEma * 60 > 2000 { lo = 30 }
+        let hi = tele ? 250.0 : 500.0
+        var den = isoStill / kEma
+        if speedEma > 400 {
+            let bar = codePx > 0 ? max(1.0, Double(codePx) / 100) : 1.8
+            let want = speedEma / bar
+            den = max(den, min(want, isoMove / kEma))
         }
-        if den != cap {
-            sessionQ.async { self.setCap(den) }
-            event("shutter", "1/\(den) (smart)")
+        den = min(hi, max(lo, den))
+        var idx = 0
+        var bestD = Double.infinity
+        for (i, v) in Engine.ladder.enumerated() {
+            let dd = abs(log(Double(v) / den))
+            if dd < bestD {
+                bestD = dd
+                idx = i
+            }
+        }
+        let curIdx = Engine.ladder.firstIndex(of: cap) ?? -1
+        if curIdx >= 0 {
+            if idx == curIdx {
+                denWantIdx = idx
+                return
+            }
+            if idx != denWantIdx {
+                denWantIdx = idx
+                denWantSince = pts
+            }
+            let faster = idx > curIdx && idx - curIdx >= 2
+            let hold = tele ? 1.5 : (faster ? 0.0 : 0.6)
+            if pts - denWantSince < hold || pts - lastCapChange < (tele ? 1.5 : 0.3) { return }
+        }
+        lastCapChange = pts
+        denWantIdx = idx
+        let v = Engine.ladder[idx]
+        sessionQ.async { self.setCap(v) }
+        event("shutter", "1/\(v) (light \(Int((kEma * 100).rounded())), moving \(Int(speedEma.rounded())))")
+    }
+
+    /// THE FOCUS HELPER (n3). n2: the 3x lens stood out of focus through whole tests - its position never moved
+    /// (3 feet: 0 codes; the focus-lock test: 0; the first three seconds of the sweep: 0, then a change of shutter
+    /// made it search and it read all 50). The 1x lens never failed.
+    ///   0  the camera's own continuous focus. No slab code for 0.8 s with 3x - or for 1.5 s with 1x AND a plainly
+    ///      blurred picture (sharpness under 50; n2: sharp pictures 115-380, blurred 16-45) -> 1.
+    ///   1  one fresh focus run on the middle of the picture; done when the lens has moved and stood for 3 frames
+    ///      (1.5 s at most) -> 4.
+    ///   4  0.7 s for a code to be read in a frame taken after that run: 3x holds where it is (-> 3), 1x goes back to
+    ///      the camera's own (-> 0). None read: 3x - or 1x still blurred - tries the positions itself -> 2.
+    ///   2  the lens to each position in turn, 0.13 s each (the last frame's sharpness stands for the position),
+    ///      then 0.03 either side of the sharpest; the lens goes to the sharpest of all and is held -> 3.
+    ///   3  held. No code for 2 s and the picture no longer sharp (under 0.6 of what it was) - or none for 6 s -> 0.
+    /// After each refocus that did not end in a read the next one waits twice as long (1.5 s ... 8 s); a read resets it.
+    func focusHelper(_ pts: Double, sharp: Int, lensPos: Double, af: Bool, tele: Bool, sinceCode: Double, lastSlab: Double, on: Bool) {
+        if !on {
+            if fState != 0 {
+                fState = 0
+                sessionQ.async { self.setFocus(.auto) }
+            }
+            return
+        }
+        if sinceCode < 0.5 { fBackoff = 1.5 }
+        switch fState {
+        case 0:
+            let wait = tele ? 0.8 : 1.5
+            if sinceCode > wait && pts >= fNextKick && !af && (tele || sharp < 50) {
+                fState = 1
+                fSince = pts
+                fSawMoving = false
+                fStill = 0
+                fNextKick = pts + fBackoff
+                fBackoff = min(8.0, fBackoff * 2)
+                sessionQ.async { self.kickFocus() }
+                event("focus", "asked to refocus (sharpness \(sharp), lens at \(Int(lensPos * 1000)))")
+            }
+        case 1:
+            if af {
+                fSawMoving = true
+                fStill = 0
+            } else {
+                fStill += 1
+            }
+            if (fSawMoving && fStill >= 3) || pts - fSince > 1.5 {
+                fState = 4
+                fSince = pts
+            }
+        case 4:
+            if lastSlab >= fSince {
+                if tele {
+                    fState = 3
+                    fHeldSharp = Double(sharp)
+                    event("focus", "reading after the refocus: held at \(Int(lensPos * 1000)), sharpness \(sharp)")
+                } else {
+                    fState = 0
+                    sessionQ.async { self.setFocus(.auto) }
+                    event("focus", "reading after the refocus (lens at \(Int(lensPos * 1000)), sharpness \(sharp))")
+                }
+                fSince = pts
+            } else if pts - fSince > 0.7 {
+                if tele || sharp < 50 {
+                    var list: [Double] = []
+                    var p = tele ? 0.0 : 0.30       // n2, sharp at: 3x 0.20-0.23 at 2 feet (0 = nearest, 60 cm); 1x 0.47-0.50 at 9 in, 0.59 at 14 in, 0.67 at 2 ft
+                    let end = tele ? 0.84 : 0.90
+                    while p <= end + 0.001 {
+                        list.append(p)
+                        p += 0.06
+                    }
+                    fList = list
+                    fIdx = 0
+                    fStepAt = pts
+                    fFine = false
+                    fBestSharp = -1
+                    fBestPos = list[0]
+                    fTrace = ""
+                    fState = 2
+                    fSince = pts
+                    let q = list[0]
+                    sessionQ.async { self.lockFocus(at: q) }
+                    event("focus", "no read after the refocus (sharpness \(sharp), lens at \(Int(lensPos * 1000))): trying the positions")
+                } else {
+                    fState = 0
+                    sessionQ.async { self.setFocus(.auto) }
+                }
+            }
+        case 2:
+            if pts - fStepAt >= 0.13 {              // (four frames at 30 a second: the lens has arrived and this frame was taken there)
+                let p = fList[fIdx]
+                fTrace += "\(Int((p * 1000).rounded())):\(sharp) "
+                if Double(sharp) > fBestSharp {
+                    fBestSharp = Double(sharp)
+                    fBestPos = p
+                }
+                fIdx += 1
+                fStepAt = pts
+                if fIdx < fList.count {
+                    let q = fList[fIdx]
+                    sessionQ.async { self.lockFocus(at: q) }
+                } else if !fFine {
+                    fFine = true
+                    fList = [max(0.0, fBestPos - 0.03), min(1.0, fBestPos + 0.03)]
+                    fIdx = 0
+                    let q = fList[0]
+                    sessionQ.async { self.lockFocus(at: q) }
+                } else {
+                    let q = fBestPos
+                    sessionQ.async { self.lockFocus(at: q) }
+                    fState = 3
+                    fSince = pts
+                    fHeldSharp = fBestSharp
+                    event("focus", "held at \(Int((q * 1000).rounded())), sharpness \(Int(fBestSharp)) - position:sharpness tried: \(fTrace)")
+                }
+            }
+        case 3:
+            if pts - fSince > 2.0 && sinceCode > 2.0 && (Double(sharp) < 0.6 * fHeldSharp || sinceCode > 6.0) {
+                fState = 0
+                fNextKick = pts + 0.3
+                sessionQ.async { self.setFocus(.auto) }
+                event("focus", "let go (sharpness \(sharp), was \(Int(fHeldSharp)); no code for \(Int(sinceCode * 10)) tenths of a second)")
+            }
+        default:
+            fState = 0
+        }
+    }
+
+    /// GLARE (n3). n2's glare test: a lamp's reflection blew out part of the sheet (13 per mille of the picture at
+    /// 250+), 13 of the 50 codes were never read. While more than 5 per mille is blown out (under 3: over), the
+    /// camera takes 0.6 s as it wants and 0.5 s darker by 1.5 EV, in turn: a code only washed out may stand clear in
+    /// the darker frames (one under a full mirror image of the lamp will not - tilting the phone moves that).
+    /// Only frames at the camera's own exposure are asked whether there is glare.
+    func glareHelper(_ pts: Double, blown: Int, bias: Double, off: Double, on: Bool) {
+        if bias > -0.3 && off > -0.5 {
+            if blown >= 5 {
+                if blownSince < 0 { blownSince = pts }
+            } else if blown < 3 {
+                blownSince = -1
+            }
+        }
+        var want: Float = 0
+        if on && blownSince >= 0 && pts - blownSince > 0.5 {
+            let ph = (pts - blownSince).truncatingRemainder(dividingBy: 1.1)
+            want = ph >= 0.6 ? -1.5 : 0
+        }
+        if want != biasWant {
+            biasWant = want
+            sessionQ.async { self.setBias(want) }
+        }
+    }
+
+    /// THE LAMP on "Auto" (n3): on when the light is too poor for 1/120 (that shutter would need more than ISO 1440
+    /// with 1x - n2's dim room: 2400 - or 4800 with 3x) for 0.6 s while codes are being read for and the phone is in
+    /// a hand (it turns more than 0.012 rad/s; lying on a table it does not, and a covered lens is not a dark room).
+    /// Off when the reading stops, or when the phone has lain still for 3 s.
+    func lightHelper(_ pts: Double, mode: LightMode, isOn: Bool, tele: Bool, rot: Double, active: Bool) {
+        if mode != .auto { return }
+        if !isOn {
+            let dim = kEma > (tele ? 40.0 : 12.0)
+            if active && dim && rot > 0.012 {
+                if dimSince < 0 { dimSince = pts }
+                if pts - dimSince > 0.6 {
+                    dimSince = -1
+                    restSince = -1
+                    sessionQ.async { self.setTorch(true) }
+                }
+            } else {
+                dimSince = -1
+            }
+        } else if !active || rot < 0.006 {
+            if restSince < 0 { restSince = pts }
+            if pts - restSince > (active ? 3.0 : 0.3) {
+                restSince = -1
+                sessionQ.async { self.setTorch(false) }
+            }
+        } else {
+            restSince = -1
         }
     }
 
@@ -710,6 +1157,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         var seen = Set<String>()
         var bx: [Box] = []
         var sizes: [Double] = []
+        var slabPx: [Int] = []
         for f in found {
             let key = f.kind + "|" + f.text
             let firstHere = seen.insert(key).inserted
@@ -738,6 +1186,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 // a slab's barcode is 17.5 mm wide (PSA) or 18.4 mm (CGC: 10 or 13 digits): its size in dots gives the distance
                 let mm = (info.text.count == 10 || info.text.count == 13) ? 18.4 : 17.5
                 sizes.append(focalPx * mm / Double(px))
+                slabPx.append(px)
             }
             if px > 0 {
                 info.minPx = min(info.minPx, px)
@@ -759,6 +1208,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             sizeMm = Int(sizes[sizes.count / 2].rounded())
             lastSizeMm = sizeMm
             lastSizeAt = now
+        }
+        if !slabPx.isEmpty {                    // for the helpers: when a slab's code was last read, and how long the codes are
+            slabPx.sort()
+            if pts > lastSlabPts { lastSlabPts = pts }
+            if pts >= lastCodePxAt {
+                lastCodePx = slabPx[slabPx.count / 2]
+                lastCodePxAt = pts
+            }
         }
         if let fr = fr {
             fr.job = kind
@@ -939,6 +1396,11 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let t0 = r?.t0 ?? 0
         let isStopping = r?.stopping ?? false
         let limit = r?.plan.seconds ?? 0
+        let fs = fStateNow
+        let glare = glareNow && glareOn && reading
+        let lampAuto = torchIsOn && lightMode == .auto
+        let heat = heatNow
+        let sp = speedNow
         lock.unlock()
 
         rows = list
@@ -950,8 +1412,20 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         s += " · ISO \(Int(iso)) · focus \(Int(lp * 100))"
         if smm > 0 { s += String(format: " · %.1f in", Double(smm) / 25.4) }
         if dmm > 0 { s += String(format: " · sensor %.1f in", Double(dmm) / 25.4) }
-        s += " · \(rps) reads/s · \(w)x\(h)"
+        s += " · \(rps) reads/s"
+        if sp > 400 { s += " · moving \(Int(sp))" }
+        if w > 0 && w != 4032 { s += " · \(w)x\(h)" }
         status = s
+        var hi = ""
+        if fs == 1 || fs == 2 || fs == 4 {
+            hi = "Finding the focus…"
+        } else if glare {
+            hi = "Glare: tilt or move the phone a little"
+        } else if lampAuto {
+            hi = "Dim light: the lamp is on"
+        }
+        if heat >= 2 { hi += (hi.isEmpty ? "" : " · ") + "The phone is hot: reading fewer frames" }
+        if hint != hi { hint = hi }
         if recording && r != nil && !isStopping {
             elapsed = now - t0
             if elapsed >= limit { stop() }

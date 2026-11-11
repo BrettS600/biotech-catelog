@@ -3350,9 +3350,77 @@ THE FIRST TWO NATIVE FILES (n1, tests 1 and 2, 2026-11-11 02:00 UTC; the files h
 - a bug: frames from before the record tap were read into the test ("first read" of 4,934,590 ms); n2 leaves them out.
 n2 was built and installed at 02:09 UTC (one click on Run; then Stop, so the app is not tied to Xcode's debugger -
 he opens it from the home screen).
-NEXT: his native test files -> compare with the 16 web files test by test; read the .y8 frames with the web reader
-(Node, as cl_certs.js does) against Vision's own finds in frames.json; the reading ms of W / Q / N decide the reading
-plan; the sweeps decide the shutter; then: is Apple's reader enough, or does ours come into the app; then the $99.
+BRETT'S 15 n2 TESTS (2026-11-11 02:32-02:57 UTC; zips in his ~/scan-test, 51-128 MB each; their JSONs unpacked on the
+Mac's VM at $HOME/n2 with key.py / sum.py / mot.py / sweep.py / shift.py). Right of 50 / wrong:
+   1  9 in, 1x            47 / 0  (44 within 0.5 s; 1/250 at ISO 1000; codes 223 dots long)
+   2  14 in, 1x           42 / 0  (39 within 0.5 s; codes 151 dots)
+   3  14 in, depth off    44 / 0  AND NOT ONE FRAME DROPPED (453 delivered; with the depth sensor 301-401 of ~450)
+   4  2 ft, 1x             0      codes ~86 dots = 0.85 of a dot a bar: too small for any reader (the web app: 3)
+   5  2 ft, 3x            44 / 0  (codes 275 dots; 1/120 at ISO 1600; the lens at 0.231 of its travel)
+   6  3 ft, 3x             0      OUT OF FOCUS all test (lens 0.239, never moved; the saved frame: plain defocus)
+   7  sweep, 3x, 2 ft     50 / 0  first 3 s out of focus (lens 0.369), the change of shutter made the lens search:
+                                  1/60 17 codes a frame, 1/125 54 (lens 0.196), 1/250 9 (hunting, dark), 1/500+ 0
+   8  sweep, 1x, 14 in    45 / 0  codes a frame: 1/60 54 (ISO 250), 1/125 52 (ISO 500), 1/250 42 (ISO 1250), 1/500 17
+                                  (ISO 2500), 1/1000 4 (ISO 5000), 1/2000 0 (ISO 8000): IN A STILL HAND THE SENSITIVITY
+                                  (its grain, and the camera's smoothing of it) DECIDES, NOT THE SHUTTER
+   9  focus lock, 3x       0      the lens stood at 0.486 from the first frame - out of focus - and was locked there
+  10  moving, 12MP        50 / 0  all by 3.7 s. The picture moved ~800 dots a second (median); codes a frame at 1/250:
+                                  34 at rest, 32 at 400-600 dots/s, 26 at 600-800, 22 at 800-1000, 8 above 1000
+  11  moving, 4K at 60    50 / 0  all by 3.7 s (no better: the reader, not the camera, sets the pace)
+  12  dim, 1 ft, 1x        0      Smart held 1/250 -> ISO 5000: smeared (the web app, on the camera's own exposure: 44)
+  13  dim, 2 ft, 3x        0      1/30 at ISO 2500: blurred by the hand
+  14  snap, 2 ft, 1x       0      live and in the one photograph (4032 x 3024 - a Snap has no more dots than a frame).
+                                  The file is ...-t14-20261110-215604.zip: the app saved it as test 15 (the plan had
+                                  moved on after his first try), Brett renamed the zip; report.json inside says 15.
+  15  his room, glare     37 / 0  "my room glare 18 inches" (his note, forgotten in the app: it is in
+                                  ~/scan-test/slab-native-n2-notes.txt; 16.3 in by the codes' size). The 13 codes
+                                  under the lamp's reflection (13 per mille of the picture blown out) were never read.
+  17 native tests, NOT ONE WRONG NUMBER. Heat "serious" from test 11 on. Reading with three frames at once: Q ~200 ms,
+  N ~220, S ~400, T ~650 -> 8-9 frames a second. Codes a frame by tile kind: 223-dot codes Q 44 N 45 S 45 T 34;
+  151 dots: 24 33 36 36; 124 dots: 3 16 19 19; 275 dots (3x): 28 30 29 28. The depth sensor: 920-2270 mm for 230-610.
+  Brett: "moving and dim lighting conditions and glare ... it does matter, because at a vendor show, the conditions are
+  going to be chaotic. So all conditions need to be accounted for." (He remembered moving as bad; both moving tests
+  read all 50 - where they fell off was above ~1000 dots a second.)
+THE MEGAPIXEL QUESTION (Brett: the 13 Pro Max has 12 MP, 48 MP came with the 14 Pro - "how much is this going to affect
+me?"; answered before n3 was built, as he asked). A read needs ~1.2-1.5 dots a bar (a slab's code: ~17.5 mm, ~100
+bars): codes 223 dots long 47 right, 151 42-45, 124 37, 86 (2 ft, 1x) 0, 270 (2 ft, 3x) 44-50 - 12 MP at 1x ends at
+about 16 inches. 48 MP is twice the dots each way, but (as far as could be found - Apple does not say it outright) only
+in still photographs: the live picture stays 12 MP, plus a "2x" from the middle of the sensor. Scandit's default is
+1080p, its top preset 4K. His 3x lens gives three times the dots, live. So it costs him nothing scanning by hand, and
+costs the one-photo-of-a-whole-table-from-2-3-ft case (a 1x view at 14 in holds ~12 slabs; a 48 MP still four times
+that). A 48 MP phone later = the same app + a finer tile grid for the Snap, a 2x button, one round of tests to re-tune.
+n3 (built with no error and no warning at the first try, installed 03:40 UTC Nov 11):
+- THE SHUTTER BY THE LIGHT AND THE MOVEMENT (Engine.smart). The light = ISO x seconds the camera needs (his room 4.2
+  with 1x and 13 with 3x; his dim room 20 and 83). Still: the shutter that keeps ISO 500 (1x) / 1600 (3x) - 1/120 in his
+  room, 1/60 in his dim room (ISO 1200, not 5000). Moving (the picture shifts more than 400 dots a second): the shutter
+  that holds the blur to one bar, as far as ISO 1600 / 2200 allows. Between 1/60 (1/30) and 1/500 (3x: 1/250).
+- THE PICTURE'S MOVEMENT, every frame: the frame summed along its columns and rows (every 8th dot), slid over the frame
+  before (Record.shiftOf). Checked on n2's videos before n3 went out (shift.py): against the codes' own tracks
+  correlation 0.96, 79 dots a second apart on average; smoothed, a still hand is above 400 in 3% of its frames, a
+  gliding one in 83%.
+- THE FOCUS HELPER (Engine.focusHelper; Focus: Auto = with it, Plain = the camera's own, Lock): no code for 0.8 s with
+  3x (1x: 1.5 s AND a plainly blurred picture) -> one fresh focus run; no read after it -> the lens to 15 positions in
+  turn (0.13 s each), the sharpest held; let go when nothing is read and the picture is no longer sharp. The 3x lens
+  also gets the "near" focus range.
+- GLARE HELP: while more than 5 per mille of the picture is blown out, 0.6 s as the camera wants and 0.5 s darker by
+  1.5 EV, in turn; a yellow note on the picture ("Glare: tilt or move the phone a little").
+- THE LAMP: Off / Auto / On. Auto: on when 1/120 would need more than ISO 1440 with 1x (4800 with 3x) and the phone is
+  in a hand (it turns; lying on a table it does not); off when the reading stops or the phone has lain still 3 s. Half
+  power with 1x, full with 3x.
+- READING: the nine tiles (N), the sixteen (S) every third frame while the codes are under 150 dots or none is read,
+  the four (Q) now and then while none is read; T gone. Up to 3 frames at once, 2 when the phone's heat is "serious",
+  1 when "critical". The depth sensor is off unless switched on.
+- frames.json also holds, per frame: the picture's movement, the exposure bias, lamp on, the focus helper's state, the
+  light, the readers under way. The events tell every change of shutter (with the light and the movement behind it),
+  every step of the focus helper (with the sharpness at each position tried) and every switch of the lamp.
+- TestPlan n3, 16 tests: 9 / 14 / 18 in with 1x; 2 / 3 / 4 ft with 3x; moving slowly, moving fast, panning with 3x; dim
+  1 ft 1x (lamp off), dim moving (lamp auto), dim 2 ft 3x (lamp auto); glare held still with and without the glare
+  help, glare moving; his choice (real slabs).
+- After a test the app moves on to the next by itself (the line under the switches now says: tap < first to do one
+  again).
+NOT DONE YET: reading the .y8 frames with the web reader (Node, as cl_certs.js does) against Vision's own finds - is
+Apple's reader enough in dim light and under glare, or does ours come into the app; the web app's wrong-number fix;
+then the $99 and the full app (a thin shell around page/app).
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

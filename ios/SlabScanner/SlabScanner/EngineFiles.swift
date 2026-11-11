@@ -48,7 +48,9 @@ extension Engine {
         st["focus"] = focus.rawValue
         st["depthSensor"] = depthOn
         st["video"] = videoOn
-        st["light"] = lightOn
+        st["light"] = light.rawValue
+        st["glareHelp"] = glareHelp
+        st["focusHelper"] = focus == .auto
         st["special"] = plan.special
         st["stopsAfterSeconds"] = Int(plan.seconds)
         r.settings = st
@@ -70,26 +72,6 @@ extension Engine {
         problem = ""
         elapsed = 0
         recording = true
-        motion.deviceMotionUpdateInterval = 0.01
-        if motion.isDeviceMotionAvailable {
-            motion.startDeviceMotionUpdates(to: motionQ) { [weak self] m, _ in
-                guard let self = self, let m = m else { return }
-                self.lock.lock()
-                if let x = self.rec, !x.stopping {
-                    x.motion.append((m.timestamp - x.t0) * 1000)
-                    x.motion.append(m.rotationRate.x * 1000)
-                    x.motion.append(m.rotationRate.y * 1000)
-                    x.motion.append(m.rotationRate.z * 1000)
-                    x.motion.append(m.userAcceleration.x * 1000)
-                    x.motion.append(m.userAcceleration.y * 1000)
-                    x.motion.append(m.userAcceleration.z * 1000)
-                    x.motion.append(m.gravity.x * 1000)
-                    x.motion.append(m.gravity.y * 1000)
-                    x.motion.append(m.gravity.z * 1000)
-                }
-                self.lock.unlock()
-            }
-        }
         event("start", "test \(step + 1)")
     }
 
@@ -99,7 +81,6 @@ extension Engine {
         if !recording { return }
         recording = false
         saving = true
-        motion.stopDeviceMotionUpdates()
         let endHeat = ProcessInfo.processInfo.thermalState.rawValue
         let endBattery = UIDevice.current.batteryLevel
         let keepReading = live
@@ -113,7 +94,11 @@ extension Engine {
         r.stopping = true
         reading = keepReading
         let seconds = CACurrentMediaTime() - r.t0
+        let lampAuto = lightMode == .auto
         lock.unlock()
+        if !keepReading && lampAuto {           // the lamp that came on by itself goes off with the test
+            sessionQ.async { self.setTorch(false) }
+        }
         let special = r.plan.special
         captureQ.async {
             let group = DispatchGroup()
@@ -279,6 +264,11 @@ extension Engine {
         var afN = 0
         var readN = 0
         var bySize: [Double] = []
+        var speeds: [Double] = []
+        var lights: [Double] = []
+        var darkN = 0
+        var lampN = 0
+        var helpN = 0
         for f in frames {
             var row: [Any] = []
             row.append(f.n)
@@ -303,7 +293,18 @@ extension Engine {
             row.append(f.found)
             row.append(f.kept)
             row.append(f.sizeMm)
+            row.append(f.speed)
+            row.append(ji(f.bias * 100))
+            row.append(f.torch ? 1 : 0)
+            row.append(f.fstate)
+            row.append(ji(f.light * 100))
+            row.append(f.readers)
             frameRows.append(row)
+            if f.speed >= 0 { speeds.append(Double(f.speed)) }
+            if f.light > 0 { lights.append(f.light) }
+            if f.bias < -0.3 { darkN += 1 }
+            if f.torch { lampN += 1 }
+            if f.fstate != 0 { helpN += 1 }
             if f.sizeMm > 0 { bySize.append(Double(f.sizeMm)) }
             if f.exp > 0 { exps.append(f.exp) }
             if f.iso > 0 { isos.append(f.iso) }
@@ -314,7 +315,7 @@ extension Engine {
             if f.af { afN += 1 }
             if !f.job.isEmpty { readN += 1 }
         }
-        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (Q four tiles, N nine, S sixteen, T thirty-six; empty: not read, the readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)", "distance by the size of the codes read in this frame, mm (-1: none)"]
+        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (Q four tiles, N nine, S sixteen, T thirty-six; empty: not read, the readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)", "distance by the size of the codes read in this frame, mm (-1: none)", "the picture's movement against the frame before, dots a second (-1: not known)", "exposure bias in force, EV x100 (the glare help's darker frames: -150)", "lamp on", "focus helper (0 the camera's own focus, 1 asked to refocus, 2 trying positions, 3 held, 4 waiting for a read after the refocus)", "the light: ISO x seconds the camera needs, x100", "frames being read when this one came"]
         var framesDoc: [String: Any] = [:]
         framesDoc["fields"] = frameFields
         framesDoc["rows"] = frameRows
@@ -396,6 +397,12 @@ extension Engine {
         cam["distanceByTheDepthSensorReadings"] = depths.count
         cam["distanceByTheCodesSizeMedianMm"] = ji(medianOf(bySize))
         cam["distanceByTheCodesSizeReadings"] = bySize.count
+        cam["movementMedianDotsASecond"] = ji(medianOf(speeds))
+        cam["movementHighestTenthDotsASecond"] = ji(quantile(speeds, 0.9))
+        cam["lightMedianIsoSecondsX100"] = ji(medianOf(lights) * 100)
+        cam["framesTakenDarkerForGlare"] = darkN
+        cam["framesWithTheLampOn"] = lampN
+        cam["framesWithTheFocusHelperAtWork"] = helpN
         rep["whatTheCameraDid"] = cam
         var heat: [String: Any] = [:]
         heat["start"] = r.heatStart

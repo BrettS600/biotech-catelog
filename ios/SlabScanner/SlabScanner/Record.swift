@@ -123,6 +123,12 @@ final class FrameRec {
     var found: [[Any]] = []
     var kept = 0
     var sizeMm = -1             // the distance by the size of the codes in this frame
+    var speed = -1              // the picture's movement against the frame before, dots a second (-1: not known)
+    var bias = 0.0              // the exposure bias in force, EV (the glare help's darker frames)
+    var torch = false
+    var fstate = 0              // the focus helper: 0 the camera's own, 1 asked to refocus, 2 trying positions, 3 held
+    var light = 0.0             // the light: ISO x seconds the camera needs for the exposure it wants
+    var readers = 0             // frames being read when this one came
 }
 
 final class Recording {
@@ -174,10 +180,64 @@ struct FrameStats {
     var p99 = 0
     var blown = 0
     var sharp = 0
+    var cols: [Float] = []      // the picture summed down its columns, one value every 8 dots across
+    var rows: [Float] = []      // ...and along its rows, one value every 8 dots down
+}
+
+/// How far profile `b` is shifted against `a`, in samples (b[i + d] ~ a[i]), or nil when no shift fits clearly.
+/// Both are first freed of their slow light (each value less the mean of its 17 neighbours), then the shift with
+/// the smallest mean difference within +-maxD wins, refined between samples by a parabola.
+func shiftOf(_ a: [Float], _ b: [Float], maxD: Int) -> Double? {
+    let n = a.count
+    if n != b.count || n < 4 * maxD + 40 { return nil }
+    func flat(_ p: [Float]) -> [Float] {
+        var pre = [Float](repeating: 0, count: n + 1)
+        for i in 0..<n { pre[i + 1] = pre[i] + p[i] }
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let lo = max(0, i - 8)
+            let hi = min(n, i + 9)
+            out[i] = p[i] - (pre[hi] - pre[lo]) / Float(hi - lo)
+        }
+        return out
+    }
+    let x = flat(a)
+    let y = flat(b)
+    var energy: Float = 0
+    for i in maxD..<(n - maxD) { energy += abs(x[i]) }
+    energy /= Float(n - 2 * maxD)
+    if energy < 0.3 { return nil }              // nothing to hold on to (a blank or very dark picture)
+    var sad = [Float](repeating: 0, count: 2 * maxD + 1)
+    var best = 0
+    var total: Float = 0
+    for d in -maxD...maxD {
+        var s: Float = 0
+        var i = maxD
+        while i < n - maxD {
+            s += abs(x[i] - y[i + d])
+            i += 1
+        }
+        sad[d + maxD] = s
+        total += s
+        if s < sad[best] { best = d + maxD }
+    }
+    let mean = total / Float(2 * maxD + 1)
+    if sad[best] > 0.7 * mean { return nil }    // no shift is clearly better than the others
+    var frac = 0.0
+    if best > 0 && best < 2 * maxD {
+        let l = Double(sad[best - 1])
+        let c = Double(sad[best])
+        let r = Double(sad[best + 1])
+        let den = l - 2 * c + r
+        if den > 1e-6 { frac = 0.5 * (l - r) / den }
+    }
+    return Double(best - maxD) + frac
 }
 
 /// Brightness and sharpness of a frame from its grey plane, every 8th dot each way (well under a millisecond).
 /// Sharpness = the mean squared difference between dots two apart, in the middle three fifths of the picture.
+/// n3: also the picture summed along its columns and rows - two frames' sums, slid over each other, tell how far
+/// the picture moved between them (shiftOf).
 func frameStats(_ pb: CVPixelBuffer) -> FrameStats {
     var out = FrameStats()
     CVPixelBufferLockBaseAddress(pb, .readOnly)
@@ -197,15 +257,23 @@ func frameStats(_ pb: CVPixelBuffer) -> FrameStats {
     let x1 = w - w / 5
     let y0 = h / 5
     let y1 = h - h / 5
+    let nx = (w - 8 + 7) / 8
+    let ny = (h - 8 + 7) / 8
+    var colSum = [Int](repeating: 0, count: nx)
+    var rowSum = [Int](repeating: 0, count: ny)
     var y = 4
+    var iy = 0
     while y < h - 4 {
         let row = p + y * rb
         let inY = y >= y0 && y < y1
         var x = 4
+        var ix = 0
+        var rs = 0
         while x < w - 4 {
             let v = Int(row[x])
             hist[v] += 1
-            sum += v
+            rs += v
+            colSum[ix] += v
             n += 1
             if inY && x >= x0 && x < x1 {
                 let dx = Int(row[x + 2]) - v
@@ -214,10 +282,16 @@ func frameStats(_ pb: CVPixelBuffer) -> FrameStats {
                 gn += 1
             }
             x += 8
+            ix += 1
         }
+        sum += rs
+        rowSum[iy] = rs
         y += 8
+        iy += 1
     }
     if n == 0 { return out }
+    out.cols = colSum.map { Float($0) / Float(max(1, ny)) }
+    out.rows = rowSum.map { Float($0) / Float(max(1, nx)) }
     out.mean = sum / n
     var acc = 0
     var gotP1 = false
