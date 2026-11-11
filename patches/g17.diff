@@ -1,0 +1,342 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index f7a0a75..b8ed3e3 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3332,6 +3332,24 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
+   clicks while his screen was a full-screen app.
+ - first time on the phone: "Untrusted Developer" until Settings > General > VPN & Device Management > Trust.
+ - 2026-11-10: built with no error and no warning at the first try and installed (01:38 UTC Nov 11).
++THE FIRST TWO NATIVE FILES (n1, tests 1 and 2, 2026-11-11 02:00 UTC; the files held everything - 79 MB each):
++- 9 inches (8.4 by the codes' size): 47 right of 50, none wrong, 45 of them within 0.5 s (the web app: 50, half by
++  2.4 s); 14 inches (12.6): 48 right, none wrong, 42 within 0.5 s (web: 45). The codes missed lay under the room
++  light's reflection in the sleeve (2-29, 2-30; 2-25) or in the phone's shadow (2-41, 2-21).
++- 17-19 frames read a second of 30; shutter 1/250 at ISO 250-320 (room light: a faster cap would cost nothing);
++  focus still (459-576 per mille, never moving); heat 0.
++- THE WHOLE PICTURE (W) FOUND NOTHING: 0 codes a frame against 58 (Q) and 61 (N). A region costs ~15 ms whatever its
++  size (W 91 ms, Q 62, N 123): Vision reduces each region to a working size of its own. At 14 inches the fine CGC codes
++  were read in 44-71 of 96 Q frames and 92-96 of 96 N frames. -> n2: tiles only, Q N S(16) Q N T(36), three readers.
++- Vision reads PARTS of ITF codes with full confidence ("251739", "194922", "173985", "646197") and now and then a
++  wrong Code 128 ("18562322", confidence 0.40, once; "WN"): the cert format + two frames kept all of them out; n2 also
++  counts no read under confidence 0.5.
++- THE DEPTH SENSOR SAID 2.07 m AND 1.94 m (smoothed) with the sheet at 213 and 320 mm - wrong; n2 takes its unsmoothed
++  numbers with their quality flags, and shows / reports THE DISTANCE BY THE CODES' SIZE (focal length in dots x 17.5 mm
++  (PSA) or 18.4 mm (CGC) / the code's long side), which agreed with the picture's geometry.
++- a bug: frames from before the record tap were read into the test ("first read" of 4,934,590 ms); n2 leaves them out.
++n2 was built and installed at 02:09 UTC (one click on Run; then Stop, so the app is not tied to Xcode's debugger -
++he opens it from the home screen).
+ NEXT: his native test files -> compare with the 16 web files test by test; read the .y8 frames with the web reader
+ (Node, as cl_certs.js does) against Vision's own finds in frames.json; the reading ms of W / Q / N decide the reading
+ plan; the sweeps decide the shutter; then: is Apple's reader enough, or does ours come into the app; then the $99.
+diff --git a/ios/SlabScanner/SlabScanner/Engine.swift b/ios/SlabScanner/SlabScanner/Engine.swift
+index 217c31d..941e9eb 100644
+--- a/ios/SlabScanner/SlabScanner/Engine.swift
++++ b/ios/SlabScanner/SlabScanner/Engine.swift
+@@ -9,12 +9,15 @@
+ //    light returns. "Auto" = the camera's own choice (what the web page got). Fixed caps for trying.
+ //  - THE SIZE: 4032 x 3024 at 30 a second (1.4 times the dots across of the page's 4K), or 4K at 60.
+ //  - THE FOCUS: continuous (not the slow "smooth" kind), or locked where it is.
+-//  - EVERY FRAME READ by Apple's barcode reader (Vision), two at a time: the whole picture (W), then four overlapping
+-//    quarter tiles (Q), then nine tiles (N), in turn - small far codes are not lost to a reduction of the whole picture.
++//  - THE FRAMES READ by Apple's barcode reader (Vision), three at a time, as overlapping tiles: four (Q), nine (N),
++//    sixteen (S), thirty-six (T) in turn - the reader reduces whatever region it gets, and found nothing in the whole
++//    12 MP picture (see `cycle` below).
+ //    A code counts as a slab when it looks like a cert (slabCert) and was read in 2 frames (ITF, which has no check
+ //    digit: 3 frames).
+ //  - THE DEPTH SENSOR (LiDAR; with the 1x lens only - the sensor is paired with that lens): the distance at the centre
+-//    and on a 5 x 5 grid, about 15 times a second.
++//    and on a 5 x 5 grid, about 15 times a second. n1: it said 2 m with the sheet at 9 and 13 inches - not to be
++//    trusted this close (or through a glossy sleeve); THE DISTANCE BY THE CODES' SIZE (a slab's barcode is 17.5 or
++//    18.4 mm wide) agreed with the picture's geometry and is what the screen and the report show.
+ //  - WHAT THE CAMERA DID for every frame: shutter, sensitivity, focus position, whether focus / exposure were moving.
+ //  - MOVEMENT 100 times a second on the camera's own clock.
+ import AVFoundation
+@@ -72,7 +75,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+     let motion = CMMotionManager()
+     let motionQ = OperationQueue()
+     let lock = NSLock()
+-    let maxReaders = 2
++    let maxReaders = 3
+ 
+     var device: AVCaptureDevice?
+     var cur = CamCfg()
+@@ -108,16 +111,27 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+     var lastH = 0
+     var readTimes: [Double] = []
+     var snapAskedAt = 0.0
++    var focalPx = 3000.0            // the lens' focal length in dots of the picture (from its field of view)
++    var lastSizeMm = -1
++    var lastSizeAt = 0.0
+ 
+     // the capture thread's own
+     var lastSmart = 0.0
+     var depthCount = 0
+ 
+-    static let cycle = ["W", "Q", "N"]
++    // n1's first two tests (2026-11-10): the whole picture (W) found NOTHING at 9 and at 14 inches - Apple's reader
++    // reduces whatever region it is given to its own working size (a region took ~15 ms whatever its size: Q 62 ms
++    // for four, N 123 ms for nine, W 91 ms) - while the four tiles found every code at 9 inches and the nine tiles
++    // read the fine CGC codes at 14 inches twice as often as the four. So: tiles only, and finer ones in turn
++    // (S sixteen, T thirty-six - if a small region is enlarged to the working size, they reach further).
++    static let cycle = ["Q", "N", "S", "Q", "N", "T"]
++    static let snapKinds = ["W", "Q", "N", "S", "T"]
+     static let rois: [String: [CGRect]] = [
+         "W": [CGRect(x: 0, y: 0, width: 1, height: 1)],
+         "Q": Engine.tiles(2, 0.12),
+-        "N": Engine.tiles(3, 0.10)
++        "N": Engine.tiles(3, 0.10),
++        "S": Engine.tiles(4, 0.08),
++        "T": Engine.tiles(6, 0.06)
+     ]
+ 
+     /// n x n tiles over the picture, neighbours overlapping by `overlap` of the picture.
+@@ -147,7 +161,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+         videoOut.automaticallyConfiguresOutputBufferDimensions = false
+         videoOut.deliversPreviewSizedOutputBuffers = false
+         videoOut.setSampleBufferDelegate(self, queue: captureQ)
+-        depthOut.isFilteringEnabled = true
++        depthOut.isFilteringEnabled = false     // n2: the sensor's own numbers (n1's smoothed ones said 2 m at 9 inches)
+         depthOut.alwaysDiscardsLateDepthData = true
+         depthOut.setDelegate(self, callbackQueue: depthQ)
+         photoOut.maxPhotoQualityPrioritization = .quality
+@@ -381,9 +395,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+         cur = c
+         configured = true
+         usingLidar = lidar
++        let half = Double(fmt.videoFieldOfView) * Double.pi / 360
++        let fpx = half > 0.01 ? Double(dim.width) / 2 / tan(half) : 3000
++        info["focalLengthDots"] = Int(fpx.rounded())
+         lock.lock()
+         camInfo = info
++        focalPx = fpx
+         lastDepthMm = -1
++        lastSizeMm = -1
+         lock.unlock()
+         DispatchQueue.main.async {
+             self.preview?.upright()
+@@ -514,7 +533,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+             r.delivered += 1
+             fr = f
+         }
+-        let canRead = reading && inFlight < maxReaders
++        let canRead = reading && inFlight < maxReaders && (rec == nil || r != nil)   // not the frames from before the tap (n1 counted them)
+         var seq = 0
+         if canRead {
+             inFlight += 1
+@@ -690,6 +709,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+         let t0 = r?.t0 ?? liveT0
+         var seen = Set<String>()
+         var bx: [Box] = []
++        var sizes: [Double] = []
+         for f in found {
+             let key = f.kind + "|" + f.text
+             let firstHere = seen.insert(key).inserted
+@@ -707,8 +727,17 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+             guard let info = c else { continue }
+             let px = Int(max(f.box.width * CGFloat(pw), f.box.height * CGFloat(ph)).rounded())
+             if firstHere {
+-                info.frames += 1
+-                info.by[kind] = (info.by[kind] ?? 0) + 1
++                if f.conf >= 0.5 {
++                    info.frames += 1
++                    info.by[kind] = (info.by[kind] ?? 0) + 1
++                } else {
++                    info.weak += 1          // n1: the one misread ("18562322") came with confidence 0.40, every right code 0.67+
++                }
++            }
++            if info.slab && px > 20 && f.conf >= 0.5 {
++                // a slab's barcode is 17.5 mm wide (PSA) or 18.4 mm (CGC: 10 or 13 digits): its size in dots gives the distance
++                let mm = (info.text.count == 10 || info.text.count == 13) ? 18.4 : 17.5
++                sizes.append(focalPx * mm / Double(px))
+             }
+             if px > 0 {
+                 info.minPx = min(info.minPx, px)
+@@ -724,10 +753,18 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+                 fr.found.append([info.index, Int(f.box.minX * 1000), Int(f.box.minY * 1000), Int(f.box.width * 1000), Int(f.box.height * 1000), Int(f.conf * 100)])
+             }
+         }
++        var sizeMm = -1
++        if sizes.count >= 2 {
++            sizes.sort()
++            sizeMm = Int(sizes[sizes.count / 2].rounded())
++            lastSizeMm = sizeMm
++            lastSizeAt = now
++        }
+         if let fr = fr {
+             fr.job = kind
+             fr.jobMs = ms
+             fr.doneT = (now - t0) * 1000
++            fr.sizeMm = sizeMm
+         }
+         lastBoxes = bx
+         lastBoxesAt = now
+@@ -778,11 +815,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+             }
+         }
+         let ts = timestamp.seconds
++        let quality = depthData.depthDataQuality == .high ? 1 : 0
++        let absolute = depthData.depthDataAccuracy == .absolute ? 1 : 0
++        let filtered = depthData.isDepthDataFiltered ? 1 : 0
+         lock.lock()
+         lastDepthMm = centre
+         lastDepthAt = ts
+         if let r = rec, !r.stopping, ts >= r.t0 {
+-            r.depth.append([Int((ts - r.t0) * 1000), centre, grid])
++            r.depth.append([Int((ts - r.t0) * 1000), centre, grid, quality, absolute, filtered])
+         }
+         lock.unlock()
+     }
+@@ -829,7 +869,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+             var seen = Set<String>()
+             var rowsOut: [[Any]] = []
+             var times: [Any] = []
+-            for kind in Engine.cycle {
++            for kind in Engine.snapKinds {
+                 let handler = VNImageRequestHandler(cgImage: img, orientation: .up, options: [:])
+                 let res = self.detect(handler, rois: Engine.rois[kind] ?? [])
+                 times.append(Int(res.1))
+@@ -853,7 +893,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+                 d["height"] = img.height
+                 d["bytes"] = data.count
+                 d["slabCodes"] = texts.count
+-                d["readingMs W, Q, N"] = times
++                d["readingMs W, Q, N, S, T"] = times
+                 d["found: kind, text, by, long side in dots, confidence x100, a slab cert"] = rowsOut
+                 r.snaps.append(d)
+                 self.lock.unlock()
+@@ -890,6 +930,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+         let iso = lastISO
+         let lp = lastLensPos
+         let dmm = (now - lastDepthAt) < 0.6 ? lastDepthMm : -1
++        let smm = (now - lastSizeAt) < 1.0 ? lastSizeMm : -1
+         readTimes.removeAll { now - $0 > 1.0 }
+         let rps = readTimes.count
+         let cap = capDen
+@@ -907,7 +948,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
+         if e > 0 { s += "1/\(Int((1 / e).rounded())) s" }
+         if cap > 0 { s += " (cap 1/\(cap))" }
+         s += " · ISO \(Int(iso)) · focus \(Int(lp * 100))"
+-        if dmm > 0 { s += String(format: " · %.1f in", Double(dmm) / 25.4) }
++        if smm > 0 { s += String(format: " · %.1f in", Double(smm) / 25.4) }
++        if dmm > 0 { s += String(format: " · sensor %.1f in", Double(dmm) / 25.4) }
+         s += " · \(rps) reads/s · \(w)x\(h)"
+         status = s
+         if recording && r != nil && !isStopping {
+diff --git a/ios/SlabScanner/SlabScanner/EngineFiles.swift b/ios/SlabScanner/SlabScanner/EngineFiles.swift
+index f3091de..d7b1c7b 100644
+--- a/ios/SlabScanner/SlabScanner/EngineFiles.swift
++++ b/ios/SlabScanner/SlabScanner/EngineFiles.swift
+@@ -257,11 +257,13 @@ extension Engine {
+             row.append(c.minPx == Int.max ? 0 : c.minPx)
+             row.append(c.maxPx)
+             row.append(c.firstBy)
+-            row.append(c.by["W"] ?? 0)
+             row.append(c.by["Q"] ?? 0)
+             row.append(c.by["N"] ?? 0)
++            row.append(c.by["S"] ?? 0)
++            row.append(c.by["T"] ?? 0)
+             row.append(Int(c.conf * 100))
+             row.append(c.slab)
++            row.append(c.weak)
+             codeRows.append(row)
+         }
+         countedTimes.sort()
+@@ -276,6 +278,7 @@ extension Engine {
+         var depths: [Double] = []
+         var afN = 0
+         var readN = 0
++        var bySize: [Double] = []
+         for f in frames {
+             var row: [Any] = []
+             row.append(f.n)
+@@ -299,7 +302,9 @@ extension Engine {
+             if f.job.isEmpty { row.append(NSNull()) } else { row.append(ji(f.doneT)) }
+             row.append(f.found)
+             row.append(f.kept)
++            row.append(f.sizeMm)
+             frameRows.append(row)
++            if f.sizeMm > 0 { bySize.append(Double(f.sizeMm)) }
+             if f.exp > 0 { exps.append(f.exp) }
+             if f.iso > 0 { isos.append(f.iso) }
+             sharps.append(Double(f.sharp))
+@@ -309,7 +314,7 @@ extension Engine {
+             if f.af { afN += 1 }
+             if !f.job.isEmpty { readN += 1 }
+         }
+-        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (W the whole picture, Q four tiles, N nine tiles; empty: not read, both readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)"]
++        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (Q four tiles, N nine, S sixteen, T thirty-six; empty: not read, the readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)", "distance by the size of the codes read in this frame, mm (-1: none)"]
+         var framesDoc: [String: Any] = [:]
+         framesDoc["fields"] = frameFields
+         framesDoc["rows"] = frameRows
+@@ -331,7 +336,7 @@ extension Engine {
+ 
+         // the depth sensor
+         var depthDoc: [String: Any] = [:]
+-        depthDoc["fields"] = ["ms since the record tap", "distance at the centre, mm (-1: none)", "5 x 5 grid of distances, mm, row by row from the top-left of the depth picture (null: no reading)"]
++        depthDoc["fields"] = ["ms since the record tap", "distance at the centre, mm (-1: none)", "5 x 5 grid of distances, mm, row by row from the top-left of the depth picture (null: no reading)", "quality (1 high, 0 low)", "absolute distances (1) or only relative (0)", "smoothed (1) or the sensor's own (0)"]
+         depthDoc["rows"] = depthRows
+         writeJSON(depthDoc, r.dir.appendingPathComponent("depth.json"), r)
+ 
+@@ -373,7 +378,7 @@ extension Engine {
+             rep["halfCountedByMs"] = ji(countedTimes[countedTimes.count / 2])
+             rep["allCountedByMs"] = ji(countedTimes[countedTimes.count - 1])
+         }
+-        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (W / Q / N)", "frames by W", "by Q", "by N", "confidence x100", "looks like a slab cert"]
++        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (Q / N / S / T)", "frames by Q", "by N", "by S", "by T", "confidence x100", "looks like a slab cert", "weak reads (confidence under 0.5: not counted)"]
+         rep["list"] = codeRows
+         var cam: [String: Any] = [:]
+         cam["shutterMedianMicroseconds"] = ji(medianOf(exps) * 1e6)
+@@ -387,8 +392,10 @@ extension Engine {
+         cam["brightnessMedian"] = ji(medianOf(means))
+         cam["sharpnessMedian"] = ji(medianOf(sharps))
+         cam["sharpnessLowestTenth"] = ji(quantile(sharps, 0.1))
+-        cam["distanceMedianMm"] = ji(medianOf(depths))
+-        cam["distanceReadings"] = depths.count
++        cam["distanceByTheDepthSensorMedianMm"] = ji(medianOf(depths))
++        cam["distanceByTheDepthSensorReadings"] = depths.count
++        cam["distanceByTheCodesSizeMedianMm"] = ji(medianOf(bySize))
++        cam["distanceByTheCodesSizeReadings"] = bySize.count
+         rep["whatTheCameraDid"] = cam
+         var heat: [String: Any] = [:]
+         heat["start"] = r.heatStart
+@@ -438,7 +445,7 @@ extension Engine {
+         }
+         line += " · \(readN) of \(frames.count) frames read"
+         if !exps.isEmpty { line += " · shutter 1/\(Int((1 / medianOf(exps)).rounded()))" }
+-        if !depths.isEmpty { line += String(format: " · %.1f in", medianOf(depths) / 25.4) }
++        if !bySize.isEmpty { line += String(format: " · %.1f in", medianOf(bySize) / 25.4) }
+         if !snaps.isEmpty { line += " · \(snaps.count) snaps" }
+         if !errs.isEmpty { line += " · \(errs.count) problem(s) noted in the file" }
+         if copied && coordErr == nil {
+diff --git a/ios/SlabScanner/SlabScanner/Record.swift b/ios/SlabScanner/SlabScanner/Record.swift
+index 0f8491a..0c68ee4 100644
+--- a/ios/SlabScanner/SlabScanner/Record.swift
++++ b/ios/SlabScanner/SlabScanner/Record.swift
+@@ -91,6 +91,7 @@ final class CodeInfo {
+     var conf: Float = 0
+     var slab = false
+     var need = 2
++    var weak = 0                // reads Apple's reader was less than half sure of: written down, never counted
+ 
+     init(kind: String, text: String, index: Int) {
+         self.kind = kind
+@@ -121,6 +122,7 @@ final class FrameRec {
+     var doneT = 0.0
+     var found: [[Any]] = []
+     var kept = 0
++    var sizeMm = -1             // the distance by the size of the codes in this frame
+ }
+ 
+ final class Recording {
+diff --git a/ios/SlabScanner/SlabScanner/TestPlan.swift b/ios/SlabScanner/SlabScanner/TestPlan.swift
+index e46599d..ea04efc 100644
+--- a/ios/SlabScanner/SlabScanner/TestPlan.swift
++++ b/ios/SlabScanner/SlabScanner/TestPlan.swift
+@@ -33,7 +33,7 @@ struct TestStep {
+ }
+ 
+ enum TestPlan {
+-    static let version = "n1"
++    static let version = "n2"
+     // the shutter sweep: 3 seconds at each of these (0 = the camera's own choice), 1/x of a second
+     static let sweep: [Int] = [0, 60, 125, 250, 500, 1000, 2000]
+     static let sweepSeconds = 3.0
