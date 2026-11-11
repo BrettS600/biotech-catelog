@@ -1,0 +1,175 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 2562281..a09c3cd 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3526,7 +3526,19 @@ and the site password once), and the old screen's two other jobs kept as small b
+   camera runs) + the Review sheet. One Engine: openCamera(scan: lens | nil = the test plan) / closeCamera (camera, lamp
+   and reading off, the screen may sleep again).
+ - Checked here: the page in Chromium with a stand-in for the app (scanStart, the feed, read / unread / stop, Test,
+-  the Review block's look - a screenshot); the Swift by a syntax parser. Built and installed: see below.
++  the Review block's look - a screenshot); the Swift by a syntax parser. Built with no error or warning and installed
++  2026-11-11 18:12 UTC (runs to about Nov 18); the site with g15 live 18:11 UTC.
++- LINKS ONLY (g15b, sw.js ssc-v18; Brett, 2026-11-11: "instead of doing the test ... let's try to use the record button
++  and scan the codes. Duplicates obviously shouldn't be recorded. There's a file called scans.csv. And the scans should go
++  in there. I don't want these scans to be the things to be read yet ... just show the links and they're hyperlinked, the
++  same format, and then they just go into scans.csv. I'll open scans.csv and verify that they are correct"): Show's new
++  switch "Look slabs up (PSA, card, prices)", OFF BY DEFAULT (settings.lookup) - pumpLookups does nothing, a slab read
++  stays 'queued' and its table lists it under "Cert links · scans.csv" as scans.csv's own link (scanLink now ends PSA's in
++  /psa as the collector does) with the cert as the text, and "waiting to send" / "unlock to send" / "sent to scans.csv"
++  (its place in ssc-scan-q); the app's camera screen shows "PSA 43194922 · to scans.csv / sent". Turning it on looks the
++  waiting ones up. A CERT IS READ ONCE A SHOW now (addScan: any table, "Already read at Table N"). Sending still needs the
++  app unlocked once (the messages are signed with the site key); the collector writes the file. scans.csv held 48 of
++  sheet 2's 50 codes from the 2026-11-09 tests (not 172100519 and 119103691) - scanning sheet 2 adds only those two.
+ 
+ ## Testing before pushing
+ - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
+diff --git a/page/app/app.css b/page/app/app.css
+index 514609c..1fd22d5 100644
+--- a/page/app/app.css
++++ b/page/app/app.css
+@@ -210,3 +210,8 @@ button.rvb{font:600 14px Inter,sans-serif;min-height:38px;padding:0 16px;border:
+ button.rvb.same{color:var(--gr);border-color:var(--gr)}
+ button.rvb.diff{color:var(--rd);border-color:var(--rd)}
+ .btn.sm{min-height:38px;font-size:14px;padding:0 12px;border-radius:8px}
++/* links only (g15b): a table's slabs as their cert links */
++.lrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #222A35}
++.lrow:last-of-type{border-bottom:0}
++.lrow a{color:var(--blt);font:600 17px Inter,sans-serif;font-variant-numeric:tabular-nums;flex:1}
++.lrow .up{color:var(--grt)}
+diff --git a/page/app/app.js b/page/app/app.js
+index 3507a17..802d731 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -44,7 +44,7 @@ const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the b
+ const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
+ const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
+ const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
+-const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main'};
++const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main', lookup: false};
+ 
+ /* ---------------- small helpers ---------------- */
+ function money(v) { if (v == null || !isFinite(v)) return '-'; const a = Math.abs(v); const s = a >= 100 ? Math.round(a).toLocaleString('en-US') : a.toFixed(2); return (v < 0 ? '-$' : '$') + s; }
+@@ -322,7 +322,20 @@ async function sendMark(cid, v) {
+ // scans.csv (Brett: "when I scan a barcode, the link will appear in the CSV file"): every real slab read is queued here
+ // and sent as {type: 'scan', t, c: [[grader, cert], ...]}; the collector turns each into its PSA / CGC cert link and adds
+ // the new ones to card-data's data/scans/scans.csv. Kept on the phone until sent (no signal, or locked: sent later).
+-const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c;
++const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c + '/psa';   // (scans.csv's own links)
++// LINKS ONLY (g15b, 2026-11-11; Brett: "use the record button and scan the codes. Duplicates obviously shouldn't be
++// recorded ... I don't want these scans to be the things to be read yet ... just show the links and they're hyperlinked,
++// the same format, and then they just go into scans.csv. I'll open scans.csv and verify that they are correct"): while
++// Show's "Look slabs up" is off - the default - a slab read is not looked up (no PSA call, no card, no price); its table
++// lists it as its cert link, scans.csv's link with the cert as its text, and it goes to scans.csv as every slab does.
++// Turning lookups on looks the waiting ones up. A cert is read once per show (a second read at any table is a duplicate).
++const linkOnly = sl => !sl.demo && !S.settings.lookup && sl.look === 'queued';
++const scanWaiting = sl => LS.get(SCANQ, []).some(q => q[0] === sl.grader && q[1] === sl.cert);
++function linkRowHtml(sl) {
++  const w = scanWaiting(sl);
++  return '<div class="lrow"><span class="tag t-look">' + esc(String(sl.grader || '').toUpperCase()) + '</span><a href="' + esc(scanLink(sl.grader, sl.cert)) + '" target="_blank" rel="noopener">' + esc(sl.cert) + '</a>' +
++    '<span class="small ' + (w ? 'muted' : 'up') + '">' + (w ? (KEY ? 'waiting to send' : 'unlock to send') : 'sent to scans.csv') + '</span></div>';
++}
+ let SCAN_SEND_T = 0, SCAN_SENDING = false;
+ function queueScan(grader, cert) {
+   const q = LS.get(SCANQ, []);
+@@ -344,6 +357,8 @@ async function sendScans() {
+   } catch (e) { scheduleScanSend(30000); }    // no signal: again in half a minute
+   SCAN_SENDING = false;
+   const el = $('scans-line'); if (el) el.innerHTML = scansLine();
++  // (a table's link list says which went: drawn again, unless a box on it is being typed in)
++  if (UI.rec) paintScan(); else if (UI.tab === 'tables' && UI.openTable && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render();
+ }
+ function scansLine() {
+   const q = LS.get(SCANQ, []).length, n = +LS.get(SCANN, 0) || 0;
+@@ -402,7 +417,7 @@ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-ste
+ function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
+ UI.tpol = planPol();
+ function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
+-const APP_VERSION = 'g15';
++const APP_VERSION = 'g15b';
+ // Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
+ // and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
+ const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
+@@ -1134,8 +1149,8 @@ function drawBoxes() {                       // green boxes on each code read, f
+ function addScan(grader, cert, opts) {
+   const tid = (opts && opts.table) || UI.recTable, live = !!(opts && opts.live), busy = UI.rec || VREAD.on;
+   if (!tid) return null;
+-  const have = slabsArr().find(sl => sl.t === tid && !sl.demo && sl.cert === cert);
+-  if (have) { if (busy) { UI.dup = 'Already read: ' + gkLabelShort(have) + ' (counted once)'; if (!(opts && opts.quiet)) paintScan(); } return have; }
++  const have = slabsArr().find(sl => !sl.demo && sl.grader === grader && sl.cert === cert);   // once a show, whichever table
++  if (have) { if (busy) { const ht = have.t !== tid ? tableOf(have.t) : null; UI.dup = 'Already read' + (ht ? ' at Table ' + ht.n : '') + ': ' + gkLabelShort(have) + ' (counted once)'; if (!(opts && opts.quiet)) paintScan(); } return have; }
+   const sid = 's' + (S.seq++) + '-' + Date.now().toString(36);
+   const sl = {id: sid, t: tid, grader, cert, at: Date.now(), look: 'queued', mode: 'pct', vd: null, vp: null, st: 'new'};
+   S.slabs[sid] = sl; save();
+@@ -1315,7 +1330,7 @@ function resolveCard(sl) {
+ }
+ let LQ = false;
+ async function pumpLookups() {
+-  if (LQ) return; LQ = true;
++  if (LQ || !S.settings.lookup) return; LQ = true;   // (links only: nothing is looked up)
+   try {
+     for (;;) {
+       const sl = slabsArr().find(x => !x.demo && x.look === 'queued');
+@@ -1550,11 +1565,12 @@ function paintScan() {
+   $('cam-err').innerHTML = UI.camErr ? '<div class="warnbox">' + esc(UI.camErr) + '</div>' : '';
+   $('scan-msg').innerHTML = UI.scanMsg && !busy ? '<div class="warnbox">' + esc(UI.scanMsg) + '</div>' : '';
+   const feed = UI.feed.map((f, k) => { const sl = S.slabs[f.sid]; if (!sl) return ''; const x = calc(sl);
+-    const right = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? '<span class="tag t-look">Looking up</span>' : !sl.demo && sl.look === 'manual' ? '<span class="tag t-check">Find card</span>' : '<span class="' + pillCls(x) + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</span>';
++    const right = linkOnly(sl) ? '<span class="tag t-look">' + (scanWaiting(sl) ? 'Link' : 'Sent') + '</span>' : !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? '<span class="tag t-look">Looking up</span>' : !sl.demo && sl.look === 'manual' ? '<span class="tag t-check">Find card</span>' : '<span class="' + pillCls(x) + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</span>';
+     return '<div class="chip' + (k === 0 ? ' fresh' : '') + '"><span class="tick">' + ICON.check + '</span><span class="ctext"><b>' + esc(x.name) + '</b>' + (x.known && x.gk ? ' · ' + esc(gkLabel(x.gk)) : '') + '</span>' + right + '</div>'; }).join('');
+   $('feed').innerHTML = busy && !UI.test ? (UI.dup ? '<div class="dup">' + esc(UI.dup) + '</div>' : '') + feed : '';
+   if (NATIVE && UI.rec && !UI.test) {          // the app's camera screen shows the same list
+     const tmp = document.createElement('div'), items = UI.feed.map(f => { const sl = S.slabs[f.sid]; if (!sl) return ''; const x = calc(sl);
++      if (linkOnly(sl)) return [String(sl.grader || '').toUpperCase() + ' ' + sl.cert, scanWaiting(sl) ? 'to scans.csv' : 'sent ✓'];
+       tmp.innerHTML = !sl.demo && (sl.look === 'queued' || sl.look === 'looking') ? 'Looking up' : !sl.demo && sl.look === 'manual' ? 'Find card' : x.chance == null ? '-' : pctS(x.chance);
+       return [x.name + (x.known && x.gk ? ' · ' + gkLabel(x.gk) : ''), tmp.textContent]; }).filter(Boolean);
+     const msg = JSON.stringify({n: cnt, items, dup: UI.dup || ''});
+@@ -1578,14 +1594,17 @@ function tablesHtml() {
+ }
+ function tableHtml() {
+   const P = plan(), T = tableOf(UI.openTable); if (!T) { UI.openTable = null; return tablesHtml(); }
+-  const os = P.all.filter(o => o.sl.t === T.id).slice(), k = UI.sort;
++  const lk = slabsArr().filter(sl => sl.t === T.id && linkOnly(sl)).sort((a, b) => a.at - b.at);   // links only: listed as their links
++  const os = P.all.filter(o => o.sl.t === T.id && !linkOnly(o.sl)).slice(), k = UI.sort;
+   os.sort(k === 'price' ? (a, b) => (b.x.std || 0) - (a.x.std || 0) : k === 'scan' ? (a, b) => a.sl.at - b.sl.at
+     : (a, b) => (!!P.picks[b.sl.id] - !!P.picks[a.sl.id]) || ((b.sl.st !== 'declined') - (a.sl.st !== 'declined')) || ((b.x.chance || -1) - (a.x.chance || -1)));
+   const here = os.filter(o => P.picks[o.sl.id]);
+   return '<div class="stack"><button class="back" data-a="back">' + ICON.back + 'Tables</button>' +
+     '<div class="spread"><h1 class="h1">Table ' + T.n + '</h1><span class="muted small">' + hhmm(T.at) + '</span></div>' +
+     '<label class="field"><span class="label">Vendor or booth</span><input class="input" type="text" placeholder="Optional" value="' + esc(T.vendor) + '" data-in="tableVendor"></label>' +
+-    '<div class="stats"><span class="stat"><b>' + os.length + '</b> slabs</span><span class="stat"><b>' + here.length + '</b> in your buys</span><span class="stat"><b>' + money(here.reduce((a, o) => a + o.x.pay, 0)) + '</b> to spend here</span></div>' +
++    (lk.length ? '<div class="card stack" style="gap:0"><div class="spread"><span class="label">Cert links · scans.csv</span><span class="small muted">' + lk.length + ' slab' + (lk.length === 1 ? '' : 's') + ', as scanned</span></div>' + lk.map(linkRowHtml).join('') +
++      '<p class="note" style="margin:8px 0 0">Not looked up (Show › Look slabs up is off). Each link goes to card-data’s scans.csv once.</p></div>' : '') +
++    '<div class="stats"><span class="stat"><b>' + (os.length + lk.length) + '</b> slabs</span><span class="stat"><b>' + here.length + '</b> in your buys</span><span class="stat"><b>' + money(here.reduce((a, o) => a + o.x.pay, 0)) + '</b> to spend here</span></div>' +
+     '<div class="seg" role="group" aria-label="Sort">' + [['best', 'Best first'], ['price', 'Price'], ['scan', 'As scanned']].map(p => '<button class="' + (k === p[0] ? 'on' : '') + '" data-a="sort" data-v="' + p[0] + '">' + p[1] + '</button>').join('') + '</div>' +
+     os.map(o => rowHtml(o, P, false)).join('') +
+     '<button class="btn" data-a="scanmore">Scan more at this table</button>' +
+@@ -1631,6 +1650,8 @@ function showHtml() {
+     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
+     '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
+     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
++    '<div class="frow"><span>Look slabs up (PSA, card, prices)</span><button class="btn" style="min-width:76px" data-a="lookup">' + (s.lookup ? 'On' : 'Off') + '</button></div>' +
++    (s.lookup ? '' : '<p class="note" style="margin:0">Off: a slab read is only listed as its cert link and sent to scans.csv.</p>') +
+     '<p class="note">Chance = how often slabs like it made money over your hold, bought at that % under, after eBay’s fee (14.11%) and shipping - the website’s Recording math. The plan spends best chance first, up to your capital. Min sales last mo keeps slabs that sold fewer times on Card Ladder last month out of your buys.</p>' +
+     '<h2 class="h2" style="margin-top:14px">Card data and lookups</h2>' +
+     '<div class="' + (DSTATE === 'ok' ? 'okbox' : DSTATE === 'err' ? 'warnbox' : 'note') + '">' + dataLine + '</div>' +
+@@ -1843,6 +1864,7 @@ async function act(a, ds, el) {
+     case 'record': return recordPurchases();
+     case 'hold': s.hold = +ds.v; save(); break;
+     case 'gate': s.gate = !s.gate; save(); break;
++    case 'lookup': s.lookup = !s.lookup; save(); if (s.lookup) pumpLookups(); break;
+     case 'bump': {
+       const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k], lim = {under: [0, 60], bar: [5, 95], share: [5, 100], minSales: [0, 50]}[k];
+       s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); break;
+diff --git a/page/app/sw.js b/page/app/sw.js
+index 4033422..36596f2 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v17';
++const CACHE = 'ssc-v18';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
