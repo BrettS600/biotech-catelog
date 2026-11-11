@@ -1,0 +1,2443 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 56639fe..f7a0a75 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3278,6 +3278,64 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   push rebased over, no key = waiting. (page/app/app.js scanLink() is display-only and unused; the collector makes the
+   links.)
+ 
++## THE NATIVE TRIAL APP - "Slab Scanner" for the iPhone (2026-11-10, n1; ios/SlabScanner)
++WHY. Brett ran 16 tests with the web app g14 on 2026-11-10 (sheet 2: 50 codes; files in his ~/scan-test). What they said:
++- the reader got through 5-9 of the camera's ~25 frames a second (125-275 ms a frame with two readers);
++- a quarter to two thirds of the frames of every test were blurred (sharp frames 30-76%), worst with 3x;
++- Safari on his iPhone (13 Pro Max, iOS 26.6 - Safari's user agent says "18_7") offers zoom, torch, white balance and
++  frame rate only: no shutter, exposure or focus control (cameraRaw.capabilities / supportedConstraints in the files);
++- right codes of 50: 9 in 50 (half by 2.4 s), 14 in 45, 18 in 34, 2 ft with 1x 3 (1.0 dots a module), 2 ft 3x 41 (+2
++  wrong), 3 ft 3x 38, tilted 46 (+1 wrong), turned 44, dim room 44, the old way (test 12) 42 against 45 for test 2;
++- five wrong numbers counted in four tests: ITF parts "2517" and "341005", "62501915", "157210701524" twice (the
++  cert-format rule below refuses all but "62501915"; not yet fixed in the web app);
++- THE POLARIZER (Brett: "if I have to adjust the polarizer every time I change depth or angle, then I don't want to
++  use it ... if the polarizer barely makes a difference, then I don't want to use it"): 9 in 50 / 50, 2 ft 3x 41 / 35,
++  tilted 46 / 44, dim room 44 / 18 (the picture half as bright); no test had glare in it (glare 0-0.7% of the picture,
++  tests 10 and 17 skipped). Its ring must be turned again whenever the phone's angle to the light changes. Verdict: off.
++Brett then chose a native app ("it looks like I want to use the app"), THE FREE ROUTE FIRST (a free Apple account:
++the app runs 7 days, then is installed again from the Mac; $99 a year for the Developer Program only if the trial is
++clearly better - Apple sells no monthly plan), asked for every kind of data ("include any means of collecting data into
++the build, so that we can optimize") and for the scanner and the test to be optimized on what the 16 files said.
++WHAT IS BUILT (n1, a test reader - not yet the website's lookups / scans.csv; the plan for the full app is a thin shell
++around page/app with only camera and reading native):
++- ios/SlabScanner/SlabScanner/*.swift (SwiftUI, iOS 17+; ~2,000 lines; the headers of Engine.swift and EngineFiles.swift
++  say what and why): the shutter cap (activeMaxExposureDuration: the camera may not choose a slower shutter - "Smart" =
++  1/250 with 1x, 1/500 with 3x, one step slower when more than 1 EV too dark at the highest ISO; Auto; fixed caps),
++  4032 x 3024 at 30 a second or 4K at 60, focus continuous (not smooth) or locked, Apple's Vision barcode reader on
++  every frame it can take, two at a time, in turn on the whole picture (W), four overlapping tiles (Q) and nine (N);
++  a code counts when it looks like a cert (slabCert: PSA Code 128 of 8-9 digits or ITF of exactly 8, CGC Code 128 of
++  10, or 13 starting 1401) and was read in 2 frames (ITF 3); the LiDAR depth sensor (only with 1x - it is paired with
++  that lens; distance at the centre + a 5 x 5 grid ~15 times a second); per frame the shutter, ISO, focus position,
++  focus / exposure moving, exposure offset, brightness, sharpness; movement 100 times a second; heat and battery;
++  video of every frame (HEVC 24 Mbit/s); up to six lossless frames (the grey plane as .y8) - TO READ THEM AGAIN HERE
++  WITH THE WEB APP'S OWN READER (finder + zxing + grey line) and so compare Apple's reader with ours on the same dots;
++  Snap = a full photograph read once. TestPlan.swift: 15 tests that set the switches themselves and stop by themselves
++  (9 in, 14 in, 14 in without the depth sensor, 2 ft 1x, 2 ft 3x, 3 ft 3x, a shutter sweep at 3x and at 1x - auto,
++  1/60 ... 1/2000, 3 s each -, focus locked, moving at 12MP and at 4K60, dim 1x and 3x, snap, his choice).
++  The file: slab-native-n1-tNN-<date>-<time>.zip (report.json, frames.json, motion.json, depth.json, camera.json,
++  video.mov, frame-NN-WxH.y8, snap-NN.jpg) - Save test data (share sheet, AirDrop), or Files > On My iPhone > Slab
++  Scanner > tests. Whole numbers in small units; every file names its fields.
++- ios/SlabScanner/SlabScanner.xcodeproj: WRITTEN BY HAND (objectVersion 77, a "synchronized folder": every file in
++  SlabScanner/ belongs to the target, the project file never lists sources). Bundle id io.github.bretts600.slabscanner,
++  automatic signing; the team (his Personal Team) is in the copy on the Mac only. Debug builds are optimized (-O).
++  project.xcworkspace/xcuserdata/brettschroyer.xcuserdatad/WorkspaceSettings.xcsettings puts DerivedData inside the
++  project folder - so THE BUILD LOG CAN BE READ from the Mac's shell:
++    gunzip -c DerivedData/SlabScanner/Logs/Build/<newest>.xcactivitylog | tr '\r' '\n' | grep -aoE "[A-Za-z]+\.swift:[0-9]+:[0-9]+: (error|warning): [^\"]{0,300}"
++HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linux VM that sees the connected folders):
++- the project lives on the Mac at ~/scan-test/SlabScannerApp (files put there with device_commit_files from
++  /mnt/user-data/outputs/slabscanner; never recommit project.pbxproj - Xcode wrote the team into it);
++- Xcode (16.4 on macOS 15.5; it installs on his iOS 26.6 phone) is reached by computer use at tier "click": left
++  clicks only - no typing, no keys, NO MENUS (File > Open and Product > Run are refused), no dropdowns. Brett opened the
++  project (double-click in Finder), chose the team and the iPhone as the destination - once. A build + install + start
++  = one click on the Run arrow (at 245, 18 of the 1400 x 797 window; app_click on com.apple.dt.Xcode, in the
++  BACKGROUND - not full control, which would hide Chrome and its Card Ladder tab). Finder would not take background
++  clicks while his screen was a full-screen app.
++- first time on the phone: "Untrusted Developer" until Settings > General > VPN & Device Management > Trust.
++- 2026-11-10: built with no error and no warning at the first try and installed (01:38 UTC Nov 11).
++NEXT: his native test files -> compare with the 16 web files test by test; read the .y8 frames with the web reader
++(Node, as cl_certs.js does) against Vision's own finds in frames.json; the reading ms of W / Q / N decide the reading
++plan; the sweeps decide the shutter; then: is Apple's reader enough, or does ours come into the app; then the $99.
++
+ ## Testing before pushing
+ - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
+   fixtures with no network and no git; the jsdom refresh test (test_refresh.js in the harness) needs
+diff --git a/ios/SlabScanner/SlabScanner.xcodeproj/project.pbxproj b/ios/SlabScanner/SlabScanner.xcodeproj/project.pbxproj
+new file mode 100644
+index 0000000..8ef0a7b
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner.xcodeproj/project.pbxproj
+@@ -0,0 +1,288 @@
++// !$*UTF8*$!
++{
++	archiveVersion = 1;
++	classes = {
++	};
++	objectVersion = 77;
++	objects = {
++
++/* Begin PBXFileReference section */
++		5C1AB5CA9000000000000001 /* SlabScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SlabScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
++/* End PBXFileReference section */
++
++/* Begin PBXFileSystemSynchronizedRootGroup section */
++		5C1AB5CA9000000000000002 /* SlabScanner */ = {
++			isa = PBXFileSystemSynchronizedRootGroup;
++			path = SlabScanner;
++			sourceTree = "<group>";
++		};
++/* End PBXFileSystemSynchronizedRootGroup section */
++
++/* Begin PBXFrameworksBuildPhase section */
++		5C1AB5CA9000000000000003 /* Frameworks */ = {
++			isa = PBXFrameworksBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
++/* End PBXFrameworksBuildPhase section */
++
++/* Begin PBXGroup section */
++		5C1AB5CA9000000000000004 = {
++			isa = PBXGroup;
++			children = (
++				5C1AB5CA9000000000000002 /* SlabScanner */,
++				5C1AB5CA9000000000000005 /* Products */,
++			);
++			sourceTree = "<group>";
++		};
++		5C1AB5CA9000000000000005 /* Products */ = {
++			isa = PBXGroup;
++			children = (
++				5C1AB5CA9000000000000001 /* SlabScanner.app */,
++			);
++			name = Products;
++			sourceTree = "<group>";
++		};
++/* End PBXGroup section */
++
++/* Begin PBXNativeTarget section */
++		5C1AB5CA9000000000000006 /* SlabScanner */ = {
++			isa = PBXNativeTarget;
++			buildConfigurationList = 5C1AB5CA9000000000000011 /* Build configuration list for PBXNativeTarget "SlabScanner" */;
++			buildPhases = (
++				5C1AB5CA9000000000000007 /* Sources */,
++				5C1AB5CA9000000000000003 /* Frameworks */,
++				5C1AB5CA9000000000000008 /* Resources */,
++			);
++			buildRules = (
++			);
++			dependencies = (
++			);
++			fileSystemSynchronizedGroups = (
++				5C1AB5CA9000000000000002 /* SlabScanner */,
++			);
++			name = SlabScanner;
++			packageProductDependencies = (
++			);
++			productName = SlabScanner;
++			productReference = 5C1AB5CA9000000000000001 /* SlabScanner.app */;
++			productType = "com.apple.product-type.application";
++		};
++/* End PBXNativeTarget section */
++
++/* Begin PBXProject section */
++		5C1AB5CA9000000000000009 /* Project object */ = {
++			isa = PBXProject;
++			attributes = {
++				BuildIndependentTargetsInParallel = 1;
++				LastSwiftUpdateCheck = 1640;
++				LastUpgradeCheck = 1640;
++				TargetAttributes = {
++					5C1AB5CA9000000000000006 = {
++						CreatedOnToolsVersion = 16.4;
++					};
++				};
++			};
++			buildConfigurationList = 5C1AB5CA9000000000000010 /* Build configuration list for PBXProject "SlabScanner" */;
++			developmentRegion = en;
++			hasScannedForEncodings = 0;
++			knownRegions = (
++				en,
++				Base,
++			);
++			mainGroup = 5C1AB5CA9000000000000004;
++			minimizedProjectReferenceProxies = 1;
++			preferredProjectObjectVersion = 77;
++			productRefGroup = 5C1AB5CA9000000000000005 /* Products */;
++			projectDirPath = "";
++			projectRoot = "";
++			targets = (
++				5C1AB5CA9000000000000006 /* SlabScanner */,
++			);
++		};
++/* End PBXProject section */
++
++/* Begin PBXResourcesBuildPhase section */
++		5C1AB5CA9000000000000008 /* Resources */ = {
++			isa = PBXResourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
++/* End PBXResourcesBuildPhase section */
++
++/* Begin PBXSourcesBuildPhase section */
++		5C1AB5CA9000000000000007 /* Sources */ = {
++			isa = PBXSourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
++/* End PBXSourcesBuildPhase section */
++
++/* Begin XCBuildConfiguration section */
++		5C1AB5CA9000000000000012 /* Debug */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				ALWAYS_SEARCH_USER_PATHS = NO;
++				CLANG_ANALYZER_NONNULL = YES;
++				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
++				CLANG_ENABLE_MODULES = YES;
++				CLANG_ENABLE_OBJC_ARC = YES;
++				CLANG_ENABLE_OBJC_WEAK = YES;
++				CLANG_WARN_BOOL_CONVERSION = YES;
++				CLANG_WARN_EMPTY_BODY = YES;
++				CLANG_WARN_ENUM_CONVERSION = YES;
++				CLANG_WARN_INT_CONVERSION = YES;
++				CLANG_WARN_UNREACHABLE_CODE = YES;
++				COPY_PHASE_STRIP = NO;
++				ENABLE_STRICT_OBJC_MSGSEND = YES;
++				ENABLE_USER_SCRIPT_SANDBOXING = YES;
++				GCC_C_LANGUAGE_STANDARD = gnu17;
++				GCC_NO_COMMON_BLOCKS = YES;
++				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
++				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
++				GCC_WARN_UNUSED_VARIABLE = YES;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
++				MTL_FAST_MATH = YES;
++				SDKROOT = iphoneos;
++				DEBUG_INFORMATION_FORMAT = dwarf;
++				ENABLE_TESTABILITY = NO;
++				GCC_OPTIMIZATION_LEVEL = s;
++				ONLY_ACTIVE_ARCH = YES;
++				SWIFT_COMPILATION_MODE = wholemodule;
++				SWIFT_OPTIMIZATION_LEVEL = "-O";
++			};
++			name = Debug;
++		};
++		5C1AB5CA9000000000000013 /* Release */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				ALWAYS_SEARCH_USER_PATHS = NO;
++				CLANG_ANALYZER_NONNULL = YES;
++				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
++				CLANG_ENABLE_MODULES = YES;
++				CLANG_ENABLE_OBJC_ARC = YES;
++				CLANG_ENABLE_OBJC_WEAK = YES;
++				CLANG_WARN_BOOL_CONVERSION = YES;
++				CLANG_WARN_EMPTY_BODY = YES;
++				CLANG_WARN_ENUM_CONVERSION = YES;
++				CLANG_WARN_INT_CONVERSION = YES;
++				CLANG_WARN_UNREACHABLE_CODE = YES;
++				COPY_PHASE_STRIP = NO;
++				ENABLE_STRICT_OBJC_MSGSEND = YES;
++				ENABLE_USER_SCRIPT_SANDBOXING = YES;
++				GCC_C_LANGUAGE_STANDARD = gnu17;
++				GCC_NO_COMMON_BLOCKS = YES;
++				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
++				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
++				GCC_WARN_UNUSED_VARIABLE = YES;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
++				MTL_FAST_MATH = YES;
++				SDKROOT = iphoneos;
++				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
++				ENABLE_NS_ASSERTIONS = NO;
++				SWIFT_COMPILATION_MODE = wholemodule;
++				VALIDATE_PRODUCT = YES;
++			};
++			name = Release;
++		};
++		5C1AB5CA9000000000000014 /* Debug */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				ENABLE_PREVIEWS = NO;
++				GENERATE_INFOPLIST_FILE = YES;
++				INFOPLIST_KEY_CFBundleDisplayName = "Slab Scanner";
++				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
++				INFOPLIST_KEY_NSCameraUsageDescription = "The camera reads the barcodes on slabs.";
++				INFOPLIST_KEY_NSMotionUsageDescription = "A test records how the phone moved while it read.";
++				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
++				INFOPLIST_KEY_UIFileSharingEnabled = YES;
++				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
++				INFOPLIST_KEY_UIRequiresFullScreen = YES;
++				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				LD_RUNPATH_SEARCH_PATHS = (
++					"$(inherited)",
++					"@executable_path/Frameworks",
++				);
++				MARKETING_VERSION = 0.1;
++				PRODUCT_BUNDLE_IDENTIFIER = io.github.bretts600.slabscanner;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SUPPORTED_PLATFORMS = iphoneos;
++				SUPPORTS_MACCATALYST = NO;
++				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
++				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
++				SWIFT_EMIT_LOC_STRINGS = YES;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = 1;
++			};
++			name = Debug;
++		};
++		5C1AB5CA9000000000000015 /* Release */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				ENABLE_PREVIEWS = NO;
++				GENERATE_INFOPLIST_FILE = YES;
++				INFOPLIST_KEY_CFBundleDisplayName = "Slab Scanner";
++				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
++				INFOPLIST_KEY_NSCameraUsageDescription = "The camera reads the barcodes on slabs.";
++				INFOPLIST_KEY_NSMotionUsageDescription = "A test records how the phone moved while it read.";
++				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
++				INFOPLIST_KEY_UIFileSharingEnabled = YES;
++				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
++				INFOPLIST_KEY_UIRequiresFullScreen = YES;
++				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				LD_RUNPATH_SEARCH_PATHS = (
++					"$(inherited)",
++					"@executable_path/Frameworks",
++				);
++				MARKETING_VERSION = 0.1;
++				PRODUCT_BUNDLE_IDENTIFIER = io.github.bretts600.slabscanner;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SUPPORTED_PLATFORMS = iphoneos;
++				SUPPORTS_MACCATALYST = NO;
++				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
++				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
++				SWIFT_EMIT_LOC_STRINGS = YES;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = 1;
++			};
++			name = Release;
++		};
++/* End XCBuildConfiguration section */
++
++/* Begin XCConfigurationList section */
++		5C1AB5CA9000000000000010 /* Build configuration list for PBXProject "SlabScanner" */ = {
++			isa = XCConfigurationList;
++			buildConfigurations = (
++				5C1AB5CA9000000000000012 /* Debug */,
++				5C1AB5CA9000000000000013 /* Release */,
++			);
++			defaultConfigurationIsVisible = 0;
++			defaultConfigurationName = Release;
++		};
++		5C1AB5CA9000000000000011 /* Build configuration list for PBXNativeTarget "SlabScanner" */ = {
++			isa = XCConfigurationList;
++			buildConfigurations = (
++				5C1AB5CA9000000000000014 /* Debug */,
++				5C1AB5CA9000000000000015 /* Release */,
++			);
++			defaultConfigurationIsVisible = 0;
++			defaultConfigurationName = Release;
++		};
++/* End XCConfigurationList section */
++	};
++	rootObject = 5C1AB5CA9000000000000009 /* Project object */;
++}
+diff --git a/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/contents.xcworkspacedata b/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+new file mode 100644
+index 0000000..919434a
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Workspace
++   version = "1.0">
++   <FileRef
++      location = "self:">
++   </FileRef>
++</Workspace>
+diff --git a/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings b/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+new file mode 100644
+index 0000000..c745518
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>BuildLocationStyle</key>
++	<string>UseAppPreferences</string>
++	<key>CustomBuildLocationType</key>
++	<string>RelativeToDerivedData</string>
++	<key>DerivedDataCustomLocation</key>
++	<string>DerivedData</string>
++	<key>DerivedDataLocationStyle</key>
++	<string>WorkspaceRelativePath</string>
++</dict>
++</plist>
+diff --git a/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/xcuserdata/brettschroyer.xcuserdatad/WorkspaceSettings.xcsettings b/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/xcuserdata/brettschroyer.xcuserdatad/WorkspaceSettings.xcsettings
+new file mode 100644
+index 0000000..c745518
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner.xcodeproj/project.xcworkspace/xcuserdata/brettschroyer.xcuserdatad/WorkspaceSettings.xcsettings
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>BuildLocationStyle</key>
++	<string>UseAppPreferences</string>
++	<key>CustomBuildLocationType</key>
++	<string>RelativeToDerivedData</string>
++	<key>DerivedDataCustomLocation</key>
++	<string>DerivedData</string>
++	<key>DerivedDataLocationStyle</key>
++	<string>WorkspaceRelativePath</string>
++</dict>
++</plist>
+diff --git a/ios/SlabScanner/SlabScanner/ContentView.swift b/ios/SlabScanner/SlabScanner/ContentView.swift
+new file mode 100644
+index 0000000..99580ac
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/ContentView.swift
+@@ -0,0 +1,227 @@
++//  The one screen: the camera's picture on top, the test and the switches under it.
++import SwiftUI
++
++struct ContentView: View {
++    @StateObject private var engine = Engine()
++
++    var body: some View {
++        GeometryReader { geo in
++            VStack(spacing: 0) {
++                ZStack(alignment: .top) {
++                    PreviewView(engine: engine)
++                    Text(engine.status)
++                        .font(.caption2.monospacedDigit())
++                        .foregroundColor(.white)
++                        .padding(.horizontal, 8)
++                        .padding(.vertical, 3)
++                        .background(Color.black.opacity(0.55))
++                        .clipShape(Capsule())
++                        .padding(.top, 4)
++                }
++                .frame(width: geo.size.width, height: geo.size.height * 0.52)
++                .background(Color.black)
++                ScrollView {
++                    VStack(alignment: .leading, spacing: 10) {
++                        counter
++                        planBlock
++                        buttons
++                        resultBlock
++                        switches
++                        codeList
++                    }
++                    .padding(12)
++                }
++                .scrollDismissesKeyboard(.immediately)
++            }
++        }
++        .onAppear { engine.start() }
++    }
++
++    private var counter: some View {
++        HStack(alignment: .firstTextBaseline) {
++            Text("\(engine.countedN)")
++                .font(.system(size: 34, weight: .bold).monospacedDigit())
++            Text(engine.countedN == 1 ? "code" : "codes")
++                .font(.headline)
++            Spacer()
++            if engine.recording {
++                Text(String(format: "%.1f s", engine.elapsed))
++                    .font(.title3.monospacedDigit())
++                    .foregroundColor(.red)
++            }
++        }
++    }
++
++    private var planBlock: some View {
++        HStack(alignment: .top, spacing: 8) {
++            Button {
++                engine.stepBy(-1)
++            } label: {
++                Image(systemName: "chevron.left").frame(width: 30, height: 40)
++            }
++            .buttonStyle(.bordered)
++            .disabled(engine.recording || engine.saving)
++            VStack(alignment: .leading, spacing: 2) {
++                Text("Next: test \(engine.step + 1) of \(TestPlan.steps.count)")
++                    .font(.subheadline.bold())
++                Text(TestPlan.steps[engine.step].what)
++                    .font(.subheadline)
++                    .fixedSize(horizontal: false, vertical: true)
++            }
++            .frame(maxWidth: .infinity, alignment: .leading)
++            Button {
++                engine.stepBy(1)
++            } label: {
++                Image(systemName: "chevron.right").frame(width: 30, height: 40)
++            }
++            .buttonStyle(.bordered)
++            .disabled(engine.recording || engine.saving)
++        }
++    }
++
++    private var buttons: some View {
++        VStack(alignment: .leading, spacing: 8) {
++            HStack(spacing: 10) {
++                if engine.recording {
++                    Button {
++                        engine.stop()
++                    } label: {
++                        Text("Stop").frame(maxWidth: .infinity)
++                    }
++                    .buttonStyle(.borderedProminent)
++                    .tint(.red)
++                } else {
++                    Button {
++                        engine.record()
++                    } label: {
++                        Text(engine.saving ? "Saving…" : "Record test").frame(maxWidth: .infinity)
++                    }
++                    .buttonStyle(.borderedProminent)
++                    .disabled(engine.saving)
++                }
++                Button {
++                    engine.snap()
++                } label: {
++                    Text("Snap").frame(width: 70)
++                }
++                .buttonStyle(.bordered)
++            }
++            .controlSize(.large)
++            if !engine.snapNote.isEmpty {
++                Text(engine.snapNote).font(.footnote)
++            }
++            if !engine.problem.isEmpty {
++                Text(engine.problem).font(.footnote).foregroundColor(.red)
++            }
++            TextField("Note for this test (optional)", text: $engine.note)
++                .textFieldStyle(.roundedBorder)
++                .font(.subheadline)
++                .disabled(engine.recording)
++        }
++    }
++
++    @ViewBuilder
++    private var resultBlock: some View {
++        if !engine.result.isEmpty {
++            VStack(alignment: .leading, spacing: 6) {
++                Text(engine.result)
++                    .font(.footnote)
++                    .fixedSize(horizontal: false, vertical: true)
++                if let url = engine.shareURL {
++                    ShareLink(item: url) {
++                        Label("Save test data (" + engine.shareSize + ")", systemImage: "square.and.arrow.up")
++                            .frame(maxWidth: .infinity)
++                    }
++                    .buttonStyle(.borderedProminent)
++                    .tint(.green)
++                    .controlSize(.large)
++                }
++            }
++        }
++    }
++
++    private var switches: some View {
++        VStack(alignment: .leading, spacing: 8) {
++            HStack(spacing: 8) {
++                Text("Lens").font(.caption).frame(width: 52, alignment: .leading)
++                Picker("Lens", selection: $engine.lens) {
++                    ForEach(Lens.allCases, id: \.self) { v in
++                        Text(v.rawValue).tag(v)
++                    }
++                }
++                .pickerStyle(.segmented)
++                Picker("Size", selection: $engine.size) {
++                    ForEach(SizeMode.allCases, id: \.self) { v in
++                        Text(v.rawValue).tag(v)
++                    }
++                }
++                .pickerStyle(.segmented)
++            }
++            HStack(spacing: 8) {
++                Text("Shutter").font(.caption).frame(width: 52, alignment: .leading)
++                Picker("Shutter", selection: $engine.shutter) {
++                    ForEach(ShutterMode.allCases, id: \.self) { v in
++                        Text(v.rawValue).tag(v)
++                    }
++                }
++                .pickerStyle(.segmented)
++            }
++            HStack(spacing: 8) {
++                Text("Focus").font(.caption).frame(width: 52, alignment: .leading)
++                Picker("Focus", selection: $engine.focus) {
++                    ForEach(FocusMode.allCases, id: \.self) { v in
++                        Text(v.rawValue).tag(v)
++                    }
++                }
++                .pickerStyle(.segmented)
++                .frame(width: 130)
++                Spacer()
++                Toggle("Depth", isOn: $engine.depthOn)
++                    .font(.caption)
++                    .fixedSize()
++            }
++            HStack(spacing: 14) {
++                Toggle("Video", isOn: $engine.videoOn)
++                    .font(.caption)
++                    .fixedSize()
++                Toggle("Light", isOn: $engine.lightOn)
++                    .font(.caption)
++                    .fixedSize()
++                Spacer()
++            }
++            Toggle("Scan without recording", isOn: $engine.live)
++                .font(.caption)
++            Text("A test stops by itself. Then Save test data hands over one file: the video, the lossless frames, what the camera did for every frame, the depth sensor, the phone's movement and every code. Green box: counted. Yellow: read, not counted yet.")
++                .font(.caption2)
++                .foregroundColor(.secondary)
++                .fixedSize(horizontal: false, vertical: true)
++        }
++        .disabled(engine.recording || engine.saving)
++        .onChange(of: engine.lens) { engine.apply() }
++        .onChange(of: engine.size) { engine.apply() }
++        .onChange(of: engine.shutter) { engine.apply() }
++        .onChange(of: engine.focus) { engine.apply() }
++        .onChange(of: engine.depthOn) { engine.apply() }
++        .onChange(of: engine.lightOn) { engine.apply() }
++        .onChange(of: engine.live) { engine.setLive(engine.live) }
++    }
++
++    private var codeList: some View {
++        VStack(alignment: .leading, spacing: 2) {
++            ForEach(engine.rows) { row in
++                HStack {
++                    Text(row.kind == "ITF" ? "ITF" : "128")
++                        .font(.caption2)
++                        .foregroundColor(.secondary)
++                        .frame(width: 28, alignment: .leading)
++                    Text(row.text)
++                        .font(.footnote.monospacedDigit())
++                    Spacer()
++                    Text(row.counted ? "counted" : "read \(row.sightings)x")
++                        .font(.caption2)
++                        .foregroundColor(row.counted ? .green : .orange)
++                }
++            }
++        }
++    }
++}
+diff --git a/ios/SlabScanner/SlabScanner/Engine.swift b/ios/SlabScanner/SlabScanner/Engine.swift
+new file mode 100644
+index 0000000..217c31d
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/Engine.swift
+@@ -0,0 +1,918 @@
++//  The camera, its controls, the reader and the live state of the screen.
++//
++//  WHAT A WEB PAGE CANNOT DO AND THIS CAN (the reason for the trial; Brett's 16 web test files, 2026-11-10: the page
++//  read 5-9 of the camera's 25 frames a second, a quarter to two thirds of the frames were blurred, and Safari offered
++//  no shutter, exposure or focus control):
++//  - THE SHUTTER: the camera keeps choosing its exposure, but may not use a shutter slower than a cap
++//    (activeMaxExposureDuration) - so it raises the sensitivity instead of blurring. "Smart" = 1/250 with 1x, 1/500 with
++//    3x, one step slower at a time when the picture is more than 1 EV too dark at the highest sensitivity, back when the
++//    light returns. "Auto" = the camera's own choice (what the web page got). Fixed caps for trying.
++//  - THE SIZE: 4032 x 3024 at 30 a second (1.4 times the dots across of the page's 4K), or 4K at 60.
++//  - THE FOCUS: continuous (not the slow "smooth" kind), or locked where it is.
++//  - EVERY FRAME READ by Apple's barcode reader (Vision), two at a time: the whole picture (W), then four overlapping
++//    quarter tiles (Q), then nine tiles (N), in turn - small far codes are not lost to a reduction of the whole picture.
++//    A code counts as a slab when it looks like a cert (slabCert) and was read in 2 frames (ITF, which has no check
++//    digit: 3 frames).
++//  - THE DEPTH SENSOR (LiDAR; with the 1x lens only - the sensor is paired with that lens): the distance at the centre
++//    and on a 5 x 5 grid, about 15 times a second.
++//  - WHAT THE CAMERA DID for every frame: shutter, sensitivity, focus position, whether focus / exposure were moving.
++//  - MOVEMENT 100 times a second on the camera's own clock.
++import AVFoundation
++import CoreMotion
++import ImageIO
++import SwiftUI
++import UIKit
++import Vision
++
++struct CamCfg: Equatable {
++    var lens = Lens.wide
++    var size = SizeMode.mp12
++    var depth = true
++}
++
++final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
++
++    // what the screen shows
++    @Published var rows: [CodeRow] = []
++    @Published var countedN = 0
++    @Published var boxes: [Box] = []
++    @Published var status = "Starting the camera…"
++    @Published var recording = false
++    @Published var elapsed = 0.0
++    @Published var result = ""
++    @Published var shareURL: URL? = nil
++    @Published var shareSize = ""
++    @Published var saving = false
++    @Published var problem = ""
++    @Published var snapNote = ""
++
++    // the switches
++    @Published var lens: Lens = .wide
++    @Published var size: SizeMode = .mp12
++    @Published var shutter: ShutterMode = .smart
++    @Published var focus: FocusMode = .auto
++    @Published var depthOn = true
++    @Published var videoOn = true
++    @Published var lightOn = false
++    @Published var live = false
++    @Published var step = 0
++    @Published var note = ""
++
++    let session = AVCaptureSession()
++    weak var preview: PreviewUIView?
++
++    let sessionQ = DispatchQueue(label: "slab.session")
++    let captureQ = DispatchQueue(label: "slab.capture", qos: .userInitiated)
++    let depthQ = DispatchQueue(label: "slab.depth")
++    let readers = DispatchQueue(label: "slab.readers", qos: .userInitiated, attributes: .concurrent)
++    let io = DispatchQueue(label: "slab.io", qos: .utility)
++    let videoOut = AVCaptureVideoDataOutput()
++    let depthOut = AVCaptureDepthDataOutput()
++    let photoOut = AVCapturePhotoOutput()
++    let motion = CMMotionManager()
++    let motionQ = OperationQueue()
++    let lock = NSLock()
++    let maxReaders = 2
++
++    var device: AVCaptureDevice?
++    var cur = CamCfg()
++    var configured = false
++    var usingLidar = false
++    var camInfo: [String: Any] = [:]
++    var started = false
++    var timer: Timer?
++
++    // under the lock
++    var codes: [String: CodeInfo] = [:]
++    var order: [CodeInfo] = []
++    var counted = 0
++    var inFlight = 0
++    var jobSeq = 0
++    var visionMs: [String: [Double]] = [:]
++    var lastBoxes: [Box] = []
++    var lastBoxesAt = 0.0
++    var rec: Recording?
++    var reading = false
++    var liveT0 = 0.0
++    var frameNo = 0
++    var capDen = 0
++    var shutterMode = ShutterMode.smart
++    var lensNow = Lens.wide
++    var sweepStep = -1
++    var lastDepthMm = -1
++    var lastDepthAt = 0.0
++    var lastExp = 0.0
++    var lastISO = 0.0
++    var lastLensPos = 0.0
++    var lastW = 0
++    var lastH = 0
++    var readTimes: [Double] = []
++    var snapAskedAt = 0.0
++
++    // the capture thread's own
++    var lastSmart = 0.0
++    var depthCount = 0
++
++    static let cycle = ["W", "Q", "N"]
++    static let rois: [String: [CGRect]] = [
++        "W": [CGRect(x: 0, y: 0, width: 1, height: 1)],
++        "Q": Engine.tiles(2, 0.12),
++        "N": Engine.tiles(3, 0.10)
++    ]
++
++    /// n x n tiles over the picture, neighbours overlapping by `overlap` of the picture.
++    static func tiles(_ n: Int, _ overlap: CGFloat) -> [CGRect] {
++        var out: [CGRect] = []
++        let s = (1 + overlap * CGFloat(n - 1)) / CGFloat(n)
++        let step = n > 1 ? (1 - s) / CGFloat(n - 1) : 0
++        for y in 0..<n {
++            for x in 0..<n {
++                out.append(CGRect(x: CGFloat(x) * step, y: CGFloat(y) * step, width: s, height: s))
++            }
++        }
++        return out
++    }
++
++    // MARK: - starting
++
++    func start() {
++        if started { return }
++        started = true
++        UIApplication.shared.isIdleTimerDisabled = true
++        UIDevice.current.isBatteryMonitoringEnabled = true
++        motionQ.maxConcurrentOperationCount = 1
++        loadPlan()
++        videoOut.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]
++        videoOut.alwaysDiscardsLateVideoFrames = true
++        videoOut.automaticallyConfiguresOutputBufferDimensions = false
++        videoOut.deliversPreviewSizedOutputBuffers = false
++        videoOut.setSampleBufferDelegate(self, queue: captureQ)
++        depthOut.isFilteringEnabled = true
++        depthOut.alwaysDiscardsLateDepthData = true
++        depthOut.setDelegate(self, callbackQueue: depthQ)
++        photoOut.maxPhotoQualityPrioritization = .quality
++        AVCaptureDevice.requestAccess(for: .video) { ok in
++            DispatchQueue.main.async {
++                if ok {
++                    self.apply(startSession: true)
++                } else {
++                    self.problem = "The camera is switched off for this app: Settings > Apps > Slab Scanner > Camera."
++                }
++            }
++        }
++        timer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
++            self?.tick()
++        }
++        NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
++            self?.event("heat", String(ProcessInfo.processInfo.thermalState.rawValue))
++        }
++    }
++
++    // MARK: - the plan and the switches (main thread)
++
++    func loadPlan() {
++        let p = TestPlan.steps[step]
++        lens = p.lens
++        size = p.size
++        shutter = p.shutter
++        focus = p.focus
++        depthOn = p.depth
++    }
++
++    func stepBy(_ d: Int) {
++        if recording || saving { return }
++        step = min(TestPlan.steps.count - 1, max(0, step + d))
++        note = ""
++        loadPlan()
++        apply()
++    }
++
++    func apply(startSession: Bool = false) {
++        let c = CamCfg(lens: lens, size: size, depth: depthOn)
++        let sh = shutter
++        let fo = focus
++        let li = lightOn
++        sessionQ.async {
++            if !self.configured || c != self.cur { self.configure(c) }
++            self.lock.lock()
++            self.shutterMode = sh
++            self.lensNow = c.lens
++            self.lock.unlock()
++            switch sh {
++            case .auto: self.setCap(nil)
++            case .smart: self.setCap(c.lens == .tele ? 500 : 250)
++            default: self.setCap(sh.den)
++            }
++            self.setFocus(fo)
++            self.setTorch(li)
++            if startSession && !self.session.isRunning { self.session.startRunning() }
++        }
++    }
++
++    func setLive(_ on: Bool) {
++        lock.lock()
++        if on && rec == nil {
++            codes = [:]
++            order = []
++            counted = 0
++            liveT0 = CACurrentMediaTime()
++        }
++        reading = on || rec != nil
++        lock.unlock()
++    }
++
++    func event(_ what: String, _ detail: String) {
++        lock.lock()
++        if let r = rec {
++            r.events.append([Int((CACurrentMediaTime() - r.t0) * 1000), what, detail])
++        }
++        lock.unlock()
++    }
++
++    func logError(_ r: Recording, _ s: String) {
++        lock.lock()
++        r.errors.append(s)
++        lock.unlock()
++    }
++
++    // MARK: - the camera (session thread)
++
++    func pickFormat(_ d: AVCaptureDevice, _ size: SizeMode, needDepth: Bool) -> AVCaptureDevice.Format? {
++        let wantW: Int32 = size == .k4 ? 3840 : 4032
++        let wantH: Int32 = size == .k4 ? 2160 : 3024
++        let wantFps: Double = size == .k4 ? 60 : 30
++        var best: AVCaptureDevice.Format? = nil
++        var bestScore = -1.0
++        for f in d.formats {
++            let desc = f.formatDescription
++            if CMFormatDescriptionGetMediaSubType(desc) != kCVPixelFormatType_420YpCbCr8BiPlanarFullRange { continue }
++            if needDepth && f.supportedDepthDataFormats.isEmpty { continue }
++            let dim = CMVideoFormatDescriptionGetDimensions(desc)
++            var maxFps = 0.0
++            for r in f.videoSupportedFrameRateRanges { maxFps = max(maxFps, r.maxFrameRate) }
++            var score = Double(dim.width) * Double(dim.height) / 1e6
++            if dim.width == wantW && dim.height == wantH { score += 1000 }
++            if maxFps >= wantFps { score += 100 }
++            if !f.isVideoBinned { score += 10 }
++            if score > bestScore {
++                bestScore = score
++                best = f
++            }
++        }
++        return best
++    }
++
++    func pickDepth(_ fmt: AVCaptureDevice.Format) -> AVCaptureDevice.Format? {
++        var best: AVCaptureDevice.Format? = nil
++        var bestW: Int32 = 0
++        for f in fmt.supportedDepthDataFormats {
++            let sub = CMFormatDescriptionGetMediaSubType(f.formatDescription)
++            if sub != kCVPixelFormatType_DepthFloat32 && sub != kCVPixelFormatType_DepthFloat16 { continue }
++            let w = CMVideoFormatDescriptionGetDimensions(f.formatDescription).width
++            if w > bestW || (w == bestW && sub == kCVPixelFormatType_DepthFloat32) {
++                best = f
++                bestW = w
++            }
++        }
++        return best ?? fmt.supportedDepthDataFormats.last
++    }
++
++    func fail(_ s: String) {
++        DispatchQueue.main.async { self.problem = s }
++    }
++
++    func configure(_ c: CamCfg) {
++        var dev: AVCaptureDevice? = nil
++        var lidar = false
++        if c.depth && c.lens == .wide {
++            if let d = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back), pickFormat(d, c.size, needDepth: true) != nil {
++                dev = d
++                lidar = true
++            }
++        }
++        if dev == nil {
++            let type: AVCaptureDevice.DeviceType = c.lens == .tele ? .builtInTelephotoCamera : .builtInWideAngleCamera
++            dev = AVCaptureDevice.default(type, for: .video, position: .back)
++        }
++        if dev == nil {
++            dev = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
++        }
++        guard let d = dev else {
++            fail("No back camera was found.")
++            return
++        }
++        guard let fmt = pickFormat(d, c.size, needDepth: lidar) else {
++            fail("The camera offers no picture format this app can use.")
++            return
++        }
++        session.beginConfiguration()
++        for i in session.inputs { session.removeInput(i) }
++        do {
++            let input = try AVCaptureDeviceInput(device: d)
++            if session.canAddInput(input) { session.addInput(input) }
++        } catch {
++            fail("The camera could not be opened: \(error.localizedDescription)")
++        }
++        if !session.outputs.contains(videoOut) && session.canAddOutput(videoOut) { session.addOutput(videoOut) }
++        if !session.outputs.contains(photoOut) && session.canAddOutput(photoOut) { session.addOutput(photoOut) }
++        if lidar {
++            if !session.outputs.contains(depthOut) && session.canAddOutput(depthOut) { session.addOutput(depthOut) }
++        } else if session.outputs.contains(depthOut) {
++            session.removeOutput(depthOut)
++        }
++        var fps = 30.0
++        var depthName = ""
++        do {
++            try d.lockForConfiguration()
++            d.activeFormat = fmt
++            var maxFps = 0.0
++            for r in fmt.videoSupportedFrameRateRanges { maxFps = max(maxFps, r.maxFrameRate) }
++            fps = min(c.size == .k4 ? 60.0 : 30.0, maxFps)
++            if fps >= 1 {
++                let dur = CMTime(value: 1, timescale: CMTimeScale(fps.rounded()))
++                d.activeVideoMinFrameDuration = dur
++                d.activeVideoMaxFrameDuration = dur
++            }
++            if lidar, let df = pickDepth(fmt) {
++                d.activeDepthDataFormat = df
++                let dd = CMVideoFormatDescriptionGetDimensions(df.formatDescription)
++                depthName = "\(dd.width)x\(dd.height) " + fourcc(CMFormatDescriptionGetMediaSubType(df.formatDescription))
++            }
++            if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
++            if d.isSmoothAutoFocusSupported { d.isSmoothAutoFocusEnabled = false }
++            if d.isExposureModeSupported(.continuousAutoExposure) { d.exposureMode = .continuousAutoExposure }
++            if d.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { d.whiteBalanceMode = .continuousAutoWhiteBalance }
++            d.automaticallyAdjustsVideoHDREnabled = false
++            d.unlockForConfiguration()
++        } catch {
++            fail("The camera could not be set: \(error.localizedDescription)")
++        }
++        session.commitConfiguration()
++        if let conn = videoOut.connection(with: .video), conn.isVideoStabilizationSupported {
++            conn.preferredVideoStabilizationMode = .off
++        }
++        var best = CMVideoDimensions(width: 0, height: 0)
++        for pd in d.activeFormat.supportedMaxPhotoDimensions {
++            if Int(pd.width) * Int(pd.height) > Int(best.width) * Int(best.height) { best = pd }
++        }
++        if best.width > 0 && session.outputs.contains(photoOut) { photoOut.maxPhotoDimensions = best }
++
++        let dim = CMVideoFormatDescriptionGetDimensions(fmt.formatDescription)
++        var info: [String: Any] = [:]
++        info["device"] = d.localizedName
++        info["type"] = d.deviceType.rawValue
++        info["width"] = Int(dim.width)
++        info["height"] = Int(dim.height)
++        info["framesPerSecond"] = Int(fps.rounded())
++        info["pixelFormat"] = fourcc(CMFormatDescriptionGetMediaSubType(fmt.formatDescription))
++        info["binned"] = fmt.isVideoBinned
++        info["fieldOfViewDegreesX10"] = Int(fmt.videoFieldOfView * 10)
++        info["minISO"] = Int(fmt.minISO)
++        info["maxISO"] = Int(fmt.maxISO)
++        info["shortestShutterMicroseconds"] = ji(fmt.minExposureDuration.seconds * 1e6)
++        info["longestShutterMicroseconds"] = ji(fmt.maxExposureDuration.seconds * 1e6)
++        info["depthSensor"] = lidar
++        info["depthFormat"] = depthName
++        info["closestFocusMm"] = d.minimumFocusDistance
++        info["photoWidth"] = Int(best.width)
++        info["photoHeight"] = Int(best.height)
++        info["lensAperture"] = Int(d.lensAperture * 100)
++        device = d
++        cur = c
++        configured = true
++        usingLidar = lidar
++        lock.lock()
++        camInfo = info
++        lastDepthMm = -1
++        lock.unlock()
++        DispatchQueue.main.async {
++            self.preview?.upright()
++        }
++        event("camera", "\(d.localizedName) \(dim.width)x\(dim.height) at \(Int(fps.rounded()))" + (lidar ? " with the depth sensor" : ""))
++    }
++
++    /// The slowest shutter the camera may choose, 1/den of a second (nil: its own choice).
++    func setCap(_ den: Int?) {
++        guard let d = device else { return }
++        do {
++            try d.lockForConfiguration()
++            if let den = den {
++                var t = CMTime(value: 1, timescale: CMTimeScale(den))
++                let lo = d.activeFormat.minExposureDuration
++                let hi = d.activeFormat.maxExposureDuration
++                if CMTimeCompare(t, lo) < 0 { t = lo }
++                if CMTimeCompare(t, hi) > 0 { t = hi }
++                d.activeMaxExposureDuration = t
++            } else {
++                d.activeMaxExposureDuration = CMTime.invalid
++            }
++            if d.isExposureModeSupported(.continuousAutoExposure) { d.exposureMode = .continuousAutoExposure }
++            d.unlockForConfiguration()
++            lock.lock()
++            capDen = den ?? 0
++            lock.unlock()
++        } catch {
++        }
++    }
++
++    func setFocus(_ m: FocusMode) {
++        guard let d = device else { return }
++        do {
++            try d.lockForConfiguration()
++            if m == .locked {
++                if d.isLockingFocusWithCustomLensPositionSupported {
++                    d.setFocusModeLocked(lensPosition: AVCaptureDevice.currentLensPosition, completionHandler: nil)
++                } else if d.isFocusModeSupported(.locked) {
++                    d.focusMode = .locked
++                }
++            } else if d.isFocusModeSupported(.continuousAutoFocus) {
++                d.focusMode = .continuousAutoFocus
++            }
++            d.unlockForConfiguration()
++        } catch {
++        }
++    }
++
++    func setTorch(_ on: Bool) {
++        guard let d = device, d.hasTorch, d.isTorchAvailable else { return }
++        do {
++            try d.lockForConfiguration()
++            if on {
++                try d.setTorchModeOn(level: 1.0)
++            } else {
++                d.torchMode = .off
++            }
++            d.unlockForConfiguration()
++        } catch {
++        }
++    }
++
++    // MARK: - every frame (capture thread)
++
++    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
++        guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
++        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
++        let dev = device
++        var expS = 0.0
++        var iso = 0.0
++        if let ex = CMGetAttachment(sampleBuffer, key: "{Exif}" as CFString, attachmentModeOut: nil) as? [String: Any] {
++            if let v = ex["ExposureTime"] as? Double { expS = v }
++            if let a = ex["ISOSpeedRatings"] as? [Any], let n = a.first as? NSNumber { iso = n.doubleValue }
++        }
++        var lensPos = 0.0
++        var off = 0.0
++        var af = false
++        var ae = false
++        if let d = dev {
++            if expS <= 0 { expS = d.exposureDuration.seconds }
++            if iso <= 0 { iso = Double(d.iso) }
++            lensPos = Double(d.lensPosition)
++            off = Double(d.exposureTargetOffset)
++            af = d.isAdjustingFocus
++            ae = d.isAdjustingExposure
++        }
++        let st = frameStats(pb)
++        let pw = CVPixelBufferGetWidth(pb)
++        let ph = CVPixelBufferGetHeight(pb)
++
++        lock.lock()
++        frameNo += 1
++        let no = frameNo
++        lastExp = expS
++        lastISO = iso
++        lastLensPos = lensPos
++        lastW = pw
++        lastH = ph
++        var r: Recording? = nil
++        if let x = rec, !x.stopping, pts >= x.t0 { r = x }
++        let mode = shutterMode
++        let cap = capDen
++        let tele = lensNow == .tele
++        let depthMm = (pts - lastDepthAt) < 0.5 ? lastDepthMm : -1
++        var fr: FrameRec? = nil
++        var tRel = 0.0
++        if let r = r {
++            tRel = pts - r.t0
++            let f = FrameRec()
++            f.n = no
++            f.t = tRel * 1000
++            f.exp = expS
++            f.iso = iso
++            f.lensPos = lensPos
++            f.af = af
++            f.ae = ae
++            f.off = off
++            f.mean = st.mean
++            f.p1 = st.p1
++            f.p99 = st.p99
++            f.blown = st.blown
++            f.sharp = st.sharp
++            f.capDen = cap
++            f.sweep = sweepStep
++            f.depthMm = depthMm
++            r.frames.append(f)
++            r.delivered += 1
++            fr = f
++        }
++        let canRead = reading && inFlight < maxReaders
++        var seq = 0
++        if canRead {
++            inFlight += 1
++            jobSeq += 1
++            seq = jobSeq
++            r?.jobs += 1
++        }
++        lock.unlock()
++
++        if let r = r {
++            if r.wantVideo && !r.writerFailed { appendVideo(r, sampleBuffer, pw, ph) }
++            // a lossless frame every two seconds (six at most): exactly what the reader saw, for reading again later
++            if r.kept.count < 6 && tRel >= 0.5 && tRel - r.lastKeptT >= 2.0 {
++                r.lastKeptT = tRel
++                if let (data, w, h) = copyLuma(pb) {
++                    let k = r.kept.count + 1
++                    let name = String(format: "frame-%02d-%dx%d.y8", k, w, h)
++                    r.kept.append(["file": name, "frame": no, "ms": Int(tRel * 1000), "width": w, "height": h])
++                    lock.lock()
++                    fr?.kept = k
++                    lock.unlock()
++                    let url = r.dir.appendingPathComponent(name)
++                    io.async {
++                        try? data.write(to: url)
++                    }
++                }
++            }
++            if r.plan.special == "sweep" {
++                let i = Int(tRel / TestPlan.sweepSeconds)
++                if i != r.sweepIdx && i < TestPlan.sweep.count {
++                    r.sweepIdx = i
++                    let den = TestPlan.sweep[i]
++                    lock.lock()
++                    sweepStep = i
++                    lock.unlock()
++                    sessionQ.async { self.setCap(den == 0 ? nil : den) }
++                    event("shutter", den == 0 ? "the camera's own choice" : "1/\(den)")
++                }
++            } else if r.plan.special == "lockfocus" && !r.didLock && tRel >= 2.0 {
++                r.didLock = true
++                sessionQ.async { self.setFocus(.locked) }
++                event("focus", "locked at \(Int(lensPos * 1000)) per mille")
++            } else if mode == .smart {
++                smart(dev, pts, off: off, iso: iso, cap: cap, tele: tele)
++            }
++        } else if mode == .smart {
++            smart(dev, pts, off: off, iso: iso, cap: cap, tele: tele)
++        }
++
++        if canRead {
++            let kind = Engine.cycle[seq % Engine.cycle.count]
++            let rois = Engine.rois[kind] ?? []
++            readers.async {
++                let handler = VNImageRequestHandler(cvPixelBuffer: pb, orientation: .up, options: [:])
++                let res = self.detect(handler, rois: rois)
++                self.merge(res.0, ms: res.1, kind: kind, pts: pts, fr: fr, r: r, pw: pw, ph: ph)
++            }
++        }
++    }
++
++    func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
++        lock.lock()
++        if let r = rec, !r.stopping { r.cameraDropped += 1 }
++        lock.unlock()
++    }
++
++    /// "Smart" shutter: the fastest cap the light allows (see the top of this file).
++    func smart(_ dev: AVCaptureDevice?, _ pts: Double, off: Double, iso: Double, cap: Int, tele: Bool) {
++        guard let d = dev, cap > 0, pts - lastSmart > 0.4 else { return }
++        lastSmart = pts
++        let maxISO = Double(d.activeFormat.maxISO)
++        let target = tele ? 500 : 250
++        var den = cap
++        if off < -1.0 && iso > 0.85 * maxISO && den > 30 {
++            den = max(30, den / 2)
++        } else if off > -0.3 && iso < 0.4 * maxISO && den < target {
++            den = min(target, den * 2)
++        }
++        if den != cap {
++            sessionQ.async { self.setCap(den) }
++            event("shutter", "1/\(den) (smart)")
++        }
++    }
++
++    func appendVideo(_ r: Recording, _ sb: CMSampleBuffer, _ pw: Int, _ ph: Int) {
++        if r.writer == nil {
++            do {
++                let url = r.dir.appendingPathComponent("video.mov")
++                let w = try AVAssetWriter(outputURL: url, fileType: .mov)
++                let comp: [String: Any] = [AVVideoAverageBitRateKey: 24_000_000]
++                let settings: [String: Any] = [AVVideoCodecKey: AVVideoCodecType.hevc, AVVideoWidthKey: pw, AVVideoHeightKey: ph, AVVideoCompressionPropertiesKey: comp]
++                if !w.canApply(outputSettings: settings, forMediaType: .video) {
++                    r.writerFailed = true
++                    logError(r, "video: these settings are not accepted (\(pw)x\(ph) HEVC)")
++                    return
++                }
++                let i = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
++                i.expectsMediaDataInRealTime = true
++                i.transform = CGAffineTransform(rotationAngle: .pi / 2)
++                if !w.canAdd(i) {
++                    r.writerFailed = true
++                    logError(r, "video: the writer would not take the picture input")
++                    return
++                }
++                w.add(i)
++                if !w.startWriting() {
++                    r.writerFailed = true
++                    logError(r, "video: " + (w.error?.localizedDescription ?? "did not start"))
++                    return
++                }
++                w.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sb))
++                r.writer = w
++                r.writerInput = i
++            } catch {
++                r.writerFailed = true
++                logError(r, "video: \(error.localizedDescription)")
++                return
++            }
++        }
++        guard let w = r.writer, let i = r.writerInput else { return }
++        if w.status != .writing {
++            r.writerFailed = true
++            logError(r, "video: stopped (" + (w.error?.localizedDescription ?? "status \(w.status.rawValue)") + ")")
++            return
++        }
++        if i.isReadyForMoreMediaData {
++            if i.append(sb) { r.videoFrames += 1 } else { r.videoSkipped += 1 }
++        } else {
++            r.videoSkipped += 1
++        }
++    }
++
++    // MARK: - reading (reader threads)
++
++    /// Apple's barcode reader over each region of the picture. Returns what was found and the milliseconds it took.
++    func detect(_ handler: VNImageRequestHandler, rois: [CGRect]) -> ([Found], Double) {
++        let t = CACurrentMediaTime()
++        var reqs: [VNDetectBarcodesRequest] = []
++        for roi in rois {
++            let q = VNDetectBarcodesRequest()
++            q.symbologies = [.code128, .i2of5, .qr, .code39]
++            q.regionOfInterest = roi
++            reqs.append(q)
++        }
++        var out: [Found] = []
++        do {
++            try handler.perform(reqs)
++            for (i, q) in reqs.enumerated() {
++                let roi = rois[i]
++                for o in q.results ?? [] {
++                    guard let s = o.payloadStringValue else { continue }
++                    let b = o.boundingBox       // relative to the region
++                    let box = CGRect(x: roi.minX + b.minX * roi.width, y: roi.minY + b.minY * roi.height, width: b.width * roi.width, height: b.height * roi.height)
++                    out.append(Found(kind: kindName(o.symbology), text: s, conf: o.confidence, box: box))
++                }
++            }
++        } catch {
++        }
++        return (out, (CACurrentMediaTime() - t) * 1000)
++    }
++
++    func merge(_ found: [Found], ms: Double, kind: String, pts: Double, fr: FrameRec?, r: Recording?, pw: Int, ph: Int) {
++        let now = CACurrentMediaTime()
++        lock.lock()
++        inFlight -= 1
++        r?.jobs -= 1
++        readTimes.append(now)
++        if r != nil {
++            var a = visionMs[kind] ?? []
++            a.append(ms)
++            visionMs[kind] = a
++        }
++        let t0 = r?.t0 ?? liveT0
++        var seen = Set<String>()
++        var bx: [Box] = []
++        for f in found {
++            let key = f.kind + "|" + f.text
++            let firstHere = seen.insert(key).inserted
++            var c = codes[key]
++            if c == nil {
++                let n = CodeInfo(kind: f.kind, text: f.text, index: order.count)
++                n.firstMs = (pts - t0) * 1000
++                n.firstBy = kind
++                n.slab = slabCert(kind: f.kind, text: f.text)
++                n.need = f.kind == "ITF" ? 3 : 2
++                codes[key] = n
++                order.append(n)
++                c = n
++            }
++            guard let info = c else { continue }
++            let px = Int(max(f.box.width * CGFloat(pw), f.box.height * CGFloat(ph)).rounded())
++            if firstHere {
++                info.frames += 1
++                info.by[kind] = (info.by[kind] ?? 0) + 1
++            }
++            if px > 0 {
++                info.minPx = min(info.minPx, px)
++                info.maxPx = max(info.maxPx, px)
++            }
++            info.conf = max(info.conf, f.conf)
++            if info.countedMs == nil && info.slab && info.frames >= info.need {
++                info.countedMs = (now - t0) * 1000
++                counted += 1
++            }
++            bx.append(Box(rect: CGRect(x: f.box.minX, y: 1 - f.box.maxY, width: f.box.width, height: f.box.height), counted: info.countedMs != nil))
++            if let fr = fr {
++                fr.found.append([info.index, Int(f.box.minX * 1000), Int(f.box.minY * 1000), Int(f.box.width * 1000), Int(f.box.height * 1000), Int(f.conf * 100)])
++            }
++        }
++        if let fr = fr {
++            fr.job = kind
++            fr.jobMs = ms
++            fr.doneT = (now - t0) * 1000
++        }
++        lastBoxes = bx
++        lastBoxesAt = now
++        lock.unlock()
++    }
++
++    // MARK: - the depth sensor (depth thread)
++
++    func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
++        depthCount += 1
++        if depthCount % 2 != 0 { return }
++        let d = depthData.depthDataType == kCVPixelFormatType_DepthFloat32 ? depthData : depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
++        let map = d.depthDataMap
++        CVPixelBufferLockBaseAddress(map, .readOnly)
++        defer { CVPixelBufferUnlockBaseAddress(map, .readOnly) }
++        guard let base = CVPixelBufferGetBaseAddress(map) else { return }
++        let w = CVPixelBufferGetWidth(map)
++        let h = CVPixelBufferGetHeight(map)
++        let rb = CVPixelBufferGetBytesPerRow(map)
++        if w < 16 || h < 16 { return }
++        var grid: [Any] = []
++        var centre = -1
++        for gy in 0..<5 {
++            for gx in 0..<5 {
++                let cx = Int((Double(gx) + 0.5) / 5.0 * Double(w))
++                let cy = Int((Double(gy) + 0.5) / 5.0 * Double(h))
++                var vals: [Float] = []
++                var dy = -4
++                while dy <= 4 {
++                    var dx = -4
++                    while dx <= 4 {
++                        let x = min(max(cx + dx, 0), w - 1)
++                        let y = min(max(cy + dy, 0), h - 1)
++                        let v = (base + y * rb).assumingMemoryBound(to: Float32.self)[x]
++                        if v.isFinite && v > 0 { vals.append(v) }
++                        dx += 2
++                    }
++                    dy += 2
++                }
++                if vals.isEmpty {
++                    grid.append(NSNull())
++                } else {
++                    vals.sort()
++                    let mm = Int((vals[vals.count / 2] * 1000).rounded())
++                    grid.append(mm)
++                    if gy == 2 && gx == 2 { centre = mm }
++                }
++            }
++        }
++        let ts = timestamp.seconds
++        lock.lock()
++        lastDepthMm = centre
++        lastDepthAt = ts
++        if let r = rec, !r.stopping, ts >= r.t0 {
++            r.depth.append([Int((ts - r.t0) * 1000), centre, grid])
++        }
++        lock.unlock()
++    }
++
++    // MARK: - the snap (a full photograph, read once)
++
++    func snap() {
++        lock.lock()
++        snapAskedAt = CACurrentMediaTime()
++        rec?.snapsAsked += 1
++        lock.unlock()
++        sessionQ.async {
++            if !self.session.outputs.contains(self.photoOut) {
++                self.fail("The photo output is not ready.")
++                return
++            }
++            let s = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
++            s.photoQualityPrioritization = .quality
++            s.maxPhotoDimensions = self.photoOut.maxPhotoDimensions
++            self.photoOut.capturePhoto(with: s, delegate: self)
++        }
++    }
++
++    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
++        let got = CACurrentMediaTime()
++        lock.lock()
++        let r = rec
++        let asked = snapAskedAt
++        lock.unlock()
++        if let e = error {
++            fail("The snap failed: \(e.localizedDescription)")
++            return
++        }
++        guard let data = photo.fileDataRepresentation() else {
++            fail("The snap gave no picture.")
++            return
++        }
++        readers.async {
++            guard let src = CGImageSourceCreateWithData(data as CFData, nil), let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
++                self.fail("The snap could not be opened.")
++                return
++            }
++            var texts: [String] = []
++            var seen = Set<String>()
++            var rowsOut: [[Any]] = []
++            var times: [Any] = []
++            for kind in Engine.cycle {
++                let handler = VNImageRequestHandler(cgImage: img, orientation: .up, options: [:])
++                let res = self.detect(handler, rois: Engine.rois[kind] ?? [])
++                times.append(Int(res.1))
++                for f in res.0 {
++                    let key = f.kind + "|" + f.text
++                    let px = Int(max(f.box.width * CGFloat(img.width), f.box.height * CGFloat(img.height)).rounded())
++                    rowsOut.append([f.kind, f.text, kind, px, Int(f.conf * 100), slabCert(kind: f.kind, text: f.text)])
++                    if seen.insert(key).inserted && slabCert(kind: f.kind, text: f.text) { texts.append(f.text) }
++                }
++            }
++            var n = 1
++            if let r = r {
++                self.lock.lock()
++                n = r.snaps.count + 1
++                let name = String(format: "snap-%02d.jpg", n)
++                var d: [String: Any] = [:]
++                d["file"] = name
++                d["askedMs"] = Int((asked - r.t0) * 1000)
++                d["gotMs"] = Int((got - r.t0) * 1000)
++                d["width"] = img.width
++                d["height"] = img.height
++                d["bytes"] = data.count
++                d["slabCodes"] = texts.count
++                d["readingMs W, Q, N"] = times
++                d["found: kind, text, by, long side in dots, confidence x100, a slab cert"] = rowsOut
++                r.snaps.append(d)
++                self.lock.unlock()
++                let url = r.dir.appendingPathComponent(name)
++                self.io.async {
++                    try? data.write(to: url)
++                }
++            }
++            let line = "Snap \(n): \(texts.count) codes (\(img.width) x \(img.height), \(Int((got - asked) * 1000)) ms to take)"
++            DispatchQueue.main.async {
++                self.snapNote = line
++            }
++        }
++    }
++
++    // MARK: - the screen's clock (main thread, about 7 times a second)
++
++    func tick() {
++        let now = CACurrentMediaTime()
++        lock.lock()
++        var list: [CodeRow] = []
++        var i = order.count - 1
++        while i >= 0 && list.count < 80 {
++            let c = order[i]
++            if c.slab {
++                list.append(CodeRow(id: c.kind + "|" + c.text, kind: c.kind, text: c.text, counted: c.countedMs != nil, sightings: c.frames))
++            }
++            i -= 1
++        }
++        let n = counted
++        let bx = (now - lastBoxesAt) < 0.5 ? lastBoxes : []
++        let r = rec
++        let e = lastExp
++        let iso = lastISO
++        let lp = lastLensPos
++        let dmm = (now - lastDepthAt) < 0.6 ? lastDepthMm : -1
++        readTimes.removeAll { now - $0 > 1.0 }
++        let rps = readTimes.count
++        let cap = capDen
++        let w = lastW
++        let h = lastH
++        let t0 = r?.t0 ?? 0
++        let isStopping = r?.stopping ?? false
++        let limit = r?.plan.seconds ?? 0
++        lock.unlock()
++
++        rows = list
++        countedN = n
++        boxes = bx
++        var s = ""
++        if e > 0 { s += "1/\(Int((1 / e).rounded())) s" }
++        if cap > 0 { s += " (cap 1/\(cap))" }
++        s += " · ISO \(Int(iso)) · focus \(Int(lp * 100))"
++        if dmm > 0 { s += String(format: " · %.1f in", Double(dmm) / 25.4) }
++        s += " · \(rps) reads/s · \(w)x\(h)"
++        status = s
++        if recording && r != nil && !isStopping {
++            elapsed = now - t0
++            if elapsed >= limit { stop() }
++        }
++    }
++}
+diff --git a/ios/SlabScanner/SlabScanner/EngineFiles.swift b/ios/SlabScanner/SlabScanner/EngineFiles.swift
+new file mode 100644
+index 0000000..f3091de
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/EngineFiles.swift
+@@ -0,0 +1,454 @@
++//  A test: Record, Stop, and the file that is handed over (AirDrop).
++//
++//  THE FILE (a zip of one folder, slab-native-<version>-t<test>-<date>-<time>):
++//    report.json   the test, the phone, the camera as it was set, the counts and times, every code, the events
++//    frames.json   one row per frame the camera delivered: what the camera did, the picture's light and sharpness,
++//                  how it was read and what was found in it
++//    motion.json   the phone's movement 100 times a second, on the camera's clock
++//    depth.json    the depth sensor: distance at the centre and on a 5 x 5 grid
++//    camera.json   every picture format every back camera of the phone offers
++//    video.mov     every frame the camera delivered (HEVC)
++//    frame-NN-WxH.y8   up to six frames exactly as the reader saw them: the grey plane, W x H bytes, row by row
++//    snap-NN.jpg   the photographs of the Snap button
++import AVFoundation
++import CoreMotion
++import Foundation
++import UIKit
++
++extension Engine {
++
++    // MARK: - record (main thread)
++
++    func record() {
++        if recording || saving { return }
++        let plan = TestPlan.steps[step]
++        let fm = FileManager.default
++        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tests", isDirectory: true)
++        let df = DateFormatter()
++        df.locale = Locale(identifier: "en_US_POSIX")
++        df.dateFormat = "yyyyMMdd-HHmmss"
++        let name = "slab-native-" + TestPlan.version + String(format: "-t%02d-", step + 1) + df.string(from: Date())
++        let dir = docs.appendingPathComponent(name, isDirectory: true)
++        do {
++            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
++        } catch {
++            problem = "The test's folder could not be made: \(error.localizedDescription)"
++            return
++        }
++        prune(docs)
++        let r = Recording(step: step, plan: plan, t0: CACurrentMediaTime(), dir: dir, name: name)
++        r.note = note
++        r.wantVideo = videoOn
++        r.heatStart = ProcessInfo.processInfo.thermalState.rawValue
++        r.batteryStart = UIDevice.current.batteryLevel
++        var st: [String: Any] = [:]
++        st["lens"] = lens.rawValue
++        st["size"] = size.rawValue
++        st["shutter"] = shutter.rawValue
++        st["focus"] = focus.rawValue
++        st["depthSensor"] = depthOn
++        st["video"] = videoOn
++        st["light"] = lightOn
++        st["special"] = plan.special
++        st["stopsAfterSeconds"] = Int(plan.seconds)
++        r.settings = st
++        lock.lock()
++        codes = [:]
++        order = []
++        counted = 0
++        visionMs = [:]
++        lastBoxes = []
++        sweepStep = -1
++        r.camera = camInfo
++        rec = r
++        reading = true
++        lock.unlock()
++        shareURL = nil
++        shareSize = ""
++        result = ""
++        snapNote = ""
++        problem = ""
++        elapsed = 0
++        recording = true
++        motion.deviceMotionUpdateInterval = 0.01
++        if motion.isDeviceMotionAvailable {
++            motion.startDeviceMotionUpdates(to: motionQ) { [weak self] m, _ in
++                guard let self = self, let m = m else { return }
++                self.lock.lock()
++                if let x = self.rec, !x.stopping {
++                    x.motion.append((m.timestamp - x.t0) * 1000)
++                    x.motion.append(m.rotationRate.x * 1000)
++                    x.motion.append(m.rotationRate.y * 1000)
++                    x.motion.append(m.rotationRate.z * 1000)
++                    x.motion.append(m.userAcceleration.x * 1000)
++                    x.motion.append(m.userAcceleration.y * 1000)
++                    x.motion.append(m.userAcceleration.z * 1000)
++                    x.motion.append(m.gravity.x * 1000)
++                    x.motion.append(m.gravity.y * 1000)
++                    x.motion.append(m.gravity.z * 1000)
++                }
++                self.lock.unlock()
++            }
++        }
++        event("start", "test \(step + 1)")
++    }
++
++    // MARK: - stop (main thread), then the file (io thread)
++
++    func stop() {
++        if !recording { return }
++        recording = false
++        saving = true
++        motion.stopDeviceMotionUpdates()
++        let endHeat = ProcessInfo.processInfo.thermalState.rawValue
++        let endBattery = UIDevice.current.batteryLevel
++        let keepReading = live
++        lock.lock()
++        guard let r = rec else {
++            lock.unlock()
++            saving = false
++            return
++        }
++        r.events.append([Int((CACurrentMediaTime() - r.t0) * 1000), "stop", "\(r.delivered) frames"])
++        r.stopping = true
++        reading = keepReading
++        let seconds = CACurrentMediaTime() - r.t0
++        lock.unlock()
++        let special = r.plan.special
++        captureQ.async {
++            let group = DispatchGroup()
++            if let w = r.writer, let i = r.writerInput, w.status == .writing {
++                group.enter()
++                i.markAsFinished()
++                w.finishWriting {
++                    group.leave()
++                }
++            }
++            self.io.async {
++                group.wait()
++                var tries = 0
++                while tries < 60 {              // the reads of this test still under way (3 seconds at most)
++                    self.lock.lock()
++                    let n = r.jobs
++                    self.lock.unlock()
++                    if n <= 0 { break }
++                    Thread.sleep(forTimeInterval: 0.05)
++                    tries += 1
++                }
++                let out = self.writeFiles(r, seconds: seconds, endHeat: endHeat, endBattery: endBattery)
++                self.lock.lock()
++                self.rec = nil
++                self.lock.unlock()
++                DispatchQueue.main.async {
++                    self.saving = false
++                    self.shareURL = out.0
++                    self.shareSize = out.2
++                    self.result = out.1
++                    if out.0 == nil { self.problem = "The test's file could not be zipped; its folder is in Files > On My iPhone > Slab Scanner > tests." }
++                    if self.step < TestPlan.steps.count - 1 { self.step += 1 }
++                    self.note = ""
++                    self.loadPlan()
++                    self.apply()
++                    if special == "lockfocus" || special == "sweep" { self.apply() }
++                }
++            }
++        }
++    }
++
++    func prune(_ docs: URL) {       // the ten newest files stay on the phone
++        let fm = FileManager.default
++        guard let all = try? fm.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil) else { return }
++        let zips = all.filter { $0.pathExtension == "zip" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
++        if zips.count > 10 {
++            for u in zips[10...] { try? fm.removeItem(at: u) }
++        }
++    }
++
++    func writeJSON(_ obj: Any, _ url: URL, _ r: Recording) {
++        if !JSONSerialization.isValidJSONObject(obj) {
++            logError(r, "file: " + url.lastPathComponent + " held something that cannot be written")
++            return
++        }
++        do {
++            let d = try JSONSerialization.data(withJSONObject: obj, options: [])
++            try d.write(to: url)
++        } catch {
++            logError(r, "file: " + url.lastPathComponent + ": \(error.localizedDescription)")
++        }
++    }
++
++    /// Every picture format of every back camera - what the phone's cameras can do.
++    func cameraDump() -> [[String: Any]] {
++        var out: [[String: Any]] = []
++        let types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInUltraWideCamera, .builtInLiDARDepthCamera]
++        let found = AVCaptureDevice.DiscoverySession(deviceTypes: types, mediaType: .video, position: .back).devices
++        for d in found {
++            var dev: [String: Any] = [:]
++            dev["name"] = d.localizedName
++            dev["type"] = d.deviceType.rawValue
++            dev["closestFocusMm"] = d.minimumFocusDistance
++            dev["torch"] = d.hasTorch
++            var fmts: [[Any]] = []
++            for f in d.formats {
++                let dim = CMVideoFormatDescriptionGetDimensions(f.formatDescription)
++                var maxFps = 0.0
++                for r in f.videoSupportedFrameRateRanges { maxFps = max(maxFps, r.maxFrameRate) }
++                var photo = 0
++                for pd in f.supportedMaxPhotoDimensions { photo = max(photo, Int(pd.width) * Int(pd.height)) }
++                var depth = ""
++                for df in f.supportedDepthDataFormats {
++                    let dd = CMVideoFormatDescriptionGetDimensions(df.formatDescription)
++                    depth += "\(dd.width)x\(dd.height)" + fourcc(CMFormatDescriptionGetMediaSubType(df.formatDescription)) + " "
++                }
++                var row: [Any] = []
++                row.append(Int(dim.width))
++                row.append(Int(dim.height))
++                row.append(fourcc(CMFormatDescriptionGetMediaSubType(f.formatDescription)))
++                row.append(Int(maxFps))
++                row.append(f.isVideoBinned)
++                row.append(Int(f.videoFieldOfView * 10))
++                row.append(Int(f.minISO))
++                row.append(Int(f.maxISO))
++                row.append(ji(f.minExposureDuration.seconds * 1e6))
++                row.append(ji(f.maxExposureDuration.seconds * 1e6))
++                row.append(f.isVideoHDRSupported)
++                row.append(photo)
++                row.append(depth)
++                fmts.append(row)
++            }
++            dev["formatFields"] = ["width", "height", "pixel format", "most frames a second", "binned", "field of view, degrees x10", "lowest ISO", "highest ISO", "shortest shutter, microseconds", "longest shutter, microseconds", "HDR", "largest photo, dots", "depth formats"]
++            dev["formats"] = fmts
++            out.append(dev)
++        }
++        return out
++    }
++
++    func writeFiles(_ r: Recording, seconds: Double, endHeat: Int, endBattery: Float) -> (URL?, String, String) {
++        let fm = FileManager.default
++        lock.lock()
++        let frames = r.frames
++        let motionFlat = r.motion
++        let depthRows = r.depth
++        let events = r.events
++        let snaps = r.snaps
++        let list = order
++        let vms = visionMs
++        lock.unlock()
++
++        // the codes
++        var codeRows: [[Any]] = []
++        var countedTimes: [Double] = []
++        var sightedOnly = 0
++        var other = 0
++        for c in list {
++            var row: [Any] = []
++            row.append(c.kind)
++            row.append(c.text)
++            row.append(c.countedMs != nil)
++            row.append(c.frames)
++            row.append(ji(c.firstMs))
++            if let t = c.countedMs {
++                row.append(ji(t))
++                countedTimes.append(t)
++            } else {
++                row.append(NSNull())
++                if c.slab { sightedOnly += 1 } else { other += 1 }
++            }
++            row.append(c.minPx == Int.max ? 0 : c.minPx)
++            row.append(c.maxPx)
++            row.append(c.firstBy)
++            row.append(c.by["W"] ?? 0)
++            row.append(c.by["Q"] ?? 0)
++            row.append(c.by["N"] ?? 0)
++            row.append(Int(c.conf * 100))
++            row.append(c.slab)
++            codeRows.append(row)
++        }
++        countedTimes.sort()
++
++        // the frames
++        var frameRows: [[Any]] = []
++        var exps: [Double] = []
++        var isos: [Double] = []
++        var sharps: [Double] = []
++        var means: [Double] = []
++        var lensPs: [Double] = []
++        var depths: [Double] = []
++        var afN = 0
++        var readN = 0
++        for f in frames {
++            var row: [Any] = []
++            row.append(f.n)
++            row.append(ji(f.t))
++            row.append(ji(f.exp * 1e6))
++            row.append(ji(f.iso))
++            row.append(ji(f.lensPos * 1000))
++            row.append(f.af ? 1 : 0)
++            row.append(f.ae ? 1 : 0)
++            row.append(ji(f.off * 100))
++            row.append(f.mean)
++            row.append(f.p1)
++            row.append(f.p99)
++            row.append(f.blown)
++            row.append(f.sharp)
++            row.append(f.capDen)
++            row.append(f.sweep)
++            row.append(f.depthMm)
++            row.append(f.job)
++            row.append(ji(f.jobMs))
++            if f.job.isEmpty { row.append(NSNull()) } else { row.append(ji(f.doneT)) }
++            row.append(f.found)
++            row.append(f.kept)
++            frameRows.append(row)
++            if f.exp > 0 { exps.append(f.exp) }
++            if f.iso > 0 { isos.append(f.iso) }
++            sharps.append(Double(f.sharp))
++            means.append(Double(f.mean))
++            lensPs.append(f.lensPos)
++            if f.depthMm > 0 { depths.append(Double(f.depthMm)) }
++            if f.af { afN += 1 }
++            if !f.job.isEmpty { readN += 1 }
++        }
++        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (W the whole picture, Q four tiles, N nine tiles; empty: not read, both readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)"]
++        var framesDoc: [String: Any] = [:]
++        framesDoc["fields"] = frameFields
++        framesDoc["rows"] = frameRows
++        writeJSON(framesDoc, r.dir.appendingPathComponent("frames.json"), r)
++
++        // the movement
++        var motionRows: [[Any]] = []
++        var k = 0
++        while k + 9 < motionFlat.count {
++            var row: [Any] = []
++            for j in 0..<10 { row.append(ji(motionFlat[k + j])) }
++            motionRows.append(row)
++            k += 10
++        }
++        var motionDoc: [String: Any] = [:]
++        motionDoc["fields"] = ["ms since the record tap", "turning x, mrad/s", "turning y", "turning z", "acceleration x, thousandths of g (gravity taken out)", "acceleration y", "acceleration z", "gravity x, thousandths", "gravity y", "gravity z"]
++        motionDoc["rows"] = motionRows
++        writeJSON(motionDoc, r.dir.appendingPathComponent("motion.json"), r)
++
++        // the depth sensor
++        var depthDoc: [String: Any] = [:]
++        depthDoc["fields"] = ["ms since the record tap", "distance at the centre, mm (-1: none)", "5 x 5 grid of distances, mm, row by row from the top-left of the depth picture (null: no reading)"]
++        depthDoc["rows"] = depthRows
++        writeJSON(depthDoc, r.dir.appendingPathComponent("depth.json"), r)
++
++        writeJSON(cameraDump(), r.dir.appendingPathComponent("camera.json"), r)
++
++        // the report
++        var rep: [String: Any] = [:]
++        rep["report"] = "Slab Scanner native test"
++        rep["version"] = TestPlan.version
++        var test: [String: Any] = [:]
++        test["number"] = r.step + 1
++        test["of"] = TestPlan.steps.count
++        test["what"] = r.plan.what
++        rep["test"] = test
++        rep["at"] = ISO8601DateFormatter().string(from: r.startedAt)
++        rep["phone"] = machineName()
++        rep["system"] = UIDevice.current.systemVersion
++        rep["settings"] = r.settings
++        rep["camera"] = r.camera
++        rep["note"] = r.note
++        rep["milliseconds"] = ji(seconds * 1000)
++        rep["framesDelivered"] = frames.count
++        rep["framesRead"] = readN
++        rep["framesTheCameraDropped"] = r.cameraDropped
++        if seconds > 0 { rep["framesReadPerSecond"] = ji(Double(readN) / seconds) }
++        var vdoc: [String: Any] = [:]
++        for (kind, a) in vms {
++            var one: [String: Any] = [:]
++            one["reads"] = a.count
++            one["medianMs"] = ji(medianOf(a))
++            one["slowestTenthMs"] = ji(quantile(a, 0.9))
++            vdoc[kind] = one
++        }
++        rep["readingMs"] = vdoc
++        rep["slabCodesCounted"] = countedTimes.count
++        rep["slabCodesSightedButNotCounted"] = sightedOnly
++        rep["otherThingsRead"] = other
++        if !countedTimes.isEmpty {
++            rep["halfCountedByMs"] = ji(countedTimes[countedTimes.count / 2])
++            rep["allCountedByMs"] = ji(countedTimes[countedTimes.count - 1])
++        }
++        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (W / Q / N)", "frames by W", "by Q", "by N", "confidence x100", "looks like a slab cert"]
++        rep["list"] = codeRows
++        var cam: [String: Any] = [:]
++        cam["shutterMedianMicroseconds"] = ji(medianOf(exps) * 1e6)
++        cam["shutterShortestMicroseconds"] = ji((exps.min() ?? .nan) * 1e6)
++        cam["shutterLongestMicroseconds"] = ji((exps.max() ?? .nan) * 1e6)
++        cam["isoMedian"] = ji(medianOf(isos))
++        cam["isoHighest"] = ji(isos.max() ?? .nan)
++        cam["focusLowestPerMille"] = ji((lensPs.min() ?? .nan) * 1000)
++        cam["focusHighestPerMille"] = ji((lensPs.max() ?? .nan) * 1000)
++        cam["framesWithFocusMoving"] = afN
++        cam["brightnessMedian"] = ji(medianOf(means))
++        cam["sharpnessMedian"] = ji(medianOf(sharps))
++        cam["sharpnessLowestTenth"] = ji(quantile(sharps, 0.1))
++        cam["distanceMedianMm"] = ji(medianOf(depths))
++        cam["distanceReadings"] = depths.count
++        rep["whatTheCameraDid"] = cam
++        var heat: [String: Any] = [:]
++        heat["start"] = r.heatStart
++        heat["end"] = endHeat
++        heat["scale"] = "0 normal, 1 fair, 2 serious, 3 critical"
++        rep["heat"] = heat
++        var bat: [String: Any] = [:]
++        bat["startPercent"] = ji(Double(r.batteryStart) * 100)
++        bat["endPercent"] = ji(Double(endBattery) * 100)
++        rep["battery"] = bat
++        var vid: [String: Any] = [:]
++        vid["wanted"] = r.wantVideo
++        vid["frames"] = r.videoFrames
++        vid["framesTheWriterWasNotReadyFor"] = r.videoSkipped
++        vid["file"] = r.videoFrames > 0 ? "video.mov" : ""
++        rep["video"] = vid
++        rep["losslessFrames"] = r.kept
++        rep["snaps"] = snaps
++        rep["snapsAsked"] = r.snapsAsked
++        rep["eventFields"] = ["ms since the record tap", "what", "detail"]
++        rep["events"] = events
++        rep["depthReadings"] = depthRows.count
++        rep["movementReadings"] = motionRows.count
++        rep["sweep"] = r.plan.special == "sweep" ? TestPlan.sweep : []
++        rep["sweepSecondsEach"] = ji(TestPlan.sweepSeconds)
++        lock.lock()
++        let errs = r.errors
++        lock.unlock()
++        rep["errors"] = errs
++        writeJSON(rep, r.dir.appendingPathComponent("report.json"), r)
++
++        // one file
++        let zipURL = r.dir.deletingLastPathComponent().appendingPathComponent(r.name + ".zip")
++        var coordErr: NSError? = nil
++        var copied = false
++        NSFileCoordinator().coordinate(readingItemAt: r.dir, options: [.forUploading], error: &coordErr) { tmp in
++            do {
++                if fm.fileExists(atPath: zipURL.path) { try fm.removeItem(at: zipURL) }
++                try fm.copyItem(at: tmp, to: zipURL)
++                copied = true
++            } catch {
++            }
++        }
++        var line = "Test \(r.step + 1): \(countedTimes.count) codes in \(Int(seconds.rounded())) s"
++        if !countedTimes.isEmpty {
++            line += String(format: " (half by %.1f s, all by %.1f s)", countedTimes[countedTimes.count / 2] / 1000, countedTimes[countedTimes.count - 1] / 1000)
++        }
++        line += " · \(readN) of \(frames.count) frames read"
++        if !exps.isEmpty { line += " · shutter 1/\(Int((1 / medianOf(exps)).rounded()))" }
++        if !depths.isEmpty { line += String(format: " · %.1f in", medianOf(depths) / 25.4) }
++        if !snaps.isEmpty { line += " · \(snaps.count) snaps" }
++        if !errs.isEmpty { line += " · \(errs.count) problem(s) noted in the file" }
++        if copied && coordErr == nil {
++            try? fm.removeItem(at: r.dir)
++            var size = ""
++            if let a = try? fm.attributesOfItem(atPath: zipURL.path), let n = a[.size] as? NSNumber {
++                size = "\(Int((n.doubleValue / 1e6).rounded())) MB"
++            }
++            return (zipURL, line, size)
++        }
++        return (nil, line, "")
++    }
++}
+diff --git a/ios/SlabScanner/SlabScanner/PreviewView.swift b/ios/SlabScanner/SlabScanner/PreviewView.swift
+new file mode 100644
+index 0000000..eff6322
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/PreviewView.swift
+@@ -0,0 +1,67 @@
++//  The camera's picture on the screen, with a box around every code just read (green: counted, yellow: sighted).
++import AVFoundation
++import SwiftUI
++import UIKit
++
++final class PreviewUIView: UIView {
++    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
++    var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
++    private let sure = CAShapeLayer()
++    private let seen = CAShapeLayer()
++
++    override init(frame: CGRect) {
++        super.init(frame: frame)
++        sure.strokeColor = UIColor.systemGreen.cgColor
++        seen.strokeColor = UIColor.systemYellow.cgColor
++        for l in [sure, seen] {
++            l.fillColor = UIColor.clear.cgColor
++            l.lineWidth = 2
++            layer.addSublayer(l)
++        }
++    }
++
++    required init?(coder: NSCoder) { fatalError("not used") }
++
++    override func layoutSubviews() {
++        super.layoutSubviews()
++        sure.frame = bounds
++        seen.frame = bounds
++    }
++
++    func upright() {                // the phone is held upright: the camera's picture is turned a quarter
++        if let c = previewLayer.connection, c.isVideoRotationAngleSupported(90) { c.videoRotationAngle = 90 }
++    }
++
++    func show(_ boxes: [Box]) {
++        let a = UIBezierPath()
++        let b = UIBezierPath()
++        for x in boxes {
++            let r = previewLayer.layerRectConverted(fromMetadataOutputRect: x.rect).insetBy(dx: -2, dy: -2)
++            if r.width.isFinite && r.height.isFinite && r.width < 4000 && r.height < 4000 {
++                if x.counted { a.append(UIBezierPath(rect: r)) } else { b.append(UIBezierPath(rect: r)) }
++            }
++        }
++        CATransaction.begin()
++        CATransaction.setDisableActions(true)
++        sure.path = a.cgPath
++        seen.path = b.cgPath
++        CATransaction.commit()
++    }
++}
++
++struct PreviewView: UIViewRepresentable {
++    @ObservedObject var engine: Engine
++
++    func makeUIView(context: Context) -> PreviewUIView {
++        let v = PreviewUIView()
++        v.backgroundColor = .black
++        v.previewLayer.session = engine.session
++        v.previewLayer.videoGravity = .resizeAspect
++        engine.preview = v
++        return v
++    }
++
++    func updateUIView(_ v: PreviewUIView, context: Context) {
++        v.show(engine.boxes)
++    }
++}
+diff --git a/ios/SlabScanner/SlabScanner/Record.swift b/ios/SlabScanner/SlabScanner/Record.swift
+new file mode 100644
+index 0000000..0f8491a
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/Record.swift
+@@ -0,0 +1,250 @@
++//  What is kept of a code, of a frame and of a test - and small helpers.
++//  Numbers go into the files as whole numbers in small units (ms, microseconds, per mille, mm), so the files stay small
++//  and exact; the field lists in the files say the unit of each.
++import AVFoundation
++import CoreVideo
++import Foundation
++import Vision
++
++func ji(_ v: Double) -> Any {
++    if !v.isFinite || abs(v) > 1e15 { return NSNull() }
++    return Int(v.rounded())
++}
++
++func medianOf(_ a: [Double]) -> Double {
++    if a.isEmpty { return .nan }
++    let s = a.sorted()
++    return s[s.count / 2]
++}
++
++func quantile(_ a: [Double], _ q: Double) -> Double {
++    if a.isEmpty { return .nan }
++    let s = a.sorted()
++    let i = min(s.count - 1, max(0, Int(Double(s.count) * q)))
++    return s[i]
++}
++
++func fourcc(_ v: FourCharCode) -> String {
++    let b: [UInt8] = [UInt8((v >> 24) & 255), UInt8((v >> 16) & 255), UInt8((v >> 8) & 255), UInt8(v & 255)]
++    return String(bytes: b, encoding: .ascii) ?? String(v)
++}
++
++func machineName() -> String {
++    var u = utsname()
++    uname(&u)
++    return withUnsafePointer(to: &u.machine) { p in
++        p.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
++    }
++}
++
++func kindName(_ s: VNBarcodeSymbology) -> String {
++    if s == .code128 { return "Code 128" }
++    if s == .i2of5 { return "ITF" }
++    if s == .qr { return "QR" }
++    if s == .code39 { return "Code 39" }
++    return s.rawValue
++}
++
++/// A slab's cert number by its look: PSA = Code 128 of 8 or 9 digits, or ITF of exactly 8; CGC = Code 128 of 10 digits,
++/// or 13 starting 1401 (the rules of the website's readers). Anything else that is read (a QR link, a part of a number)
++/// is written down but never counted.
++func slabCert(kind: String, text: String) -> Bool {
++    if text.isEmpty { return false }
++    for u in text.unicodeScalars { if u.value < 48 || u.value > 57 { return false } }
++    let n = text.count
++    if kind == "ITF" { return n == 8 }
++    if kind == "Code 128" || kind == "Code 39" { return n == 8 || n == 9 || n == 10 || (n == 13 && text.hasPrefix("1401")) }
++    return false
++}
++
++struct CodeRow: Identifiable {
++    let id: String
++    let kind: String
++    let text: String
++    let counted: Bool
++    let sightings: Int
++}
++
++struct Box {
++    let rect: CGRect            // 0-1, from the top-left of the picture as the camera gives it (lying on its side)
++    let counted: Bool
++}
++
++struct Found {
++    let kind: String
++    let text: String
++    let conf: Float
++    let box: CGRect             // 0-1 of the whole picture, from the bottom-left (Vision's way)
++}
++
++final class CodeInfo {
++    let kind: String
++    let text: String
++    let index: Int
++    var frames = 0
++    var firstMs = 0.0
++    var countedMs: Double? = nil
++    var minPx = Int.max
++    var maxPx = 0
++    var by: [String: Int] = [:]
++    var firstBy = ""
++    var conf: Float = 0
++    var slab = false
++    var need = 2
++
++    init(kind: String, text: String, index: Int) {
++        self.kind = kind
++        self.text = text
++        self.index = index
++    }
++}
++
++final class FrameRec {
++    var n = 0
++    var t = 0.0                 // ms since the record tap
++    var exp = 0.0               // seconds
++    var iso = 0.0
++    var lensPos = 0.0
++    var af = false
++    var ae = false
++    var off = 0.0               // EV
++    var mean = 0
++    var p1 = 0
++    var p99 = 0
++    var blown = 0               // per mille
++    var sharp = 0
++    var capDen = 0
++    var sweep = -1
++    var depthMm = -1
++    var job = ""
++    var jobMs = 0.0
++    var doneT = 0.0
++    var found: [[Any]] = []
++    var kept = 0
++}
++
++final class Recording {
++    let step: Int
++    let plan: TestStep
++    let t0: Double
++    let startedAt = Date()
++    let dir: URL
++    let name: String
++    var note = ""
++    var settings: [String: Any] = [:]
++    var camera: [String: Any] = [:]
++    var frames: [FrameRec] = []
++    var motion: [Double] = []
++    var depth: [[Any]] = []
++    var events: [[Any]] = []
++    var snaps: [[String: Any]] = []
++    var kept: [[String: Any]] = []
++    var errors: [String] = []
++    var lastKeptT = -10.0
++    var writer: AVAssetWriter?
++    var writerInput: AVAssetWriterInput?
++    var writerFailed = false
++    var videoFrames = 0
++    var videoSkipped = 0
++    var wantVideo = true
++    var heatStart = 0
++    var batteryStart: Float = 0
++    var delivered = 0
++    var cameraDropped = 0
++    var jobs = 0
++    var stopping = false
++    var sweepIdx = -1
++    var didLock = false
++    var snapsAsked = 0
++
++    init(step: Int, plan: TestStep, t0: Double, dir: URL, name: String) {
++        self.step = step
++        self.plan = plan
++        self.t0 = t0
++        self.dir = dir
++        self.name = name
++    }
++}
++
++struct FrameStats {
++    var mean = 0
++    var p1 = 0
++    var p99 = 0
++    var blown = 0
++    var sharp = 0
++}
++
++/// Brightness and sharpness of a frame from its grey plane, every 8th dot each way (well under a millisecond).
++/// Sharpness = the mean squared difference between dots two apart, in the middle three fifths of the picture.
++func frameStats(_ pb: CVPixelBuffer) -> FrameStats {
++    var out = FrameStats()
++    CVPixelBufferLockBaseAddress(pb, .readOnly)
++    defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
++    guard let base = CVPixelBufferGetBaseAddressOfPlane(pb, 0) else { return out }
++    let w = CVPixelBufferGetWidthOfPlane(pb, 0)
++    let h = CVPixelBufferGetHeightOfPlane(pb, 0)
++    let rb = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
++    if w < 64 || h < 64 { return out }
++    let p = base.assumingMemoryBound(to: UInt8.self)
++    var hist = [Int](repeating: 0, count: 256)
++    var n = 0
++    var sum = 0
++    var grad = 0
++    var gn = 0
++    let x0 = w / 5
++    let x1 = w - w / 5
++    let y0 = h / 5
++    let y1 = h - h / 5
++    var y = 4
++    while y < h - 4 {
++        let row = p + y * rb
++        let inY = y >= y0 && y < y1
++        var x = 4
++        while x < w - 4 {
++            let v = Int(row[x])
++            hist[v] += 1
++            sum += v
++            n += 1
++            if inY && x >= x0 && x < x1 {
++                let dx = Int(row[x + 2]) - v
++                let dy = Int(row[x + 2 * rb]) - v
++                grad += dx * dx + dy * dy
++                gn += 1
++            }
++            x += 8
++        }
++        y += 8
++    }
++    if n == 0 { return out }
++    out.mean = sum / n
++    var acc = 0
++    var gotP1 = false
++    for i in 0..<256 {
++        acc += hist[i]
++        if !gotP1 && acc * 100 >= n { out.p1 = i; gotP1 = true }
++        if acc * 100 >= n * 99 { out.p99 = i; break }
++    }
++    var hi = 0
++    for i in 250..<256 { hi += hist[i] }
++    out.blown = hi * 1000 / n
++    out.sharp = gn > 0 ? grad / gn : 0
++    return out
++}
++
++/// The grey plane of a frame, row by row without the padding: exactly the dots the reader saw.
++func copyLuma(_ pb: CVPixelBuffer) -> (Data, Int, Int)? {
++    CVPixelBufferLockBaseAddress(pb, .readOnly)
++    defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
++    guard let base = CVPixelBufferGetBaseAddressOfPlane(pb, 0) else { return nil }
++    let w = CVPixelBufferGetWidthOfPlane(pb, 0)
++    let h = CVPixelBufferGetHeightOfPlane(pb, 0)
++    let rb = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
++    var d = Data(count: w * h)
++    d.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) in
++        guard let dp = dst.baseAddress else { return }
++        for y in 0..<h {
++            memcpy(dp + y * w, base + y * rb, w)
++        }
++    }
++    return (d, w, h)
++}
+diff --git a/ios/SlabScanner/SlabScanner/SlabScannerApp.swift b/ios/SlabScanner/SlabScanner/SlabScannerApp.swift
+new file mode 100644
+index 0000000..8241824
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/SlabScannerApp.swift
+@@ -0,0 +1,11 @@
++//  Slab Scanner - the native trial (n1). See biotech-catelog CLAUDE.md, "THE NATIVE TRIAL APP".
++import SwiftUI
++
++@main
++struct SlabScannerApp: App {
++    var body: some Scene {
++        WindowGroup {
++            ContentView()
++        }
++    }
++}
+diff --git a/ios/SlabScanner/SlabScanner/TestPlan.swift b/ios/SlabScanner/SlabScanner/TestPlan.swift
+new file mode 100644
+index 0000000..e46599d
+--- /dev/null
++++ b/ios/SlabScanner/SlabScanner/TestPlan.swift
+@@ -0,0 +1,58 @@
++//  The switches and the plan of tests. A step of the plan sets the switches by itself (the lens, the size, the shutter,
++//  the focus, the depth sensor), so a test is always made the same way; they can still be changed by hand.
++import Foundation
++
++enum Lens: String, CaseIterable { case wide = "1x", tele = "3x" }
++
++enum SizeMode: String, CaseIterable { case mp12 = "12MP", k4 = "4K60" }
++
++enum ShutterMode: String, CaseIterable {
++    case smart = "Smart", auto = "Auto", s125 = "1/125", s250 = "1/250", s500 = "1/500", s1000 = "1/1000"
++    var den: Int? {
++        switch self {
++        case .smart, .auto: return nil
++        case .s125: return 125
++        case .s250: return 250
++        case .s500: return 500
++        case .s1000: return 1000
++        }
++    }
++}
++
++enum FocusMode: String, CaseIterable { case auto = "Auto", locked = "Lock" }
++
++struct TestStep {
++    let what: String
++    var lens: Lens = .wide
++    var size: SizeMode = .mp12
++    var shutter: ShutterMode = .smart
++    var focus: FocusMode = .auto
++    var depth: Bool = true
++    var special: String = ""        // "" | "sweep" | "lockfocus" | "snap"
++    var seconds: Double = 15        // the test stops by itself after this long
++}
++
++enum TestPlan {
++    static let version = "n1"
++    // the shutter sweep: 3 seconds at each of these (0 = the camera's own choice), 1/x of a second
++    static let sweep: [Int] = [0, 60, 125, 250, 500, 1000, 2000]
++    static let sweepSeconds = 3.0
++
++    static let steps: [TestStep] = [
++        TestStep(what: "Sheet flat, room light, about 9 inches, 1x, hold still"),
++        TestStep(what: "About 14 inches, 1x, hold still"),
++        TestStep(what: "As test 2 with the depth sensor off: about 14 inches, 1x, hold still", depth: false),
++        TestStep(what: "About 2 feet, still 1x, hold still"),
++        TestStep(what: "About 2 feet, 3x, hold still", lens: .tele),
++        TestStep(what: "About 3 feet, 3x, hold still", lens: .tele),
++        TestStep(what: "Shutter sweep: about 2 feet, 3x, hold still - the app steps through the shutter speeds and stops by itself (21 seconds)", lens: .tele, special: "sweep", seconds: 21.2),
++        TestStep(what: "Shutter sweep at 1x: about 14 inches, hold still (21 seconds)", special: "sweep", seconds: 21.2),
++        TestStep(what: "Focus locked: as test 5 - about 2 feet, 3x, hold still (the app locks the focus after 2 seconds)", lens: .tele, special: "lockfocus"),
++        TestStep(what: "Moving: glide slowly over the sheet at 8 to 10 inches, a short pause on each part (20 seconds)", seconds: 20),
++        TestStep(what: "Moving again with the fast camera mode (4K, 60 pictures a second): as test 10 (20 seconds)", size: .k4, depth: false, seconds: 20),
++        TestStep(what: "Dim room, about a foot, 1x, hold still"),
++        TestStep(what: "Dim room, about 2 feet, 3x, hold still", lens: .tele),
++        TestStep(what: "Snap: about 2 feet, 1x, hold still - tap Snap three times, a second or two apart", special: "snap", seconds: 20),
++        TestStep(what: "Your choice: real slabs, a case, under glass (30 seconds at most)", seconds: 30)
++    ]
++}
