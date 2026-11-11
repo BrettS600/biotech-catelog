@@ -9,12 +9,15 @@
 //    light returns. "Auto" = the camera's own choice (what the web page got). Fixed caps for trying.
 //  - THE SIZE: 4032 x 3024 at 30 a second (1.4 times the dots across of the page's 4K), or 4K at 60.
 //  - THE FOCUS: continuous (not the slow "smooth" kind), or locked where it is.
-//  - EVERY FRAME READ by Apple's barcode reader (Vision), two at a time: the whole picture (W), then four overlapping
-//    quarter tiles (Q), then nine tiles (N), in turn - small far codes are not lost to a reduction of the whole picture.
+//  - THE FRAMES READ by Apple's barcode reader (Vision), three at a time, as overlapping tiles: four (Q), nine (N),
+//    sixteen (S), thirty-six (T) in turn - the reader reduces whatever region it gets, and found nothing in the whole
+//    12 MP picture (see `cycle` below).
 //    A code counts as a slab when it looks like a cert (slabCert) and was read in 2 frames (ITF, which has no check
 //    digit: 3 frames).
 //  - THE DEPTH SENSOR (LiDAR; with the 1x lens only - the sensor is paired with that lens): the distance at the centre
-//    and on a 5 x 5 grid, about 15 times a second.
+//    and on a 5 x 5 grid, about 15 times a second. n1: it said 2 m with the sheet at 9 and 13 inches - not to be
+//    trusted this close (or through a glossy sleeve); THE DISTANCE BY THE CODES' SIZE (a slab's barcode is 17.5 or
+//    18.4 mm wide) agreed with the picture's geometry and is what the screen and the report show.
 //  - WHAT THE CAMERA DID for every frame: shutter, sensitivity, focus position, whether focus / exposure were moving.
 //  - MOVEMENT 100 times a second on the camera's own clock.
 import AVFoundation
@@ -72,7 +75,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     let motion = CMMotionManager()
     let motionQ = OperationQueue()
     let lock = NSLock()
-    let maxReaders = 2
+    let maxReaders = 3
 
     var device: AVCaptureDevice?
     var cur = CamCfg()
@@ -108,16 +111,27 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     var lastH = 0
     var readTimes: [Double] = []
     var snapAskedAt = 0.0
+    var focalPx = 3000.0            // the lens' focal length in dots of the picture (from its field of view)
+    var lastSizeMm = -1
+    var lastSizeAt = 0.0
 
     // the capture thread's own
     var lastSmart = 0.0
     var depthCount = 0
 
-    static let cycle = ["W", "Q", "N"]
+    // n1's first two tests (2026-11-10): the whole picture (W) found NOTHING at 9 and at 14 inches - Apple's reader
+    // reduces whatever region it is given to its own working size (a region took ~15 ms whatever its size: Q 62 ms
+    // for four, N 123 ms for nine, W 91 ms) - while the four tiles found every code at 9 inches and the nine tiles
+    // read the fine CGC codes at 14 inches twice as often as the four. So: tiles only, and finer ones in turn
+    // (S sixteen, T thirty-six - if a small region is enlarged to the working size, they reach further).
+    static let cycle = ["Q", "N", "S", "Q", "N", "T"]
+    static let snapKinds = ["W", "Q", "N", "S", "T"]
     static let rois: [String: [CGRect]] = [
         "W": [CGRect(x: 0, y: 0, width: 1, height: 1)],
         "Q": Engine.tiles(2, 0.12),
-        "N": Engine.tiles(3, 0.10)
+        "N": Engine.tiles(3, 0.10),
+        "S": Engine.tiles(4, 0.08),
+        "T": Engine.tiles(6, 0.06)
     ]
 
     /// n x n tiles over the picture, neighbours overlapping by `overlap` of the picture.
@@ -147,7 +161,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         videoOut.automaticallyConfiguresOutputBufferDimensions = false
         videoOut.deliversPreviewSizedOutputBuffers = false
         videoOut.setSampleBufferDelegate(self, queue: captureQ)
-        depthOut.isFilteringEnabled = true
+        depthOut.isFilteringEnabled = false     // n2: the sensor's own numbers (n1's smoothed ones said 2 m at 9 inches)
         depthOut.alwaysDiscardsLateDepthData = true
         depthOut.setDelegate(self, callbackQueue: depthQ)
         photoOut.maxPhotoQualityPrioritization = .quality
@@ -381,9 +395,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         cur = c
         configured = true
         usingLidar = lidar
+        let half = Double(fmt.videoFieldOfView) * Double.pi / 360
+        let fpx = half > 0.01 ? Double(dim.width) / 2 / tan(half) : 3000
+        info["focalLengthDots"] = Int(fpx.rounded())
         lock.lock()
         camInfo = info
+        focalPx = fpx
         lastDepthMm = -1
+        lastSizeMm = -1
         lock.unlock()
         DispatchQueue.main.async {
             self.preview?.upright()
@@ -514,7 +533,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             r.delivered += 1
             fr = f
         }
-        let canRead = reading && inFlight < maxReaders
+        let canRead = reading && inFlight < maxReaders && (rec == nil || r != nil)   // not the frames from before the tap (n1 counted them)
         var seq = 0
         if canRead {
             inFlight += 1
@@ -690,6 +709,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let t0 = r?.t0 ?? liveT0
         var seen = Set<String>()
         var bx: [Box] = []
+        var sizes: [Double] = []
         for f in found {
             let key = f.kind + "|" + f.text
             let firstHere = seen.insert(key).inserted
@@ -707,8 +727,17 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             guard let info = c else { continue }
             let px = Int(max(f.box.width * CGFloat(pw), f.box.height * CGFloat(ph)).rounded())
             if firstHere {
-                info.frames += 1
-                info.by[kind] = (info.by[kind] ?? 0) + 1
+                if f.conf >= 0.5 {
+                    info.frames += 1
+                    info.by[kind] = (info.by[kind] ?? 0) + 1
+                } else {
+                    info.weak += 1          // n1: the one misread ("18562322") came with confidence 0.40, every right code 0.67+
+                }
+            }
+            if info.slab && px > 20 && f.conf >= 0.5 {
+                // a slab's barcode is 17.5 mm wide (PSA) or 18.4 mm (CGC: 10 or 13 digits): its size in dots gives the distance
+                let mm = (info.text.count == 10 || info.text.count == 13) ? 18.4 : 17.5
+                sizes.append(focalPx * mm / Double(px))
             }
             if px > 0 {
                 info.minPx = min(info.minPx, px)
@@ -724,10 +753,18 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 fr.found.append([info.index, Int(f.box.minX * 1000), Int(f.box.minY * 1000), Int(f.box.width * 1000), Int(f.box.height * 1000), Int(f.conf * 100)])
             }
         }
+        var sizeMm = -1
+        if sizes.count >= 2 {
+            sizes.sort()
+            sizeMm = Int(sizes[sizes.count / 2].rounded())
+            lastSizeMm = sizeMm
+            lastSizeAt = now
+        }
         if let fr = fr {
             fr.job = kind
             fr.jobMs = ms
             fr.doneT = (now - t0) * 1000
+            fr.sizeMm = sizeMm
         }
         lastBoxes = bx
         lastBoxesAt = now
@@ -778,11 +815,14 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
         }
         let ts = timestamp.seconds
+        let quality = depthData.depthDataQuality == .high ? 1 : 0
+        let absolute = depthData.depthDataAccuracy == .absolute ? 1 : 0
+        let filtered = depthData.isDepthDataFiltered ? 1 : 0
         lock.lock()
         lastDepthMm = centre
         lastDepthAt = ts
         if let r = rec, !r.stopping, ts >= r.t0 {
-            r.depth.append([Int((ts - r.t0) * 1000), centre, grid])
+            r.depth.append([Int((ts - r.t0) * 1000), centre, grid, quality, absolute, filtered])
         }
         lock.unlock()
     }
@@ -829,7 +869,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             var seen = Set<String>()
             var rowsOut: [[Any]] = []
             var times: [Any] = []
-            for kind in Engine.cycle {
+            for kind in Engine.snapKinds {
                 let handler = VNImageRequestHandler(cgImage: img, orientation: .up, options: [:])
                 let res = self.detect(handler, rois: Engine.rois[kind] ?? [])
                 times.append(Int(res.1))
@@ -853,7 +893,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 d["height"] = img.height
                 d["bytes"] = data.count
                 d["slabCodes"] = texts.count
-                d["readingMs W, Q, N"] = times
+                d["readingMs W, Q, N, S, T"] = times
                 d["found: kind, text, by, long side in dots, confidence x100, a slab cert"] = rowsOut
                 r.snaps.append(d)
                 self.lock.unlock()
@@ -890,6 +930,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let iso = lastISO
         let lp = lastLensPos
         let dmm = (now - lastDepthAt) < 0.6 ? lastDepthMm : -1
+        let smm = (now - lastSizeAt) < 1.0 ? lastSizeMm : -1
         readTimes.removeAll { now - $0 > 1.0 }
         let rps = readTimes.count
         let cap = capDen
@@ -907,7 +948,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         if e > 0 { s += "1/\(Int((1 / e).rounded())) s" }
         if cap > 0 { s += " (cap 1/\(cap))" }
         s += " · ISO \(Int(iso)) · focus \(Int(lp * 100))"
-        if dmm > 0 { s += String(format: " · %.1f in", Double(dmm) / 25.4) }
+        if smm > 0 { s += String(format: " · %.1f in", Double(smm) / 25.4) }
+        if dmm > 0 { s += String(format: " · sensor %.1f in", Double(dmm) / 25.4) }
         s += " · \(rps) reads/s · \(w)x\(h)"
         status = s
         if recording && r != nil && !isStopping {

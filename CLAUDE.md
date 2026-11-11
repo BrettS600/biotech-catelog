@@ -3332,6 +3332,24 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
   clicks while his screen was a full-screen app.
 - first time on the phone: "Untrusted Developer" until Settings > General > VPN & Device Management > Trust.
 - 2026-11-10: built with no error and no warning at the first try and installed (01:38 UTC Nov 11).
+THE FIRST TWO NATIVE FILES (n1, tests 1 and 2, 2026-11-11 02:00 UTC; the files held everything - 79 MB each):
+- 9 inches (8.4 by the codes' size): 47 right of 50, none wrong, 45 of them within 0.5 s (the web app: 50, half by
+  2.4 s); 14 inches (12.6): 48 right, none wrong, 42 within 0.5 s (web: 45). The codes missed lay under the room
+  light's reflection in the sleeve (2-29, 2-30; 2-25) or in the phone's shadow (2-41, 2-21).
+- 17-19 frames read a second of 30; shutter 1/250 at ISO 250-320 (room light: a faster cap would cost nothing);
+  focus still (459-576 per mille, never moving); heat 0.
+- THE WHOLE PICTURE (W) FOUND NOTHING: 0 codes a frame against 58 (Q) and 61 (N). A region costs ~15 ms whatever its
+  size (W 91 ms, Q 62, N 123): Vision reduces each region to a working size of its own. At 14 inches the fine CGC codes
+  were read in 44-71 of 96 Q frames and 92-96 of 96 N frames. -> n2: tiles only, Q N S(16) Q N T(36), three readers.
+- Vision reads PARTS of ITF codes with full confidence ("251739", "194922", "173985", "646197") and now and then a
+  wrong Code 128 ("18562322", confidence 0.40, once; "WN"): the cert format + two frames kept all of them out; n2 also
+  counts no read under confidence 0.5.
+- THE DEPTH SENSOR SAID 2.07 m AND 1.94 m (smoothed) with the sheet at 213 and 320 mm - wrong; n2 takes its unsmoothed
+  numbers with their quality flags, and shows / reports THE DISTANCE BY THE CODES' SIZE (focal length in dots x 17.5 mm
+  (PSA) or 18.4 mm (CGC) / the code's long side), which agreed with the picture's geometry.
+- a bug: frames from before the record tap were read into the test ("first read" of 4,934,590 ms); n2 leaves them out.
+n2 was built and installed at 02:09 UTC (one click on Run; then Stop, so the app is not tied to Xcode's debugger -
+he opens it from the home screen).
 NEXT: his native test files -> compare with the 16 web files test by test; read the .y8 frames with the web reader
 (Node, as cl_certs.js does) against Vision's own finds in frames.json; the reading ms of W / Q / N decide the reading
 plan; the sweeps decide the shutter; then: is Apple's reader enough, or does ours come into the app; then the $99.

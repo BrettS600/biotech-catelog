@@ -33,7 +33,7 @@ struct TestStep {
 }
 
 enum TestPlan {
-    static let version = "n1"
+    static let version = "n2"
     // the shutter sweep: 3 seconds at each of these (0 = the camera's own choice), 1/x of a second
     static let sweep: [Int] = [0, 60, 125, 250, 500, 1000, 2000]
     static let sweepSeconds = 3.0

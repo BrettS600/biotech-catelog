@@ -257,11 +257,13 @@ extension Engine {
             row.append(c.minPx == Int.max ? 0 : c.minPx)
             row.append(c.maxPx)
             row.append(c.firstBy)
-            row.append(c.by["W"] ?? 0)
             row.append(c.by["Q"] ?? 0)
             row.append(c.by["N"] ?? 0)
+            row.append(c.by["S"] ?? 0)
+            row.append(c.by["T"] ?? 0)
             row.append(Int(c.conf * 100))
             row.append(c.slab)
+            row.append(c.weak)
             codeRows.append(row)
         }
         countedTimes.sort()
@@ -276,6 +278,7 @@ extension Engine {
         var depths: [Double] = []
         var afN = 0
         var readN = 0
+        var bySize: [Double] = []
         for f in frames {
             var row: [Any] = []
             row.append(f.n)
@@ -299,7 +302,9 @@ extension Engine {
             if f.job.isEmpty { row.append(NSNull()) } else { row.append(ji(f.doneT)) }
             row.append(f.found)
             row.append(f.kept)
+            row.append(f.sizeMm)
             frameRows.append(row)
+            if f.sizeMm > 0 { bySize.append(Double(f.sizeMm)) }
             if f.exp > 0 { exps.append(f.exp) }
             if f.iso > 0 { isos.append(f.iso) }
             sharps.append(Double(f.sharp))
@@ -309,7 +314,7 @@ extension Engine {
             if f.af { afN += 1 }
             if !f.job.isEmpty { readN += 1 }
         }
-        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (W the whole picture, Q four tiles, N nine tiles; empty: not read, both readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)"]
+        let frameFields: [String] = ["frame number", "ms since the record tap", "shutter, microseconds", "ISO", "focus position, per mille", "focus moving", "exposure moving", "exposure offset, EV x100 (below 0: darker than the camera wants)", "brightness: mean", "darkest 1%", "brightest 1%", "blown out, per mille", "sharpness", "shutter cap, 1/x s (0: the camera's own)", "sweep step (-1: none)", "distance by the depth sensor, mm (-1: none)", "read as (Q four tiles, N nine, S sixteen, T thirty-six; empty: not read, the readers were busy)", "reading ms", "result known: ms since the record tap", "codes in this frame: [number in the list, x, y, width, height in per mille of the picture as the camera gives it (from its bottom-left), confidence x100]", "kept lossless (the file's number; 0: not kept)", "distance by the size of the codes read in this frame, mm (-1: none)"]
         var framesDoc: [String: Any] = [:]
         framesDoc["fields"] = frameFields
         framesDoc["rows"] = frameRows
@@ -331,7 +336,7 @@ extension Engine {
 
         // the depth sensor
         var depthDoc: [String: Any] = [:]
-        depthDoc["fields"] = ["ms since the record tap", "distance at the centre, mm (-1: none)", "5 x 5 grid of distances, mm, row by row from the top-left of the depth picture (null: no reading)"]
+        depthDoc["fields"] = ["ms since the record tap", "distance at the centre, mm (-1: none)", "5 x 5 grid of distances, mm, row by row from the top-left of the depth picture (null: no reading)", "quality (1 high, 0 low)", "absolute distances (1) or only relative (0)", "smoothed (1) or the sensor's own (0)"]
         depthDoc["rows"] = depthRows
         writeJSON(depthDoc, r.dir.appendingPathComponent("depth.json"), r)
 
@@ -373,7 +378,7 @@ extension Engine {
             rep["halfCountedByMs"] = ji(countedTimes[countedTimes.count / 2])
             rep["allCountedByMs"] = ji(countedTimes[countedTimes.count - 1])
         }
-        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (W / Q / N)", "frames by W", "by Q", "by N", "confidence x100", "looks like a slab cert"]
+        rep["listFields"] = ["kind", "text", "counted", "frames it was read in", "first read: ms since the record tap (the frame's own time)", "counted: ms since the record tap (when the app knew; null: never)", "smallest long side, dots", "largest long side, dots", "first read by (Q / N / S / T)", "frames by Q", "by N", "by S", "by T", "confidence x100", "looks like a slab cert", "weak reads (confidence under 0.5: not counted)"]
         rep["list"] = codeRows
         var cam: [String: Any] = [:]
         cam["shutterMedianMicroseconds"] = ji(medianOf(exps) * 1e6)
@@ -387,8 +392,10 @@ extension Engine {
         cam["brightnessMedian"] = ji(medianOf(means))
         cam["sharpnessMedian"] = ji(medianOf(sharps))
         cam["sharpnessLowestTenth"] = ji(quantile(sharps, 0.1))
-        cam["distanceMedianMm"] = ji(medianOf(depths))
-        cam["distanceReadings"] = depths.count
+        cam["distanceByTheDepthSensorMedianMm"] = ji(medianOf(depths))
+        cam["distanceByTheDepthSensorReadings"] = depths.count
+        cam["distanceByTheCodesSizeMedianMm"] = ji(medianOf(bySize))
+        cam["distanceByTheCodesSizeReadings"] = bySize.count
         rep["whatTheCameraDid"] = cam
         var heat: [String: Any] = [:]
         heat["start"] = r.heatStart
@@ -438,7 +445,7 @@ extension Engine {
         }
         line += " · \(readN) of \(frames.count) frames read"
         if !exps.isEmpty { line += " · shutter 1/\(Int((1 / medianOf(exps)).rounded()))" }
-        if !depths.isEmpty { line += String(format: " · %.1f in", medianOf(depths) / 25.4) }
+        if !bySize.isEmpty { line += String(format: " · %.1f in", medianOf(bySize) / 25.4) }
         if !snaps.isEmpty { line += " · \(snaps.count) snaps" }
         if !errs.isEmpty { line += " · \(errs.count) problem(s) noted in the file" }
         if copied && coordErr == nil {

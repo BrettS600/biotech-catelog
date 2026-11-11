@@ -91,6 +91,7 @@ final class CodeInfo {
     var conf: Float = 0
     var slab = false
     var need = 2
+    var weak = 0                // reads Apple's reader was less than half sure of: written down, never counted
 
     init(kind: String, text: String, index: Int) {
         self.kind = kind
@@ -121,6 +122,7 @@ final class FrameRec {
     var doneT = 0.0
     var found: [[Any]] = []
     var kept = 0
+    var sizeMm = -1             // the distance by the size of the codes in this frame
 }
 
 final class Recording {
