@@ -33,12 +33,16 @@ import subprocess
 import sys
 import threading
 import time
+import json
+import urllib.request
 
 # ---------------- settings ----------------
 BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")       # the same folder collector.py uses
 DATA = os.path.join(BASE, "data")
 KNOWN_HOSTS = os.path.join(BASE, ".ssh", "known_hosts")                # github.com's key, written by setup.sh
 KEY = os.path.join(BASE, ".ssh", "card_data_ed25519")                  # card-data's deploy key (write access)
+RUN_KEY = os.path.join(BASE, ".ssh", "scrap_run_token")                # a GitHub key that can only start runs in BrettS600/scrap
+RUN_URL = "https://api.github.com/repos/BrettS600/scrap/actions/workflows/15.yml/dispatches"
 REMOTE = os.environ.get("CARD_DATA_REMOTE", "git@github.com:BrettS600/card-data.git")
 CHECKOUT = os.path.join(DATA, "card-data-scans")                       # the sparse checkout: data/scans only
 FILE = "data/scans/scans.csv"
@@ -137,6 +141,25 @@ def git(*args, cwd=None, check=True, timeout=120):
         raise RuntimeError(f"git {' '.join(args[:3])}: {r.stderr.strip()[:300]}")
     return r
 
+def start_scan_run(n):
+    """Tells BrettS600/scrap to open the new scans now. Only "start" is sent - scrap reads scans.csv itself.
+    A failure is only logged: the push already worked, and scrap also checks scans.csv on its own."""
+    try:
+        if not os.path.exists(RUN_KEY):
+            if time.time() - _run.get("run_key_logged", 0) > 3600:
+                _run["run_key_logged"] = time.time()
+                log(f"Scans: scrap's run key ({RUN_KEY}) is not on this machine yet - the new scans wait for scrap's own check")
+            return
+        token = open(RUN_KEY, encoding="utf-8").read().strip()
+        req = urllib.request.Request(RUN_URL, data=json.dumps({"ref": "main"}).encode(), method="POST", headers={
+            "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "pokemon-collector"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            status = r.status
+        log(f"Scans: asked scrap to open the {n} new slab link(s)" if status == 204 else
+            f"Scans: scrap answered {status} to the start signal")
+    except Exception as e:
+        log(f"Scans: couldn't start scrap's run ({str(e)[:200]}); scrap's own check will pick the scans up")
 
 def push(snap, check=False):
     """Add the slabs not yet in scans.csv (the Cert ID header first if the file has none), commit, push to card-data's
@@ -178,10 +201,12 @@ def push(snap, check=False):
                 f.write(body)
             git("add", FILE)
             git("commit", "-q", "-m", f"scans: {len(new)} slab link(s) from Slab Show Scanner" if new else "scans: the Cert ID header (links.csv's format)")
-            if git("push", "-q", "origin", "HEAD:main", check=False, timeout=300).returncode == 0:
+             if git("push", "-q", "origin", "HEAD:main", check=False, timeout=300).returncode == 0:
                 _run["added"], _run["done"] = len(new), list(snap)
                 log(f"Scans: {len(new)} slab link(s) added to card-data {FILE} ({len(have)} in the file)" if new else
                     f"Scans: card-data's key works (read and write); the Cert ID header is in {FILE}")
+                if new:
+                    start_scan_run(len(new))
                 return
         raise RuntimeError("card-data refused the push three times")
     except Exception as e:
