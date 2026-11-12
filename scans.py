@@ -201,7 +201,7 @@ def push(snap, check=False):
                 f.write(body)
             git("add", FILE)
             git("commit", "-q", "-m", f"scans: {len(new)} slab link(s) from Slab Show Scanner" if new else "scans: the Cert ID header (links.csv's format)")
-             if git("push", "-q", "origin", "HEAD:main", check=False, timeout=300).returncode == 0:
+            if git("push", "-q", "origin", "HEAD:main", check=False, timeout=300).returncode == 0:
                 _run["added"], _run["done"] = len(new), list(snap)
                 log(f"Scans: {len(new)} slab link(s) added to card-data {FILE} ({len(have)} in the file)" if new else
                     f"Scans: card-data's key works (read and write); the Cert ID header is in {FILE}")
