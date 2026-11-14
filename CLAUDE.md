@@ -3278,6 +3278,49 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   push rebased over, no key = waiting. (page/app/app.js scanLink() is display-only and unused; the collector makes the
   links.)
 
+### RECORD SCANS, THE READS OF THE SCANS, SYNC, HALF GRADES (2026-11-14, g16)
+Brett, 2026-11-13/14: a Record scans button under Record purchases sends the show to History > Pre-Sales Spotcheck,
+named "Show N" by default (editable; every tap a new set with everything scanned so far; "have it be unlimited"); Start a
+new show asks "are you sure" and erases scans.csv at once (the last show's waiting slabs go first); the cert pages he
+opens from scans.csv land in the private repo BrettS600/scan-results, folder scans/ ("only want you to have access to
+this file" - never card-inbox/scans, never BrettS600/scrap; scan-results keeps ONE commit, replaced on every save: never
+pull, fetch + reset) and must show on the website and in the app "immediately" (a minute is fine, faster better);
+"Sync from phone" on the website and "Sync from website" in the app, the synced boxes reset at midnight ("only sync
+values reset"); unmatched certs (not $50+ cards of ours) left out and listed behind a button; CGC half grades: Card
+Ladder's exact grade drives the money, a thin half grade is priced one grade DOWN ("rounding down would be safer"), the
+PriceCharting columns round half grades down with a symbol, and a cert moves to the grade its grader's page shows.
+- scans.py (Brett gave access 2026-11-14 for this): clear() for {type: 'scan_clear'} (a generation number keeps a
+  running push from dropping the new show's queue); reads_tick() every 15 s fetches scan-results/scans with this
+  machine's OWN read-only key (BASE/.ssh/scan_results_ed25519, made on first run by ssh-keygen; Brett adds the .pub as a
+  read-only deploy key on scan-results - the website shows it while sr_ok is false; the private half never leaves the
+  droplet), parses each page (parse_read: the same shape as card-data data/certs pages), newest read per cert, and
+  match()es it with the site's index: the cert itself, else PSA's own "Sales of Similar Items" certs on the page, else
+  words_key (how the grader names the card: PSA year|brand|number|subject|variety, CGC name|set|number|variant|language);
+  grade always the page's (grade_key). why: no card / several / no grade data / no grade / not pokemon / wait.
+  start_scan_run (Brett's scrap start signal) left exactly as he wrote it.
+- collector.py: fast_tick() every FAST_S = 15 s between cycles (and at each cycle's start): read_requests, scans.flush,
+  scans.reads_tick; changed reads and "cleared" go out at once on <channel>-scr (signed like the main channel; GitHub's
+  raw CDN holds live-branch files up to 5 min even with a query string - measured 2026-11-14), and scan.bin (reads, key
+  status, last erase asked/done, each side's plan) + spots.bin (every Spotcheck set) on the live branch. live.gspots now
+  only {t, n, file}. gspot sets from the phone (src 'ph'): no slab cap (GSPOT_PARTS 5000 parts), slabs may carry
+  null card/grade plus [grader, cert]; head has name, day, minsales, share, nall. gset ({src: ph|web, v: {capital, hold,
+  under, ship, bar, share, gate, minSales}}) kept in v["gsets"]. scan_idx() reads scanidx.bin hourly like forecast.bin.
+- graded_site.py: scanidx.bin (certs -> [card, grade index or -1], words -> card or 0 = ambiguous, rows -> grades with
+  figures; PSA "recent_sales" certs on Brett's pages added); a PC-photo cert whose page (certs/results.csv) shows another
+  grade moves to that row (82% of CGC certs agreed on 2026-11-13, nearly all the rest were CGC x.5 filed under x by
+  PriceCharting; PSA 99.5%); a half-grade row with no PriceCharting price of its own shows the grade below's: src
+  "down:<gk>:<n>:<days>", pc1 [hl, n, "down", gk], PC grade "PSA 8 ↓" - the page draws a ↓ (display only).
+- page/graded_fh.js: SCAN hub (scan.bin, spots.bin, the channel every 15 s while Pre-Sales Spotcheck shows), phone sets
+  with Name and "Not in our data" columns (pop-up of hyperlinked certs by reason), each phone slab resolved by its read
+  (fhsRes), a half grade without its own line looked back one grade down, the key box. page/graded_fc.js: Sync from
+  phone (FCG_SYNC in localStorage fcg-sync {day, vals, prev}; a hand-changed synced box is dropped from it; fcgInSave
+  keeps the pre-sync capital/hold), the website's plan sent on every change and once a day.
+- page/app (g16): READS (scan.bin + the channel every 15 s while open, unlocked and holding real slabs) identify slabs
+  (look 'ok', how 'read'; a card you picked/confirmed stays), sl.rdWhy on the link rows; calc prices a thin half grade
+  one grade down (x.down, "priced as PSA 8 ↓"); Record scans (pop-up, parts of 40, waits and retries on a refused
+  part); Start a new show pop-up puts ['__clear__', t] in the scan queue (sendScans sends in order); Sync from website
+  (SYNC_STORE ssc-sync {day, vals, prev}); WKWebView shows no prompt()/confirm(), so the app draws its own pop-ups (#modal).
+
 ## THE NATIVE TRIAL APP - "Slab Scanner" for the iPhone (2026-11-10, n1; ios/SlabScanner)
 WHY. Brett ran 16 tests with the web app g14 on 2026-11-10 (sheet 2: 50 codes; files in his ~/scan-test). What they said:
 - the reader got through 5-9 of the camera's ~25 frames a second (125-275 ms a frame with two readers);

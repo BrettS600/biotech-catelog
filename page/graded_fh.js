@@ -367,7 +367,8 @@ function fhrOpenColumns() {                               // the slab lists' Col
 }
 tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded purchases', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded purchases', onCols: h => fhhTake('fhr', h),
   key: r => r.key, row: fhrRow, rowClass: () => 'fhr-row',
-  hay: r => r.rec.slabs.map(s => { const b = GR.doc ? fcrMap().get(s[0] + '|' + s[1]) : null; return b ? b[1] + ' ' + b[2] + ' ' + b[25] : fhgName(s[0]).join(' ') + ' ' + grLabel(s[1]); }).join(' ') + ' ' + fhrDate(r.rec.t),
+  hay: r => r.rec.slabs.map(s => { const R = fhsRes(s), x = R.s || [], rd = R.rd || {}, b = GR.doc && x[0] != null ? fcrMap().get(x[0] + '|' + x[1]) : null;
+    return (b ? b[1] + ' ' + b[2] + ' ' + b[25] : x[0] != null ? fhgName(x[0]).join(' ') + ' ' + grLabel(x[1]) : '') + ' ' + (s[10] || '') + ' ' + (rd.nm || '') + ' ' + (rd.st || ''); }).join(' ') + ' ' + fhrDate(r.rec.t) + ' ' + (r.rec.name || ''),
   after: t => {
     fhxInsert('fhr', t, r => FHG.open.has('p:' + r.key), fhrDetail);
     const none = $('fhr-none'); if (none) none.textContent = t.view.length ? '' : (LIVE.data ? 'No purchases recorded yet: Record Purchases (on Purchases, in the plan pane) puts them here.' : 'Waiting for the live data.');
@@ -385,11 +386,129 @@ tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded purchases', ra
 const FHS = {echo: grLS('fcg-gspot-echo', []), gone: new Set(grLS('fcg-gspot-gone', [])), open: new Set(), cache: new Map()};
 const fhsYi = ym => +String(ym).slice(0, 4) * 12 + +String(ym).slice(5, 7) - 1;
 const fhsYm = i => Math.floor(i / 12) + '-' + String(i % 12 + 1).padStart(2, '0');
+/* ---- THE PHONE'S SHOWS AND THE READS OF THE SCANS (2026-11-14, Brett: "when I press this button [Record scans], I want
+   all of the scans to go to the website forecast tab > graded cards > history > Pre-sales spotcheck"; "as soon as read
+   results are made available from the scans results file, then I want those results to be immediately updated to the
+   website"; "there should also maybe be a column with a button that I can click with a pop-up that shows ... all of the
+   certs that are already hyperlinked that didn't match our database"). The sets live in spots.bin and the reads in
+   scan.bin on the live branch (the collector's fast tick); GitHub's cache holds those up to five minutes, so while this
+   window shows, the channel is read every 15 s as well: the reads (<channel>-scr) and the phone's Record scans and Your
+   Plan (the main topic) arrive in seconds. A phone slab is looked back on as its cert's read names it - the card, and
+   always the grader's grade; a half grade with no Card Ladder line of its own is looked back on one grade down
+   (Brett: "rounding down would be safer"). A slab that matches nothing of ours is left out of the set's numbers and
+   listed under the Not in our data button, with its cert's link. ---- */
+const SCAN = {reads: new Map(), rev: 0, file: null, fileB: -1, spots: null, spotsT: -1, ch: null, since: '12h', phone: new Map(), sync: {}, busy: false, at: 0};
+function scanPut(r) {
+  if (!r || !r.g || !r.c) return;
+  const k = r.g + ':' + r.c, o = SCAN.reads.get(k);
+  if (!o || String(r.at || '') > String(o.at || '') || (String(r.at || '') === String(o.at || '') && JSON.stringify(r) !== JSON.stringify(o))) { SCAN.reads.set(k, r); SCAN.rev++; }
+}
+async function scanLive(name, b) {
+  const res = await fetch(LIVE_URL.replace(/[^/]+$/, name) + '?t=' + b, {cache: 'no-store'});
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
+}
+async function scanFileLoad(force) {                      // scan.bin once a minute, and spots.bin when its time moved
+  if (!LIVE_URL || !HKEY) return;
+  const b = Math.floor(Date.now() / 60000);
+  if (!force && SCAN.fileB === b) return;
+  SCAN.fileB = b;
+  try {
+    const f = await scanLive('scan.bin', b);
+    SCAN.file = f; (f.reads || []).forEach(scanPut);
+    for (const [k, x] of Object.entries(f.sync || {})) if (x && (!SCAN.sync[k] || x.t > SCAN.sync[k].t)) SCAN.sync[k] = x;
+    const st = Math.max(f.spots_t || 0, (LIVE.data && LIVE.data.gspots && LIVE.data.gspots.t) || 0);
+    if (st !== SCAN.spotsT) { const sp = await scanLive('spots.bin', b + '_' + st); SCAN.spots = sp.recs || []; SCAN.spotsT = st; SCAN.rev++; }
+  } catch (e) { /* not published yet, or offline: the next minute tries again */ }
+}
+async function scanPoll() {                               // the channel: the reads at once, the phone's Record scans and Your Plan
+  if (!HKEY) return;
+  const ch = SCAN.ch || (SCAN.ch = await alChannel()), enc = new TextEncoder();
+  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
+  let lines = [];
+  try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-scr,' + ch.topic + '/json?poll=1&since=' + SCAN.since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { return; }
+  for (const line of lines) {
+    try {
+      const ev = JSON.parse(line); if (ev.event !== 'message') continue;
+      SCAN.since = ev.id;
+      const env = JSON.parse(ev.message); if (!env || !env.m || !env.s) continue;
+      if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
+      const m = JSON.parse(env.m);
+      if (m.type === 'reads') (m.r || []).forEach(scanPut);
+      else if (m.type === 'gset' && (m.src === 'ph' || m.src === 'web')) { if (!SCAN.sync[m.src] || m.t > SCAN.sync[m.src].t) SCAN.sync[m.src] = {t: m.t, v: m.v || {}}; }
+      else if (m.type === 'gspot') {                      // a set's parts as they were sent; a phone set shows once all are in
+        const id = +m.id, P = SCAN.phone.get(id) || {n: Math.max(1, +m.n || 1), parts: {}, rec: null};
+        P.parts[+m.k || 0] = m; SCAN.phone.set(id, P);
+        const h = P.parts[0];
+        if (!P.rec && h && h.src === 'ph' && Object.keys(P.parts).length >= P.n) {
+          const rec = {id, t: id, local: 1};
+          ['h', 'cap', 'disc', 'ship', 'fee', 'month', 'reg', 'spent', 'model', 'src', 'minp', 'gate', 'name', 'day', 'minsales', 'share', 'nall'].forEach(k => { if (h[k] !== undefined) rec[k] = h[k]; });
+          rec.slabs = []; for (let k = 0; k < P.n; k++) rec.slabs.push(...(((P.parts[k] || {}).s) || []));
+          P.rec = rec; SCAN.rev++;
+        }
+      } else if (m.type === 'gspot_del') { SCAN.phone.delete(+m.id); SCAN.rev++; }
+    } catch (e) { continue; }
+  }
+}
+const scanActive = () => document.visibilityState === 'visible' && !$('p-fc').hidden && NAV.fc === 'graded' && NAV.gm === 'hi' && FHG.win === 'sc';
+async function scanTick(force) {
+  if (SCAN.busy || (!force && !scanActive())) return;
+  SCAN.busy = true; const rev = SCAN.rev;
+  try { await scanFileLoad(force); await scanPoll(); } catch (e) { /* next tick */ }
+  SCAN.busy = false; SCAN.at = Date.now();
+  fhsKeyPaint();
+  if (SCAN.rev !== rev && scanActive()) { tables.fhs.apply(true); fhsCount(); }
+}
+setInterval(() => scanTick(false), 15000);
+const SCAN_WHY = {'no card': 'No card in our data - under $50, or a card we don’t follow', several: 'Several possible cards - the grader’s name for it fits more than one of ours',
+  'no grade data': 'Our card, but no figures for this grade or the one below', 'no grade': 'The cert page shows no grade (Authentic, Unavailable)', 'not pokemon': 'Not a Pokémon card',
+  waiting: 'Waiting for its read - open its link (scans.csv) and it fills in', wait: 'Read - waiting for the site’s match index'};
+const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c + '/psa';
+const scanLower = gk => { if (!gk) return null; const [g, k] = String(gk).split('|'); if (k === 'g10pristine' || k === 'g10perfect') return g + '|g10'; return /_5$/.test(k) ? g + '|' + k.slice(0, -2) : null; };
+// a slab of a set as the look-back takes it: a phone slab ([..., grader, cert]) by its cert's read - its card and always the
+// grader's grade - else the card the phone's PSA lookup named; null with the reason when nothing of ours matches it
+function fhsRes(s) {
+  const g = s[9], c = s[10];
+  if (!g || !c) return {s};
+  const rd = SCAN.reads.get(g + ':' + c) || null;
+  if (rd && rd.cid != null && rd.gk && !rd.why) return {s: [rd.cid, rd.gk].concat(s.slice(2)), rd};
+  if (rd && rd.why === 'no grade data') return {s: null, rd, why: rd.why};
+  if (s[0] != null && s[1]) return {s: rd && rd.gk && rd.cid === s[0] ? [s[0], rd.gk].concat(s.slice(2)) : s, rd};
+  return {s: null, rd, why: rd ? (rd.why || 'no card') : 'waiting'};
+}
+function fhsKeyPaint() {                                  // the collector's key for scan-results, shown until it is let in
+  const box = $('fhs-key'); if (!box) return;
+  const k = (SCAN.file || {}).key || {};
+  if (!SCAN.file || k.ok || !k.pub) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = '<b>The collector can’t read scan-results yet</b>' + (k.err ? ' <span class="dim">(' + esc(k.err) + ')</span>' : '') + '. On GitHub open <b>BrettS600/scan-results › Settings › Deploy keys › Add deploy key</b>, give it any title, paste this key, leave “Allow write access” unticked and add it. The reads start within a minute.' +
+    '<div class="fhs-keyrow"><code id="fhs-keytext">' + esc(k.pub) + '</code><button type="button" class="fhr-del" id="fhs-keycopy">Copy</button></div>';
+}
+document.addEventListener('click', e => {
+  if (e.target.id === 'fhs-keycopy') { const t = ($('fhs-keytext') || {}).textContent || ''; navigator.clipboard.writeText(t).then(() => favSay('Key copied.'), () => favSay('Select the key and copy it.')); }
+  if (e.target.closest('#fhs-pop .fhs-popx') || e.target.id === 'fhs-pop') { const p = $('fhs-pop'); if (p) p.remove(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { const p = $('fhs-pop'); if (p) p.remove(); } });
+function fhsNxOpen(id) {                                  // the pop-up: a set's certs that match nothing of ours, as links
+  const rec = fhsRecs().find(r => r.id === id); if (!rec) return;
+  const S = fhsSet(rec), by = {};
+  rec.slabs.forEach((s, i) => { const X = S.slabs[i]; if (X && X.nx) (by[X.nx] = by[X.nx] || []).push([s, X.rd]); });
+  const order = ['no card', 'several', 'no grade data', 'no grade', 'not pokemon', 'wait', 'waiting'];
+  let h = '';
+  for (const w of order.filter(w => by[w]).concat(Object.keys(by).filter(w => !order.includes(w)))) {
+    h += '<h4>' + esc(SCAN_WHY[w] || w) + ' · ' + by[w].length + '</h4><ul>' + by[w].map(([s, rd]) => '<li><a href="' + esc(scanLink(s[9], s[10])) + '" target="_blank" rel="noopener">' + esc(String(s[9]).toUpperCase() + ' ' + s[10]) + '</a>' +
+      (rd ? ' <span class="dim">· ' + esc([rd.nm, rd.st, rd.no ? '#' + rd.no : '', rd.vr, rd.gt].filter(Boolean).join(' · ')) + '</span>' : '') + '</li>').join('') + '</ul>';
+  }
+  const n = Object.values(by).reduce((a, x) => a + x.length, 0);
+  document.body.insertAdjacentHTML('beforeend', '<div id="fhs-pop"><div class="fhs-popbox"><button type="button" class="fhs-popx" title="Close">✕</button><h3>Not in our data · ' + esc(rec.name || fhrDate(rec.t)) + '</h3>' +
+    '<p class="dim">' + n + ' of the set’s ' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' match nothing of ours, so they are left out of its numbers. Each link opens the cert’s page.</p>' + (h || '<p>None.</p>') + '</div></div>');
+}
 function fhsRecs() {
-  const live = (LIVE.data && LIVE.data.gspots) || {}, recs = (live.recs || []).slice(), have = new Set(recs.map(r => r.id));
+  const live = (LIVE.data && LIVE.data.gspots) || {}, recs = (SCAN.spots || (Array.isArray(live.recs) ? live.recs : [])).slice(), have = new Set(recs.map(r => r.id));
+  for (const P of SCAN.phone.values()) if (P.rec && !have.has(P.rec.id)) { recs.push(P.rec); have.add(P.rec.id); }
   FHS.echo = FHS.echo.filter(e => !have.has(e.id) && Date.now() - e.t < 2 * 86400000); grSave('fcg-gspot-echo', FHS.echo);
   for (const e of FHS.echo) recs.push(e);
-  if (FHS.gone.size && live.t) { for (const id of [...FHS.gone]) if (!have.has(id)) FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); }
+  if (FHS.gone.size && SCAN.spots) { for (const id of [...FHS.gone]) if (!SCAN.spots.some(r => r.id === id) && !SCAN.phone.has(id)) FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); }
   return recs.filter(r => !FHS.gone.has(r.id)).sort((a, b) => b.t - a.t);
 }
 const FHS_T0 = () => Array.from({length: 6}, () => ({n: 0, nb: 0, nd: 0, win: 0, sp: 0, se: 0, sa: 0}));
@@ -435,19 +554,26 @@ function fhsSlab(s, rec) {
   });
   return {months: months.reverse(), tot};
 }
-function fhsSet(rec) {                                    // every slab of a set and the set's totals (kept until a trend file or the replay changes)
-  const tok = (FHG.doc ? FHG.doc.t : '') + '|' + GR.trend.size + '|' + FHG.trendBusy, c = FHS.cache.get(rec.id);
+function fhsSet(rec) {                                    // every slab of a set and the set's totals (kept until a trend file, the replay or the reads change)
+  const tok = (FHG.doc ? FHG.doc.t : '') + '|' + GR.trend.size + '|' + FHG.trendBusy + '|' + SCAN.rev, c = FHS.cache.get(rec.id);
   if (c && c.tok === tok) return c;
-  const slabs = rec.slabs.map(s => fhsSlab(s, rec)), tot = FHS_T0();
+  const slabs = rec.slabs.map(s => {
+    const R = fhsRes(s);
+    if (!R.s) return {why: SCAN_WHY[R.why] || R.why, nx: R.why, rd: R.rd};
+    let X = fhsSlab(R.s, rec);
+    const lo = !X.loading && !X.tot ? scanLower(R.s[1]) : null;   // a half grade without its own Card Ladder line: one grade down
+    if (lo) { const X2 = fhsSlab([R.s[0], lo].concat(R.s.slice(2)), rec); if (X2.tot || X2.loading) { X2.down = lo; X = X2; } }
+    return Object.assign(X, {rd: R.rd, res: R.s});
+  }), tot = FHS_T0();
   slabs.forEach(x => { if (x.tot) x.tot.forEach((T, i) => { for (const k in T) tot[i][k] += T[k]; }); });
-  const out = {tok, slabs, tot, loading: slabs.some(x => x.loading)};
+  const out = {tok, slabs, tot, loading: slabs.some(x => x.loading), nx: slabs.filter(x => x.nx).length};
   FHS.cache.set(rec.id, out);
   return out;
 }
 function fhsRowsData() {
   if (!FHG.doc || !FHG.doc.rq) return [];
   return fhsRecs().map((rec, o) => {
-    const r = [o], S = fhsSet(rec); r.rec = rec; r.S = S; r.key = String(rec.id); r.t = rec.t; r.h = rec.h; r.n = rec.slabs.length; r.src = rec.src === 'rc' ? 'Recording' : 'Forecasting';
+    const r = [o], S = fhsSet(rec); r.rec = rec; r.S = S; r.key = String(rec.id); r.t = rec.t; r.h = rec.h; r.n = rec.slabs.length; r.src = rec.src === 'rc' ? 'Recording' : rec.src === 'ph' ? 'Phone' : 'Forecasting'; r.nm = rec.name || ''; r.nx = rec.src === 'ph' ? S.nx : -1;
     for (let h = 1; h <= 6; h++) { const T = S.tot[h - 1]; r['b' + h] = T.nb; r['p' + h] = T.nb ? T.sp / T.nb : null; r['e' + h] = T.nb ? T.se / T.nb : null; r['a' + h] = T.nd ? T.win / T.nd : null; r['r' + h] = T.nd ? T.sa / T.nd : null; }
     return r;
   });
@@ -464,27 +590,38 @@ function fhsHoldCells(T, h, on, loading) {
 function fhsRow(r) {
   const rec = r.rec, S = r.S;
   let s = '<td><b>' + fhrDate(rec.t) + '</b>' + (rec.smp ? '<span class="fhr-smp" title="Sent with sample slabs among them">sample</span>' : '') + (rec.local ? ' <span class="dim" title="Sent; the collector confirms it in a minute or two">sending…</span>' : '') + '<br><span class="dim">' + esc(new Date(rec.t).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})) + '</span></td>' +
-    '<td>' + r.src + '</td><td>' + rec.h + ' mo</td><td class="num">' + rec.slabs.length + '<br><span class="dim">' + fmtMoneyPlain(rec.spent || 0) + '</span></td>';
+    '<td>' + r.src + '</td><td>' + (rec.name ? '<b>' + esc(rec.name) + '</b>' : '<span class="dim">-</span>') + '</td>' +
+    '<td class="num">' + (r.nx < 0 ? '<span class="dim" title="Only the phone’s Record scans carry certs">-</span>' : r.nx ? '<button type="button" class="fhs-nx" data-id="' + esc(rec.id) + '" title="The slabs of this show that match nothing of ours - left out of its numbers; click for their links">' + r.nx + '</button>' : '<span class="dim" title="Every slab matches a card and grade of ours">0</span>') + '</td>' +
+    '<td>' + rec.h + ' mo</td><td class="num">' + rec.slabs.length + '<br><span class="dim">' + (rec.src === 'ph' ? (rec.slabs.length - Math.max(0, r.nx)) + ' in our data' : fmtMoneyPlain(rec.spent || 0)) + '</span></td>';
   for (let h = 1; h <= 6; h++) s += fhsHoldCells(S.tot[h - 1], h, h === rec.h ? ' fhr-on' : '', S.loading);
   return s;
 }
 const fhsShownHolds = () => [1, 2, 3, 4, 5, 6].filter(h => FHH_PARTS.some(([p]) => !FHH.has(p + h)));
 function fhsDetail(r) {
   const rec = r.rec, S = r.S, H0 = fhsShownHolds(), H = H0.length ? H0 : [rec.h], bar = rec.minp != null ? rec.minp : 0.5;
-  const head = '<tr><th>Card</th><th>Grade</th><th class="num">% under</th><th class="num">Standard then</th><th class="num">Chance then</th>' + H.map(h => '<th class="num' + (h === rec.h ? ' fhr-on' : '') + '">' + h + '-month hold</th>').join('') + '</tr>';
+  const ph = rec.src === 'ph';
+  const head = '<tr>' + (ph ? '<th>Cert</th>' : '') + '<th>Card</th><th>Grade</th><th class="num">% under</th><th class="num">Standard then</th><th class="num">Chance then</th>' + H.map(h => '<th class="num' + (h === rec.h ? ' fhr-on' : '') + '">' + h + '-month hold</th>').join('') + '</tr>';
   const rows = rec.slabs.map((sl, i) => {
-    const [cid, gk, dk, std, , , pk] = sl, X = S.slabs[i], base = GR.doc ? fcrMap().get(cid + '|' + gk) : null;
-    const nm = base ? [base[1], String(base[2] || '').replace(/^Pokemon /, '') + (base[3] ? ' · #' + base[3] : '')] : fhgName(cid), k = rec.id + ':' + i, open = FHS.open.has(k);
-    let s = '<tr class="fhs-slab' + (open ? ' open' : '') + '" data-sk="' + esc(k) + '"><td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td><td class="num">' + (Math.round(dk) / 10) + '%</td><td class="num">' + (std == null ? '<span class="dim">-</span>' : fmtMoneyPlain(std)) + '</td><td class="num">' + (pk == null ? '<span class="dim">no score</span>' : Math.round(pk / 10) + '%') + '</td>';
+    const X = S.slabs[i], rd = X.rd, rs = X.res || sl, [cid, gk] = rs, [, , dk, std, , , pk] = sl, k = rec.id + ':' + i, open = FHS.open.has(k);
+    const certTd = ph ? '<td>' + (sl[9] ? '<a href="' + esc(scanLink(sl[9], sl[10])) + '" target="_blank" rel="noopener">' + esc(String(sl[9]).toUpperCase() + ' ' + sl[10]) + '</a>' +
+      (rd ? '<br><span class="dim" title="' + esc('The grader’s page, read ' + String(rd.at || '').slice(0, 10) + (rd.how ? ' - matched by ' + ({cert: 'the cert itself', sales: 'PSA’s own list of sales of this card and grade', words: 'the grader’s name for the card'}[rd.how] || rd.how) : '')) + '">' + esc([rd.gt, rd.pop != null ? 'pop ' + rd.pop + (rd.ph != null ? ' (' + rd.ph + ' higher)' : '') : '', rd.est != null ? 'est ' + fmtMoneyPlain(rd.est) : ''].filter(Boolean).join(' · ')) + '</span>' : '<br><span class="dim">not read yet</span>') : '<span class="dim">-</span>') + '</td>' : '';
+    if (cid == null || !gk) {                            // matches nothing of ours: the reason, the grader's own words
+      return '<tr class="fhs-slab fhs-nxrow">' + certTd + '<td colspan="' + (5 + H.length) + '">' + (rd && rd.nm ? esc([rd.nm, rd.st, rd.no ? '#' + rd.no : '', rd.vr].filter(Boolean).join(' · ')) + ' - ' : '') + '<span class="dim">' + esc('Not in our data: ' + X.why + '.') + '</span></td></tr>';
+    }
+    const base = GR.doc ? fcrMap().get(cid + '|' + gk) : null;
+    const nm = base ? [base[1], String(base[2] || '').replace(/^Pokemon /, '') + (base[3] ? ' · #' + base[3] : '')] : fhgName(cid);
+    const gTxt = esc(base ? base[25] : grLabel(gk)) + (X.down ? '<br><span class="dim" title="' + esc('No Card Ladder line of its own for this half grade: looked back on as ' + grLabel(X.down) + ' (rounded down)') + '">as ' + esc(grLabel(X.down)) + ' ↓</span>' : '');
+    let s = '<tr class="fhs-slab' + (open ? ' open' : '') + '" data-sk="' + esc(k) + '">' + certTd + '<td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td><b>' + gTxt + '</b></td><td class="num">' + (Math.round(dk) / 10) + '%</td><td class="num">' + (std == null ? '<span class="dim">-</span>' : fmtMoneyPlain(std)) + '</td><td class="num">' + (pk == null ? '<span class="dim">no score</span>' : Math.round(pk / 10) + '%') + '</td>';
     if (X.loading) s += H.map(() => '<td class="num"><span class="dim">…</span></td>').join('');
     else if (!X.tot) s += '<td colspan="' + H.length + '"><span class="dim">' + esc('Not looked back: ' + X.why + '.') + '</span></td>';
     else s += H.map(h => { const T = X.tot[h - 1]; return '<td class="num' + (h === rec.h ? ' fhr-on' : '') + '">' + (!T.nb ? '<span class="dim">' + (T.n ? 'no buys' : '-') + '</span>'
       : '<b>' + T.nb + '</b> buy' + (T.nb > 1 ? 's' : '') + (T.nd ? ' · <b class="' + (T.win / T.nd >= 0.5 ? 'up' : 'down') + '">' + T.win + ' won</b>' : '') + '<br><span class="dim">' + fcPct(T.se / T.nb, 1) + ' → </span>' + (T.nd ? fhsPctS(T.sa / T.nd) : '<span class="dim">not up yet</span>')) + '</td>'; }).join('');
     s += '</tr>';
-    if (open && X.months) s += '<tr class="fhs-mo"><td colspan="' + (5 + H.length) + '">' + fhsMonths(X, H, bar) + '</td></tr>';
+    if (open && X.months) s += '<tr class="fhs-mo"><td colspan="' + (5 + (ph ? 1 : 0) + H.length) + '">' + fhsMonths(X, H, bar) + '</td></tr>';
     return s;
   }).join('');
-  return '<h4>' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' sent ' + fhrDate(rec.t) + ' from ' + r.src + ' · bar ' + Math.round(bar * 100) + '% · gate ' + (rec.gate === 0 ? 'off' : 'on') + ' · ' + fmtMoneyPlain(rec.ship || 0) + ' shipping, eBay’s fee ' + (Math.round((rec.fee || 0) * 1000) / 10) + '% · your Hold then ' + rec.h + ' month' + (rec.h > 1 ? 's' : '') + '</h4>' +
+  return '<h4>' + (rec.name ? esc(rec.name) + ' · ' : '') + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' sent ' + fhrDate(rec.t) + ' from ' + r.src + ' · bar ' + Math.round(bar * 100) + '% · gate ' + (rec.gate === 0 ? 'off' : 'on') + ' · ' + fmtMoneyPlain(rec.ship || 0) + ' shipping, eBay’s fee ' + (Math.round((rec.fee || 0) * 1000) / 10) + '% · your Hold then ' + rec.h + ' month' + (rec.h > 1 ? 's' : '') +
+    (ph ? ' · the phone’s plan: ' + Math.round((rec.disc || 0) * 1000) / 10 + '% under, $' + fmtInt(rec.cap || 0) + ' capital, ' + (rec.share || 0) + '% a slab, ' + (rec.minsales || 0) + '+ sales last month' : '') + '</h4>' +
     '<p class="dim">Each hold: how many times since 2022 the model would have bought the slab (a month at or above the bar' + (rec.gate === 0 ? '' : ', the market rising') + '), how many of those buys made money, and the average ROI it expected → the average it made. Click a slab for its months.</p>' +
     '<table class="fhs-slabs"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>' +
     '<button type="button" class="fhr-del fhs-del" data-id="' + esc(rec.id) + '" title="Take this set off Pre-Sales Spotcheck">Remove this set</button>';
@@ -498,18 +635,21 @@ function fhsMonths(X, H, bar) {                           // a slab opened: its 
 }
 tables.fhs = makeTable('fhs', {rows: fhsRowsData, noun: 'spotcheck sets', ranges: [], labels: {}, defaults: {}, root: '#fhg-sc', name: 'Forecast · graded pre-sales spotcheck', onCols: h => fhhTake('fhs', h),
   key: r => r.key, row: fhsRow, rowClass: () => 'fhr-row fhs-row',
-  hay: r => r.rec.slabs.map(s => { const b = GR.doc ? fcrMap().get(s[0] + '|' + s[1]) : null; return b ? b[1] + ' ' + b[2] + ' ' + b[25] : fhgName(s[0]).join(' ') + ' ' + grLabel(s[1]); }).join(' ') + ' ' + fhrDate(r.rec.t),
+  hay: r => r.rec.slabs.map(s => { const R = fhsRes(s), x = R.s || [], rd = R.rd || {}, b = GR.doc && x[0] != null ? fcrMap().get(x[0] + '|' + x[1]) : null;
+    return (b ? b[1] + ' ' + b[2] + ' ' + b[25] : x[0] != null ? fhgName(x[0]).join(' ') + ' ' + grLabel(x[1]) : '') + ' ' + (s[10] || '') + ' ' + (rd.nm || '') + ' ' + (rd.st || ''); }).join(' ') + ' ' + fhrDate(r.rec.t) + ' ' + (r.rec.name || ''),
   after: t => {
     fhxInsert('fhs', t, r => FHG.open.has('s:' + r.key), fhsDetail);
     const none = $('fhs-none'); if (!none) return;
-    none.textContent = !FHG.doc ? (FHG.err || 'Loading the replay…') : !FHG.doc.rq ? 'Pre-Sales Spotcheck needs the rank cut points in the replay file: they arrive with the next site build.' : t.view.length ? '' : (LIVE.data ? 'No sets yet: Add to Pre-Sales Spotcheck (above the table on Forecasting or Recording) sends the green rows here.' : 'Waiting for the live data.');
+    none.textContent = !FHG.doc ? (FHG.err || 'Loading the replay…') : !FHG.doc.rq ? 'Pre-Sales Spotcheck needs the rank cut points in the replay file: they arrive with the next site build.' : t.view.length ? '' : (LIVE.data ? 'No sets yet: Record scans on the phone (Buys tab), or Add to Pre-Sales Spotcheck above the table on Forecasting or Recording, sends them here.' : 'Waiting for the live data.');
   }});
 fhxTidy('fhs');
 $('rows-fhs').addEventListener('click', e => {
+  const nx = e.target.closest('.fhs-nx');
+  if (nx) { fhsNxOpen(+nx.dataset.id); return; }
   const del = e.target.closest('.fhs-del');
   if (del) {
     if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = 'Click again to remove it'; setTimeout(() => { if (del.isConnected) { del.classList.remove('arm'); del.textContent = 'Remove this set'; } }, 4000); return; }
-    const id = +del.dataset.id; FHS.gone.add(id); grSave('fcg-gspot-gone', [...FHS.gone]);
+    const id = +del.dataset.id; FHS.gone.add(id); grSave('fcg-gspot-gone', [...FHS.gone]); SCAN.phone.delete(id);
     FHS.echo = FHS.echo.filter(x => x.id !== id); grSave('fcg-gspot-echo', FHS.echo);
     alSend({type: 'gspot_del', t: nextT(), id}).catch(() => { FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); favSay('The collector could not be told; the set stays.'); tables.fhs.apply(true); });
     tables.fhs.apply(true); fhsCount(); return;
@@ -610,7 +750,7 @@ function fhgRender() {
   if (!GR.doc && !GR.loading) grLoad().then(() => { if (FHG.win === 'rec') tables.fhr.apply(true); if (FHG.win === 'sc') tables.fhs.apply(true); });
   if (w === 'rec') { tables.fhr.apply(true); return; }   // the replay file is read for the replay and the Spotcheck only
   if (!FHG.doc) { if (!FHG.err) fhgLoad(); $('fhg-run').textContent = FHG.err || 'Loading the replay…'; }
-  if (w === 'sc') { tables.fhs.apply(true); return; }
+  if (w === 'sc') { tables.fhs.apply(true); if (Date.now() - SCAN.at > 5000) scanTick(true); return; }
   fhgNote();
   if (!FHG.doc) { fhgCards(); tables.fhg.apply(true); }
   else { fhgRun(); if (!FHG.todo) fhgPaint(); else { fhgCards(); tables.fhg.apply(true); } }
@@ -631,6 +771,11 @@ Object.assign(HELP, {
 Object.assign(HELP, {
   fhs_spot: {t: 'Pre-Sales Spotcheck', md: 1, m: [
     '> Before you buy: how would the model have done on these exact slabs? Each set is the green rows you sent with Add to Pre-Sales Spotcheck, each slab looked back on month by month since 2022.',
+    '## The phone’s shows',
+    '- **Record scans** on the phone (Buys tab) sends every slab of the show so far as one set, with the name you gave it and the phone’s own plan (its % under, bar, gate, share, min sales). Each tap is a new set.',
+    '- Each slab is named by its cert’s read (the page you open from scans.csv): its card, and always the grader’s grade. A half grade with no Card Ladder line of its own is looked back on one grade down (↓).',
+    '- **Not in our data:** the slabs that match nothing of ours - under $50, a card we don’t follow, more than one possible card, no grade on the page - are left out of the set’s numbers; the number opens their links. Slabs whose page is not read yet wait there too.',
+    '- The reads arrive within a minute while this window is open. If the box above the table asks for it, add the collector’s key to scan-results once.',
     '## How each slab is looked back on',
     '1. **Its own Card Ladder line, month by month:** the price then (the middle of its sales), its 12-month level and its 3-month price.',
     '2. **Its rank that month:** its dip below the 12-month level, placed among every Card Ladder line that month (the same cut points the model used then).',

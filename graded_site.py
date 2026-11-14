@@ -35,6 +35,9 @@ PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) a
 Writes, encrypted with the page's history key (PBKDF2 of SITE_PASSWORD, salt biotech-catalog-live-v1 - the key the
 Trend shards and the eBay live file use, so the page can read them):
   <out>/graded.bin        {v, built, gk: [grade keys], cards: {pc id: card meta}, rows: [[...]]} - the table
+  <out>/scanidx.bin       the scan-match index for the collector (2026-11-14): {t, gk, certs: {grader:cert: [pc id,
+                          grade index or -1]}, words: {grader|name key: pc id, 0 = more than one}, rows: {pc id: [grade
+                          indexes with figures]}} - scans.py matches the reads of Brett's scans with it
   <out>/graded_hist.bin   the graded Forecast History's replay (graded_forecast.build_hist): months, odds known then, candidates
   <out>/gtrend/s<n>.bin   {pc id: {cl: {gk: [[YYYY-MM, n, avg]]}, pc: {gk: [[YYYY-MM, price]]}, ps: {gk: [[YYYY-MM, n, Hodges-Lehmann]]},
                           pm: {grade_9_5 | grade_9 | grade_8 | grade_7: [first YYYY-MM, [price or null a month]]},
@@ -102,6 +105,7 @@ import pandas as pd
 
 import cl_sales
 import graded_terms as gt
+import scans                                                    # the grade and name keys of the scan-match index (scans.py)
 
 SHARD = 300
 GK = (["psa|g10", "psa|g9", "psa|g8_5", "psa|g8", "psa|g7", "psa|g6", "psa|g5", "psa|g4", "psa|g3", "psa|g2",
@@ -924,6 +928,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     pic_c = load_pic_certs(cd)                            # the CL Cert column: certs read off Card Ladder's pictures
     checks = []
     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
+    moved_certs = down_pc = 0                               # certs moved to the grader's grade; half grades priced one grade down
+    ix_certs, ix_rows, ix_known = {}, {}, {}                # the scan-match index (scans.py): cert -> [card, grade], card -> grades, (grader, cert) -> card
     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
@@ -957,7 +963,37 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         mon = (pr or {}).get("monthly") or {}
         Pg = clk.get(cl_page(r.get("cl_profile_id", ""))) if pr else None   # Card Ladder's sales of the card's page
         rday = cl_sales.day_no(Pg["read"]) if Pg and Pg.get("read") else None
-        slabs = (matches.get(str(cid)) or {}).get("slabs", {})
+        slabs = dict((matches.get(str(cid)) or {}).get("slabs", {}))
+        # A CERT GOES TO THE GRADE ITS GRADER SHOWS (2026-11-14, Brett agreed: "the grader's own word"): a PriceCharting
+        # photo's cert sits under the grade of PriceCharting's sale, and PriceCharting files most CGC half grades under
+        # the whole grade below (82% of the CGC certs Brett opened agreed, nearly all the rest were a CGC x.5 under x).
+        # Where Brett opened the cert's page, the cert moves to the page's grade (the card is the same - only the row);
+        # a cert already on that row stays.
+        mv = {}
+        for gk_, cert_ in slabs.items():
+            g_ = gk_.split("|")[0]
+            w_ = pg_c.get((g_, re.sub(r"\D", "", str(cert_ or ""))))
+            pk_ = scans.grade_key(g_, (w_ or {}).get("grade", ""), (w_ or {}).get("PSA Label Type", "")) if w_ else None
+            if pk_ and pk_ != gk_ and pk_ in GI:
+                mv[gk_] = (pk_, cert_)
+        for gk_, (pk_, cert_) in mv.items():
+            if slabs.get(gk_) == cert_:
+                del slabs[gk_]
+        for gk_, (pk_, cert_) in mv.items():
+            if pk_ not in slabs:
+                slabs[pk_] = cert_
+                moved_certs += 1
+            else:                                            # its row has a cert already: it is not shown, but it is still ours
+                ix_certs[pk_.split("|")[0] + ":" + re.sub(r"\D", "", str(cert_))] = [int(cid), GI[pk_]]
+                ix_known[(pk_.split("|")[0], re.sub(r"\D", "", str(cert_)))] = int(cid)
+        for gk_, cert_ in slabs.items():                     # the scan-match index: each cert we know, its card and grade
+            ix_certs[gk_.split("|")[0] + ":" + re.sub(r"\D", "", str(cert_))] = [int(cid), GI[gk_]]
+            ix_known[(gk_.split("|")[0], re.sub(r"\D", "", str(cert_)))] = int(cid)
+        for g_, c_ in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
+            c_ = re.sub(r"\D", "", str(c_ or ""))
+            if c_:
+                ix_certs.setdefault(g_ + ":" + c_, [int(cid), -1])
+                ix_known.setdefault((g_, c_), int(cid))
         recs = {}                                           # (grader, cert) -> the slab as the grader says
         for g, card_cert in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
             for cert in [card_cert] + [v for k, v in slabs.items() if k.startswith(g + "|")]:
@@ -1034,6 +1070,16 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             mk = marks.get((str(cid), k))
             if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list or (Pg and k in Pg["s"])):
                 continue                                    # a grade with a population and no price or sale anywhere: no row
+            # HALF GRADES ROUND DOWN ON THE PRICECHARTING SIDE (2026-11-14, Brett: "for the PC columns, even though those
+            # prices aren't built into the forecast, I agree that rounding down is probably better, and maybe we can show a
+            # little symbol"): a half grade (PSA 8.5, CGC 7.5 ...) with no PriceCharting price of its own shows the whole
+            # grade below's (PriceCharting files most half grades there) - src "down:<grade>:<n>:<days>", the page's ↓
+            lo_ = scans.lower_grade(k) if k.split("|")[1].endswith("_5") else None
+            if pc_price is None and lo_:
+                sp2, sn2, sd2 = sales_price((psales.get(cid) or {}).get(lo_, []), today)
+                if sp2 is not None:
+                    pc_price, src = sp2, f"down:{lo_}:{sn2}:{sd2}"
+                    down_pc += 1
             # last month's PriceCharting price of this grade and grader: the Hodges-Lehmann estimate of the sales it
             # recorded of it, else (PSA 10 only) its monthly PSA 10 chart value. Its 9 / 9.5 / 8 / 7 chart lines blend
             # every grader, so they are not used (2026-10-29, Brett: "if we dont have last month data then blank it or
@@ -1047,12 +1093,18 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                     pc1 = [r2(pts[last_m]), None, "chart"]
             if pc1 is None:
                 pc1 = [None, 0, "none"] if pc_n1 is not None else [None, None, "not_read"]
+            if pc1[0] is None and lo_:                       # a half grade with no sale of its own last month: the grade below's, ↓
+                m1d = [p for d, p in (psales.get(cid) or {}).get(lo_, []) if d[:7] == last_m]
+                if m1d:
+                    pc1 = [r2(hodges_lehmann(m1d)), len(m1d), "down", lo_]
             # each side's own grade for this row (2026-10-29, Brett: "we should have two grade columns ... CL grade and PC
             # grade"; "the grade for CL is derived from the CL website"): a side that has no such grade says none, and a
             # price is compared only where the two grades are the same
             pgl, pgf = pc_grade(k, pc1, ps_list, pc_price, src, pop.get(cid, {}).get(k))
+            if (pc1[2] == "down" or (pc1[0] is None and src and str(src).startswith("down:"))) and lo_:   # PriceCharting's grade here: the one below
+                pgl, pgf = grade_label(lo_) + " ↓", "down"
             cgl, cgf = cl_grade(pr, k, mon)
-            if pgl and cgl and grade_norm(pgl) != grade_norm(cgl):
+            if pgl and cgl and pgf != "down" and grade_norm(pgl) != grade_norm(cgl):
                 grade_diff += 1
             ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c, pg_c)
             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
@@ -1061,6 +1113,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
                          (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e,
                          vd, sx, clstd, cln12, clconf])
+        if len(rows) > nrow0:
+            ix_rows[str(cid)] = sorted({x[1] for x in rows[nrow0:]})
         if not r and len(rows) == nrow0:
             continue                                        # no PriceCharting price or sale of any PSA / CGC grade: no rows
         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
@@ -1104,7 +1158,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                             "ch": best[g].get("ch"), "fc": {f: v[1] for f, v in afc[g].items()}, "read": best[g].get("read", "")}
                         for g, s_ in aside.items()},
                   "aw": sorted({g for (g, _), x in recs.items() if x["st"] == "wait"}), "tcg": tid,
-                  "certs": (matches.get(str(cid)) or {}).get("slabs", {})}
+                  "certs": slabs}
             c0 = {k: v for k, v in c0.items() if v not in ("", None, [], {}) and v != ["", "", ""]}
             c0["pi"] = ps.artist                            # '' = TCGplayer shows none, None = not read: both mean something
             c0["cls"], c0["qr"] = cls, rank
@@ -1143,7 +1197,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             "by": r.get("confirmed_by", ""), "note": r.get("note", "")[:200],
             "cl": [pr.get(x) for x in ("label", "year", "set", "number", "subject", "variation", "image")] if pr else None,
             "read": (pr or {}).get("read", ""), "tcg": r.get("tcgplayer_id", ""),
-            "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
+            "certs": slabs,
             "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
         }
         # the CL Cert column (2026-11-10, Brett: "these columns will show data that from the cl cert number. the cl cert
@@ -1226,6 +1280,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         print("graded: no SITE_PASSWORD - nothing written")
         return doc, trends
     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
+    try:
+        ix = scan_index(doc, ix_certs, ix_rows, ix_known, pg_c)
+        ni = write_enc(os.path.join(out_dir, "scanidx.bin"), ix, key)
+        print(f"scan index: {len(ix['certs']):,} certs, {len(ix['words']):,} grader names ({sum(1 for x in ix['words'].values() if not x):,} "
+              f"naming more than one card), {len(ix['rows']):,} cards -> scanidx.bin ({ni / 1e3:.0f} KB gzip); "
+              f"{moved_certs:,} certs moved to their grader's grade, {down_pc:,} half-grade rows priced one grade down on the PriceCharting side")
+    except Exception as e:                                   # noqa: BLE001
+        print("scan index failed:", f"{type(e).__name__}: {e}")
     # the phone app's own small file (2026-11-09, Brett: "proceed to build app"): what a scanned slab needs, nothing more
     try:
         ad = app_doc(doc, pc)
@@ -1254,6 +1316,34 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
           + f") -> {out_dir}/graded.bin ({n / 1e3:.0f} KB gzip), "
           f"{len(shards)} trend file(s); {grade_diff} rows where PriceCharting's grade is not Card Ladder's (not compared)")
     return doc, trends
+
+
+_SIM = re.compile(r"PSA\s+(\d+(?:\.5)?)\s+(\d{7,10})")
+
+
+def scan_index(doc, certs, rows, known, pg_c):
+    """The scan-match index (scanidx.bin) scans.py matches the reads of Brett's scans with: every cert we know with its
+    card and grade (the photo certs on their grader's grade, the cards' own certs, and the slabs in PSA's own list of
+    sales of the same card and grade on each PSA page Brett opened), how each grader names each of our cards (from the
+    pages Brett opened for slabs of ours: scans.words_key - 0 where one name fits more than one card), and the grades
+    each card has figures for."""
+    certs = dict(certs)
+    words = {}
+    for (g, cert), w in pg_c.items():
+        cid = known.get((g, cert))
+        if cid is None:
+            continue
+        wk = scans.words_key(g, w.get("card_name", ""), w.get("set", ""), w.get("card_number", ""), w.get("variety", ""),
+                             w.get("year", ""), w.get("language", ""))
+        if wk:
+            key = g + "|" + wk
+            words[key] = cid if words.get(key, cid) == cid else 0
+        if g == "psa":                                       # PSA's own list of sales of this card and grade: their slabs are ours too
+            for gr, c2 in _SIM.findall(w.get("recent_sales", "") or ""):
+                gk = scans.grade_key("psa", gr)
+                if gk in GI:
+                    certs.setdefault("psa:" + c2, [cid, GI[gk]])
+    return {"t": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "gk": list(GK), "certs": certs, "words": words, "rows": rows}
 
 
 def app_doc(doc, pc):

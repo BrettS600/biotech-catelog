@@ -44,6 +44,7 @@ const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the b
 const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
 const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
 const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
+const READS_STORE = 'ssc-reads', SHOW_N = 'ssc-show-n', SYNC_STORE = 'ssc-sync', GSET_DAY = 'ssc-gset-day';   // the reads of the scans; shows recorded; Sync from website; the plan sent today (2026-11-14)
 const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main', lookup: false};
 
 /* ---------------- small helpers ---------------- */
@@ -179,6 +180,7 @@ async function loadData(keyHex) {
     slabsArr().forEach(sl => { if (!sl.demo && (sl.look === 'wait' || (sl.look === 'manual' && sl.lookWhy === 'lock'))) sl.look = 'queued'; });
     pumpLookups();
     scheduleScanSend(1500);                  // cert links read while locked go out now
+    setTimeout(() => { readsApply(); readsTick(true); if (LS.get(GSET_DAY, '') !== todayStr()) gsetSoon(true); }, 800);   // the reads of the scans; the plan for the website's Sync
     return true;
   } catch (e) { DSTATE = 'err'; DERR = String(e.message || e); return false; } finally { render(); }
 }
@@ -210,15 +212,20 @@ function calc(sl) {
     Object.assign(x, {name: c.name, sub: c.set + ' #' + c.num, grader: c.grader, gk: c.grader.toLowerCase() + '|g' + (c.pristine ? '10pristine' : c.grade.replace('.', '_')),
       std: c.std, win: '30 days', n: c.n30, clv: c.clv, conf: c.conf, pc: c.pc, sold: c.sold, soldPC: c.soldPC, pct: c.pct / 100, known: true, img: null});
   } else {
-    const c = D && sl.cid != null ? D.cards[String(sl.cid)] : null, r = c && sl.gk ? IDX.row.get(sl.cid + '|' + sl.gk) : null;
+    const c = D && sl.cid != null ? D.cards[String(sl.cid)] : null;
+    let r = c && sl.gk ? IDX.row.get(sl.cid + '|' + sl.gk) : null, pgk = sl.gk;
+    // A HALF GRADE WITH A THIN LINE IS PRICED ONE GRADE DOWN (2026-11-14, Brett: "rounding down would be safer"): PSA 8.5 or
+    // CGC 7.5 with no Card Ladder price of its own, or fewer sales last month than your min, takes the grade below's
+    const lo = c ? lowerGk(sl.gk) : null;
+    if (lo && (!r || r[2] == null || (r[7] || 0) < Math.max(0, +S.settings.minSales || 0))) { const r2 = IDX.row.get(sl.cid + '|' + lo); if (r2 && r2[2] != null) { r = r2; pgk = lo; } }
     const a = sl.auth || {};
     Object.assign(x, {grader: (sl.grader || '').toUpperCase(), gk: sl.gk || null, known: !!c,
       name: c ? c[0] : a.subject ? titleCase(a.subject) : (sl.grader || '').toUpperCase() + ' ' + sl.cert,
       sub: c ? (c[1] + (c[2] ? ' #' + c[2] : '')) : a.brand ? titleCase(a.brand) + (a.num ? ' #' + a.num : '')
         : sl.look === 'queued' || sl.look === 'looking' ? 'Looking it up with PSA…' : 'Tap to find the card',
       std: r ? r[2] : null, win: r && r[3] ? r[3] + ' days' : null, n: r ? r[4] : null, n12: r ? r[5] : null, conf: r ? r[6] : null,
-      sold: r ? r[7] : null, pc: r ? r[8] : null, soldPC: r ? r[9] : null, clv: r ? r[10] : null, card: c, row: r, img: c ? c[7] : null});
-    const fc = D && D.fc, li = fc && sl.gk ? IDX.lines.indexOf(sl.gk) : -1, pv = li >= 0 ? (fc.pct[String(sl.cid)] || {})[li] : null;
+      sold: r ? r[7] : null, pc: r ? r[8] : null, soldPC: r ? r[9] : null, clv: r ? r[10] : null, card: c, row: r, img: c ? c[7] : null, down: pgk !== sl.gk ? pgk : null});
+    const fc = D && D.fc, li = fc && pgk ? IDX.lines.indexOf(pgk) : -1, pv = li >= 0 ? (fc.pct[String(sl.cid)] || {})[li] : null;
     x.pct = pv == null ? null : pv / 1000;
   }
   const std = x.std;
@@ -239,6 +246,7 @@ function calc(sl) {
   x.roi = x.net != null && x.pay > 0 ? x.net / x.pay : null;
   return x;
 }
+const lowerGk = gk => { if (!gk) return null; const [g, k] = String(gk).split('|'); if (k === 'g10pristine' || k === 'g10perfect') return g + '|g10'; return /_5$/.test(k) ? g + '|' + k.slice(0, -2) : null; };
 const identified = sl => sl.demo || (sl.look === 'ok' || sl.look === 'check') && sl.cid != null && !!sl.gk;
 const confirmed = sl => sl.demo || sl.look === 'ok';
 const marketDown = () => !!(D && D.fc && D.fc.regime && !D.fc.regime.up);
@@ -312,6 +320,185 @@ async function recordPurchases() {
   } catch (e) { UI.recMsg = ['warn', 'Could not reach the collector (' + (e.message || e) + '). Nothing was recorded - try again when you have signal.']; }
   UI.sending = false; render();
 }
+/* ---------------- THE READS OF THE SCANS (2026-11-14, Brett: "those readings should also be uploaded to reflect in the app
+   itself") ----------------
+   Brett opens the scanned slabs' cert pages; the collector matches each page to a card and grade of ours (scans.py) and
+   publishes it at once on the channel's scan topic (<channel>-scr) and in scan.bin on the live branch (GitHub's cache
+   holds that up to five minutes, so the topic is read too). A slab whose read names a card of ours takes that card and
+   always the grader's grade - with no PSA lookup (none of PSA's 100 a day) and for CGC slabs too - so it gets its price,
+   its chance and its place in your buys. A slab the read could not place says why on its table. A card you picked or
+   confirmed yourself stays yours. Read every 15 s while the app is open, unlocked and holds real slabs. */
+const SCAN_LIVE = 'https://raw.githubusercontent.com/BrettS600/biotech-catelog/live/';
+const READ_WHY = {'no card': 'Read: not a card in our data (under $50, or one we don’t follow)', several: 'Read: the grader’s name fits more than one of our cards - find it by name',
+  'no grade data': 'Read: our card, but no figures for this grade', 'no grade': 'Read: the cert page shows no grade', 'not pokemon': 'Read: not a Pokémon card', wait: 'Read - waiting for the site’s match index'};
+const READS = {map: new Map(Object.entries(LS.get(READS_STORE, {}) || {})), since: '12h', fileB: -1, sync: {}, clearDone: 0, busy: false, ch: null};
+function readPut(r) {
+  if (!r || !r.g || !r.c) return false;
+  const k = r.g + ':' + r.c, o = READS.map.get(k);
+  if (o && String(o.at || '') > String(r.at || '')) return false;
+  if (o && JSON.stringify(o) === JSON.stringify(r)) return false;
+  READS.map.set(k, r); return true;
+}
+function readsSave() {                                   // the newest 3,000 on this phone, for a hall without signal
+  const all = [...READS.map.entries()].sort((a, b) => String(b[1].at || '').localeCompare(String(a[1].at || ''))).slice(0, 3000);
+  LS.set(READS_STORE, Object.fromEntries(all));
+}
+async function readsFile(force) {                        // scan.bin, once a minute
+  if (!KEY) return false;
+  const b = Math.floor(Date.now() / 60000);
+  if (!force && READS.fileB === b) return false;
+  READS.fileB = b;
+  try {
+    const res = await fetch(SCAN_LIVE + 'scan.bin?t=' + b, {cache: 'no-store'});
+    if (!res.ok) return false;
+    const f = await decryptGz(new Uint8Array(await res.arrayBuffer()), KEY);
+    let ch = false;
+    (f.reads || []).forEach(r => { if (readPut(r)) ch = true; });
+    for (const [k, x] of Object.entries(f.sync || {})) if (x && (!READS.sync[k] || x.t > READS.sync[k].t)) READS.sync[k] = x;
+    if (f.clear && f.clear.done > READS.clearDone) READS.clearDone = f.clear.done;
+    return ch;
+  } catch (e) { return false; }
+}
+async function readsPoll() {                              // the channel: new reads at once, the website's plan, an erase done
+  if (!KEY) return false;
+  const ch = READS.ch || (READS.ch = await alChannel()), enc = new TextEncoder();
+  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
+  let lines = [], got = false;
+  try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-scr,' + ch.topic + '/json?poll=1&since=' + READS.since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { return false; }
+  for (const line of lines) {
+    try {
+      const ev = JSON.parse(line); if (ev.event !== 'message') continue;
+      READS.since = ev.id;
+      const env = JSON.parse(ev.message); if (!env || !env.m || !env.s) continue;
+      if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
+      const m = JSON.parse(env.m);
+      if (m.type === 'reads') (m.r || []).forEach(r => { if (readPut(r)) got = true; });
+      else if (m.type === 'gset' && m.src === 'web') { if (!READS.sync.web || m.t > READS.sync.web.t) READS.sync.web = {t: m.t, v: m.v || {}}; }
+      else if (m.type === 'cleared') { if ((m.done || 0) > READS.clearDone) { READS.clearDone = m.done; if (LS.get('ssc-clear-asked', 0) && m.done >= LS.get('ssc-clear-asked', 0)) { LS.del('ssc-clear-asked'); toast('scans.csv emptied for the new show.'); } } }
+    } catch (e) { continue; }
+  }
+  return got;
+}
+function readsApply() {                                   // each real slab with a read: its card and the grader's grade
+  if (!D) return false;
+  let ch = false;
+  for (const sl of slabsArr()) {
+    if (sl.demo || !sl.cert) continue;
+    const rd = READS.map.get(sl.grader + ':' + sl.cert); if (!rd) continue;
+    const mine = sl.how === 'manual' || sl.how === 'confirmed';
+    const auth = {src: rd.g, subject: rd.nm || '', brand: rd.st || '', num: rd.no || '', variety: rd.vr || '', grade: rd.gt || '', pop: rd.pop, popHi: rd.ph, est: rd.est, read: rd.at || ''};
+    if (JSON.stringify(sl.rd || null) !== JSON.stringify(auth)) { sl.rd = auth; if (!sl.auth || sl.auth.src !== 'psa') sl.auth = Object.assign({}, sl.auth || {}, auth); ch = true; }
+    const ok = rd.cid != null && rd.gk && D.cards[String(rd.cid)] && (!rd.why || rd.why === 'no grade data');
+    if (ok && !mine) {
+      if (sl.cid !== rd.cid || sl.gk !== rd.gk || sl.look !== 'ok') { sl.cid = rd.cid; sl.gk = rd.gk; sl.look = 'ok'; sl.how = sl.how === 'spec' && sl.cid === rd.cid ? 'spec' : 'read'; sl.cands = null; sl.lookWhy = null; ch = true; }
+      if (sl.rdWhy) { sl.rdWhy = null; ch = true; }
+    } else if (ok && mine && rd.gk && sl.cid === rd.cid && sl.gk !== rd.gk) { sl.gk = rd.gk; ch = true; }   // your card, the grader's grade
+    else if (!ok && sl.rdWhy !== (rd.why || 'no card')) { sl.rdWhy = rd.why || 'no card'; ch = true; }
+  }
+  if (ch) save();
+  return ch;
+}
+async function readsTick(force) {
+  if (READS.busy || !KEY || !D || (!force && document.visibilityState !== 'visible')) return;
+  if (!force && !slabsArr().some(sl => !sl.demo)) return;
+  READS.busy = true;
+  try {
+    const a = await readsFile(force), b = await readsPoll();
+    if (a || b) readsSave();
+    if (readsApply() && !UI.rec) render();
+  } catch (e) { /* the next tick */ }
+  READS.busy = false;
+}
+setInterval(() => readsTick(false), 15000);
+
+/* ---------------- RECORD SCANS (2026-11-14, Brett: "underneath the records purchases button, I would like there to be a record
+   scans button. when i press this button, i want all of the scans to go to the website forcast tab> graded cards > history
+   > Pre-sales spotcheck"; "a pop-up happens asking what I would like to name it ... by default, just give it the next
+   number ... show 2 ... show 3"; "if I repeat twice, then ... it should be everything scanned so far") ----------------
+   Every real slab of the show so far, as many as there are, each with its grader and cert (the website names each one by
+   its read) and, where the phone knows it, its card, grade and figures; with the phone's own plan. Each tap is a new set. */
+const showNext = () => (+LS.get(SHOW_N, 0) || 0) + 1;
+async function sendParts(head, slabs, per) {             // a set in parts; a refused part (ntfy's ration) waits and tries again
+  const id = nextT(), n = Math.max(1, Math.ceil(slabs.length / per));
+  for (let k = 0; k < n; k++) {
+    const msg = Object.assign({type: 'gspot', t: k ? nextT() : id, id, k, n, s: slabs.slice(k * per, (k + 1) * per)}, k ? {} : head);
+    for (let tries = 0; ; tries++) {
+      try { await alSend(msg); break; }
+      catch (e) { if (tries >= 6) throw e; UI.scanRecMsg = ['', 'Sending part ' + (k + 1) + ' of ' + n + '… (the channel asked to wait)']; render(); await new Promise(r => setTimeout(r, 6000)); msg.t = nextT(); }
+    }
+    if (n > 3) { UI.scanRecMsg = ['', 'Sending… ' + Math.min(slabs.length, (k + 1) * per) + ' of ' + slabs.length + ' slabs']; render(); }
+  }
+  return id;
+}
+async function recordScans(name) {
+  const real = slabsArr().filter(sl => !sl.demo && sl.cert).sort((a, b) => a.at - b.at);
+  if (!real.length) { UI.scanRecMsg = ['warn', 'Nothing to record yet: scan a table first (sample slabs are never sent).']; return render(); }
+  if (!KEY) { UI.scanRecMsg = ['warn', 'Unlock the app first (Show tab): recording needs your site password.']; return render(); }
+  const s = S.settings, fc = D && D.fc;
+  const slabs = real.map(sl => {
+    const x = identified(sl) ? calc(sl) : null;
+    return x && x.std != null ? [sl.cid, sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000), sl.grader, sl.cert]
+      : [identified(sl) ? sl.cid : null, identified(sl) ? sl.gk : null, Math.round((sl.vd != null ? sl.vd : s.under) * 10), null, null, null, null, null, null, sl.grader, sl.cert];
+  });
+  const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const head = {src: 'ph', name: String(name || ('Show ' + showNext())).slice(0, 80), day, h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'),
+    fee: Math.round(FEE * 10000) / 10000, minp: s.bar / 100, gate: s.gate ? 1 : 0, minsales: +s.minSales || 0, share: s.share, month: fc ? fc.month : '', reg: fc ? regOf(fc) : '',
+    model: fc ? fc.model : '', spent: 0, smp: 0, holds: [], nall: real.length};
+  UI.sending = true; UI.scanRecMsg = ['', 'Sending ' + real.length + ' slab' + (real.length > 1 ? 's' : '') + '…']; render();
+  try {
+    await sendParts(head, slabs, 40);
+    LS.set(SHOW_N, showNext());
+    const known = slabs.filter(x => x[0] != null).length;
+    UI.scanRecMsg = ['ok', 'Recorded “' + head.name + '”: ' + real.length + ' slab' + (real.length > 1 ? 's' : '') + (known < real.length ? ' (' + known + ' named so far - the rest are named on the website as their cert pages are read)' : '') + '. It shows on the website under History › Pre-Sales Spotcheck in a minute or two.'];
+  } catch (e) { UI.scanRecMsg = ['warn', 'Could not reach the collector (' + (e.message || e) + '). The set was not recorded - try again when you have signal.']; }
+  UI.sending = false; render();
+}
+
+/* ---------------- YOUR PLAN, PHONE <-> WEBSITE (2026-11-14, Brett: "a sync from phone button [on the website] and then ... the
+   mobile app have a sync from website button"; "only sync values reset, and do so by midnight") ----------------
+   Every change to Your Plan here goes to the collector ({type: 'gset', src: 'ph'}) for the website's Sync from phone; Sync
+   from website copies the website's capital, hold, % under, shipping, bar, share and gate here. Those boxes keep the
+   website's values until midnight, then go back to what they were; one you change by hand is yours again at once. */
+const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate'];
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+let GSET_T = 0;
+function planOut() { const s = S.settings; return {capital: numSet('capital'), hold: s.hold, under: s.under, ship: numSet('ship'), bar: s.bar, share: s.share, gate: !!s.gate, minSales: +s.minSales || 0}; }
+function gsetSoon(now) {
+  clearTimeout(GSET_T);
+  GSET_T = setTimeout(() => { if (!KEY) return; alSend({type: 'gset', t: nextT(), src: 'ph', v: planOut()}).then(() => LS.set(GSET_DAY, todayStr())).catch(() => {}); }, now ? 50 : 2000);
+}
+function planChanged(k) {                                 // a box changed by hand: it is yours again, and the website hears of it
+  const sy = LS.get(SYNC_STORE, null);
+  if (sy && sy.vals && k in sy.vals) { delete sy.vals[k]; if (Object.keys(sy.vals).length) LS.set(SYNC_STORE, sy); else LS.del(SYNC_STORE); }
+  gsetSoon();
+}
+async function syncFromWebsite() {
+  if (!KEY) return toast('Unlock the app first (Show tab).');
+  UI.syncMsg = ['', 'Looking for the website’s plan…']; render();
+  try { await readsFile(true); await readsPoll(); } catch (e) { /* what is known so far */ }
+  const w = READS.sync.web;
+  if (!w || !w.v) { UI.syncMsg = ['warn', 'No plan from the website yet: open the website’s Forecast tab (Graded cards) once and it sends its Your Plan.']; return render(); }
+  const s = S.settings, sy = LS.get(SYNC_STORE, null), prev = sy && sy.day === todayStr() ? sy.prev : {}, vals = {};
+  for (const k of PLAN_KEYS) {
+    if (w.v[k] === undefined || w.v[k] === null) continue;
+    if (!(k in prev)) prev[k] = s[k];
+    const v = k === 'gate' ? !!w.v[k] : k === 'hold' ? Math.min(6, Math.max(1, Math.round(+w.v[k]))) : k === 'capital' || k === 'ship' ? String(+w.v[k]) : +w.v[k];
+    s[k] = v; vals[k] = v;
+  }
+  LS.set(SYNC_STORE, {day: todayStr(), vals, prev, t: w.t}); save();
+  UI.syncMsg = ['ok', 'Your plan now has the website’s values (its plan of ' + new Date(w.t).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) + ') - until midnight.'];
+  render();
+}
+function syncExpire() {                                   // midnight: the synced boxes go back to what they were
+  const sy = LS.get(SYNC_STORE, null);
+  if (!sy || sy.day === todayStr()) return;
+  for (const k of Object.keys(sy.vals || {})) if (sy.prev && k in sy.prev) S.settings[k] = sy.prev[k];
+  LS.del(SYNC_STORE); UI.syncMsg = null; save();
+  if (!UI.rec) render();
+}
+setInterval(syncExpire, 60000);
+setTimeout(syncExpire, 0);
+
 // Review's answer for the whole card (Card Ladder's card = PriceCharting's?), as the website's Review sends it
 async function sendMark(cid, v) {
   const c = D && D.cards[String(cid)]; if (!c || !KEY) return;
@@ -330,28 +517,34 @@ const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' 
 // lists it as its cert link, scans.csv's link with the cert as its text, and it goes to scans.csv as every slab does.
 // Turning lookups on looks the waiting ones up. A cert is read once per show (a second read at any table is a duplicate).
 const linkOnly = sl => !sl.demo && !S.settings.lookup && sl.look === 'queued';
-const scanWaiting = sl => LS.get(SCANQ, []).some(q => q[0] === sl.grader && q[1] === sl.cert);
+const scanWaiting = sl => { const q = LS.get(SCANQ, []), from = q.map(isClr).lastIndexOf(true) + 1; return q.slice(from).some(x => x[0] === sl.grader && x[1] === sl.cert); };
 function linkRowHtml(sl) {
   const w = scanWaiting(sl);
   return '<div class="lrow"><span class="tag t-look">' + esc(String(sl.grader || '').toUpperCase()) + '</span><a href="' + esc(scanLink(sl.grader, sl.cert)) + '" target="_blank" rel="noopener">' + esc(sl.cert) + '</a>' +
-    '<span class="small ' + (w ? 'muted' : 'up') + '">' + (w ? (KEY ? 'waiting to send' : 'unlock to send') : 'sent to scans.csv') + '</span></div>';
+    '<span class="small ' + (w ? 'muted' : 'up') + '">' + (w ? (KEY ? 'waiting to send' : 'unlock to send') : 'sent to scans.csv') + '</span>' +
+    (sl.rdWhy ? '<span class="small muted" style="flex-basis:100%">' + esc(READ_WHY[sl.rdWhy] || sl.rdWhy) + '</span>' : '') + '</div>';
 }
 let SCAN_SEND_T = 0, SCAN_SENDING = false;
+// Start a new show puts ['__clear__', t] in the queue (2026-11-14): sendScans sends what came before it, then the erase
+// ({type: 'scan_clear'}), then what came after - so the last show's slabs can never land in the new show's scans.csv
+const isClr = x => x[0] === '__clear__';
 function queueScan(grader, cert) {
-  const q = LS.get(SCANQ, []);
-  if (!q.some(x => x[0] === grader && x[1] === cert)) { q.push([grader, cert]); LS.set(SCANQ, q); }
+  const q = LS.get(SCANQ, []), from = q.map(isClr).lastIndexOf(true) + 1;
+  if (!q.slice(from).some(x => x[0] === grader && x[1] === cert)) { q.push([grader, cert]); LS.set(SCANQ, q); }
   scheduleScanSend();
 }
 function scheduleScanSend(ms) { clearTimeout(SCAN_SEND_T); SCAN_SEND_T = setTimeout(sendScans, ms == null ? 8000 : ms); }
 async function sendScans() {
   if (SCAN_SENDING || !KEY) return;
-  const q = LS.get(SCANQ, []); if (!q.length) return;
+  if (!LS.get(SCANQ, []).length) return;
   SCAN_SENDING = true;
   try {
-    for (let i = 0; i < q.length; i += 80) {   // ntfy carries about 4 KB a message
-      const part = q.slice(i, i + 80);
+    for (;;) {                                 // in order: a show's slabs, its erase, the next show's slabs
+      const q = LS.get(SCANQ, []); if (!q.length) break;
+      if (isClr(q[0])) { await alSend({type: 'scan_clear', t: nextT()}); LS.set(SCANQ, LS.get(SCANQ, []).filter(x => !(isClr(x) && x[1] === q[0][1]))); continue; }
+      const cut = q.findIndex(isClr), part = q.slice(0, Math.min(80, cut < 0 ? q.length : cut));   // ntfy carries about 4 KB a message
       await alSend({type: 'scan', t: nextT(), c: part});
-      LS.set(SCANQ, LS.get(SCANQ, []).filter(x => !part.some(y => y[0] === x[0] && y[1] === x[1])));
+      LS.set(SCANQ, (() => { const now = LS.get(SCANQ, []); let n = part.length; return now.filter(x => !(n > 0 && !isClr(x) && part.some(y => y[0] === x[0] && y[1] === x[1]) && n--)); })());
       LS.set(SCANN, (+LS.get(SCANN, 0) || 0) + part.length);
     }
   } catch (e) { scheduleScanSend(30000); }    // no signal: again in half a minute
@@ -361,7 +554,7 @@ async function sendScans() {
   if (UI.rec) paintScan(); else if (UI.tab === 'tables' && UI.openTable && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render();
 }
 function scansLine() {
-  const q = LS.get(SCANQ, []).length, n = +LS.get(SCANN, 0) || 0;
+  const q = LS.get(SCANQ, []).filter(x => !isClr(x)).length, n = +LS.get(SCANN, 0) || 0;
   return '<b>scans.csv</b> (card-data, data/scans): ' + n.toLocaleString() + ' cert link' + (n === 1 ? '' : 's') + ' sent from this phone' +
     (q ? ' · ' + q + ' waiting' + (KEY ? ' for signal' : ' - unlock to send them') : '') + '.';
 }
@@ -417,7 +610,7 @@ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-ste
 function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
 UI.tpol = planPol();
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
-const APP_VERSION = 'g15b';
+const APP_VERSION = 'g16';
 // Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
 // and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
 const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
@@ -1400,7 +1593,7 @@ function rowHtml(o, P, withTable) {
   const t = withTable ? tableOf(sl.t) || {} : null, s = S.settings;
   const ask = sl.vp != null ? 'Vendor ' + money(sl.vp) : sl.vd != null ? 'Vendor ' + sl.vd.toFixed(1) + '% under' : 'At your ' + s.under.toFixed(1) + '%';
   const line2 = x.std == null ? (identified(sl) ? 'No Card Ladder price' + (x.pc != null ? ' · PC ' + money(x.pc) : '') : x.known || sl.auth ? (sl.grader || '').toUpperCase() + ' ' + sl.cert : '')
-    : (withTable ? 'Table ' + (t.n || '?') + ' · ' : '') + ask + ' · pay ' + money(x.pay);
+    : (withTable ? 'Table ' + (t.n || '?') + ' · ' : '') + ask + ' · pay ' + money(x.pay) + (x.down ? ' · priced as ' + gkLabel(x.down) + ' ↓' : '');
   return '<button class="row' + (inPlan ? ' buy' : '') + (sl.st === 'declined' ? ' gone' : '') + (few && !inPlan ? ' few' : '') + '" data-a="open" data-id="' + esc(sl.id) + '">' +
     badge(x) + '<span class="rmain"><span class="rname">' + esc(x.name) + '</span><span class="rsub">' + esc(x.sub) + '</span><span class="rsub">' + esc(line2) +
     (few && x.std != null ? ' · ' + (x.sold || 0) + ' sold last mo' : '') + '</span></span>' +
@@ -1619,7 +1812,7 @@ function planHtml() {
   }).join('');
   const bought = P.all.filter(o => o.sl.st === 'bought'), avg = P.chosen.length ? P.chosen.reduce((a, o) => a + o.x.chance, 0) / P.chosen.length : 0;
   const net = P.chosen.reduce((a, o) => a + (o.x.net || 0), 0), toRec = bought.filter(o => !o.sl.demo && !o.sl.rec && identified(o.sl)).length;
-  const nfew = Object.keys(P.few).length;
+  const nfew = Object.keys(P.few).length, nreal = slabsArr().filter(sl => !sl.demo && sl.cert).length;
   return '<div class="stack" style="gap:14px"><h1 class="h1">Your buys</h1>' +
     '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Spend</span><span class="small muted">of ' + money(P.cap) + (P.spent ? ' · ' + money(P.spent) + ' already bought' : '') + '</span></div>' +
     '<div style="font:700 30px \'Space Grotesk\',Inter,sans-serif;font-variant-numeric:tabular-nums">' + money(total) + '</div>' +
@@ -1631,9 +1824,17 @@ function planHtml() {
     '<div class="card stack" style="gap:10px"><span class="label">Record purchases</span><p class="note" style="margin:0">Sends the slabs you marked Bought to the website, History › Recorded Purchases - with what you paid, your settings and the odds of the day.</p>' +
     '<button class="btn green" data-a="record"' + (UI.sending ? ' disabled' : '') + '>Record purchases' + (toRec ? ' (' + toRec + ')' : '') + '</button>' +
     (UI.recMsg ? '<div class="' + (UI.recMsg[0] === 'ok' ? 'okbox' : UI.recMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.recMsg[1]) + '</div>' : '') + '</div>' +
+    '<div class="card stack" style="gap:10px"><span class="label">Record scans</span><p class="note" style="margin:0">Sends every slab of this show so far to the website, History › Pre-Sales Spotcheck - with your plan. Each tap makes a new set.</p>' +
+    '<button class="btn primary" data-a="recscans"' + (UI.sending ? ' disabled' : '') + '>Record scans' + (nreal ? ' (' + nreal + ')' : '') + '</button>' +
+    (UI.scanRecMsg ? '<div class="' + (UI.scanRecMsg[0] === 'ok' ? 'okbox' : UI.scanRecMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.scanRecMsg[1]) + '</div>' : '') + '</div>' +
     (bought.length ? '<div class="group"><div class="ghead"><span class="h2">Bought</span><span class="small muted">' + bought.length + ' · ' + money(P.spent) + '</span></div>' + bought.map(o => rowHtml(o, P, true)).join('') + '</div>' : '') +
     (P.missed.length ? '<div class="group"><div class="ghead"><span class="h2">Just missed</span><span class="small muted">over budget or per-slab cap</span></div>' + P.missed.slice(0, 4).map(o => rowHtml(o, P, true)).join('') + '</div>' : '') +
     (nfew ? '<p class="note">' + nfew + ' slab' + (nfew > 1 ? 's have' : ' has') + ' fewer than ' + s.minSales + ' Card Ladder sales last month and stay' + (nfew > 1 ? '' : 's') + ' out of your buys (dimmed on their table).</p>' : '') + '</div>';
+}
+function syncNote() {
+  const sy = LS.get(SYNC_STORE, null);
+  return sy && sy.day === todayStr() && Object.keys(sy.vals || {}).length ? '<p class="note" style="margin:0">' + Object.keys(sy.vals).length + ' box' + (Object.keys(sy.vals).length > 1 ? 'es have' : ' has') + ' the website’s values until midnight.</p>'
+    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
 }
 function showHtml() {
   const s = S.settings, mini = (k, txt, lab) => '<div class="frow"><span>' + lab + '</span><span class="minis"><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="-1" aria-label="Less">−</button><span class="minival">' + txt + '</span><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="1" aria-label="More">+</button></span></div>';
@@ -1649,6 +1850,8 @@ function showHtml() {
     mini('minSales', String(s.minSales), 'Min sales last mo (Card Ladder)') +
     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
     '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
+    '<div style="display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid #222A35"><button class="btn" data-a="syncweb">Sync from website</button>' +
+    (UI.syncMsg ? '<div class="' + (UI.syncMsg[0] === 'ok' ? 'okbox' : UI.syncMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.syncMsg[1]) + '</div>' : syncNote()) + '</div>' +
     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
     '<div class="frow"><span>Look slabs up (PSA, card, prices)</span><button class="btn" style="min-width:76px" data-a="lookup">' + (s.lookup ? 'On' : 'Off') + '</button></div>' +
     (s.lookup ? '' : '<p class="note" style="margin:0">Off: a slab read is only listed as its cert link and sent to scans.csv.</p>') +
@@ -1662,13 +1865,29 @@ function showHtml() {
     '<p class="note">CGC slabs: found by name for now (Card Hedge comes next, through your collector).</p>' +
     '<div class="note" id="scans-line" style="font-size:13px">' + scansLine() + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px"><button class="btn" data-a="demo">Load the sample show (3 tables)</button>' +
-    '<button class="btn danger" data-a="newshow">' + (UI.confirmNew ? 'Tap again to clear every table' : 'Start a new show') + '</button>' +
+    '<button class="btn danger" data-a="newshow">Start a new show</button>' +
     (DSTATE === 'ok' ? '<button class="linkbtn" style="align-self:flex-start" data-a="lock">Lock: forget the password on this phone</button>' : '') + '</div>' +
     '<p class="note" style="margin-top:10px">Your tables, asks and prices stay on this phone. What leaves it: each real slab’s cert link (to scans.csv), Record purchases and Review answers. Sample slabs and Test mode are never sent. Sample slabs have invented prices.</p></div>';
 }
 
 /* ---- the slab panel, Review and Find the card ---- */
+function renderModal() {                                  // Record scans' name and Start a new show (2026-11-14): the app's own pop-ups
+  const box = $('modal'); if (!box) return;
+  const m = UI.modal;
+  if (!m) { box.innerHTML = ''; box.dataset.kind = ''; return; }
+  if (box.dataset.kind === m.kind && box.firstChild) return;   // open already: never redrawn under the typing
+  const body = m.kind === 'recscans'
+    ? '<h2 class="h2">Record scans</h2><p class="note" style="margin:0">' + slabsArr().filter(sl => !sl.demo && sl.cert).length + ' slabs of this show so far go to the website (History › Pre-Sales Spotcheck), with your plan.</p>' +
+      '<label class="field"><span class="label">Name</span><input class="input" type="text" id="recname" maxlength="80" value="' + esc(m.name) + '" data-in="recname"></label>' +
+      '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn primary" style="flex:1" data-a="recscansgo">Record</button></div>'
+    : '<h2 class="h2">Start a new show?</h2><p class="note" style="margin:0">Are you sure you would like to continue? This clears every table on this phone and erases the links in scans.csv. A slab from this show can be scanned again at the next one.</p>' +
+      '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn danger" style="flex:1" data-a="newshowgo">Yes, start a new show</button></div>';
+  box.dataset.kind = m.kind;
+  box.innerHTML = '<div class="sheetwrap modalwrap" data-a="modalbg"><div class="sheet modal stack" role="dialog" aria-modal="true" style="gap:12px">' + body + '</div></div>';
+  if (m.kind === 'recscans') { const i = $('recname'); if (i && document.activeElement !== i) setTimeout(() => { try { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} }, 60); }
+}
 function renderSheet() {
+  renderModal();
   const sl = UI.sheet ? S.slabs[UI.sheet] : null, box = $('sheet');
   if (!sl) { box.innerHTML = ''; return; }
   const x = calc(sl), t = tableOf(sl.t) || {};
@@ -1680,7 +1899,7 @@ function renderSheet() {
   box.innerHTML = '<div class="sheetwrap" data-a="closebg"><div class="sheet" role="dialog" aria-label="Slab">' + head + '<div class="sbody" id="sbody">' + body + '</div></div></div>';
 }
 function kpisHtml(x) {
-  return '<div class="kpi"><div class="label">CL price</div><div class="v">' + money(x.std) + '</div><div class="s">' + (x.std == null ? 'no Card Ladder price' : (x.n || '?') + ' sales, ' + (x.win || '30 days')) + '</div></div>' +
+  return '<div class="kpi"><div class="label">CL price</div><div class="v">' + money(x.std) + '</div><div class="s">' + (x.std == null ? 'no Card Ladder price' : (x.down ? gkLabel(x.down) + ' ↓ (its own line is thin) · ' : '') + (x.n || '?') + ' sales, ' + (x.win || '30 days')) + '</div></div>' +
     '<div class="kpi"><div class="label">Chance</div><div class="v" style="color:' + (x.chance == null ? 'var(--mu)' : x.chance >= 0.6 ? 'var(--grt)' : x.chance >= S.settings.bar / 100 ? 'var(--blt)' : 'var(--mu)') + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</div><div class="s">' + S.settings.hold + '-month hold</div></div>' +
     '<div class="kpi"><div class="label">You pay</div><div class="v">' + money(x.pay) + '</div><div class="s">' + (x.std == null ? '' : (x.d * 100).toFixed(1) + '% under') + '</div></div>';
 }
@@ -1862,12 +2081,22 @@ async function act(a, ds, el) {
     case 'confirm': if (sl) { sl.look = 'ok'; sl.how = 'confirmed'; save(); UI.view = 'slab'; } break;
     case 'mark': if (sl && sl.cid != null) return sendMark(sl.cid, +ds.v); return;
     case 'record': return recordPurchases();
-    case 'hold': s.hold = +ds.v; save(); break;
-    case 'gate': s.gate = !s.gate; save(); break;
+    case 'recscans': if (UI.sending) return; UI.modal = {kind: 'recscans', name: 'Show ' + showNext()}; break;
+    case 'recscansgo': { const nm = ((($('recname') || {}).value) || '').trim() || ('Show ' + showNext()); UI.modal = null; render(); return recordScans(nm); }
+    case 'modalno': UI.modal = null; break;
+    case 'modalbg': if (el && el.closest && el.closest('.modal')) return; UI.modal = null; break;
+    case 'syncweb': return syncFromWebsite();
+    case 'newshowgo': {                                  // the erase after this show's waiting slabs, then a clean phone
+      const t = nextT(), q = LS.get(SCANQ, []); q.push(['__clear__', t]); LS.set(SCANQ, q); LS.set('ssc-clear-asked', t);
+      const b = baseState(); b.settings = S.settings; b.marks = S.marks; S = b; save(); UI.modal = null; UI.recMsg = null; UI.scanRecMsg = null; UI.openTable = null;
+      scheduleScanSend(50); toast('New show started - scans.csv is being emptied.'); break;
+    }
+    case 'hold': s.hold = +ds.v; save(); planChanged('hold'); break;
+    case 'gate': s.gate = !s.gate; save(); planChanged('gate'); break;
     case 'lookup': s.lookup = !s.lookup; save(); if (s.lookup) pumpLookups(); break;
     case 'bump': {
       const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k], lim = {under: [0, 60], bar: [5, 95], share: [5, 100], minSales: [0, 50]}[k];
-      s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); break;
+      s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); planChanged(k); break;
     }
     case 'savetok': { const v = (document.querySelector('[data-in="psaTok"]') || {}).value || ''; if (!v.trim()) return toast('Paste the token first.'); LS.set(PSA_TOKEN, v.trim()); const d = psaDay(); d.stop = 0; LS.set(PSA_DAY, d);
       slabsArr().forEach(x => { if (!x.demo && x.look === 'manual' && ['token', 'badtoken'].includes(x.lookWhy)) x.look = 'queued'; }); pumpLookups(); toast('PSA token saved on this phone.'); break; }
@@ -1885,9 +2114,7 @@ async function act(a, ds, el) {
     case 'lock': KEY = null; D = null; IDX = null; DSTATE = 'locked'; LS.del(KEY_STORE); toast('Locked. Your scans stay on this phone.'); break;
     case 'demo': { if (UI.rec) stopRec(); const d = demoState(); d.settings = S.settings; d.marks = S.marks; Object.values(S.slabs).filter(x => !x.demo).forEach(x => { d.slabs[x.id] = x; });
       S.tables.filter(t => !t.id.startsWith('d')).forEach(t => { t.n += 3; d.tables.push(t); }); S = d; save(); UI.tab = 'tables'; UI.openTable = null; break; }
-    case 'newshow':
-      if (!UI.confirmNew) { UI.confirmNew = true; setTimeout(() => { UI.confirmNew = false; if (UI.tab === 'show') render(); }, 4000); break; }
-      { const b = baseState(); b.settings = S.settings; b.marks = S.marks; S = b; save(); UI.confirmNew = false; UI.recMsg = null; break; }
+    case 'newshow': UI.modal = {kind: 'newshow'}; break;
     default: return;
   }
   render();
@@ -1907,7 +2134,8 @@ document.addEventListener('input', e => {
   else if (k === 'tnote') UI.tnote = v;
   else if (k === 'psaTok') { /* read on Save */ }
   else if (k === 'q') { UI.q = v; const r = $('results'); if (r) r.innerHTML = resultsHtml(v, UI.pickGk || (sl && sl.gk)); }
-  else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); }
+  else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); if (f !== 'show') planChanged(f); }
+  else if (k === 'recname') { if (UI.modal) UI.modal.name = v; }
   else if (k === 'pct' && sl) { const n = parseFloat(v.replace(',', '.')); if (isFinite(n)) { sl.vd = Math.max(0, Math.min(60, n)); sl.vp = null; sl.vpTxt = null; if (sl.st === 'new') sl.st = 'asked'; save(); paintSheetNumbers(); } }
   else if (k === 'usd' && sl) { const n = parseFloat(v.replace(/[$,\s]/g, '')); sl.vpTxt = v; sl.vp = isFinite(n) && n > 0 ? n : null; if (sl.vp != null) { sl.vd = null; if (sl.st === 'new') sl.st = 'asked'; } save(); paintSheetNumbers(); }
 });

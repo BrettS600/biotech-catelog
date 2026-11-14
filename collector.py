@@ -1632,6 +1632,10 @@ def read_requests(state, cat=None, cards=None):
             gplan_record(v, msg, t, "gspot")
         elif msg.get("type") == "scan":                              # Slab Show Scanner's reads -> card-data scans.csv (scans.py)
             scans.record(v, msg, t)
+        elif msg.get("type") == "scan_clear":                        # Start a new show on the phone: scans.csv emptied (scans.py, 2026-11-14)
+            scans.clear(v, msg, t)
+        elif msg.get("type") == "gset":                              # Your Plan of the phone or the website, for the other's Sync button (2026-11-14)
+            gset_record(v, msg, t)
         elif msg.get("type") == "read" and msg.get("i"):            # Review pressed on a listing with an incomplete eBay record
             q = v.setdefault("site_read_q", [])
             if str(msg["i"])[:60] not in q:
@@ -1677,6 +1681,121 @@ def forecast_doc():
         if _fc["doc"] is None:
             log(f"Forecast: the model file could not be read ({str(e)[:120]}); the alerts' forecast filter and the monthly plans wait for it")
     return _fc["doc"]
+
+
+SCANIDX_URL = "https://bretts600.github.io/biotech-catelog/scanidx.bin"   # the scan-match index the site build writes (graded_site.py)
+_sidx = {"doc": None, "t": 0.0}
+
+
+def scan_idx():
+    """The site's scan-match index (scanidx.bin: the certs we know -> card and grade, how the graders name our cards ->
+    card, the grades each card has figures for), decrypted with the live key and re-read every hour like forecast.bin;
+    None until it has been read once (the reads then wait as 'wait')."""
+    now = time.time()
+    if _sidx["doc"] is not None and now - _sidx["t"] < FC_FETCH_S:
+        return _sidx["doc"]
+    if _sidx["doc"] is None and now - _sidx["t"] < FC_RETRY_S:
+        return None
+    _sidx["t"] = now
+    if not es.PASSWORD or DRY_RUN:
+        return _sidx["doc"]
+    try:
+        r = requests.get(SCANIDX_URL, params={"t": int(now // 3600)}, timeout=60, headers={"Cache-Control": "no-cache"})
+        r.raise_for_status()
+        doc = fm.decrypt_doc(r.content, es.live_key(es.PASSWORD))
+        if not (isinstance(doc.get("certs"), dict) and doc.get("gk")):
+            raise ValueError("not a scan index")
+        if doc.get("t") != (_sidx["doc"] or {}).get("t"):
+            log(f"Scans: the site's match index of {doc.get('t')} read - {len(doc['certs']):,} certs, {len(doc.get('words') or {}):,} names")
+        _sidx["doc"] = doc
+    except Exception as e:
+        if _sidx["doc"] is None:
+            log(f"Scans: the site's match index could not be read ({str(e)[:120]}); the reads wait for it")
+    return _sidx["doc"]
+
+
+def scan_post(kind, items=None, **extra):
+    """The scan topic (<channel>-scr, 2026-11-14): what the website and the phone must see at once - new reads of the
+    scans, an erase done - signed like everything else on the channel. The live branch's raw files reach them only after
+    GitHub's cache (up to five minutes); this takes seconds. Reads go in messages of about 3 KB (ntfy carries 4 KB)."""
+    if DRY_RUN or not es.PASSWORD:
+        return
+    topic, key = alert_channel()
+
+    def send(m):
+        body = json.dumps(m, separators=(",", ":"))
+        try:
+            requests.post(f"{NTFY_SERVER}/{topic}-scr", data=json.dumps({"m": body, "s": hmac.new(key, body.encode(), "sha256").hexdigest()}).encode(), timeout=5)
+        except Exception:
+            pass
+    if kind != "reads":
+        send(dict({"type": kind, "t": int(time.time() * 1000)}, **extra))
+        return
+    batch, size = [], 0
+    for r in items or []:
+        n = len(json.dumps(r, separators=(",", ":"))) + 1
+        if batch and size + n > 2800:
+            send({"type": "reads", "t": int(time.time() * 1000), "r": batch})
+            batch, size = [], 0
+        batch.append(r)
+        size += n
+    if batch:
+        send({"type": "reads", "t": int(time.time() * 1000), "r": batch})
+
+
+FAST_S = 15                      # the fast tick between cycles (Brett: one minute "is fine, but yeah the faster the better")
+
+
+def fast_tick(state, cat, counters):
+    """Every FAST_S between the cycles (and at the start of each): the channel's messages (the phone's scans, its erase,
+    Record scans, Your Plan), scans.csv, the reads of the scans; what changed goes out at once - the reads and the
+    erase on the scan topic, and scan.bin / spots.bin on the live branch."""
+    v = state.setdefault("vps", {})
+    read_requests(state, cat, counters.get("_cards"))
+    try:
+        scans.flush(v)                                       # the phone app's slabs on to card-data's scans.csv (scans.py)
+    except Exception as e:
+        log(f"Scans: {str(e)[:200]}")
+    try:
+        changed, full = scans.reads_tick(v, scan_idx())
+    except Exception as e:
+        changed, full = [], False
+        log(f"Scans: the reads failed ({str(e)[:200]})")
+    reads = v.get("scan_reads") or {}
+    if changed:
+        v["sr_rev"] = v.get("sr_rev", 0) + 1
+        if not full or len(changed) <= 100:                  # a whole re-match after a new index goes by file only
+            scan_post("reads", [scans.compact(reads[k]) for k in changed if k in reads])
+    if v.get("scan_cleared_t", 0) and v.get("scan_cleared_t") != v.get("scan_cleared_sent"):
+        v["scan_cleared_sent"] = v["scan_cleared_t"]
+        scan_post("cleared", asked=v.get("scan_clear_t", 0), done=v["scan_cleared_t"])
+    sig = (v.get("sr_rev", 0), v.get("gspot_t", 0), v.get("gset_t", 0), v.get("scan_clear_t", 0), v.get("scan_cleared_t", 0),
+           bool(v.get("sr_ok")), v.get("sr_err", ""), v.get("sr_pub", ""))
+    if sig == v.get("fast_sig") or DRY_RUN or push_running():
+        return
+    try:
+        files = {"scan.bin": live_blob(scan_file(v))}
+        if v.get("gspot_t", 0) != v.get("spots_pub_t", -1):
+            files["spots.bin"] = live_blob({"t": v.get("gspot_t", 0), "recs": v.get("gspots") or []})
+        publish(files)
+        v["fast_sig"] = sig
+        v["spots_pub_t"] = v.get("gspot_t", 0)
+    except Exception as e:
+        log(f"Scans: scan.bin failed ({str(e)[:120]})")
+
+
+def live_blob(obj):
+    raw = gzip.compress(json.dumps(obj, separators=(",", ":")).encode("utf-8"))
+    return es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw
+
+
+def scan_file(v):
+    """scan.bin: every read of the scans (matched), this machine's key for scan-results and whether it is let in, the
+    last erase asked / done, each side's Your Plan, and the time of the newest Spotcheck set (spots.bin)."""
+    return {"t": int(time.time() * 1000), "reads": [scans.compact(r) for r in (v.get("scan_reads") or {}).values()],
+            "key": {"pub": v.get("sr_pub") or "", "ok": bool(v.get("sr_ok")), "err": v.get("sr_err", "")},
+            "clear": {"asked": v.get("scan_clear_t", 0), "done": v.get("scan_cleared_t", 0)},
+            "sync": v.get("gsets") or {}, "spots_t": v.get("gspot_t", 0)}
 
 
 def forecast_fees(cfg):
@@ -1765,7 +1884,8 @@ def forecast_record(v, msg, t):
 
 # ---------------- Graded plans (Brett, 2026-11-04): Graded > Planning's "Record plan", shown on Graded Forecast History ----------------
 GPLAN_KEEP = 100                 # recorded plans kept (newest)
-GPLAN_SLABS = 300                # slabs kept per plan at most
+GPLAN_SLABS = 300                # slabs kept per plan at most (a Pre-Sales Spotcheck set has no limit: GSPOT_PARTS)
+GSPOT_PARTS = 5000               # a Spotcheck set's parts at most (20 slabs a part: 100,000 slabs; Brett, 2026-11-14: "have it be unlimited")
 
 
 def gplan_record(v, msg, t, kind="gplan"):
@@ -1778,7 +1898,11 @@ def gplan_record(v, msg, t, kind="gplan"):
     scores them (PriceCharting's price when each hold is up).
     kind "gspot" (2026-11-05): a Pre-Sales Spotcheck set - the green rows of Graded Forecasting or Recording sent with
     "Add to Pre-Sales Spotcheck", the same shape (the buy price for paid, no holds) plus src ('fc' / 'rc'), minp (the
-    chance bar) and gate; kept in v["gspots"], shown on History > Pre-Sales Spotcheck, which looks each slab back."""
+    chance bar) and gate; kept in v["gspots"], shown on History > Pre-Sales Spotcheck, which looks each slab back.
+    The phone's Record scans (2026-11-14, src 'ph'): every slab of the show so far, as many as there are, each with its
+    grader and cert after the nine figures ([..., 'psa', '46790116']; card and grade null while not known - the reads
+    of the scans name them), and in part 0 the name Brett gave it, the show's day and the phone's own plan (minsales,
+    share besides the hold, the % under, the bar and the gate). Published in spots.bin (the fast tick)."""
     recs = v.setdefault(kind + "s", [])
     try:
         pid = int(msg.get("id") or 0)
@@ -1794,12 +1918,24 @@ def gplan_record(v, msg, t, kind="gplan"):
             v[kind + "_t"] = t
             log(f"{what} removed ({pid})")
         return
+    spot = kind == "gspot"
     try:
-        k, n = int(msg.get("k") or 0), max(1, min(20, int(msg.get("n") or 1)))
+        k, n = int(msg.get("k") or 0), max(1, min(GSPOT_PARTS if spot else 20, int(msg.get("n") or 1)))
         slabs = []
-        for x in (msg.get("s") or [])[:GPLAN_SLABS]:
-            slabs.append([int(x[0]), str(x[1])[:24], int(x[2]), None if x[3] is None else round(float(x[3]), 2), None if x[4] is None else round(float(x[4]), 2),
-                          round(float(x[5]), 2), None if x[6] is None else int(x[6]), None if x[7] is None else round(float(x[7]), 2), None if x[8] is None else int(x[8])])
+        for x in (msg.get("s") or [])[:None if spot else GPLAN_SLABS]:
+            if x[0] is None and not spot:
+                continue
+            sl = [None if x[0] is None else int(x[0]), None if x[1] is None else str(x[1])[:24], int(x[2] or 0),
+                  None if x[3] is None else round(float(x[3]), 2), None if x[4] is None else round(float(x[4]), 2),
+                  None if x[5] is None else round(float(x[5]), 2), None if x[6] is None else int(x[6]), None if x[7] is None else round(float(x[7]), 2),
+                  None if x[8] is None else int(x[8])]
+            if spot and len(x) > 10:                         # the phone's slabs carry their grader and cert
+                g, c = str(x[9] or "").lower(), re.sub(r"\D", "", str(x[10] or ""))[:13]
+                if g in ("psa", "cgc") and c:
+                    sl += [g, c]
+            if sl[0] is None and len(sl) < 11:               # neither a card nor a cert: nothing to look back on
+                continue
+            slabs.append(sl)
         head = None
         if k == 0:
             holds = []
@@ -1811,6 +1947,10 @@ def gplan_record(v, msg, t, kind="gplan"):
                     "model": str(msg.get("model") or "")[:80], "smp": 1 if msg.get("smp") else 0, "holds": holds}
             if kind == "gspot":
                 head.update({"src": str(msg.get("src") or "")[:4], "minp": round(float(msg.get("minp") or 0), 3), "gate": 1 if msg.get("gate") else 0})
+                if head["src"] == "ph":                      # the phone's Record scans: its name, the show's day and the phone's plan
+                    head.update({"name": str(msg.get("name") or "")[:80], "day": str(msg.get("day") or "")[:10],
+                                 "minsales": max(0, int(msg.get("minsales") or 0)), "share": round(float(msg.get("share") or 0), 2),
+                                 "nall": max(0, int(msg.get("nall") or 0))})
     except (TypeError, ValueError, KeyError, IndexError):
         return
     parts = v.setdefault(kind + "_parts", {})
@@ -1821,12 +1961,38 @@ def gplan_record(v, msg, t, kind="gplan"):
     if len(p["parts"]) < p["n"] or "0" not in p["parts"]:
         return
     rec = dict(p["parts"]["0"]["head"])
-    rec["slabs"] = [x for i in range(p["n"]) for x in (p["parts"].get(str(i)) or {}).get("s", [])][:GPLAN_SLABS]
+    rec["slabs"] = [x for i in range(p["n"]) for x in (p["parts"].get(str(i)) or {}).get("s", [])][:None if spot else GPLAN_SLABS]
     del parts[str(pid)]
     recs[:] = [r for r in recs if r.get("id") != pid] + [rec]
     del recs[:-GPLAN_KEEP]
     v[kind + "_t"] = t
-    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)")
+    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)" + (f" - {rec['name']!r} from the phone" if rec.get("src") == "ph" else ""))
+
+
+# ---------------- Your Plan, phone <-> website (Brett, 2026-11-14) ----------------
+# "would it be possible to change the website to have a sync from phone button and then to have the mobile app have a sync
+# from website button?" Each side sends its Your Plan whenever a box changes ({type: 'gset', t, src: 'ph' | 'web', v:
+# {capital, hold, under, ship, bar, share, gate, minSales}}); the newest of each side is kept here and published in
+# scan.bin (sync). The other side's Sync button reads the channel itself first (the message is there at once) and falls
+# back on this copy. Nothing is ever changed on either side until its own button is pressed.
+GSET_KEYS = ("capital", "hold", "under", "ship", "bar", "share", "gate", "minSales")
+
+
+def gset_record(v, msg, t):
+    src = str(msg.get("src") or "")[:4]
+    if src not in ("ph", "web"):
+        return
+    vals = {}
+    for k, x in (msg.get("v") or {}).items():
+        if k not in GSET_KEYS:
+            continue
+        try:
+            vals[k] = bool(x) if k == "gate" else round(float(x), 4)
+        except (TypeError, ValueError):
+            continue
+    if vals:
+        v.setdefault("gsets", {})[src] = {"t": t, "v": vals}
+        v["gset_t"] = t
 
 
 def forecast_score(v, cat, cards=None):
@@ -3564,11 +3730,7 @@ def code_update():
 
 # ---------------- the loop ----------------
 def cycle(state, cat, sched, counters):
-    read_requests(state, cat, counters.get("_cards"))
-    try:
-        scans.flush(state.setdefault("vps", {}))             # the phone app's slabs on to card-data's scans.csv (scans.py)
-    except Exception as e:
-        log(f"Scans: {str(e)[:200]}")
+    fast_tick(state, cat, counters)                          # the channel, scans.csv, the reads of the scans (also between cycles)
     cfg = apply_settings(state)
     now = clock(state)
     v = state.setdefault("vps", {})
@@ -3848,7 +4010,7 @@ def cycle(state, cat, sched, counters):
     forecast_score(v, cat, cards)
     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
     live["gplans"] = {"t": v.get("gplan_t", 0), "recs": v.get("gplans") or []}   # Graded > Purchases' recorded purchases (Graded Forecast History)
-    live["gspots"] = {"t": v.get("gspot_t", 0), "recs": v.get("gspots") or []}   # the Pre-Sales Spotcheck sets (History > Pre-Sales Spotcheck)
+    live["gspots"] = {"t": v.get("gspot_t", 0), "n": len(v.get("gspots") or []), "file": "spots.bin"}   # the Pre-Sales Spotcheck sets: spots.bin (the fast tick; a set can be any size)
     try:
         fc_auto_tick(state, cat, cards, live.get("band") or es.TAB_PRICE)
     except Exception as e:
@@ -4135,7 +4297,16 @@ def main():
             time.sleep(300 if "token" in str(e).lower() else 30)    # a bad credential: wait, don't hammer eBay
         if ONCE:
             break
-        time.sleep(max(1.0, CYCLE_S - (time.time() - t0)))
+        end = t0 + CYCLE_S                                   # the wait till the next cycle, with the fast tick in it (2026-11-14)
+        if end - time.time() < 1.0:
+            time.sleep(1.0)
+        while end - time.time() >= 1.0:
+            time.sleep(min(FAST_S, end - time.time()))
+            if end - time.time() >= FAST_S / 3:
+                try:
+                    fast_tick(state, cat, counters)
+                except Exception as e:
+                    log(f"Fast tick failed: {str(e)[:200]}")
 
 
 if __name__ == "__main__":

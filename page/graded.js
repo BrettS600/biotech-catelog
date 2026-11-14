@@ -305,6 +305,7 @@ function grPc1Title(r) {                                    // last month's Pric
   if (p[2] === 'hl') return 'Hodges–Lehmann estimate (the median of every pairwise average: steady against an odd sale) of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo;
   if (p[2] === 'sales') return 'Average of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo;
   if (p[2] === 'chart') return 'PriceCharting’s monthly PSA 10 chart value for ' + mo + ' (no PSA 10 sale of it recorded that month)';
+  if (p[2] === 'down') return 'Rounded down (↓): PriceCharting recorded no ' + r[25] + ' sale in ' + mo + ', so this is the ' + grLabel(p[3]) + ' figure - the Hodges–Lehmann estimate of its ' + p[1] + ' sale' + (p[1] === 1 ? '' : 's') + ' that month (PriceCharting files most half grades under the whole grade below; display only - the forecast uses Card Ladder)';
   if (p[2] === 'chart_mixed') return 'PriceCharting’s monthly grade ' + r[25].split(' ')[1] + ' chart value for ' + mo + ': it blends every grader (no ' + r[25] + ' sale recorded that month)';
   // only this grade and grader's own figures are used (2026-10-29): PriceCharting's 9 / 9.5 / 8 / 7 lines blend graders
   if (p[2] === 'none') return 'none: our record of PriceCharting’s ' + r[25] + ' sales covers all of ' + mo + ' and holds no ' + r[25] + ' sale';
@@ -316,6 +317,8 @@ function grSrcTitle(r) {
   if (s === 'pc') return 'PriceCharting’s ' + r[25] + ' price';
   if (s === 'mixed') return 'PriceCharting’s grade ' + r[25].split(' ')[1] + ' price: it blends every grader (PSA, CGC, BGS ...)';
   if (s === 'formula') return 'PriceCharting’s CGC 10 price is its formula (0.40 x PSA 10), not a market price';
+  const dn = /^down:([^:]+):(\d+):(\d+)/.exec(s);
+  if (dn) return 'rounded down (↓): PriceCharting has no ' + r[25] + ' price of its own, so the median of the ' + dn[2] + ' ' + grLabel(dn[1]) + ' sales it recorded in the last ' + dn[3] + ' days';
   const m = /^sales:(\d+):(\d+)/.exec(s);
   if (m) return 'Median of the ' + m[1] + ' ' + r[25] + ' sales PriceCharting recorded in the last ' + m[2] + ' days (its listed price blends graders)';
   return '';
@@ -417,7 +420,7 @@ function grRow(r) {
     (r[54] ? '<td' + (eraMis ? ' class="rfbad"' : '') + ' title="' + esc('PC: ' + ((c.era || [])[0] || 'none') + ' · CL: ' + ((c.era || [])[1] || 'none') + ' · PC Cert: ' + ((c.era || [])[2] || 'none')) + '">' + esc(r[54]) + '</td>' : '<td></td>') +
     grInt(r[5]) +
     (r[6] == null ? '<td class="num"><span class="dim" title="' + esc((grPc1Title(r) || 'No ' + r[25] + ' sale recorded by PriceCharting last month') + '. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + ((r[69] || [])[2] === 'not_read' ? 'not read' : (r[69] || [])[2] === 'none' ? 'none' : '-') + '</span></td>'
-      : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
+      : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + ((r[69] || [])[2] === 'down' ? '<sup class="gdown">↓</sup>' : '') + '</td>') +
     (r[35] == null ? (pend || nom ? '<td class="num">' + clNone + '</td>' : '<td class="num"><span class="dim" title="' + esc('Card Ladder recorded no ' + r[25] + ' sale last month. Its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">-</span></td>')
       : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' (an average: Card Ladder gives only its monthly average, so Hodges–Lehmann waits until its single sales are saved) · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
     (r[36] != null ? '<td class="num' + (grUnsure(r) || grWrong(r) ? ' gdoubt' : '') + '" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month (both ' + r[71] + ')' + (grUnsure(r) || grWrong(r) ? '. Greyed: the match is in doubt - answer Review first' : '')) + '">' + fmtPct(r[36], true, 1) + '</td>'

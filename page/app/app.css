@@ -215,3 +215,7 @@ button.rvb.diff{color:var(--rd);border-color:var(--rd)}
 .lrow:last-of-type{border-bottom:0}
 .lrow a{color:var(--blt);font:600 17px Inter,sans-serif;font-variant-numeric:tabular-nums;flex:1}
 .lrow .up{color:var(--grt)}
+
+/* Record scans' name and Start a new show (2026-11-14): the app's own pop-ups, in the middle */
+.modalwrap{align-items:center;z-index:8;padding:16px}
+.sheet.modal{max-width:440px;width:100%;height:auto;border-radius:18px;padding:18px;border:1px solid var(--ln)}

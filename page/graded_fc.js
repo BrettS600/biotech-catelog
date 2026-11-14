@@ -37,7 +37,17 @@ const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmi
 const FCG_KEEP = ['cap', 'h', 'fold'];
 const fcgKept = () => { const sv = grLS('fcg-in', {}) || {}, o = {}; FCG_KEEP.forEach(k => { if (sv[k] !== undefined) o[k] = sv[k]; }); return o; };
 const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, fcgKept());
-const fcgInSave = () => { const o = {}; FCG_KEEP.forEach(k => { o[k] = FCG_IN[k]; }); grSave('fcg-in', o); };
+// SYNC FROM PHONE (2026-11-14, Brett: "would it be possible to change the website to have a sync from phone button and then to
+// have the mobile app have a sync from website button?"; "only sync values reset, and do so by midnight"): the button copies
+// the phone's Your Plan into these boxes (capital, hold, % under - Forecasting's and Recording's -, shipping, the share,
+// the bar, the gate); those boxes keep the phone's values through a refresh until midnight, then go back to what they
+// were. A synced box you change by hand is yours again at once. The phone's plan comes off the channel (scanPoll, at once)
+// or the collector's copy (scan.bin); every change here goes the other way ({type: 'gset', src: 'web'}).
+const FCG_SYNC_MAP = {capital: 'cap', hold: 'h', under: 'disc', ship: 'ship', bar: 'minp', share: 'share', gate: 'gate'};
+const fcgToday = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+let FCG_SYNC = (() => { const x = grLS('fcg-sync', null); return x && x.day === fcgToday() && x.vals ? x : null; })();
+if (FCG_SYNC) Object.assign(FCG_IN, FCG_SYNC.vals); else { try { localStorage.removeItem('fcg-sync'); } catch (e) {} }
+const fcgInSave = () => { const o = {}; FCG_KEEP.forEach(k => { o[k] = FCG_SYNC && k in FCG_SYNC.vals ? (FCG_SYNC.prev || {})[k] : FCG_IN[k]; if (o[k] === undefined) delete o[k]; }); grSave('fcg-in', o); };
 GF.fc = grFilters('fcg-', {host: 'fcg-gmode', terms: 'fcg-gm-terms', grades: 'fcg-gm-grades', gn: 'fcg-gm-gn', title: 'Graded forecast'},
   () => { if (tables.fcg) tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }, FCG_SEL_DEFAULT);
 grDragInit(GF.fc);
@@ -216,7 +226,8 @@ function fcgClv(r) {
 // a row's cells by name (Recording and Planning use the same ones in their own order, with their own columns between)
 function fcgCells(r, I) {
   const k = r[0] + '|' + esc(r[50]), c = (GR.doc.cards || {})[String(r[0])] || {}, d = r.fcD != null ? r.fcD : I.disc;
-  const pcFrom = (r[67] != null ? 'PriceCharting’s price of this grade today' : 'PriceCharting’s price of this grade last month (none today)') + ' - shown for reference; the chance and the money use Card Ladder’s';
+  const pcDown = r[67] != null ? String(r[43] || '').startsWith('down:') : (r[69] || [])[2] === 'down';   // a half grade priced one grade down on the PriceCharting side (2026-11-14)
+  const pcFrom = (r[67] != null ? 'PriceCharting’s price of this grade today' : 'PriceCharting’s price of this grade last month (none today)') + (pcDown ? ' - rounded down (↓): PriceCharting has no price of its own for this half grade, so the whole grade below’s' : '') + ' - shown for reference; the chance and the money use Card Ladder’s';
   const sw = r[80] || [], clFrom = 'The standard price: the middle (Hodges-Lehmann) of Card Ladder’s ' + (sw[1] || '') + ' sales of this grade in the ' + (sw[0] || 30) + ' days to the card’s Card Ladder read' + (sw[2] ? ' (' + grDay(sw[2]) + ')' : '') + '. ' + (r[68] != null ? 'Card Ladder’s value: ' + fmtMoneyPlain(r[68]) + (r[82] ? ' (confidence ' + r[82] + ' of 5)' : '') + '.' : 'No Card Ladder value for it.');
   const buyTip = 'Card Ladder’s standard price x (1 - ' + fcgDiscWord(d) + ') - ' + fmtMoneyPlain(I.ship) + ' shipping: the most to pay the vendor';
   const pcSold = r[76] && r[16] != null ? '~' + fmtInt(r[16]) : r[16] == null && (r[69] || [])[2] === 'not_read' ? '<span class="dim">not read</span>' : r[16] == null ? '<span class="dim">-</span>' : fmtInt(r[16]);
@@ -225,7 +236,7 @@ function fcgCells(r, I) {
       : '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + k + '" title="Compare PriceCharting’s card with Card Ladder’s">Review</button></td>'),
     name: '<td class="fcr-nm">' + esc(r[1]) + '<br><span class="dim">' + esc(String(r[2] || '').replace(/^Pokemon /, '')) + (r[3] ? ' · #' + esc(r[3]) : '') + '</span></td>',
     grade: '<td><b>' + esc(r[25]) + '</b></td>',
-    std: fcg2(fcgM(r.fcS) + fcgClv(r), fcgM(r.fcSc), clFrom, pcFrom, r),
+    std: fcg2(fcgM(r.fcS) + fcgClv(r), fcgM(r.fcSc) + (pcDown && r.fcSc != null ? '<sup class="gdown">↓</sup>' : ''), clFrom, pcFrom, r),
     buy: fcg1(fcgM(r.fcB), buyTip, r),
     sold: fcg2(r[37] == null ? '<span class="dim">-</span>' : fmtInt(r[37]), pcSold, 'Card Ladder’s sales of this grade last month' + (r[81] != null ? ' (' + fmtInt(r[81]) + ' in the 12 months to its read)' : ''), 'PriceCharting’s recorded sales of this grade and grader last month' + (r[76] ? ' (an estimate: its list of sales does not reach back to the start of the month)' : '') + ' - reference', r),
     chance: fcgChanceCell(r, I),
@@ -372,12 +383,56 @@ function fcgChanged() {
   const I = fcgInputs(), dv = parseFloat($('fcg-disc').value), m = fcgMode();
   Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), copies: I.copies, gate: I.gate});
   if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
+  if (FCG_SYNC) {                                          // a synced box changed by hand is yours again
+    for (const k of Object.keys(FCG_SYNC.vals)) if (FCG_IN[k] !== FCG_SYNC.vals[k]) delete FCG_SYNC.vals[k];
+    if (Object.keys(FCG_SYNC.vals).length) grSave('fcg-sync', FCG_SYNC); else { FCG_SYNC = null; try { localStorage.removeItem('fcg-sync'); } catch (e) {} }
+    fcgSyncNote();
+  }
   fcgInSave();
+  fcgGsetSoon();
   fcgRegime(); if (GR.doc) { tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }
   if (m === 'hi' && typeof fhgRender === 'function') fhgRender();   // History: the replay follows the pane
 }
 $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
 $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
+function fcgPlanOut() {                                  // this pane's plan as the phone's Sync from website takes it
+  return {capital: FCG_IN.cap, hold: FCG_IN.h, under: FCG_IN.disc, ship: FCG_IN.ship, bar: FCG_IN.minp, share: FCG_IN.share, gate: !!FCG_IN.gate};
+}
+function fcgGsetSoon(now) {                               // the website's plan to the collector, a moment after the last change
+  clearTimeout(FCG.gsT);
+  FCG.gsT = setTimeout(() => { if (!HKEY) return; alSend({type: 'gset', t: nextT(), src: 'web', v: fcgPlanOut()}).then(() => grSave('fcg-gset-day', fcgToday())).catch(() => {}); }, now ? 50 : 2000);
+}
+function fcgSyncNote() {
+  const n = $('fcg-sync-note'); if (!n) return;
+  n.textContent = FCG_SYNC ? 'Synced from the phone' + (FCG_SYNC.t ? ' (its plan of ' + new Date(FCG_SYNC.t).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) + ')' : '') + ' - ' + Object.keys(FCG_SYNC.vals).filter(k => k !== 'rdisc').length + ' box(es); back to the website’s own at midnight.' : '';
+}
+async function fcgSyncFromPhone() {
+  const btn = $('fcg-sync'), note = $('fcg-sync-note');
+  if (!HKEY) return favSay('This page has no key for the collector.');
+  btn.disabled = true; note.textContent = 'Looking for the phone’s plan…';
+  try { await scanFileLoad(true); await scanPoll(); } catch (e) { /* what is known so far */ }
+  btn.disabled = false;
+  const ph = SCAN.sync.ph;
+  if (!ph || !ph.v) { note.textContent = 'No plan from the phone yet: open the app, unlocked, and it sends its Your Plan (or change any box there).'; return; }
+  const vals = {};
+  for (const [a, b] of Object.entries(FCG_SYNC_MAP)) if (ph.v[a] !== undefined && ph.v[a] !== null) vals[b] = b === 'gate' ? !!ph.v[a] : (b === 'h' ? Math.min(6, Math.max(1, Math.round(+ph.v[a]))) : +ph.v[a]);
+  if (vals.disc !== undefined) vals.rdisc = vals.disc;
+  const prev = FCG_SYNC ? FCG_SYNC.prev : fcgKept();
+  FCG_SYNC = {day: fcgToday(), vals, prev, t: ph.t}; grSave('fcg-sync', FCG_SYNC);
+  Object.assign(FCG_IN, vals); fcgInputsPaint(); fcgChanged();
+  favSay('Your plan now has the phone’s values - until midnight.');
+}
+function fcgSyncExpire() {                                 // midnight: the synced boxes go back to what they were
+  if (!FCG_SYNC || FCG_SYNC.day === fcgToday()) return;
+  const prev = FCG_SYNC.prev || {};
+  for (const k of Object.keys(FCG_SYNC.vals)) FCG_IN[k] = prev[k] !== undefined ? prev[k] : FCG_IN_DEFAULT[k];
+  FCG_SYNC = null; try { localStorage.removeItem('fcg-sync'); } catch (e) {}
+  fcgInputsPaint(); fcgChanged(); fcgSyncNote();
+}
+setInterval(fcgSyncExpire, 60000);
+$('fcg-sync').addEventListener('click', fcgSyncFromPhone);
+fcgSyncNote();
+if (grLS('fcg-gset-day', '') !== fcgToday()) setTimeout(() => fcgGsetSoon(true), 8000);   // once a day, so the phone always finds the website's plan
 const fcgFold = on => { FCG_IN.fold = !!on; fcgInSave(); $('fcg').classList.toggle('folded', !!on); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !on; }); };
 $('fcg-fold').addEventListener('click', () => fcgFold(true));
 document.querySelectorAll('#fcg .fcg-unfold').forEach(b => b.addEventListener('click', () => fcgFold(false)));
@@ -566,6 +621,16 @@ Object.assign(HELP, {
     '- Best to Buy breaks the ties (deeper dip, then higher price); this column doesn’t.',
     '- Like Best to Buy, it ignores the filters and the capital, and follows the Hold and the % under.'].join('\n'),
     now: () => { const r = (FCG.rows || []).find(x => x.fcBC === 1); return r ? 'the top chance on Forecasting is <b>' + Math.round(r.fcP) + '%</b>, shared by ' + r.fcBCn + ' slab' + (r.fcBCn === 1 ? '' : 's') : ''; }},
+  fcg_sync: {t: 'Sync from phone', md: 1, m: [
+    '> Copies the phone app’s Your Plan into these boxes, so this page plans with the same numbers the phone used at the show.',
+    '## What is copied',
+    '- Capital, Hold, % under (Forecasting’s and Recording’s), the shipping, the share a slab may take, the chance bar and the market gate.',
+    '- The price band and the copies are the website’s own; the phone’s minimum sales last month has no box here yet.',
+    '## How long',
+    '- The copied boxes keep the phone’s values through a refresh until midnight, then go back to what they were.',
+    '- A copied box you change by hand is yours again at once.',
+    '## The other way',
+    'Every change here is sent to the collector too, so the app’s **Sync from website** button can copy this plan onto the phone.'].join('\n')},
   fcg_spot: {t: 'Add to Pre-Sales Spotcheck', md: 1, m: [
     '> Sends the green rows of this page to History › Pre-Sales Spotcheck, where each slab is looked back on with the model, month by month since 2022.',
     '## What is sent',
