@@ -1,0 +1,1923 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index a09c3cd..797c009 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3278,6 +3278,49 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   push rebased over, no key = waiting. (page/app/app.js scanLink() is display-only and unused; the collector makes the
+   links.)
+ 
++### RECORD SCANS, THE READS OF THE SCANS, SYNC, HALF GRADES (2026-11-14, g16)
++Brett, 2026-11-13/14: a Record scans button under Record purchases sends the show to History > Pre-Sales Spotcheck,
++named "Show N" by default (editable; every tap a new set with everything scanned so far; "have it be unlimited"); Start a
++new show asks "are you sure" and erases scans.csv at once (the last show's waiting slabs go first); the cert pages he
++opens from scans.csv land in the private repo BrettS600/scan-results, folder scans/ ("only want you to have access to
++this file" - never card-inbox/scans, never BrettS600/scrap; scan-results keeps ONE commit, replaced on every save: never
++pull, fetch + reset) and must show on the website and in the app "immediately" (a minute is fine, faster better);
++"Sync from phone" on the website and "Sync from website" in the app, the synced boxes reset at midnight ("only sync
++values reset"); unmatched certs (not $50+ cards of ours) left out and listed behind a button; CGC half grades: Card
++Ladder's exact grade drives the money, a thin half grade is priced one grade DOWN ("rounding down would be safer"), the
++PriceCharting columns round half grades down with a symbol, and a cert moves to the grade its grader's page shows.
++- scans.py (Brett gave access 2026-11-14 for this): clear() for {type: 'scan_clear'} (a generation number keeps a
++  running push from dropping the new show's queue); reads_tick() every 15 s fetches scan-results/scans with this
++  machine's OWN read-only key (BASE/.ssh/scan_results_ed25519, made on first run by ssh-keygen; Brett adds the .pub as a
++  read-only deploy key on scan-results - the website shows it while sr_ok is false; the private half never leaves the
++  droplet), parses each page (parse_read: the same shape as card-data data/certs pages), newest read per cert, and
++  match()es it with the site's index: the cert itself, else PSA's own "Sales of Similar Items" certs on the page, else
++  words_key (how the grader names the card: PSA year|brand|number|subject|variety, CGC name|set|number|variant|language);
++  grade always the page's (grade_key). why: no card / several / no grade data / no grade / not pokemon / wait.
++  start_scan_run (Brett's scrap start signal) left exactly as he wrote it.
++- collector.py: fast_tick() every FAST_S = 15 s between cycles (and at each cycle's start): read_requests, scans.flush,
++  scans.reads_tick; changed reads and "cleared" go out at once on <channel>-scr (signed like the main channel; GitHub's
++  raw CDN holds live-branch files up to 5 min even with a query string - measured 2026-11-14), and scan.bin (reads, key
++  status, last erase asked/done, each side's plan) + spots.bin (every Spotcheck set) on the live branch. live.gspots now
++  only {t, n, file}. gspot sets from the phone (src 'ph'): no slab cap (GSPOT_PARTS 5000 parts), slabs may carry
++  null card/grade plus [grader, cert]; head has name, day, minsales, share, nall. gset ({src: ph|web, v: {capital, hold,
++  under, ship, bar, share, gate, minSales}}) kept in v["gsets"]. scan_idx() reads scanidx.bin hourly like forecast.bin.
++- graded_site.py: scanidx.bin (certs -> [card, grade index or -1], words -> card or 0 = ambiguous, rows -> grades with
++  figures; PSA "recent_sales" certs on Brett's pages added); a PC-photo cert whose page (certs/results.csv) shows another
++  grade moves to that row (82% of CGC certs agreed on 2026-11-13, nearly all the rest were CGC x.5 filed under x by
++  PriceCharting; PSA 99.5%); a half-grade row with no PriceCharting price of its own shows the grade below's: src
++  "down:<gk>:<n>:<days>", pc1 [hl, n, "down", gk], PC grade "PSA 8 ↓" - the page draws a ↓ (display only).
++- page/graded_fh.js: SCAN hub (scan.bin, spots.bin, the channel every 15 s while Pre-Sales Spotcheck shows), phone sets
++  with Name and "Not in our data" columns (pop-up of hyperlinked certs by reason), each phone slab resolved by its read
++  (fhsRes), a half grade without its own line looked back one grade down, the key box. page/graded_fc.js: Sync from
++  phone (FCG_SYNC in localStorage fcg-sync {day, vals, prev}; a hand-changed synced box is dropped from it; fcgInSave
++  keeps the pre-sync capital/hold), the website's plan sent on every change and once a day.
++- page/app (g16): READS (scan.bin + the channel every 15 s while open, unlocked and holding real slabs) identify slabs
++  (look 'ok', how 'read'; a card you picked/confirmed stays), sl.rdWhy on the link rows; calc prices a thin half grade
++  one grade down (x.down, "priced as PSA 8 ↓"); Record scans (pop-up, parts of 40, waits and retries on a refused
++  part); Start a new show pop-up puts ['__clear__', t] in the scan queue (sendScans sends in order); Sync from website
++  (SYNC_STORE ssc-sync {day, vals, prev}); WKWebView shows no prompt()/confirm(), so the app draws its own pop-ups (#modal).
++
+ ## THE NATIVE TRIAL APP - "Slab Scanner" for the iPhone (2026-11-10, n1; ios/SlabScanner)
+ WHY. Brett ran 16 tests with the web app g14 on 2026-11-10 (sheet 2: 50 codes; files in his ~/scan-test). What they said:
+ - the reader got through 5-9 of the camera's ~25 frames a second (125-275 ms a frame with two readers);
+diff --git a/collector.py b/collector.py
+index 4d38b24..39849d9 100644
+--- a/collector.py
++++ b/collector.py
+@@ -1632,6 +1632,10 @@ def read_requests(state, cat=None, cards=None):
+             gplan_record(v, msg, t, "gspot")
+         elif msg.get("type") == "scan":                              # Slab Show Scanner's reads -> card-data scans.csv (scans.py)
+             scans.record(v, msg, t)
++        elif msg.get("type") == "scan_clear":                        # Start a new show on the phone: scans.csv emptied (scans.py, 2026-11-14)
++            scans.clear(v, msg, t)
++        elif msg.get("type") == "gset":                              # Your Plan of the phone or the website, for the other's Sync button (2026-11-14)
++            gset_record(v, msg, t)
+         elif msg.get("type") == "read" and msg.get("i"):            # Review pressed on a listing with an incomplete eBay record
+             q = v.setdefault("site_read_q", [])
+             if str(msg["i"])[:60] not in q:
+@@ -1679,6 +1683,121 @@ def forecast_doc():
+     return _fc["doc"]
+ 
+ 
++SCANIDX_URL = "https://bretts600.github.io/biotech-catelog/scanidx.bin"   # the scan-match index the site build writes (graded_site.py)
++_sidx = {"doc": None, "t": 0.0}
++
++
++def scan_idx():
++    """The site's scan-match index (scanidx.bin: the certs we know -> card and grade, how the graders name our cards ->
++    card, the grades each card has figures for), decrypted with the live key and re-read every hour like forecast.bin;
++    None until it has been read once (the reads then wait as 'wait')."""
++    now = time.time()
++    if _sidx["doc"] is not None and now - _sidx["t"] < FC_FETCH_S:
++        return _sidx["doc"]
++    if _sidx["doc"] is None and now - _sidx["t"] < FC_RETRY_S:
++        return None
++    _sidx["t"] = now
++    if not es.PASSWORD or DRY_RUN:
++        return _sidx["doc"]
++    try:
++        r = requests.get(SCANIDX_URL, params={"t": int(now // 3600)}, timeout=60, headers={"Cache-Control": "no-cache"})
++        r.raise_for_status()
++        doc = fm.decrypt_doc(r.content, es.live_key(es.PASSWORD))
++        if not (isinstance(doc.get("certs"), dict) and doc.get("gk")):
++            raise ValueError("not a scan index")
++        if doc.get("t") != (_sidx["doc"] or {}).get("t"):
++            log(f"Scans: the site's match index of {doc.get('t')} read - {len(doc['certs']):,} certs, {len(doc.get('words') or {}):,} names")
++        _sidx["doc"] = doc
++    except Exception as e:
++        if _sidx["doc"] is None:
++            log(f"Scans: the site's match index could not be read ({str(e)[:120]}); the reads wait for it")
++    return _sidx["doc"]
++
++
++def scan_post(kind, items=None, **extra):
++    """The scan topic (<channel>-scr, 2026-11-14): what the website and the phone must see at once - new reads of the
++    scans, an erase done - signed like everything else on the channel. The live branch's raw files reach them only after
++    GitHub's cache (up to five minutes); this takes seconds. Reads go in messages of about 3 KB (ntfy carries 4 KB)."""
++    if DRY_RUN or not es.PASSWORD:
++        return
++    topic, key = alert_channel()
++
++    def send(m):
++        body = json.dumps(m, separators=(",", ":"))
++        try:
++            requests.post(f"{NTFY_SERVER}/{topic}-scr", data=json.dumps({"m": body, "s": hmac.new(key, body.encode(), "sha256").hexdigest()}).encode(), timeout=5)
++        except Exception:
++            pass
++    if kind != "reads":
++        send(dict({"type": kind, "t": int(time.time() * 1000)}, **extra))
++        return
++    batch, size = [], 0
++    for r in items or []:
++        n = len(json.dumps(r, separators=(",", ":"))) + 1
++        if batch and size + n > 2800:
++            send({"type": "reads", "t": int(time.time() * 1000), "r": batch})
++            batch, size = [], 0
++        batch.append(r)
++        size += n
++    if batch:
++        send({"type": "reads", "t": int(time.time() * 1000), "r": batch})
++
++
++FAST_S = 15                      # the fast tick between cycles (Brett: one minute "is fine, but yeah the faster the better")
++
++
++def fast_tick(state, cat, counters):
++    """Every FAST_S between the cycles (and at the start of each): the channel's messages (the phone's scans, its erase,
++    Record scans, Your Plan), scans.csv, the reads of the scans; what changed goes out at once - the reads and the
++    erase on the scan topic, and scan.bin / spots.bin on the live branch."""
++    v = state.setdefault("vps", {})
++    read_requests(state, cat, counters.get("_cards"))
++    try:
++        scans.flush(v)                                       # the phone app's slabs on to card-data's scans.csv (scans.py)
++    except Exception as e:
++        log(f"Scans: {str(e)[:200]}")
++    try:
++        changed, full = scans.reads_tick(v, scan_idx())
++    except Exception as e:
++        changed, full = [], False
++        log(f"Scans: the reads failed ({str(e)[:200]})")
++    reads = v.get("scan_reads") or {}
++    if changed:
++        v["sr_rev"] = v.get("sr_rev", 0) + 1
++        if not full or len(changed) <= 100:                  # a whole re-match after a new index goes by file only
++            scan_post("reads", [scans.compact(reads[k]) for k in changed if k in reads])
++    if v.get("scan_cleared_t", 0) and v.get("scan_cleared_t") != v.get("scan_cleared_sent"):
++        v["scan_cleared_sent"] = v["scan_cleared_t"]
++        scan_post("cleared", asked=v.get("scan_clear_t", 0), done=v["scan_cleared_t"])
++    sig = (v.get("sr_rev", 0), v.get("gspot_t", 0), v.get("gset_t", 0), v.get("scan_clear_t", 0), v.get("scan_cleared_t", 0),
++           bool(v.get("sr_ok")), v.get("sr_err", ""), v.get("sr_pub", ""))
++    if sig == v.get("fast_sig") or DRY_RUN or push_running():
++        return
++    try:
++        files = {"scan.bin": live_blob(scan_file(v))}
++        if v.get("gspot_t", 0) != v.get("spots_pub_t", -1):
++            files["spots.bin"] = live_blob({"t": v.get("gspot_t", 0), "recs": v.get("gspots") or []})
++        publish(files)
++        v["fast_sig"] = sig
++        v["spots_pub_t"] = v.get("gspot_t", 0)
++    except Exception as e:
++        log(f"Scans: scan.bin failed ({str(e)[:120]})")
++
++
++def live_blob(obj):
++    raw = gzip.compress(json.dumps(obj, separators=(",", ":")).encode("utf-8"))
++    return es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw
++
++
++def scan_file(v):
++    """scan.bin: every read of the scans (matched), this machine's key for scan-results and whether it is let in, the
++    last erase asked / done, each side's Your Plan, and the time of the newest Spotcheck set (spots.bin)."""
++    return {"t": int(time.time() * 1000), "reads": [scans.compact(r) for r in (v.get("scan_reads") or {}).values()],
++            "key": {"pub": v.get("sr_pub") or "", "ok": bool(v.get("sr_ok")), "err": v.get("sr_err", "")},
++            "clear": {"asked": v.get("scan_clear_t", 0), "done": v.get("scan_cleared_t", 0)},
++            "sync": v.get("gsets") or {}, "spots_t": v.get("gspot_t", 0)}
++
++
+ def forecast_fees(cfg):
+     """The fee arithmetic of the Forecast tab with the Alerts tab's buy tax (the page uses the Raw Data box)."""
+     return {"fee": es.FEE_PCT * (1 + es.BUYER_TAX), "fixed": es.FEE_FIXED, "shipOut": es.SHIP_OUT, "supplies": es.SUPPLIES, "tax": cfg["tax"] / 100}
+@@ -1765,7 +1884,8 @@ def forecast_record(v, msg, t):
+ 
+ # ---------------- Graded plans (Brett, 2026-11-04): Graded > Planning's "Record plan", shown on Graded Forecast History ----------------
+ GPLAN_KEEP = 100                 # recorded plans kept (newest)
+-GPLAN_SLABS = 300                # slabs kept per plan at most
++GPLAN_SLABS = 300                # slabs kept per plan at most (a Pre-Sales Spotcheck set has no limit: GSPOT_PARTS)
++GSPOT_PARTS = 5000               # a Spotcheck set's parts at most (20 slabs a part: 100,000 slabs; Brett, 2026-11-14: "have it be unlimited")
+ 
+ 
+ def gplan_record(v, msg, t, kind="gplan"):
+@@ -1778,7 +1898,11 @@ def gplan_record(v, msg, t, kind="gplan"):
+     scores them (PriceCharting's price when each hold is up).
+     kind "gspot" (2026-11-05): a Pre-Sales Spotcheck set - the green rows of Graded Forecasting or Recording sent with
+     "Add to Pre-Sales Spotcheck", the same shape (the buy price for paid, no holds) plus src ('fc' / 'rc'), minp (the
+-    chance bar) and gate; kept in v["gspots"], shown on History > Pre-Sales Spotcheck, which looks each slab back."""
++    chance bar) and gate; kept in v["gspots"], shown on History > Pre-Sales Spotcheck, which looks each slab back.
++    The phone's Record scans (2026-11-14, src 'ph'): every slab of the show so far, as many as there are, each with its
++    grader and cert after the nine figures ([..., 'psa', '46790116']; card and grade null while not known - the reads
++    of the scans name them), and in part 0 the name Brett gave it, the show's day and the phone's own plan (minsales,
++    share besides the hold, the % under, the bar and the gate). Published in spots.bin (the fast tick)."""
+     recs = v.setdefault(kind + "s", [])
+     try:
+         pid = int(msg.get("id") or 0)
+@@ -1794,12 +1918,24 @@ def gplan_record(v, msg, t, kind="gplan"):
+             v[kind + "_t"] = t
+             log(f"{what} removed ({pid})")
+         return
++    spot = kind == "gspot"
+     try:
+-        k, n = int(msg.get("k") or 0), max(1, min(20, int(msg.get("n") or 1)))
++        k, n = int(msg.get("k") or 0), max(1, min(GSPOT_PARTS if spot else 20, int(msg.get("n") or 1)))
+         slabs = []
+-        for x in (msg.get("s") or [])[:GPLAN_SLABS]:
+-            slabs.append([int(x[0]), str(x[1])[:24], int(x[2]), None if x[3] is None else round(float(x[3]), 2), None if x[4] is None else round(float(x[4]), 2),
+-                          round(float(x[5]), 2), None if x[6] is None else int(x[6]), None if x[7] is None else round(float(x[7]), 2), None if x[8] is None else int(x[8])])
++        for x in (msg.get("s") or [])[:None if spot else GPLAN_SLABS]:
++            if x[0] is None and not spot:
++                continue
++            sl = [None if x[0] is None else int(x[0]), None if x[1] is None else str(x[1])[:24], int(x[2] or 0),
++                  None if x[3] is None else round(float(x[3]), 2), None if x[4] is None else round(float(x[4]), 2),
++                  None if x[5] is None else round(float(x[5]), 2), None if x[6] is None else int(x[6]), None if x[7] is None else round(float(x[7]), 2),
++                  None if x[8] is None else int(x[8])]
++            if spot and len(x) > 10:                         # the phone's slabs carry their grader and cert
++                g, c = str(x[9] or "").lower(), re.sub(r"\D", "", str(x[10] or ""))[:13]
++                if g in ("psa", "cgc") and c:
++                    sl += [g, c]
++            if sl[0] is None and len(sl) < 11:               # neither a card nor a cert: nothing to look back on
++                continue
++            slabs.append(sl)
+         head = None
+         if k == 0:
+             holds = []
+@@ -1811,6 +1947,10 @@ def gplan_record(v, msg, t, kind="gplan"):
+                     "model": str(msg.get("model") or "")[:80], "smp": 1 if msg.get("smp") else 0, "holds": holds}
+             if kind == "gspot":
+                 head.update({"src": str(msg.get("src") or "")[:4], "minp": round(float(msg.get("minp") or 0), 3), "gate": 1 if msg.get("gate") else 0})
++                if head["src"] == "ph":                      # the phone's Record scans: its name, the show's day and the phone's plan
++                    head.update({"name": str(msg.get("name") or "")[:80], "day": str(msg.get("day") or "")[:10],
++                                 "minsales": max(0, int(msg.get("minsales") or 0)), "share": round(float(msg.get("share") or 0), 2),
++                                 "nall": max(0, int(msg.get("nall") or 0))})
+     except (TypeError, ValueError, KeyError, IndexError):
+         return
+     parts = v.setdefault(kind + "_parts", {})
+@@ -1821,12 +1961,38 @@ def gplan_record(v, msg, t, kind="gplan"):
+     if len(p["parts"]) < p["n"] or "0" not in p["parts"]:
+         return
+     rec = dict(p["parts"]["0"]["head"])
+-    rec["slabs"] = [x for i in range(p["n"]) for x in (p["parts"].get(str(i)) or {}).get("s", [])][:GPLAN_SLABS]
++    rec["slabs"] = [x for i in range(p["n"]) for x in (p["parts"].get(str(i)) or {}).get("s", [])][:None if spot else GPLAN_SLABS]
+     del parts[str(pid)]
+     recs[:] = [r for r in recs if r.get("id") != pid] + [rec]
+     del recs[:-GPLAN_KEEP]
+     v[kind + "_t"] = t
+-    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)")
++    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)" + (f" - {rec['name']!r} from the phone" if rec.get("src") == "ph" else ""))
++
++
++# ---------------- Your Plan, phone <-> website (Brett, 2026-11-14) ----------------
++# "would it be possible to change the website to have a sync from phone button and then to have the mobile app have a sync
++# from website button?" Each side sends its Your Plan whenever a box changes ({type: 'gset', t, src: 'ph' | 'web', v:
++# {capital, hold, under, ship, bar, share, gate, minSales}}); the newest of each side is kept here and published in
++# scan.bin (sync). The other side's Sync button reads the channel itself first (the message is there at once) and falls
++# back on this copy. Nothing is ever changed on either side until its own button is pressed.
++GSET_KEYS = ("capital", "hold", "under", "ship", "bar", "share", "gate", "minSales")
++
++
++def gset_record(v, msg, t):
++    src = str(msg.get("src") or "")[:4]
++    if src not in ("ph", "web"):
++        return
++    vals = {}
++    for k, x in (msg.get("v") or {}).items():
++        if k not in GSET_KEYS:
++            continue
++        try:
++            vals[k] = bool(x) if k == "gate" else round(float(x), 4)
++        except (TypeError, ValueError):
++            continue
++    if vals:
++        v.setdefault("gsets", {})[src] = {"t": t, "v": vals}
++        v["gset_t"] = t
+ 
+ 
+ def forecast_score(v, cat, cards=None):
+@@ -3564,11 +3730,7 @@ def code_update():
+ 
+ # ---------------- the loop ----------------
+ def cycle(state, cat, sched, counters):
+-    read_requests(state, cat, counters.get("_cards"))
+-    try:
+-        scans.flush(state.setdefault("vps", {}))             # the phone app's slabs on to card-data's scans.csv (scans.py)
+-    except Exception as e:
+-        log(f"Scans: {str(e)[:200]}")
++    fast_tick(state, cat, counters)                          # the channel, scans.csv, the reads of the scans (also between cycles)
+     cfg = apply_settings(state)
+     now = clock(state)
+     v = state.setdefault("vps", {})
+@@ -3848,7 +4010,7 @@ def cycle(state, cat, sched, counters):
+     forecast_score(v, cat, cards)
+     live["forecasts"] = {"t": v.get("forecast_t", 0), "recs": v.get("forecasts") or []}   # the Forecast tab's recorded picks and their results
+     live["gplans"] = {"t": v.get("gplan_t", 0), "recs": v.get("gplans") or []}   # Graded > Purchases' recorded purchases (Graded Forecast History)
+-    live["gspots"] = {"t": v.get("gspot_t", 0), "recs": v.get("gspots") or []}   # the Pre-Sales Spotcheck sets (History > Pre-Sales Spotcheck)
++    live["gspots"] = {"t": v.get("gspot_t", 0), "n": len(v.get("gspots") or []), "file": "spots.bin"}   # the Pre-Sales Spotcheck sets: spots.bin (the fast tick; a set can be any size)
+     try:
+         fc_auto_tick(state, cat, cards, live.get("band") or es.TAB_PRICE)
+     except Exception as e:
+@@ -4135,7 +4297,16 @@ def main():
+             time.sleep(300 if "token" in str(e).lower() else 30)    # a bad credential: wait, don't hammer eBay
+         if ONCE:
+             break
+-        time.sleep(max(1.0, CYCLE_S - (time.time() - t0)))
++        end = t0 + CYCLE_S                                   # the wait till the next cycle, with the fast tick in it (2026-11-14)
++        if end - time.time() < 1.0:
++            time.sleep(1.0)
++        while end - time.time() >= 1.0:
++            time.sleep(min(FAST_S, end - time.time()))
++            if end - time.time() >= FAST_S / 3:
++                try:
++                    fast_tick(state, cat, counters)
++                except Exception as e:
++                    log(f"Fast tick failed: {str(e)[:200]}")
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/graded_site.py b/graded_site.py
+index 362b36c..481e963 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -35,6 +35,9 @@ PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) a
+ Writes, encrypted with the page's history key (PBKDF2 of SITE_PASSWORD, salt biotech-catalog-live-v1 - the key the
+ Trend shards and the eBay live file use, so the page can read them):
+   <out>/graded.bin        {v, built, gk: [grade keys], cards: {pc id: card meta}, rows: [[...]]} - the table
++  <out>/scanidx.bin       the scan-match index for the collector (2026-11-14): {t, gk, certs: {grader:cert: [pc id,
++                          grade index or -1]}, words: {grader|name key: pc id, 0 = more than one}, rows: {pc id: [grade
++                          indexes with figures]}} - scans.py matches the reads of Brett's scans with it
+   <out>/graded_hist.bin   the graded Forecast History's replay (graded_forecast.build_hist): months, odds known then, candidates
+   <out>/gtrend/s<n>.bin   {pc id: {cl: {gk: [[YYYY-MM, n, avg]]}, pc: {gk: [[YYYY-MM, price]]}, ps: {gk: [[YYYY-MM, n, Hodges-Lehmann]]},
+                           pm: {grade_9_5 | grade_9 | grade_8 | grade_7: [first YYYY-MM, [price or null a month]]},
+@@ -102,6 +105,7 @@ import pandas as pd
+ 
+ import cl_sales
+ import graded_terms as gt
++import scans                                                    # the grade and name keys of the scan-match index (scans.py)
+ 
+ SHARD = 300
+ GK = (["psa|g10", "psa|g9", "psa|g8_5", "psa|g8", "psa|g7", "psa|g6", "psa|g5", "psa|g4", "psa|g3", "psa|g2",
+@@ -924,6 +928,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+     pic_c = load_pic_certs(cd)                            # the CL Cert column: certs read off Card Ladder's pictures
+     checks = []
+     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
++    moved_certs = down_pc = 0                               # certs moved to the grader's grade; half grades priced one grade down
++    ix_certs, ix_rows, ix_known = {}, {}, {}                # the scan-match index (scans.py): cert -> [card, grade], card -> grades, (grader, cert) -> card
+     print(f"graded: dictionary {dic.n} terms, TCGplayer facts for {len(tcgf):,} PriceCharting cards, "
+           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
+           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
+@@ -957,7 +963,37 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         mon = (pr or {}).get("monthly") or {}
+         Pg = clk.get(cl_page(r.get("cl_profile_id", ""))) if pr else None   # Card Ladder's sales of the card's page
+         rday = cl_sales.day_no(Pg["read"]) if Pg and Pg.get("read") else None
+-        slabs = (matches.get(str(cid)) or {}).get("slabs", {})
++        slabs = dict((matches.get(str(cid)) or {}).get("slabs", {}))
++        # A CERT GOES TO THE GRADE ITS GRADER SHOWS (2026-11-14, Brett agreed: "the grader's own word"): a PriceCharting
++        # photo's cert sits under the grade of PriceCharting's sale, and PriceCharting files most CGC half grades under
++        # the whole grade below (82% of the CGC certs Brett opened agreed, nearly all the rest were a CGC x.5 under x).
++        # Where Brett opened the cert's page, the cert moves to the page's grade (the card is the same - only the row);
++        # a cert already on that row stays.
++        mv = {}
++        for gk_, cert_ in slabs.items():
++            g_ = gk_.split("|")[0]
++            w_ = pg_c.get((g_, re.sub(r"\D", "", str(cert_ or ""))))
++            pk_ = scans.grade_key(g_, (w_ or {}).get("grade", ""), (w_ or {}).get("PSA Label Type", "")) if w_ else None
++            if pk_ and pk_ != gk_ and pk_ in GI:
++                mv[gk_] = (pk_, cert_)
++        for gk_, (pk_, cert_) in mv.items():
++            if slabs.get(gk_) == cert_:
++                del slabs[gk_]
++        for gk_, (pk_, cert_) in mv.items():
++            if pk_ not in slabs:
++                slabs[pk_] = cert_
++                moved_certs += 1
++            else:                                            # its row has a cert already: it is not shown, but it is still ours
++                ix_certs[pk_.split("|")[0] + ":" + re.sub(r"\D", "", str(cert_))] = [int(cid), GI[pk_]]
++                ix_known[(pk_.split("|")[0], re.sub(r"\D", "", str(cert_)))] = int(cid)
++        for gk_, cert_ in slabs.items():                     # the scan-match index: each cert we know, its card and grade
++            ix_certs[gk_.split("|")[0] + ":" + re.sub(r"\D", "", str(cert_))] = [int(cid), GI[gk_]]
++            ix_known[(gk_.split("|")[0], re.sub(r"\D", "", str(cert_)))] = int(cid)
++        for g_, c_ in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
++            c_ = re.sub(r"\D", "", str(c_ or ""))
++            if c_:
++                ix_certs.setdefault(g_ + ":" + c_, [int(cid), -1])
++                ix_known.setdefault((g_, c_), int(cid))
+         recs = {}                                           # (grader, cert) -> the slab as the grader says
+         for g, card_cert in (("psa", r.get("psa_cert", "")), ("cgc", r.get("cgc_cert", ""))):
+             for cert in [card_cert] + [v for k, v in slabs.items() if k.startswith(g + "|")]:
+@@ -1034,6 +1070,16 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             mk = marks.get((str(cid), k))
+             if not (pc_price or cl[1] or cl[2] or mon.get(k) or ps_list or (Pg and k in Pg["s"])):
+                 continue                                    # a grade with a population and no price or sale anywhere: no row
++            # HALF GRADES ROUND DOWN ON THE PRICECHARTING SIDE (2026-11-14, Brett: "for the PC columns, even though those
++            # prices aren't built into the forecast, I agree that rounding down is probably better, and maybe we can show a
++            # little symbol"): a half grade (PSA 8.5, CGC 7.5 ...) with no PriceCharting price of its own shows the whole
++            # grade below's (PriceCharting files most half grades there) - src "down:<grade>:<n>:<days>", the page's ↓
++            lo_ = scans.lower_grade(k) if k.split("|")[1].endswith("_5") else None
++            if pc_price is None and lo_:
++                sp2, sn2, sd2 = sales_price((psales.get(cid) or {}).get(lo_, []), today)
++                if sp2 is not None:
++                    pc_price, src = sp2, f"down:{lo_}:{sn2}:{sd2}"
++                    down_pc += 1
+             # last month's PriceCharting price of this grade and grader: the Hodges-Lehmann estimate of the sales it
+             # recorded of it, else (PSA 10 only) its monthly PSA 10 chart value. Its 9 / 9.5 / 8 / 7 chart lines blend
+             # every grader, so they are not used (2026-10-29, Brett: "if we dont have last month data then blank it or
+@@ -1047,12 +1093,18 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                     pc1 = [r2(pts[last_m]), None, "chart"]
+             if pc1 is None:
+                 pc1 = [None, 0, "none"] if pc_n1 is not None else [None, None, "not_read"]
++            if pc1[0] is None and lo_:                       # a half grade with no sale of its own last month: the grade below's, ↓
++                m1d = [p for d, p in (psales.get(cid) or {}).get(lo_, []) if d[:7] == last_m]
++                if m1d:
++                    pc1 = [r2(hodges_lehmann(m1d)), len(m1d), "down", lo_]
+             # each side's own grade for this row (2026-10-29, Brett: "we should have two grade columns ... CL grade and PC
+             # grade"; "the grade for CL is derived from the CL website"): a side that has no such grade says none, and a
+             # price is compared only where the two grades are the same
+             pgl, pgf = pc_grade(k, pc1, ps_list, pc_price, src, pop.get(cid, {}).get(k))
++            if (pc1[2] == "down" or (pc1[0] is None and src and str(src).startswith("down:"))) and lo_:   # PriceCharting's grade here: the one below
++                pgl, pgf = grade_label(lo_) + " ↓", "down"
+             cgl, cgf = cl_grade(pr, k, mon)
+-            if pgl and cgl and grade_norm(pgl) != grade_norm(cgl):
++            if pgl and cgl and pgf != "down" and grade_norm(pgl) != grade_norm(cgl):
+                 grade_diff += 1
+             ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c, pg_c)
+             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
+@@ -1061,6 +1113,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                          r2(cl_avg1), cl[0], st.get("d7"), st.get("d30"), st.get("pos"), st.get("vol"), st.get("ts"),
+                          (mk or {}).get("v"), (mk or {}).get("reason") or None, pc1, auth, [pgl, pgf, cgl, cgf], pc_n1e,
+                          vd, sx, clstd, cln12, clconf])
++        if len(rows) > nrow0:
++            ix_rows[str(cid)] = sorted({x[1] for x in rows[nrow0:]})
+         if not r and len(rows) == nrow0:
+             continue                                        # no PriceCharting price or sale of any PSA / CGC grade: no rows
+         pname = str(pcrow.get("product-name", "")) if pcrow is not None else ""
+@@ -1104,7 +1158,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+                             "ch": best[g].get("ch"), "fc": {f: v[1] for f, v in afc[g].items()}, "read": best[g].get("read", "")}
+                         for g, s_ in aside.items()},
+                   "aw": sorted({g for (g, _), x in recs.items() if x["st"] == "wait"}), "tcg": tid,
+-                  "certs": (matches.get(str(cid)) or {}).get("slabs", {})}
++                  "certs": slabs}
+             c0 = {k: v for k, v in c0.items() if v not in ("", None, [], {}) and v != ["", "", ""]}
+             c0["pi"] = ps.artist                            # '' = TCGplayer shows none, None = not read: both mean something
+             c0["cls"], c0["qr"] = cls, rank
+@@ -1143,7 +1197,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             "by": r.get("confirmed_by", ""), "note": r.get("note", "")[:200],
+             "cl": [pr.get(x) for x in ("label", "year", "set", "number", "subject", "variation", "image")] if pr else None,
+             "read": (pr or {}).get("read", ""), "tcg": r.get("tcgplayer_id", ""),
+-            "certs": (matches.get(str(cid)) or {}).get("slabs", {}),
++            "certs": slabs,
+             "imgs": {k.rsplit("|", 1)[0]: v for k, v in ((pr or {}).get("imgs") or {}).items() if k.endswith("|base") and k.rsplit("|", 1)[0] in GI},
+         }
+         # the CL Cert column (2026-11-10, Brett: "these columns will show data that from the cl cert number. the cl cert
+@@ -1226,6 +1280,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         print("graded: no SITE_PASSWORD - nothing written")
+         return doc, trends
+     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
++    try:
++        ix = scan_index(doc, ix_certs, ix_rows, ix_known, pg_c)
++        ni = write_enc(os.path.join(out_dir, "scanidx.bin"), ix, key)
++        print(f"scan index: {len(ix['certs']):,} certs, {len(ix['words']):,} grader names ({sum(1 for x in ix['words'].values() if not x):,} "
++              f"naming more than one card), {len(ix['rows']):,} cards -> scanidx.bin ({ni / 1e3:.0f} KB gzip); "
++              f"{moved_certs:,} certs moved to their grader's grade, {down_pc:,} half-grade rows priced one grade down on the PriceCharting side")
++    except Exception as e:                                   # noqa: BLE001
++        print("scan index failed:", f"{type(e).__name__}: {e}")
+     # the phone app's own small file (2026-11-09, Brett: "proceed to build app"): what a scanned slab needs, nothing more
+     try:
+         ad = app_doc(doc, pc)
+@@ -1256,6 +1318,34 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+     return doc, trends
+ 
+ 
++_SIM = re.compile(r"PSA\s+(\d+(?:\.5)?)\s+(\d{7,10})")
++
++
++def scan_index(doc, certs, rows, known, pg_c):
++    """The scan-match index (scanidx.bin) scans.py matches the reads of Brett's scans with: every cert we know with its
++    card and grade (the photo certs on their grader's grade, the cards' own certs, and the slabs in PSA's own list of
++    sales of the same card and grade on each PSA page Brett opened), how each grader names each of our cards (from the
++    pages Brett opened for slabs of ours: scans.words_key - 0 where one name fits more than one card), and the grades
++    each card has figures for."""
++    certs = dict(certs)
++    words = {}
++    for (g, cert), w in pg_c.items():
++        cid = known.get((g, cert))
++        if cid is None:
++            continue
++        wk = scans.words_key(g, w.get("card_name", ""), w.get("set", ""), w.get("card_number", ""), w.get("variety", ""),
++                             w.get("year", ""), w.get("language", ""))
++        if wk:
++            key = g + "|" + wk
++            words[key] = cid if words.get(key, cid) == cid else 0
++        if g == "psa":                                       # PSA's own list of sales of this card and grade: their slabs are ours too
++            for gr, c2 in _SIM.findall(w.get("recent_sales", "") or ""):
++                gk = scans.grade_key("psa", gr)
++                if gk in GI:
++                    certs.setdefault("psa:" + c2, [cid, GI[gk]])
++    return {"t": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "gk": list(GK), "certs": certs, "words": words, "rows": rows}
++
++
+ def app_doc(doc, pc):
+     """The phone app's data (public/app/data.bin, the page's key): Slab Show Scanner looks a scanned slab up here.
+     cards {pc id: [PC name, PC set, PC card number, PSA spec, CGC id, CL page, CL label, CL image, CL status, answer]}
+diff --git a/page/app/app.css b/page/app/app.css
+index 1fd22d5..b075298 100644
+--- a/page/app/app.css
++++ b/page/app/app.css
+@@ -215,3 +215,7 @@ button.rvb.diff{color:var(--rd);border-color:var(--rd)}
+ .lrow:last-of-type{border-bottom:0}
+ .lrow a{color:var(--blt);font:600 17px Inter,sans-serif;font-variant-numeric:tabular-nums;flex:1}
+ .lrow .up{color:var(--grt)}
++
++/* Record scans' name and Start a new show (2026-11-14): the app's own pop-ups, in the middle */
++.modalwrap{align-items:center;z-index:8;padding:16px}
++.sheet.modal{max-width:440px;width:100%;height:auto;border-radius:18px;padding:18px;border:1px solid var(--ln)}
+diff --git a/page/app/app.js b/page/app/app.js
+index 802d731..ee0d8a8 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -44,6 +44,7 @@ const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the b
+ const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
+ const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
+ const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
++const READS_STORE = 'ssc-reads', SHOW_N = 'ssc-show-n', SYNC_STORE = 'ssc-sync', GSET_DAY = 'ssc-gset-day';   // the reads of the scans; shows recorded; Sync from website; the plan sent today (2026-11-14)
+ const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main', lookup: false};
+ 
+ /* ---------------- small helpers ---------------- */
+@@ -179,6 +180,7 @@ async function loadData(keyHex) {
+     slabsArr().forEach(sl => { if (!sl.demo && (sl.look === 'wait' || (sl.look === 'manual' && sl.lookWhy === 'lock'))) sl.look = 'queued'; });
+     pumpLookups();
+     scheduleScanSend(1500);                  // cert links read while locked go out now
++    setTimeout(() => { readsApply(); readsTick(true); if (LS.get(GSET_DAY, '') !== todayStr()) gsetSoon(true); }, 800);   // the reads of the scans; the plan for the website's Sync
+     return true;
+   } catch (e) { DSTATE = 'err'; DERR = String(e.message || e); return false; } finally { render(); }
+ }
+@@ -210,15 +212,20 @@ function calc(sl) {
+     Object.assign(x, {name: c.name, sub: c.set + ' #' + c.num, grader: c.grader, gk: c.grader.toLowerCase() + '|g' + (c.pristine ? '10pristine' : c.grade.replace('.', '_')),
+       std: c.std, win: '30 days', n: c.n30, clv: c.clv, conf: c.conf, pc: c.pc, sold: c.sold, soldPC: c.soldPC, pct: c.pct / 100, known: true, img: null});
+   } else {
+-    const c = D && sl.cid != null ? D.cards[String(sl.cid)] : null, r = c && sl.gk ? IDX.row.get(sl.cid + '|' + sl.gk) : null;
++    const c = D && sl.cid != null ? D.cards[String(sl.cid)] : null;
++    let r = c && sl.gk ? IDX.row.get(sl.cid + '|' + sl.gk) : null, pgk = sl.gk;
++    // A HALF GRADE WITH A THIN LINE IS PRICED ONE GRADE DOWN (2026-11-14, Brett: "rounding down would be safer"): PSA 8.5 or
++    // CGC 7.5 with no Card Ladder price of its own, or fewer sales last month than your min, takes the grade below's
++    const lo = c ? lowerGk(sl.gk) : null;
++    if (lo && (!r || r[2] == null || (r[7] || 0) < Math.max(0, +S.settings.minSales || 0))) { const r2 = IDX.row.get(sl.cid + '|' + lo); if (r2 && r2[2] != null) { r = r2; pgk = lo; } }
+     const a = sl.auth || {};
+     Object.assign(x, {grader: (sl.grader || '').toUpperCase(), gk: sl.gk || null, known: !!c,
+       name: c ? c[0] : a.subject ? titleCase(a.subject) : (sl.grader || '').toUpperCase() + ' ' + sl.cert,
+       sub: c ? (c[1] + (c[2] ? ' #' + c[2] : '')) : a.brand ? titleCase(a.brand) + (a.num ? ' #' + a.num : '')
+         : sl.look === 'queued' || sl.look === 'looking' ? 'Looking it up with PSA…' : 'Tap to find the card',
+       std: r ? r[2] : null, win: r && r[3] ? r[3] + ' days' : null, n: r ? r[4] : null, n12: r ? r[5] : null, conf: r ? r[6] : null,
+-      sold: r ? r[7] : null, pc: r ? r[8] : null, soldPC: r ? r[9] : null, clv: r ? r[10] : null, card: c, row: r, img: c ? c[7] : null});
+-    const fc = D && D.fc, li = fc && sl.gk ? IDX.lines.indexOf(sl.gk) : -1, pv = li >= 0 ? (fc.pct[String(sl.cid)] || {})[li] : null;
++      sold: r ? r[7] : null, pc: r ? r[8] : null, soldPC: r ? r[9] : null, clv: r ? r[10] : null, card: c, row: r, img: c ? c[7] : null, down: pgk !== sl.gk ? pgk : null});
++    const fc = D && D.fc, li = fc && pgk ? IDX.lines.indexOf(pgk) : -1, pv = li >= 0 ? (fc.pct[String(sl.cid)] || {})[li] : null;
+     x.pct = pv == null ? null : pv / 1000;
+   }
+   const std = x.std;
+@@ -239,6 +246,7 @@ function calc(sl) {
+   x.roi = x.net != null && x.pay > 0 ? x.net / x.pay : null;
+   return x;
+ }
++const lowerGk = gk => { if (!gk) return null; const [g, k] = String(gk).split('|'); if (k === 'g10pristine' || k === 'g10perfect') return g + '|g10'; return /_5$/.test(k) ? g + '|' + k.slice(0, -2) : null; };
+ const identified = sl => sl.demo || (sl.look === 'ok' || sl.look === 'check') && sl.cid != null && !!sl.gk;
+ const confirmed = sl => sl.demo || sl.look === 'ok';
+ const marketDown = () => !!(D && D.fc && D.fc.regime && !D.fc.regime.up);
+@@ -312,6 +320,185 @@ async function recordPurchases() {
+   } catch (e) { UI.recMsg = ['warn', 'Could not reach the collector (' + (e.message || e) + '). Nothing was recorded - try again when you have signal.']; }
+   UI.sending = false; render();
+ }
++/* ---------------- THE READS OF THE SCANS (2026-11-14, Brett: "those readings should also be uploaded to reflect in the app
++   itself") ----------------
++   Brett opens the scanned slabs' cert pages; the collector matches each page to a card and grade of ours (scans.py) and
++   publishes it at once on the channel's scan topic (<channel>-scr) and in scan.bin on the live branch (GitHub's cache
++   holds that up to five minutes, so the topic is read too). A slab whose read names a card of ours takes that card and
++   always the grader's grade - with no PSA lookup (none of PSA's 100 a day) and for CGC slabs too - so it gets its price,
++   its chance and its place in your buys. A slab the read could not place says why on its table. A card you picked or
++   confirmed yourself stays yours. Read every 15 s while the app is open, unlocked and holds real slabs. */
++const SCAN_LIVE = 'https://raw.githubusercontent.com/BrettS600/biotech-catelog/live/';
++const READ_WHY = {'no card': 'Read: not a card in our data (under $50, or one we don’t follow)', several: 'Read: the grader’s name fits more than one of our cards - find it by name',
++  'no grade data': 'Read: our card, but no figures for this grade', 'no grade': 'Read: the cert page shows no grade', 'not pokemon': 'Read: not a Pokémon card', wait: 'Read - waiting for the site’s match index'};
++const READS = {map: new Map(Object.entries(LS.get(READS_STORE, {}) || {})), since: '12h', fileB: -1, sync: {}, clearDone: 0, busy: false, ch: null};
++function readPut(r) {
++  if (!r || !r.g || !r.c) return false;
++  const k = r.g + ':' + r.c, o = READS.map.get(k);
++  if (o && String(o.at || '') > String(r.at || '')) return false;
++  if (o && JSON.stringify(o) === JSON.stringify(r)) return false;
++  READS.map.set(k, r); return true;
++}
++function readsSave() {                                   // the newest 3,000 on this phone, for a hall without signal
++  const all = [...READS.map.entries()].sort((a, b) => String(b[1].at || '').localeCompare(String(a[1].at || ''))).slice(0, 3000);
++  LS.set(READS_STORE, Object.fromEntries(all));
++}
++async function readsFile(force) {                        // scan.bin, once a minute
++  if (!KEY) return false;
++  const b = Math.floor(Date.now() / 60000);
++  if (!force && READS.fileB === b) return false;
++  READS.fileB = b;
++  try {
++    const res = await fetch(SCAN_LIVE + 'scan.bin?t=' + b, {cache: 'no-store'});
++    if (!res.ok) return false;
++    const f = await decryptGz(new Uint8Array(await res.arrayBuffer()), KEY);
++    let ch = false;
++    (f.reads || []).forEach(r => { if (readPut(r)) ch = true; });
++    for (const [k, x] of Object.entries(f.sync || {})) if (x && (!READS.sync[k] || x.t > READS.sync[k].t)) READS.sync[k] = x;
++    if (f.clear && f.clear.done > READS.clearDone) READS.clearDone = f.clear.done;
++    return ch;
++  } catch (e) { return false; }
++}
++async function readsPoll() {                              // the channel: new reads at once, the website's plan, an erase done
++  if (!KEY) return false;
++  const ch = READS.ch || (READS.ch = await alChannel()), enc = new TextEncoder();
++  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
++  let lines = [], got = false;
++  try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-scr,' + ch.topic + '/json?poll=1&since=' + READS.since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { return false; }
++  for (const line of lines) {
++    try {
++      const ev = JSON.parse(line); if (ev.event !== 'message') continue;
++      READS.since = ev.id;
++      const env = JSON.parse(ev.message); if (!env || !env.m || !env.s) continue;
++      if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
++      const m = JSON.parse(env.m);
++      if (m.type === 'reads') (m.r || []).forEach(r => { if (readPut(r)) got = true; });
++      else if (m.type === 'gset' && m.src === 'web') { if (!READS.sync.web || m.t > READS.sync.web.t) READS.sync.web = {t: m.t, v: m.v || {}}; }
++      else if (m.type === 'cleared') { if ((m.done || 0) > READS.clearDone) { READS.clearDone = m.done; if (LS.get('ssc-clear-asked', 0) && m.done >= LS.get('ssc-clear-asked', 0)) { LS.del('ssc-clear-asked'); toast('scans.csv emptied for the new show.'); } } }
++    } catch (e) { continue; }
++  }
++  return got;
++}
++function readsApply() {                                   // each real slab with a read: its card and the grader's grade
++  if (!D) return false;
++  let ch = false;
++  for (const sl of slabsArr()) {
++    if (sl.demo || !sl.cert) continue;
++    const rd = READS.map.get(sl.grader + ':' + sl.cert); if (!rd) continue;
++    const mine = sl.how === 'manual' || sl.how === 'confirmed';
++    const auth = {src: rd.g, subject: rd.nm || '', brand: rd.st || '', num: rd.no || '', variety: rd.vr || '', grade: rd.gt || '', pop: rd.pop, popHi: rd.ph, est: rd.est, read: rd.at || ''};
++    if (JSON.stringify(sl.rd || null) !== JSON.stringify(auth)) { sl.rd = auth; if (!sl.auth || sl.auth.src !== 'psa') sl.auth = Object.assign({}, sl.auth || {}, auth); ch = true; }
++    const ok = rd.cid != null && rd.gk && D.cards[String(rd.cid)] && (!rd.why || rd.why === 'no grade data');
++    if (ok && !mine) {
++      if (sl.cid !== rd.cid || sl.gk !== rd.gk || sl.look !== 'ok') { sl.cid = rd.cid; sl.gk = rd.gk; sl.look = 'ok'; sl.how = sl.how === 'spec' && sl.cid === rd.cid ? 'spec' : 'read'; sl.cands = null; sl.lookWhy = null; ch = true; }
++      if (sl.rdWhy) { sl.rdWhy = null; ch = true; }
++    } else if (ok && mine && rd.gk && sl.cid === rd.cid && sl.gk !== rd.gk) { sl.gk = rd.gk; ch = true; }   // your card, the grader's grade
++    else if (!ok && sl.rdWhy !== (rd.why || 'no card')) { sl.rdWhy = rd.why || 'no card'; ch = true; }
++  }
++  if (ch) save();
++  return ch;
++}
++async function readsTick(force) {
++  if (READS.busy || !KEY || !D || (!force && document.visibilityState !== 'visible')) return;
++  if (!force && !slabsArr().some(sl => !sl.demo)) return;
++  READS.busy = true;
++  try {
++    const a = await readsFile(force), b = await readsPoll();
++    if (a || b) readsSave();
++    if (readsApply() && !UI.rec) render();
++  } catch (e) { /* the next tick */ }
++  READS.busy = false;
++}
++setInterval(() => readsTick(false), 15000);
++
++/* ---------------- RECORD SCANS (2026-11-14, Brett: "underneath the records purchases button, I would like there to be a record
++   scans button. when i press this button, i want all of the scans to go to the website forcast tab> graded cards > history
++   > Pre-sales spotcheck"; "a pop-up happens asking what I would like to name it ... by default, just give it the next
++   number ... show 2 ... show 3"; "if I repeat twice, then ... it should be everything scanned so far") ----------------
++   Every real slab of the show so far, as many as there are, each with its grader and cert (the website names each one by
++   its read) and, where the phone knows it, its card, grade and figures; with the phone's own plan. Each tap is a new set. */
++const showNext = () => (+LS.get(SHOW_N, 0) || 0) + 1;
++async function sendParts(head, slabs, per) {             // a set in parts; a refused part (ntfy's ration) waits and tries again
++  const id = nextT(), n = Math.max(1, Math.ceil(slabs.length / per));
++  for (let k = 0; k < n; k++) {
++    const msg = Object.assign({type: 'gspot', t: k ? nextT() : id, id, k, n, s: slabs.slice(k * per, (k + 1) * per)}, k ? {} : head);
++    for (let tries = 0; ; tries++) {
++      try { await alSend(msg); break; }
++      catch (e) { if (tries >= 6) throw e; UI.scanRecMsg = ['', 'Sending part ' + (k + 1) + ' of ' + n + '… (the channel asked to wait)']; render(); await new Promise(r => setTimeout(r, 6000)); msg.t = nextT(); }
++    }
++    if (n > 3) { UI.scanRecMsg = ['', 'Sending… ' + Math.min(slabs.length, (k + 1) * per) + ' of ' + slabs.length + ' slabs']; render(); }
++  }
++  return id;
++}
++async function recordScans(name) {
++  const real = slabsArr().filter(sl => !sl.demo && sl.cert).sort((a, b) => a.at - b.at);
++  if (!real.length) { UI.scanRecMsg = ['warn', 'Nothing to record yet: scan a table first (sample slabs are never sent).']; return render(); }
++  if (!KEY) { UI.scanRecMsg = ['warn', 'Unlock the app first (Show tab): recording needs your site password.']; return render(); }
++  const s = S.settings, fc = D && D.fc;
++  const slabs = real.map(sl => {
++    const x = identified(sl) ? calc(sl) : null;
++    return x && x.std != null ? [sl.cid, sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000), sl.grader, sl.cert]
++      : [identified(sl) ? sl.cid : null, identified(sl) ? sl.gk : null, Math.round((sl.vd != null ? sl.vd : s.under) * 10), null, null, null, null, null, null, sl.grader, sl.cert];
++  });
++  const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
++  const head = {src: 'ph', name: String(name || ('Show ' + showNext())).slice(0, 80), day, h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'),
++    fee: Math.round(FEE * 10000) / 10000, minp: s.bar / 100, gate: s.gate ? 1 : 0, minsales: +s.minSales || 0, share: s.share, month: fc ? fc.month : '', reg: fc ? regOf(fc) : '',
++    model: fc ? fc.model : '', spent: 0, smp: 0, holds: [], nall: real.length};
++  UI.sending = true; UI.scanRecMsg = ['', 'Sending ' + real.length + ' slab' + (real.length > 1 ? 's' : '') + '…']; render();
++  try {
++    await sendParts(head, slabs, 40);
++    LS.set(SHOW_N, showNext());
++    const known = slabs.filter(x => x[0] != null).length;
++    UI.scanRecMsg = ['ok', 'Recorded “' + head.name + '”: ' + real.length + ' slab' + (real.length > 1 ? 's' : '') + (known < real.length ? ' (' + known + ' named so far - the rest are named on the website as their cert pages are read)' : '') + '. It shows on the website under History › Pre-Sales Spotcheck in a minute or two.'];
++  } catch (e) { UI.scanRecMsg = ['warn', 'Could not reach the collector (' + (e.message || e) + '). The set was not recorded - try again when you have signal.']; }
++  UI.sending = false; render();
++}
++
++/* ---------------- YOUR PLAN, PHONE <-> WEBSITE (2026-11-14, Brett: "a sync from phone button [on the website] and then ... the
++   mobile app have a sync from website button"; "only sync values reset, and do so by midnight") ----------------
++   Every change to Your Plan here goes to the collector ({type: 'gset', src: 'ph'}) for the website's Sync from phone; Sync
++   from website copies the website's capital, hold, % under, shipping, bar, share and gate here. Those boxes keep the
++   website's values until midnight, then go back to what they were; one you change by hand is yours again at once. */
++const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate'];
++const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
++let GSET_T = 0;
++function planOut() { const s = S.settings; return {capital: numSet('capital'), hold: s.hold, under: s.under, ship: numSet('ship'), bar: s.bar, share: s.share, gate: !!s.gate, minSales: +s.minSales || 0}; }
++function gsetSoon(now) {
++  clearTimeout(GSET_T);
++  GSET_T = setTimeout(() => { if (!KEY) return; alSend({type: 'gset', t: nextT(), src: 'ph', v: planOut()}).then(() => LS.set(GSET_DAY, todayStr())).catch(() => {}); }, now ? 50 : 2000);
++}
++function planChanged(k) {                                 // a box changed by hand: it is yours again, and the website hears of it
++  const sy = LS.get(SYNC_STORE, null);
++  if (sy && sy.vals && k in sy.vals) { delete sy.vals[k]; if (Object.keys(sy.vals).length) LS.set(SYNC_STORE, sy); else LS.del(SYNC_STORE); }
++  gsetSoon();
++}
++async function syncFromWebsite() {
++  if (!KEY) return toast('Unlock the app first (Show tab).');
++  UI.syncMsg = ['', 'Looking for the website’s plan…']; render();
++  try { await readsFile(true); await readsPoll(); } catch (e) { /* what is known so far */ }
++  const w = READS.sync.web;
++  if (!w || !w.v) { UI.syncMsg = ['warn', 'No plan from the website yet: open the website’s Forecast tab (Graded cards) once and it sends its Your Plan.']; return render(); }
++  const s = S.settings, sy = LS.get(SYNC_STORE, null), prev = sy && sy.day === todayStr() ? sy.prev : {}, vals = {};
++  for (const k of PLAN_KEYS) {
++    if (w.v[k] === undefined || w.v[k] === null) continue;
++    if (!(k in prev)) prev[k] = s[k];
++    const v = k === 'gate' ? !!w.v[k] : k === 'hold' ? Math.min(6, Math.max(1, Math.round(+w.v[k]))) : k === 'capital' || k === 'ship' ? String(+w.v[k]) : +w.v[k];
++    s[k] = v; vals[k] = v;
++  }
++  LS.set(SYNC_STORE, {day: todayStr(), vals, prev, t: w.t}); save();
++  UI.syncMsg = ['ok', 'Your plan now has the website’s values (its plan of ' + new Date(w.t).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) + ') - until midnight.'];
++  render();
++}
++function syncExpire() {                                   // midnight: the synced boxes go back to what they were
++  const sy = LS.get(SYNC_STORE, null);
++  if (!sy || sy.day === todayStr()) return;
++  for (const k of Object.keys(sy.vals || {})) if (sy.prev && k in sy.prev) S.settings[k] = sy.prev[k];
++  LS.del(SYNC_STORE); UI.syncMsg = null; save();
++  if (!UI.rec) render();
++}
++setInterval(syncExpire, 60000);
++setTimeout(syncExpire, 0);
++
+ // Review's answer for the whole card (Card Ladder's card = PriceCharting's?), as the website's Review sends it
+ async function sendMark(cid, v) {
+   const c = D && D.cards[String(cid)]; if (!c || !KEY) return;
+@@ -330,28 +517,34 @@ const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/'
+ // lists it as its cert link, scans.csv's link with the cert as its text, and it goes to scans.csv as every slab does.
+ // Turning lookups on looks the waiting ones up. A cert is read once per show (a second read at any table is a duplicate).
+ const linkOnly = sl => !sl.demo && !S.settings.lookup && sl.look === 'queued';
+-const scanWaiting = sl => LS.get(SCANQ, []).some(q => q[0] === sl.grader && q[1] === sl.cert);
++const scanWaiting = sl => { const q = LS.get(SCANQ, []), from = q.map(isClr).lastIndexOf(true) + 1; return q.slice(from).some(x => x[0] === sl.grader && x[1] === sl.cert); };
+ function linkRowHtml(sl) {
+   const w = scanWaiting(sl);
+   return '<div class="lrow"><span class="tag t-look">' + esc(String(sl.grader || '').toUpperCase()) + '</span><a href="' + esc(scanLink(sl.grader, sl.cert)) + '" target="_blank" rel="noopener">' + esc(sl.cert) + '</a>' +
+-    '<span class="small ' + (w ? 'muted' : 'up') + '">' + (w ? (KEY ? 'waiting to send' : 'unlock to send') : 'sent to scans.csv') + '</span></div>';
++    '<span class="small ' + (w ? 'muted' : 'up') + '">' + (w ? (KEY ? 'waiting to send' : 'unlock to send') : 'sent to scans.csv') + '</span>' +
++    (sl.rdWhy ? '<span class="small muted" style="flex-basis:100%">' + esc(READ_WHY[sl.rdWhy] || sl.rdWhy) + '</span>' : '') + '</div>';
+ }
+ let SCAN_SEND_T = 0, SCAN_SENDING = false;
++// Start a new show puts ['__clear__', t] in the queue (2026-11-14): sendScans sends what came before it, then the erase
++// ({type: 'scan_clear'}), then what came after - so the last show's slabs can never land in the new show's scans.csv
++const isClr = x => x[0] === '__clear__';
+ function queueScan(grader, cert) {
+-  const q = LS.get(SCANQ, []);
+-  if (!q.some(x => x[0] === grader && x[1] === cert)) { q.push([grader, cert]); LS.set(SCANQ, q); }
++  const q = LS.get(SCANQ, []), from = q.map(isClr).lastIndexOf(true) + 1;
++  if (!q.slice(from).some(x => x[0] === grader && x[1] === cert)) { q.push([grader, cert]); LS.set(SCANQ, q); }
+   scheduleScanSend();
+ }
+ function scheduleScanSend(ms) { clearTimeout(SCAN_SEND_T); SCAN_SEND_T = setTimeout(sendScans, ms == null ? 8000 : ms); }
+ async function sendScans() {
+   if (SCAN_SENDING || !KEY) return;
+-  const q = LS.get(SCANQ, []); if (!q.length) return;
++  if (!LS.get(SCANQ, []).length) return;
+   SCAN_SENDING = true;
+   try {
+-    for (let i = 0; i < q.length; i += 80) {   // ntfy carries about 4 KB a message
+-      const part = q.slice(i, i + 80);
++    for (;;) {                                 // in order: a show's slabs, its erase, the next show's slabs
++      const q = LS.get(SCANQ, []); if (!q.length) break;
++      if (isClr(q[0])) { await alSend({type: 'scan_clear', t: nextT()}); LS.set(SCANQ, LS.get(SCANQ, []).filter(x => !(isClr(x) && x[1] === q[0][1]))); continue; }
++      const cut = q.findIndex(isClr), part = q.slice(0, Math.min(80, cut < 0 ? q.length : cut));   // ntfy carries about 4 KB a message
+       await alSend({type: 'scan', t: nextT(), c: part});
+-      LS.set(SCANQ, LS.get(SCANQ, []).filter(x => !part.some(y => y[0] === x[0] && y[1] === x[1])));
++      LS.set(SCANQ, (() => { const now = LS.get(SCANQ, []); let n = part.length; return now.filter(x => !(n > 0 && !isClr(x) && part.some(y => y[0] === x[0] && y[1] === x[1]) && n--)); })());
+       LS.set(SCANN, (+LS.get(SCANN, 0) || 0) + part.length);
+     }
+   } catch (e) { scheduleScanSend(30000); }    // no signal: again in half a minute
+@@ -361,7 +554,7 @@ async function sendScans() {
+   if (UI.rec) paintScan(); else if (UI.tab === 'tables' && UI.openTable && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render();
+ }
+ function scansLine() {
+-  const q = LS.get(SCANQ, []).length, n = +LS.get(SCANN, 0) || 0;
++  const q = LS.get(SCANQ, []).filter(x => !isClr(x)).length, n = +LS.get(SCANN, 0) || 0;
+   return '<b>scans.csv</b> (card-data, data/scans): ' + n.toLocaleString() + ' cert link' + (n === 1 ? '' : 's') + ' sent from this phone' +
+     (q ? ' · ' + q + ' waiting' + (KEY ? ' for signal' : ' - unlock to send them') : '') + '.';
+ }
+@@ -417,7 +610,7 @@ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-ste
+ function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
+ UI.tpol = planPol();
+ function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
+-const APP_VERSION = 'g15b';
++const APP_VERSION = 'g16';
+ // Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
+ // and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
+ const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
+@@ -1400,7 +1593,7 @@ function rowHtml(o, P, withTable) {
+   const t = withTable ? tableOf(sl.t) || {} : null, s = S.settings;
+   const ask = sl.vp != null ? 'Vendor ' + money(sl.vp) : sl.vd != null ? 'Vendor ' + sl.vd.toFixed(1) + '% under' : 'At your ' + s.under.toFixed(1) + '%';
+   const line2 = x.std == null ? (identified(sl) ? 'No Card Ladder price' + (x.pc != null ? ' · PC ' + money(x.pc) : '') : x.known || sl.auth ? (sl.grader || '').toUpperCase() + ' ' + sl.cert : '')
+-    : (withTable ? 'Table ' + (t.n || '?') + ' · ' : '') + ask + ' · pay ' + money(x.pay);
++    : (withTable ? 'Table ' + (t.n || '?') + ' · ' : '') + ask + ' · pay ' + money(x.pay) + (x.down ? ' · priced as ' + gkLabel(x.down) + ' ↓' : '');
+   return '<button class="row' + (inPlan ? ' buy' : '') + (sl.st === 'declined' ? ' gone' : '') + (few && !inPlan ? ' few' : '') + '" data-a="open" data-id="' + esc(sl.id) + '">' +
+     badge(x) + '<span class="rmain"><span class="rname">' + esc(x.name) + '</span><span class="rsub">' + esc(x.sub) + '</span><span class="rsub">' + esc(line2) +
+     (few && x.std != null ? ' · ' + (x.sold || 0) + ' sold last mo' : '') + '</span></span>' +
+@@ -1619,7 +1812,7 @@ function planHtml() {
+   }).join('');
+   const bought = P.all.filter(o => o.sl.st === 'bought'), avg = P.chosen.length ? P.chosen.reduce((a, o) => a + o.x.chance, 0) / P.chosen.length : 0;
+   const net = P.chosen.reduce((a, o) => a + (o.x.net || 0), 0), toRec = bought.filter(o => !o.sl.demo && !o.sl.rec && identified(o.sl)).length;
+-  const nfew = Object.keys(P.few).length;
++  const nfew = Object.keys(P.few).length, nreal = slabsArr().filter(sl => !sl.demo && sl.cert).length;
+   return '<div class="stack" style="gap:14px"><h1 class="h1">Your buys</h1>' +
+     '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Spend</span><span class="small muted">of ' + money(P.cap) + (P.spent ? ' · ' + money(P.spent) + ' already bought' : '') + '</span></div>' +
+     '<div style="font:700 30px \'Space Grotesk\',Inter,sans-serif;font-variant-numeric:tabular-nums">' + money(total) + '</div>' +
+@@ -1631,10 +1824,18 @@ function planHtml() {
+     '<div class="card stack" style="gap:10px"><span class="label">Record purchases</span><p class="note" style="margin:0">Sends the slabs you marked Bought to the website, History › Recorded Purchases - with what you paid, your settings and the odds of the day.</p>' +
+     '<button class="btn green" data-a="record"' + (UI.sending ? ' disabled' : '') + '>Record purchases' + (toRec ? ' (' + toRec + ')' : '') + '</button>' +
+     (UI.recMsg ? '<div class="' + (UI.recMsg[0] === 'ok' ? 'okbox' : UI.recMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.recMsg[1]) + '</div>' : '') + '</div>' +
++    '<div class="card stack" style="gap:10px"><span class="label">Record scans</span><p class="note" style="margin:0">Sends every slab of this show so far to the website, History › Pre-Sales Spotcheck - with your plan. Each tap makes a new set.</p>' +
++    '<button class="btn primary" data-a="recscans"' + (UI.sending ? ' disabled' : '') + '>Record scans' + (nreal ? ' (' + nreal + ')' : '') + '</button>' +
++    (UI.scanRecMsg ? '<div class="' + (UI.scanRecMsg[0] === 'ok' ? 'okbox' : UI.scanRecMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.scanRecMsg[1]) + '</div>' : '') + '</div>' +
+     (bought.length ? '<div class="group"><div class="ghead"><span class="h2">Bought</span><span class="small muted">' + bought.length + ' · ' + money(P.spent) + '</span></div>' + bought.map(o => rowHtml(o, P, true)).join('') + '</div>' : '') +
+     (P.missed.length ? '<div class="group"><div class="ghead"><span class="h2">Just missed</span><span class="small muted">over budget or per-slab cap</span></div>' + P.missed.slice(0, 4).map(o => rowHtml(o, P, true)).join('') + '</div>' : '') +
+     (nfew ? '<p class="note">' + nfew + ' slab' + (nfew > 1 ? 's have' : ' has') + ' fewer than ' + s.minSales + ' Card Ladder sales last month and stay' + (nfew > 1 ? '' : 's') + ' out of your buys (dimmed on their table).</p>' : '') + '</div>';
+ }
++function syncNote() {
++  const sy = LS.get(SYNC_STORE, null);
++  return sy && sy.day === todayStr() && Object.keys(sy.vals || {}).length ? '<p class="note" style="margin:0">' + Object.keys(sy.vals).length + ' box' + (Object.keys(sy.vals).length > 1 ? 'es have' : ' has') + ' the website’s values until midnight.</p>'
++    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
++}
+ function showHtml() {
+   const s = S.settings, mini = (k, txt, lab) => '<div class="frow"><span>' + lab + '</span><span class="minis"><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="-1" aria-label="Less">−</button><span class="minival">' + txt + '</span><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="1" aria-label="More">+</button></span></div>';
+   const tok = !!LS.get(PSA_TOKEN, ''), left = psaLeft();
+@@ -1649,6 +1850,8 @@ function showHtml() {
+     mini('minSales', String(s.minSales), 'Min sales last mo (Card Ladder)') +
+     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
+     '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
++    '<div style="display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid #222A35"><button class="btn" data-a="syncweb">Sync from website</button>' +
++    (UI.syncMsg ? '<div class="' + (UI.syncMsg[0] === 'ok' ? 'okbox' : UI.syncMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.syncMsg[1]) + '</div>' : syncNote()) + '</div>' +
+     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
+     '<div class="frow"><span>Look slabs up (PSA, card, prices)</span><button class="btn" style="min-width:76px" data-a="lookup">' + (s.lookup ? 'On' : 'Off') + '</button></div>' +
+     (s.lookup ? '' : '<p class="note" style="margin:0">Off: a slab read is only listed as its cert link and sent to scans.csv.</p>') +
+@@ -1662,13 +1865,29 @@ function showHtml() {
+     '<p class="note">CGC slabs: found by name for now (Card Hedge comes next, through your collector).</p>' +
+     '<div class="note" id="scans-line" style="font-size:13px">' + scansLine() + '</div>' +
+     '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px"><button class="btn" data-a="demo">Load the sample show (3 tables)</button>' +
+-    '<button class="btn danger" data-a="newshow">' + (UI.confirmNew ? 'Tap again to clear every table' : 'Start a new show') + '</button>' +
++    '<button class="btn danger" data-a="newshow">Start a new show</button>' +
+     (DSTATE === 'ok' ? '<button class="linkbtn" style="align-self:flex-start" data-a="lock">Lock: forget the password on this phone</button>' : '') + '</div>' +
+     '<p class="note" style="margin-top:10px">Your tables, asks and prices stay on this phone. What leaves it: each real slab’s cert link (to scans.csv), Record purchases and Review answers. Sample slabs and Test mode are never sent. Sample slabs have invented prices.</p></div>';
+ }
+ 
+ /* ---- the slab panel, Review and Find the card ---- */
++function renderModal() {                                  // Record scans' name and Start a new show (2026-11-14): the app's own pop-ups
++  const box = $('modal'); if (!box) return;
++  const m = UI.modal;
++  if (!m) { box.innerHTML = ''; box.dataset.kind = ''; return; }
++  if (box.dataset.kind === m.kind && box.firstChild) return;   // open already: never redrawn under the typing
++  const body = m.kind === 'recscans'
++    ? '<h2 class="h2">Record scans</h2><p class="note" style="margin:0">' + slabsArr().filter(sl => !sl.demo && sl.cert).length + ' slabs of this show so far go to the website (History › Pre-Sales Spotcheck), with your plan.</p>' +
++      '<label class="field"><span class="label">Name</span><input class="input" type="text" id="recname" maxlength="80" value="' + esc(m.name) + '" data-in="recname"></label>' +
++      '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn primary" style="flex:1" data-a="recscansgo">Record</button></div>'
++    : '<h2 class="h2">Start a new show?</h2><p class="note" style="margin:0">Are you sure you would like to continue? This clears every table on this phone and erases the links in scans.csv. A slab from this show can be scanned again at the next one.</p>' +
++      '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn danger" style="flex:1" data-a="newshowgo">Yes, start a new show</button></div>';
++  box.dataset.kind = m.kind;
++  box.innerHTML = '<div class="sheetwrap modalwrap" data-a="modalbg"><div class="sheet modal stack" role="dialog" aria-modal="true" style="gap:12px">' + body + '</div></div>';
++  if (m.kind === 'recscans') { const i = $('recname'); if (i && document.activeElement !== i) setTimeout(() => { try { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} }, 60); }
++}
+ function renderSheet() {
++  renderModal();
+   const sl = UI.sheet ? S.slabs[UI.sheet] : null, box = $('sheet');
+   if (!sl) { box.innerHTML = ''; return; }
+   const x = calc(sl), t = tableOf(sl.t) || {};
+@@ -1680,7 +1899,7 @@ function renderSheet() {
+   box.innerHTML = '<div class="sheetwrap" data-a="closebg"><div class="sheet" role="dialog" aria-label="Slab">' + head + '<div class="sbody" id="sbody">' + body + '</div></div></div>';
+ }
+ function kpisHtml(x) {
+-  return '<div class="kpi"><div class="label">CL price</div><div class="v">' + money(x.std) + '</div><div class="s">' + (x.std == null ? 'no Card Ladder price' : (x.n || '?') + ' sales, ' + (x.win || '30 days')) + '</div></div>' +
++  return '<div class="kpi"><div class="label">CL price</div><div class="v">' + money(x.std) + '</div><div class="s">' + (x.std == null ? 'no Card Ladder price' : (x.down ? gkLabel(x.down) + ' ↓ (its own line is thin) · ' : '') + (x.n || '?') + ' sales, ' + (x.win || '30 days')) + '</div></div>' +
+     '<div class="kpi"><div class="label">Chance</div><div class="v" style="color:' + (x.chance == null ? 'var(--mu)' : x.chance >= 0.6 ? 'var(--grt)' : x.chance >= S.settings.bar / 100 ? 'var(--blt)' : 'var(--mu)') + '">' + (x.chance == null ? '-' : pctS(x.chance)) + '</div><div class="s">' + S.settings.hold + '-month hold</div></div>' +
+     '<div class="kpi"><div class="label">You pay</div><div class="v">' + money(x.pay) + '</div><div class="s">' + (x.std == null ? '' : (x.d * 100).toFixed(1) + '% under') + '</div></div>';
+ }
+@@ -1862,12 +2081,22 @@ async function act(a, ds, el) {
+     case 'confirm': if (sl) { sl.look = 'ok'; sl.how = 'confirmed'; save(); UI.view = 'slab'; } break;
+     case 'mark': if (sl && sl.cid != null) return sendMark(sl.cid, +ds.v); return;
+     case 'record': return recordPurchases();
+-    case 'hold': s.hold = +ds.v; save(); break;
+-    case 'gate': s.gate = !s.gate; save(); break;
++    case 'recscans': if (UI.sending) return; UI.modal = {kind: 'recscans', name: 'Show ' + showNext()}; break;
++    case 'recscansgo': { const nm = ((($('recname') || {}).value) || '').trim() || ('Show ' + showNext()); UI.modal = null; render(); return recordScans(nm); }
++    case 'modalno': UI.modal = null; break;
++    case 'modalbg': if (el && el.closest && el.closest('.modal')) return; UI.modal = null; break;
++    case 'syncweb': return syncFromWebsite();
++    case 'newshowgo': {                                  // the erase after this show's waiting slabs, then a clean phone
++      const t = nextT(), q = LS.get(SCANQ, []); q.push(['__clear__', t]); LS.set(SCANQ, q); LS.set('ssc-clear-asked', t);
++      const b = baseState(); b.settings = S.settings; b.marks = S.marks; S = b; save(); UI.modal = null; UI.recMsg = null; UI.scanRecMsg = null; UI.openTable = null;
++      scheduleScanSend(50); toast('New show started - scans.csv is being emptied.'); break;
++    }
++    case 'hold': s.hold = +ds.v; save(); planChanged('hold'); break;
++    case 'gate': s.gate = !s.gate; save(); planChanged('gate'); break;
+     case 'lookup': s.lookup = !s.lookup; save(); if (s.lookup) pumpLookups(); break;
+     case 'bump': {
+       const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k], lim = {under: [0, 60], bar: [5, 95], share: [5, 100], minSales: [0, 50]}[k];
+-      s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); break;
++      s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); planChanged(k); break;
+     }
+     case 'savetok': { const v = (document.querySelector('[data-in="psaTok"]') || {}).value || ''; if (!v.trim()) return toast('Paste the token first.'); LS.set(PSA_TOKEN, v.trim()); const d = psaDay(); d.stop = 0; LS.set(PSA_DAY, d);
+       slabsArr().forEach(x => { if (!x.demo && x.look === 'manual' && ['token', 'badtoken'].includes(x.lookWhy)) x.look = 'queued'; }); pumpLookups(); toast('PSA token saved on this phone.'); break; }
+@@ -1885,9 +2114,7 @@ async function act(a, ds, el) {
+     case 'lock': KEY = null; D = null; IDX = null; DSTATE = 'locked'; LS.del(KEY_STORE); toast('Locked. Your scans stay on this phone.'); break;
+     case 'demo': { if (UI.rec) stopRec(); const d = demoState(); d.settings = S.settings; d.marks = S.marks; Object.values(S.slabs).filter(x => !x.demo).forEach(x => { d.slabs[x.id] = x; });
+       S.tables.filter(t => !t.id.startsWith('d')).forEach(t => { t.n += 3; d.tables.push(t); }); S = d; save(); UI.tab = 'tables'; UI.openTable = null; break; }
+-    case 'newshow':
+-      if (!UI.confirmNew) { UI.confirmNew = true; setTimeout(() => { UI.confirmNew = false; if (UI.tab === 'show') render(); }, 4000); break; }
+-      { const b = baseState(); b.settings = S.settings; b.marks = S.marks; S = b; save(); UI.confirmNew = false; UI.recMsg = null; break; }
++    case 'newshow': UI.modal = {kind: 'newshow'}; break;
+     default: return;
+   }
+   render();
+@@ -1907,7 +2134,8 @@ document.addEventListener('input', e => {
+   else if (k === 'tnote') UI.tnote = v;
+   else if (k === 'psaTok') { /* read on Save */ }
+   else if (k === 'q') { UI.q = v; const r = $('results'); if (r) r.innerHTML = resultsHtml(v, UI.pickGk || (sl && sl.gk)); }
+-  else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); }
++  else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); if (f !== 'show') planChanged(f); }
++  else if (k === 'recname') { if (UI.modal) UI.modal.name = v; }
+   else if (k === 'pct' && sl) { const n = parseFloat(v.replace(',', '.')); if (isFinite(n)) { sl.vd = Math.max(0, Math.min(60, n)); sl.vp = null; sl.vpTxt = null; if (sl.st === 'new') sl.st = 'asked'; save(); paintSheetNumbers(); } }
+   else if (k === 'usd' && sl) { const n = parseFloat(v.replace(/[$,\s]/g, '')); sl.vpTxt = v; sl.vp = isFinite(n) && n > 0 ? n : null; if (sl.vp != null) { sl.vd = null; if (sl.st === 'new') sl.st = 'asked'; } save(); paintSheetNumbers(); }
+ });
+diff --git a/page/app/index.html b/page/app/index.html
+index 6cbff90..9e1a5db 100644
+--- a/page/app/index.html
++++ b/page/app/index.html
+@@ -21,6 +21,7 @@
+   <nav class="tabs" id="tabs" aria-label="Main"></nav>
+ </div>
+ <div id="sheet"></div>
++<div id="modal"></div>
+ <div id="overlay"></div>
+ <div id="toast"></div>
+ <script src="zxing/reader.js"></script>
+diff --git a/page/app/sw.js b/page/app/sw.js
+index 36596f2..4148ddc 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v18';
++const CACHE = 'ssc-v19';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+diff --git a/page/body.html b/page/body.html
+index a63367b..e7d9444 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -627,6 +627,8 @@
+     <div class="al-row"><span class="lab" style="flex:1 1 auto">Buy only slabs with a chance of at least<button class="help" data-h="fcg_conf">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="fcg-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span></span></div>
+     <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fcg_copies">?</button></span><span><input type="number" id="fcg-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
+     <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is rising<button class="help" data-h="fcg_gate">?</button></label>
++    <div class="al-actions fcg-syncrow"><button class="al-save" id="fcg-sync" title="Copy the phone app's Your Plan into these boxes (capital, hold, % under, shipping, the share, the bar, the gate) - until midnight">Sync from phone</button><button class="help" data-h="fcg_sync">?</button></div>
++    <div class="al-status" id="fcg-sync-note"></div>
+     <div class="al-actions fcg-only-pl"><button class="al-save" id="fcp-record" title="Save these purchased slabs, with the settings of the moment, to History › Recorded Purchases">Record Purchases</button><button class="help" data-h="fcp_record">?</button></div>
+     <div class="al-status fcg-only-pl" id="fcp-status"></div>
+     <h3>The market now<button class="help" data-h="fcg_regime">?</button></h3>
+@@ -774,9 +776,10 @@
+   <div id="fhg-sc">
+   <h3>Pre-Sales Spotcheck<button class="help" data-h="fhs_spot">?</button></h3>
+   <div class="controls fhg-ctl"><input type="search" id="q-fhs" placeholder="Search the sets' slabs&hellip; (e.g. umbreon psa 10)"><select id="set-fhs" hidden><option value=""></option></select><span class="count" id="count-fhs"></span><button type="button" class="reset fhh-btn" title="Which holds (1 to 6 months) and which of their columns the three History windows show - one choice for all three">Holds…</button><span class="dim" id="fhs-run"></span></div>
++  <div class="fhs-key" id="fhs-key" hidden></div>
+   <div class="ranges" id="ranges-fhs"><button class="reset" id="reset-fhs" hidden>Reset filters</button></div>
+   <div class="wrap fhg-wrap"><table class="wide fhgt fhst">
+-  <thead><tr class="grp"><th colspan="5"></th><th colspan="5" class="band">1-month hold</th><th colspan="5" class="band">2-month hold</th><th colspan="5" class="band">3-month hold</th><th colspan="5" class="band">4-month hold</th><th colspan="5" class="band">5-month hold</th><th colspan="5" class="band">6-month hold</th></tr><tr><th class="rn" title="Row number in the current sort">Row</th><th data-k="t">Date sent<span class="s">⇅</span></th><th data-k="src">From<span class="s">⇅</span></th><th data-k="h">Hold<span class="s">⇅</span></th><th data-k="n" class="num">Slabs<span class="s">⇅</span></th><th data-k="b1" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 1 month, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p1" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e1" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a1" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r1" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b2" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 2 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p2" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e2" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a2" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r2" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b3" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 3 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p3" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e3" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a3" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r3" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b4" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 4 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p4" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e4" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a4" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r4" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b5" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 5 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p5" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e5" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a5" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r5" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b6" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 6 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p6" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e6" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a6" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r6" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th></tr></thead>
++  <thead><tr class="grp"><th colspan="7"></th><th colspan="5" class="band">1-month hold</th><th colspan="5" class="band">2-month hold</th><th colspan="5" class="band">3-month hold</th><th colspan="5" class="band">4-month hold</th><th colspan="5" class="band">5-month hold</th><th colspan="5" class="band">6-month hold</th></tr><tr><th class="rn" title="Row number in the current sort">Row</th><th data-k="t">Date sent<span class="s">⇅</span></th><th data-k="src">From<span class="s">⇅</span></th><th data-k="nm" title="The name you gave the show on the phone (Record scans)">Name<span class="s">⇅</span></th><th data-k="nx" class="num" title="A phone show&#39;s slabs that match nothing of ours (under $50, not a card we follow ...): left out of its numbers - click the number for their links">Not in our data<span class="s">⇅</span></th><th data-k="h">Hold<span class="s">⇅</span></th><th data-k="n" class="num">Slabs<span class="s">⇅</span></th><th data-k="b1" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 1 month, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p1" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e1" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a1" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r1" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b2" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 2 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p2" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e2" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a2" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r2" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b3" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 3 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p3" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e3" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a3" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r3" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b4" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 4 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p4" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e4" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a4" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r4" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b5" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 5 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p5" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e5" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a5" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r5" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th><th data-k="b6" class="num" title="how many times the model would have bought these slabs (one slab in one month = one buy), held 6 months, at the set&#39;s bar and gate">Buys<span class="s">⇅</span></th><th data-k="p6" class="num" title="the average chance the model gave those buys">Chance<span class="s">⇅</span></th><th data-k="e6" class="num" title="the average ROI the model expected of those buys">Expected<span class="s">⇅</span></th><th data-k="a6" class="num" title="how many of those buys made money when the hold was up (PriceCharting&#39;s price, after eBay&#39;s fee)">Actual<span class="s">⇅</span></th><th data-k="r6" class="num" title="the average ROI those buys actually made">ROI<span class="s">⇅</span></th></tr></thead>
+   <tbody id="rows-fhs"></tbody></table></div>
+   <button class="more" id="more-fhs" hidden>Show more</button>
+   <p class="dim" id="fhs-none"></p>
+diff --git a/page/graded.js b/page/graded.js
+index d44210e..013e4a8 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -305,6 +305,7 @@ function grPc1Title(r) {                                    // last month's Pric
+   if (p[2] === 'hl') return 'Hodges–Lehmann estimate (the median of every pairwise average: steady against an odd sale) of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo;
+   if (p[2] === 'sales') return 'Average of the ' + p[1] + ' ' + r[25] + ' sale' + (p[1] === 1 ? '' : 's') + ' PriceCharting recorded in ' + mo;
+   if (p[2] === 'chart') return 'PriceCharting’s monthly PSA 10 chart value for ' + mo + ' (no PSA 10 sale of it recorded that month)';
++  if (p[2] === 'down') return 'Rounded down (↓): PriceCharting recorded no ' + r[25] + ' sale in ' + mo + ', so this is the ' + grLabel(p[3]) + ' figure - the Hodges–Lehmann estimate of its ' + p[1] + ' sale' + (p[1] === 1 ? '' : 's') + ' that month (PriceCharting files most half grades under the whole grade below; display only - the forecast uses Card Ladder)';
+   if (p[2] === 'chart_mixed') return 'PriceCharting’s monthly grade ' + r[25].split(' ')[1] + ' chart value for ' + mo + ': it blends every grader (no ' + r[25] + ' sale recorded that month)';
+   // only this grade and grader's own figures are used (2026-10-29): PriceCharting's 9 / 9.5 / 8 / 7 lines blend graders
+   if (p[2] === 'none') return 'none: our record of PriceCharting’s ' + r[25] + ' sales covers all of ' + mo + ' and holds no ' + r[25] + ' sale';
+@@ -316,6 +317,8 @@ function grSrcTitle(r) {
+   if (s === 'pc') return 'PriceCharting’s ' + r[25] + ' price';
+   if (s === 'mixed') return 'PriceCharting’s grade ' + r[25].split(' ')[1] + ' price: it blends every grader (PSA, CGC, BGS ...)';
+   if (s === 'formula') return 'PriceCharting’s CGC 10 price is its formula (0.40 x PSA 10), not a market price';
++  const dn = /^down:([^:]+):(\d+):(\d+)/.exec(s);
++  if (dn) return 'rounded down (↓): PriceCharting has no ' + r[25] + ' price of its own, so the median of the ' + dn[2] + ' ' + grLabel(dn[1]) + ' sales it recorded in the last ' + dn[3] + ' days';
+   const m = /^sales:(\d+):(\d+)/.exec(s);
+   if (m) return 'Median of the ' + m[1] + ' ' + r[25] + ' sales PriceCharting recorded in the last ' + m[2] + ' days (its listed price blends graders)';
+   return '';
+@@ -417,7 +420,7 @@ function grRow(r) {
+     (r[54] ? '<td' + (eraMis ? ' class="rfbad"' : '') + ' title="' + esc('PC: ' + ((c.era || [])[0] || 'none') + ' · CL: ' + ((c.era || [])[1] || 'none') + ' · PC Cert: ' + ((c.era || [])[2] || 'none')) + '">' + esc(r[54]) + '</td>' : '<td></td>') +
+     grInt(r[5]) +
+     (r[6] == null ? '<td class="num"><span class="dim" title="' + esc((grPc1Title(r) || 'No ' + r[25] + ' sale recorded by PriceCharting last month') + '. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + ((r[69] || [])[2] === 'not_read' ? 'not read' : (r[69] || [])[2] === 'none' ? 'none' : '-') + '</span></td>'
+-      : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + '</td>') +
++      : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + ((r[69] || [])[2] === 'down' ? '<sup class="gdown">↓</sup>' : '') + '</td>') +
+     (r[35] == null ? (pend || nom ? '<td class="num">' + clNone + '</td>' : '<td class="num"><span class="dim" title="' + esc('Card Ladder recorded no ' + r[25] + ' sale last month. Its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">-</span></td>')
+       : '<td class="num" title="' + esc('Card Ladder’s average of the ' + (r[37] != null ? r[37] + ' ' : '') + r[25] + ' sales it recorded in ' + grMonthName(r[17]) + ' (an average: Card Ladder gives only its monthly average, so Hodges–Lehmann waits until its single sales are saved) · its value today: ' + (r[68] != null ? fmtMoneyPlain(r[68]) : 'none')) + '">' + fmtMoney(r[35]) + '</td>') +
+     (r[36] != null ? '<td class="num' + (grUnsure(r) || grWrong(r) ? ' gdoubt' : '') + '" title="' + esc('PC’s ' + ((r[69] || [])[2] === 'hl' ? 'Hodges–Lehmann estimate' : 'chart value') + ' vs CL’s average, last month (both ' + r[71] + ')' + (grUnsure(r) || grWrong(r) ? '. Greyed: the match is in doubt - answer Review first' : '')) + '">' + fmtPct(r[36], true, 1) + '</td>'
+diff --git a/page/graded_fc.js b/page/graded_fc.js
+index f5ad3af..0ee16a6 100644
+--- a/page/graded_fc.js
++++ b/page/graded_fc.js
+@@ -37,7 +37,17 @@ const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmi
+ const FCG_KEEP = ['cap', 'h', 'fold'];
+ const fcgKept = () => { const sv = grLS('fcg-in', {}) || {}, o = {}; FCG_KEEP.forEach(k => { if (sv[k] !== undefined) o[k] = sv[k]; }); return o; };
+ const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, fcgKept());
+-const fcgInSave = () => { const o = {}; FCG_KEEP.forEach(k => { o[k] = FCG_IN[k]; }); grSave('fcg-in', o); };
++// SYNC FROM PHONE (2026-11-14, Brett: "would it be possible to change the website to have a sync from phone button and then to
++// have the mobile app have a sync from website button?"; "only sync values reset, and do so by midnight"): the button copies
++// the phone's Your Plan into these boxes (capital, hold, % under - Forecasting's and Recording's -, shipping, the share,
++// the bar, the gate); those boxes keep the phone's values through a refresh until midnight, then go back to what they
++// were. A synced box you change by hand is yours again at once. The phone's plan comes off the channel (scanPoll, at once)
++// or the collector's copy (scan.bin); every change here goes the other way ({type: 'gset', src: 'web'}).
++const FCG_SYNC_MAP = {capital: 'cap', hold: 'h', under: 'disc', ship: 'ship', bar: 'minp', share: 'share', gate: 'gate'};
++const fcgToday = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
++let FCG_SYNC = (() => { const x = grLS('fcg-sync', null); return x && x.day === fcgToday() && x.vals ? x : null; })();
++if (FCG_SYNC) Object.assign(FCG_IN, FCG_SYNC.vals); else { try { localStorage.removeItem('fcg-sync'); } catch (e) {} }
++const fcgInSave = () => { const o = {}; FCG_KEEP.forEach(k => { o[k] = FCG_SYNC && k in FCG_SYNC.vals ? (FCG_SYNC.prev || {})[k] : FCG_IN[k]; if (o[k] === undefined) delete o[k]; }); grSave('fcg-in', o); };
+ GF.fc = grFilters('fcg-', {host: 'fcg-gmode', terms: 'fcg-gm-terms', grades: 'fcg-gm-grades', gn: 'fcg-gm-gn', title: 'Graded forecast'},
+   () => { if (tables.fcg) tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }, FCG_SEL_DEFAULT);
+ grDragInit(GF.fc);
+@@ -216,7 +226,8 @@ function fcgClv(r) {
+ // a row's cells by name (Recording and Planning use the same ones in their own order, with their own columns between)
+ function fcgCells(r, I) {
+   const k = r[0] + '|' + esc(r[50]), c = (GR.doc.cards || {})[String(r[0])] || {}, d = r.fcD != null ? r.fcD : I.disc;
+-  const pcFrom = (r[67] != null ? 'PriceCharting’s price of this grade today' : 'PriceCharting’s price of this grade last month (none today)') + ' - shown for reference; the chance and the money use Card Ladder’s';
++  const pcDown = r[67] != null ? String(r[43] || '').startsWith('down:') : (r[69] || [])[2] === 'down';   // a half grade priced one grade down on the PriceCharting side (2026-11-14)
++  const pcFrom = (r[67] != null ? 'PriceCharting’s price of this grade today' : 'PriceCharting’s price of this grade last month (none today)') + (pcDown ? ' - rounded down (↓): PriceCharting has no price of its own for this half grade, so the whole grade below’s' : '') + ' - shown for reference; the chance and the money use Card Ladder’s';
+   const sw = r[80] || [], clFrom = 'The standard price: the middle (Hodges-Lehmann) of Card Ladder’s ' + (sw[1] || '') + ' sales of this grade in the ' + (sw[0] || 30) + ' days to the card’s Card Ladder read' + (sw[2] ? ' (' + grDay(sw[2]) + ')' : '') + '. ' + (r[68] != null ? 'Card Ladder’s value: ' + fmtMoneyPlain(r[68]) + (r[82] ? ' (confidence ' + r[82] + ' of 5)' : '') + '.' : 'No Card Ladder value for it.');
+   const buyTip = 'Card Ladder’s standard price x (1 - ' + fcgDiscWord(d) + ') - ' + fmtMoneyPlain(I.ship) + ' shipping: the most to pay the vendor';
+   const pcSold = r[76] && r[16] != null ? '~' + fmtInt(r[16]) : r[16] == null && (r[69] || [])[2] === 'not_read' ? '<span class="dim">not read</span>' : r[16] == null ? '<span class="dim">-</span>' : fmtInt(r[16]);
+@@ -225,7 +236,7 @@ function fcgCells(r, I) {
+       : '<td><button class="rvb grvb' + (r[41] === 1 ? ' same' : r[41] === 0 ? ' diff' : '') + '" data-k="' + k + '" title="Compare PriceCharting’s card with Card Ladder’s">Review</button></td>'),
+     name: '<td class="fcr-nm">' + esc(r[1]) + '<br><span class="dim">' + esc(String(r[2] || '').replace(/^Pokemon /, '')) + (r[3] ? ' · #' + esc(r[3]) : '') + '</span></td>',
+     grade: '<td><b>' + esc(r[25]) + '</b></td>',
+-    std: fcg2(fcgM(r.fcS) + fcgClv(r), fcgM(r.fcSc), clFrom, pcFrom, r),
++    std: fcg2(fcgM(r.fcS) + fcgClv(r), fcgM(r.fcSc) + (pcDown && r.fcSc != null ? '<sup class="gdown">↓</sup>' : ''), clFrom, pcFrom, r),
+     buy: fcg1(fcgM(r.fcB), buyTip, r),
+     sold: fcg2(r[37] == null ? '<span class="dim">-</span>' : fmtInt(r[37]), pcSold, 'Card Ladder’s sales of this grade last month' + (r[81] != null ? ' (' + fmtInt(r[81]) + ' in the 12 months to its read)' : ''), 'PriceCharting’s recorded sales of this grade and grader last month' + (r[76] ? ' (an estimate: its list of sales does not reach back to the start of the month)' : '') + ' - reference', r),
+     chance: fcgChanceCell(r, I),
+@@ -372,12 +383,56 @@ function fcgChanged() {
+   const I = fcgInputs(), dv = parseFloat($('fcg-disc').value), m = fcgMode();
+   Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), copies: I.copies, gate: I.gate});
+   if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
++  if (FCG_SYNC) {                                          // a synced box changed by hand is yours again
++    for (const k of Object.keys(FCG_SYNC.vals)) if (FCG_IN[k] !== FCG_SYNC.vals[k]) delete FCG_SYNC.vals[k];
++    if (Object.keys(FCG_SYNC.vals).length) grSave('fcg-sync', FCG_SYNC); else { FCG_SYNC = null; try { localStorage.removeItem('fcg-sync'); } catch (e) {} }
++    fcgSyncNote();
++  }
+   fcgInSave();
++  fcgGsetSoon();
+   fcgRegime(); if (GR.doc) { tables.fcg.apply(); if (typeof fcrApplyAll === 'function') fcrApplyAll(); }
+   if (m === 'hi' && typeof fhgRender === 'function') fhgRender();   // History: the replay follows the pane
+ }
+ $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
+ $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
++function fcgPlanOut() {                                  // this pane's plan as the phone's Sync from website takes it
++  return {capital: FCG_IN.cap, hold: FCG_IN.h, under: FCG_IN.disc, ship: FCG_IN.ship, bar: FCG_IN.minp, share: FCG_IN.share, gate: !!FCG_IN.gate};
++}
++function fcgGsetSoon(now) {                               // the website's plan to the collector, a moment after the last change
++  clearTimeout(FCG.gsT);
++  FCG.gsT = setTimeout(() => { if (!HKEY) return; alSend({type: 'gset', t: nextT(), src: 'web', v: fcgPlanOut()}).then(() => grSave('fcg-gset-day', fcgToday())).catch(() => {}); }, now ? 50 : 2000);
++}
++function fcgSyncNote() {
++  const n = $('fcg-sync-note'); if (!n) return;
++  n.textContent = FCG_SYNC ? 'Synced from the phone' + (FCG_SYNC.t ? ' (its plan of ' + new Date(FCG_SYNC.t).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) + ')' : '') + ' - ' + Object.keys(FCG_SYNC.vals).filter(k => k !== 'rdisc').length + ' box(es); back to the website’s own at midnight.' : '';
++}
++async function fcgSyncFromPhone() {
++  const btn = $('fcg-sync'), note = $('fcg-sync-note');
++  if (!HKEY) return favSay('This page has no key for the collector.');
++  btn.disabled = true; note.textContent = 'Looking for the phone’s plan…';
++  try { await scanFileLoad(true); await scanPoll(); } catch (e) { /* what is known so far */ }
++  btn.disabled = false;
++  const ph = SCAN.sync.ph;
++  if (!ph || !ph.v) { note.textContent = 'No plan from the phone yet: open the app, unlocked, and it sends its Your Plan (or change any box there).'; return; }
++  const vals = {};
++  for (const [a, b] of Object.entries(FCG_SYNC_MAP)) if (ph.v[a] !== undefined && ph.v[a] !== null) vals[b] = b === 'gate' ? !!ph.v[a] : (b === 'h' ? Math.min(6, Math.max(1, Math.round(+ph.v[a]))) : +ph.v[a]);
++  if (vals.disc !== undefined) vals.rdisc = vals.disc;
++  const prev = FCG_SYNC ? FCG_SYNC.prev : fcgKept();
++  FCG_SYNC = {day: fcgToday(), vals, prev, t: ph.t}; grSave('fcg-sync', FCG_SYNC);
++  Object.assign(FCG_IN, vals); fcgInputsPaint(); fcgChanged();
++  favSay('Your plan now has the phone’s values - until midnight.');
++}
++function fcgSyncExpire() {                                 // midnight: the synced boxes go back to what they were
++  if (!FCG_SYNC || FCG_SYNC.day === fcgToday()) return;
++  const prev = FCG_SYNC.prev || {};
++  for (const k of Object.keys(FCG_SYNC.vals)) FCG_IN[k] = prev[k] !== undefined ? prev[k] : FCG_IN_DEFAULT[k];
++  FCG_SYNC = null; try { localStorage.removeItem('fcg-sync'); } catch (e) {}
++  fcgInputsPaint(); fcgChanged(); fcgSyncNote();
++}
++setInterval(fcgSyncExpire, 60000);
++$('fcg-sync').addEventListener('click', fcgSyncFromPhone);
++fcgSyncNote();
++if (grLS('fcg-gset-day', '') !== fcgToday()) setTimeout(() => fcgGsetSoon(true), 8000);   // once a day, so the phone always finds the website's plan
+ const fcgFold = on => { FCG_IN.fold = !!on; fcgInSave(); $('fcg').classList.toggle('folded', !!on); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !on; }); };
+ $('fcg-fold').addEventListener('click', () => fcgFold(true));
+ document.querySelectorAll('#fcg .fcg-unfold').forEach(b => b.addEventListener('click', () => fcgFold(false)));
+@@ -566,6 +621,16 @@ Object.assign(HELP, {
+     '- Best to Buy breaks the ties (deeper dip, then higher price); this column doesn’t.',
+     '- Like Best to Buy, it ignores the filters and the capital, and follows the Hold and the % under.'].join('\n'),
+     now: () => { const r = (FCG.rows || []).find(x => x.fcBC === 1); return r ? 'the top chance on Forecasting is <b>' + Math.round(r.fcP) + '%</b>, shared by ' + r.fcBCn + ' slab' + (r.fcBCn === 1 ? '' : 's') : ''; }},
++  fcg_sync: {t: 'Sync from phone', md: 1, m: [
++    '> Copies the phone app’s Your Plan into these boxes, so this page plans with the same numbers the phone used at the show.',
++    '## What is copied',
++    '- Capital, Hold, % under (Forecasting’s and Recording’s), the shipping, the share a slab may take, the chance bar and the market gate.',
++    '- The price band and the copies are the website’s own; the phone’s minimum sales last month has no box here yet.',
++    '## How long',
++    '- The copied boxes keep the phone’s values through a refresh until midnight, then go back to what they were.',
++    '- A copied box you change by hand is yours again at once.',
++    '## The other way',
++    'Every change here is sent to the collector too, so the app’s **Sync from website** button can copy this plan onto the phone.'].join('\n')},
+   fcg_spot: {t: 'Add to Pre-Sales Spotcheck', md: 1, m: [
+     '> Sends the green rows of this page to History › Pre-Sales Spotcheck, where each slab is looked back on with the model, month by month since 2022.',
+     '## What is sent',
+diff --git a/page/graded_fh.js b/page/graded_fh.js
+index 34ab184..78d3f6e 100644
+--- a/page/graded_fh.js
++++ b/page/graded_fh.js
+@@ -367,7 +367,8 @@ function fhrOpenColumns() {                               // the slab lists' Col
+ }
+ tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded purchases', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded purchases', onCols: h => fhhTake('fhr', h),
+   key: r => r.key, row: fhrRow, rowClass: () => 'fhr-row',
+-  hay: r => r.rec.slabs.map(s => { const b = GR.doc ? fcrMap().get(s[0] + '|' + s[1]) : null; return b ? b[1] + ' ' + b[2] + ' ' + b[25] : fhgName(s[0]).join(' ') + ' ' + grLabel(s[1]); }).join(' ') + ' ' + fhrDate(r.rec.t),
++  hay: r => r.rec.slabs.map(s => { const R = fhsRes(s), x = R.s || [], rd = R.rd || {}, b = GR.doc && x[0] != null ? fcrMap().get(x[0] + '|' + x[1]) : null;
++    return (b ? b[1] + ' ' + b[2] + ' ' + b[25] : x[0] != null ? fhgName(x[0]).join(' ') + ' ' + grLabel(x[1]) : '') + ' ' + (s[10] || '') + ' ' + (rd.nm || '') + ' ' + (rd.st || ''); }).join(' ') + ' ' + fhrDate(r.rec.t) + ' ' + (r.rec.name || ''),
+   after: t => {
+     fhxInsert('fhr', t, r => FHG.open.has('p:' + r.key), fhrDetail);
+     const none = $('fhr-none'); if (none) none.textContent = t.view.length ? '' : (LIVE.data ? 'No purchases recorded yet: Record Purchases (on Purchases, in the plan pane) puts them here.' : 'Waiting for the live data.');
+@@ -385,11 +386,129 @@ tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded purchases', ra
+ const FHS = {echo: grLS('fcg-gspot-echo', []), gone: new Set(grLS('fcg-gspot-gone', [])), open: new Set(), cache: new Map()};
+ const fhsYi = ym => +String(ym).slice(0, 4) * 12 + +String(ym).slice(5, 7) - 1;
+ const fhsYm = i => Math.floor(i / 12) + '-' + String(i % 12 + 1).padStart(2, '0');
++/* ---- THE PHONE'S SHOWS AND THE READS OF THE SCANS (2026-11-14, Brett: "when I press this button [Record scans], I want
++   all of the scans to go to the website forecast tab > graded cards > history > Pre-sales spotcheck"; "as soon as read
++   results are made available from the scans results file, then I want those results to be immediately updated to the
++   website"; "there should also maybe be a column with a button that I can click with a pop-up that shows ... all of the
++   certs that are already hyperlinked that didn't match our database"). The sets live in spots.bin and the reads in
++   scan.bin on the live branch (the collector's fast tick); GitHub's cache holds those up to five minutes, so while this
++   window shows, the channel is read every 15 s as well: the reads (<channel>-scr) and the phone's Record scans and Your
++   Plan (the main topic) arrive in seconds. A phone slab is looked back on as its cert's read names it - the card, and
++   always the grader's grade; a half grade with no Card Ladder line of its own is looked back on one grade down
++   (Brett: "rounding down would be safer"). A slab that matches nothing of ours is left out of the set's numbers and
++   listed under the Not in our data button, with its cert's link. ---- */
++const SCAN = {reads: new Map(), rev: 0, file: null, fileB: -1, spots: null, spotsT: -1, ch: null, since: '12h', phone: new Map(), sync: {}, busy: false, at: 0};
++function scanPut(r) {
++  if (!r || !r.g || !r.c) return;
++  const k = r.g + ':' + r.c, o = SCAN.reads.get(k);
++  if (!o || String(r.at || '') > String(o.at || '') || (String(r.at || '') === String(o.at || '') && JSON.stringify(r) !== JSON.stringify(o))) { SCAN.reads.set(k, r); SCAN.rev++; }
++}
++async function scanLive(name, b) {
++  const res = await fetch(LIVE_URL.replace(/[^/]+$/, name) + '?t=' + b, {cache: 'no-store'});
++  if (!res.ok) throw new Error('HTTP ' + res.status);
++  return decryptGz(new Uint8Array(await res.arrayBuffer()), HKEY);
++}
++async function scanFileLoad(force) {                      // scan.bin once a minute, and spots.bin when its time moved
++  if (!LIVE_URL || !HKEY) return;
++  const b = Math.floor(Date.now() / 60000);
++  if (!force && SCAN.fileB === b) return;
++  SCAN.fileB = b;
++  try {
++    const f = await scanLive('scan.bin', b);
++    SCAN.file = f; (f.reads || []).forEach(scanPut);
++    for (const [k, x] of Object.entries(f.sync || {})) if (x && (!SCAN.sync[k] || x.t > SCAN.sync[k].t)) SCAN.sync[k] = x;
++    const st = Math.max(f.spots_t || 0, (LIVE.data && LIVE.data.gspots && LIVE.data.gspots.t) || 0);
++    if (st !== SCAN.spotsT) { const sp = await scanLive('spots.bin', b + '_' + st); SCAN.spots = sp.recs || []; SCAN.spotsT = st; SCAN.rev++; }
++  } catch (e) { /* not published yet, or offline: the next minute tries again */ }
++}
++async function scanPoll() {                               // the channel: the reads at once, the phone's Record scans and Your Plan
++  if (!HKEY) return;
++  const ch = SCAN.ch || (SCAN.ch = await alChannel()), enc = new TextEncoder();
++  const hexBytes = h => new Uint8Array((String(h).match(/../g) || []).map(x => parseInt(x, 16)));
++  let lines = [];
++  try { const r = await fetch('https://ntfy.sh/' + ch.topic + '-scr,' + ch.topic + '/json?poll=1&since=' + SCAN.since, {cache: 'no-store'}); if (r.ok) lines = (await r.text()).split('\n').filter(Boolean); } catch (e) { return; }
++  for (const line of lines) {
++    try {
++      const ev = JSON.parse(line); if (ev.event !== 'message') continue;
++      SCAN.since = ev.id;
++      const env = JSON.parse(ev.message); if (!env || !env.m || !env.s) continue;
++      if (!await crypto.subtle.verify('HMAC', ch.key, hexBytes(env.s), enc.encode(env.m))) continue;
++      const m = JSON.parse(env.m);
++      if (m.type === 'reads') (m.r || []).forEach(scanPut);
++      else if (m.type === 'gset' && (m.src === 'ph' || m.src === 'web')) { if (!SCAN.sync[m.src] || m.t > SCAN.sync[m.src].t) SCAN.sync[m.src] = {t: m.t, v: m.v || {}}; }
++      else if (m.type === 'gspot') {                      // a set's parts as they were sent; a phone set shows once all are in
++        const id = +m.id, P = SCAN.phone.get(id) || {n: Math.max(1, +m.n || 1), parts: {}, rec: null};
++        P.parts[+m.k || 0] = m; SCAN.phone.set(id, P);
++        const h = P.parts[0];
++        if (!P.rec && h && h.src === 'ph' && Object.keys(P.parts).length >= P.n) {
++          const rec = {id, t: id, local: 1};
++          ['h', 'cap', 'disc', 'ship', 'fee', 'month', 'reg', 'spent', 'model', 'src', 'minp', 'gate', 'name', 'day', 'minsales', 'share', 'nall'].forEach(k => { if (h[k] !== undefined) rec[k] = h[k]; });
++          rec.slabs = []; for (let k = 0; k < P.n; k++) rec.slabs.push(...(((P.parts[k] || {}).s) || []));
++          P.rec = rec; SCAN.rev++;
++        }
++      } else if (m.type === 'gspot_del') { SCAN.phone.delete(+m.id); SCAN.rev++; }
++    } catch (e) { continue; }
++  }
++}
++const scanActive = () => document.visibilityState === 'visible' && !$('p-fc').hidden && NAV.fc === 'graded' && NAV.gm === 'hi' && FHG.win === 'sc';
++async function scanTick(force) {
++  if (SCAN.busy || (!force && !scanActive())) return;
++  SCAN.busy = true; const rev = SCAN.rev;
++  try { await scanFileLoad(force); await scanPoll(); } catch (e) { /* next tick */ }
++  SCAN.busy = false; SCAN.at = Date.now();
++  fhsKeyPaint();
++  if (SCAN.rev !== rev && scanActive()) { tables.fhs.apply(true); fhsCount(); }
++}
++setInterval(() => scanTick(false), 15000);
++const SCAN_WHY = {'no card': 'No card in our data - under $50, or a card we don’t follow', several: 'Several possible cards - the grader’s name for it fits more than one of ours',
++  'no grade data': 'Our card, but no figures for this grade or the one below', 'no grade': 'The cert page shows no grade (Authentic, Unavailable)', 'not pokemon': 'Not a Pokémon card',
++  waiting: 'Waiting for its read - open its link (scans.csv) and it fills in', wait: 'Read - waiting for the site’s match index'};
++const scanLink = (g, c) => g === 'cgc' ? 'https://www.cgccards.com/certlookup/' + c + '/' : 'https://www.psacard.com/cert/' + c + '/psa';
++const scanLower = gk => { if (!gk) return null; const [g, k] = String(gk).split('|'); if (k === 'g10pristine' || k === 'g10perfect') return g + '|g10'; return /_5$/.test(k) ? g + '|' + k.slice(0, -2) : null; };
++// a slab of a set as the look-back takes it: a phone slab ([..., grader, cert]) by its cert's read - its card and always the
++// grader's grade - else the card the phone's PSA lookup named; null with the reason when nothing of ours matches it
++function fhsRes(s) {
++  const g = s[9], c = s[10];
++  if (!g || !c) return {s};
++  const rd = SCAN.reads.get(g + ':' + c) || null;
++  if (rd && rd.cid != null && rd.gk && !rd.why) return {s: [rd.cid, rd.gk].concat(s.slice(2)), rd};
++  if (rd && rd.why === 'no grade data') return {s: null, rd, why: rd.why};
++  if (s[0] != null && s[1]) return {s: rd && rd.gk && rd.cid === s[0] ? [s[0], rd.gk].concat(s.slice(2)) : s, rd};
++  return {s: null, rd, why: rd ? (rd.why || 'no card') : 'waiting'};
++}
++function fhsKeyPaint() {                                  // the collector's key for scan-results, shown until it is let in
++  const box = $('fhs-key'); if (!box) return;
++  const k = (SCAN.file || {}).key || {};
++  if (!SCAN.file || k.ok || !k.pub) { box.hidden = true; return; }
++  box.hidden = false;
++  box.innerHTML = '<b>The collector can’t read scan-results yet</b>' + (k.err ? ' <span class="dim">(' + esc(k.err) + ')</span>' : '') + '. On GitHub open <b>BrettS600/scan-results › Settings › Deploy keys › Add deploy key</b>, give it any title, paste this key, leave “Allow write access” unticked and add it. The reads start within a minute.' +
++    '<div class="fhs-keyrow"><code id="fhs-keytext">' + esc(k.pub) + '</code><button type="button" class="fhr-del" id="fhs-keycopy">Copy</button></div>';
++}
++document.addEventListener('click', e => {
++  if (e.target.id === 'fhs-keycopy') { const t = ($('fhs-keytext') || {}).textContent || ''; navigator.clipboard.writeText(t).then(() => favSay('Key copied.'), () => favSay('Select the key and copy it.')); }
++  if (e.target.closest('#fhs-pop .fhs-popx') || e.target.id === 'fhs-pop') { const p = $('fhs-pop'); if (p) p.remove(); }
++});
++document.addEventListener('keydown', e => { if (e.key === 'Escape') { const p = $('fhs-pop'); if (p) p.remove(); } });
++function fhsNxOpen(id) {                                  // the pop-up: a set's certs that match nothing of ours, as links
++  const rec = fhsRecs().find(r => r.id === id); if (!rec) return;
++  const S = fhsSet(rec), by = {};
++  rec.slabs.forEach((s, i) => { const X = S.slabs[i]; if (X && X.nx) (by[X.nx] = by[X.nx] || []).push([s, X.rd]); });
++  const order = ['no card', 'several', 'no grade data', 'no grade', 'not pokemon', 'wait', 'waiting'];
++  let h = '';
++  for (const w of order.filter(w => by[w]).concat(Object.keys(by).filter(w => !order.includes(w)))) {
++    h += '<h4>' + esc(SCAN_WHY[w] || w) + ' · ' + by[w].length + '</h4><ul>' + by[w].map(([s, rd]) => '<li><a href="' + esc(scanLink(s[9], s[10])) + '" target="_blank" rel="noopener">' + esc(String(s[9]).toUpperCase() + ' ' + s[10]) + '</a>' +
++      (rd ? ' <span class="dim">· ' + esc([rd.nm, rd.st, rd.no ? '#' + rd.no : '', rd.vr, rd.gt].filter(Boolean).join(' · ')) + '</span>' : '') + '</li>').join('') + '</ul>';
++  }
++  const n = Object.values(by).reduce((a, x) => a + x.length, 0);
++  document.body.insertAdjacentHTML('beforeend', '<div id="fhs-pop"><div class="fhs-popbox"><button type="button" class="fhs-popx" title="Close">✕</button><h3>Not in our data · ' + esc(rec.name || fhrDate(rec.t)) + '</h3>' +
++    '<p class="dim">' + n + ' of the set’s ' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' match nothing of ours, so they are left out of its numbers. Each link opens the cert’s page.</p>' + (h || '<p>None.</p>') + '</div></div>');
++}
+ function fhsRecs() {
+-  const live = (LIVE.data && LIVE.data.gspots) || {}, recs = (live.recs || []).slice(), have = new Set(recs.map(r => r.id));
++  const live = (LIVE.data && LIVE.data.gspots) || {}, recs = (SCAN.spots || (Array.isArray(live.recs) ? live.recs : [])).slice(), have = new Set(recs.map(r => r.id));
++  for (const P of SCAN.phone.values()) if (P.rec && !have.has(P.rec.id)) { recs.push(P.rec); have.add(P.rec.id); }
+   FHS.echo = FHS.echo.filter(e => !have.has(e.id) && Date.now() - e.t < 2 * 86400000); grSave('fcg-gspot-echo', FHS.echo);
+   for (const e of FHS.echo) recs.push(e);
+-  if (FHS.gone.size && live.t) { for (const id of [...FHS.gone]) if (!have.has(id)) FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); }
++  if (FHS.gone.size && SCAN.spots) { for (const id of [...FHS.gone]) if (!SCAN.spots.some(r => r.id === id) && !SCAN.phone.has(id)) FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); }
+   return recs.filter(r => !FHS.gone.has(r.id)).sort((a, b) => b.t - a.t);
+ }
+ const FHS_T0 = () => Array.from({length: 6}, () => ({n: 0, nb: 0, nd: 0, win: 0, sp: 0, se: 0, sa: 0}));
+@@ -435,19 +554,26 @@ function fhsSlab(s, rec) {
+   });
+   return {months: months.reverse(), tot};
+ }
+-function fhsSet(rec) {                                    // every slab of a set and the set's totals (kept until a trend file or the replay changes)
+-  const tok = (FHG.doc ? FHG.doc.t : '') + '|' + GR.trend.size + '|' + FHG.trendBusy, c = FHS.cache.get(rec.id);
++function fhsSet(rec) {                                    // every slab of a set and the set's totals (kept until a trend file, the replay or the reads change)
++  const tok = (FHG.doc ? FHG.doc.t : '') + '|' + GR.trend.size + '|' + FHG.trendBusy + '|' + SCAN.rev, c = FHS.cache.get(rec.id);
+   if (c && c.tok === tok) return c;
+-  const slabs = rec.slabs.map(s => fhsSlab(s, rec)), tot = FHS_T0();
++  const slabs = rec.slabs.map(s => {
++    const R = fhsRes(s);
++    if (!R.s) return {why: SCAN_WHY[R.why] || R.why, nx: R.why, rd: R.rd};
++    let X = fhsSlab(R.s, rec);
++    const lo = !X.loading && !X.tot ? scanLower(R.s[1]) : null;   // a half grade without its own Card Ladder line: one grade down
++    if (lo) { const X2 = fhsSlab([R.s[0], lo].concat(R.s.slice(2)), rec); if (X2.tot || X2.loading) { X2.down = lo; X = X2; } }
++    return Object.assign(X, {rd: R.rd, res: R.s});
++  }), tot = FHS_T0();
+   slabs.forEach(x => { if (x.tot) x.tot.forEach((T, i) => { for (const k in T) tot[i][k] += T[k]; }); });
+-  const out = {tok, slabs, tot, loading: slabs.some(x => x.loading)};
++  const out = {tok, slabs, tot, loading: slabs.some(x => x.loading), nx: slabs.filter(x => x.nx).length};
+   FHS.cache.set(rec.id, out);
+   return out;
+ }
+ function fhsRowsData() {
+   if (!FHG.doc || !FHG.doc.rq) return [];
+   return fhsRecs().map((rec, o) => {
+-    const r = [o], S = fhsSet(rec); r.rec = rec; r.S = S; r.key = String(rec.id); r.t = rec.t; r.h = rec.h; r.n = rec.slabs.length; r.src = rec.src === 'rc' ? 'Recording' : 'Forecasting';
++    const r = [o], S = fhsSet(rec); r.rec = rec; r.S = S; r.key = String(rec.id); r.t = rec.t; r.h = rec.h; r.n = rec.slabs.length; r.src = rec.src === 'rc' ? 'Recording' : rec.src === 'ph' ? 'Phone' : 'Forecasting'; r.nm = rec.name || ''; r.nx = rec.src === 'ph' ? S.nx : -1;
+     for (let h = 1; h <= 6; h++) { const T = S.tot[h - 1]; r['b' + h] = T.nb; r['p' + h] = T.nb ? T.sp / T.nb : null; r['e' + h] = T.nb ? T.se / T.nb : null; r['a' + h] = T.nd ? T.win / T.nd : null; r['r' + h] = T.nd ? T.sa / T.nd : null; }
+     return r;
+   });
+@@ -464,27 +590,38 @@ function fhsHoldCells(T, h, on, loading) {
+ function fhsRow(r) {
+   const rec = r.rec, S = r.S;
+   let s = '<td><b>' + fhrDate(rec.t) + '</b>' + (rec.smp ? '<span class="fhr-smp" title="Sent with sample slabs among them">sample</span>' : '') + (rec.local ? ' <span class="dim" title="Sent; the collector confirms it in a minute or two">sending…</span>' : '') + '<br><span class="dim">' + esc(new Date(rec.t).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})) + '</span></td>' +
+-    '<td>' + r.src + '</td><td>' + rec.h + ' mo</td><td class="num">' + rec.slabs.length + '<br><span class="dim">' + fmtMoneyPlain(rec.spent || 0) + '</span></td>';
++    '<td>' + r.src + '</td><td>' + (rec.name ? '<b>' + esc(rec.name) + '</b>' : '<span class="dim">-</span>') + '</td>' +
++    '<td class="num">' + (r.nx < 0 ? '<span class="dim" title="Only the phone’s Record scans carry certs">-</span>' : r.nx ? '<button type="button" class="fhs-nx" data-id="' + esc(rec.id) + '" title="The slabs of this show that match nothing of ours - left out of its numbers; click for their links">' + r.nx + '</button>' : '<span class="dim" title="Every slab matches a card and grade of ours">0</span>') + '</td>' +
++    '<td>' + rec.h + ' mo</td><td class="num">' + rec.slabs.length + '<br><span class="dim">' + (rec.src === 'ph' ? (rec.slabs.length - Math.max(0, r.nx)) + ' in our data' : fmtMoneyPlain(rec.spent || 0)) + '</span></td>';
+   for (let h = 1; h <= 6; h++) s += fhsHoldCells(S.tot[h - 1], h, h === rec.h ? ' fhr-on' : '', S.loading);
+   return s;
+ }
+ const fhsShownHolds = () => [1, 2, 3, 4, 5, 6].filter(h => FHH_PARTS.some(([p]) => !FHH.has(p + h)));
+ function fhsDetail(r) {
+   const rec = r.rec, S = r.S, H0 = fhsShownHolds(), H = H0.length ? H0 : [rec.h], bar = rec.minp != null ? rec.minp : 0.5;
+-  const head = '<tr><th>Card</th><th>Grade</th><th class="num">% under</th><th class="num">Standard then</th><th class="num">Chance then</th>' + H.map(h => '<th class="num' + (h === rec.h ? ' fhr-on' : '') + '">' + h + '-month hold</th>').join('') + '</tr>';
++  const ph = rec.src === 'ph';
++  const head = '<tr>' + (ph ? '<th>Cert</th>' : '') + '<th>Card</th><th>Grade</th><th class="num">% under</th><th class="num">Standard then</th><th class="num">Chance then</th>' + H.map(h => '<th class="num' + (h === rec.h ? ' fhr-on' : '') + '">' + h + '-month hold</th>').join('') + '</tr>';
+   const rows = rec.slabs.map((sl, i) => {
+-    const [cid, gk, dk, std, , , pk] = sl, X = S.slabs[i], base = GR.doc ? fcrMap().get(cid + '|' + gk) : null;
+-    const nm = base ? [base[1], String(base[2] || '').replace(/^Pokemon /, '') + (base[3] ? ' · #' + base[3] : '')] : fhgName(cid), k = rec.id + ':' + i, open = FHS.open.has(k);
+-    let s = '<tr class="fhs-slab' + (open ? ' open' : '') + '" data-sk="' + esc(k) + '"><td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td><td class="num">' + (Math.round(dk) / 10) + '%</td><td class="num">' + (std == null ? '<span class="dim">-</span>' : fmtMoneyPlain(std)) + '</td><td class="num">' + (pk == null ? '<span class="dim">no score</span>' : Math.round(pk / 10) + '%') + '</td>';
++    const X = S.slabs[i], rd = X.rd, rs = X.res || sl, [cid, gk] = rs, [, , dk, std, , , pk] = sl, k = rec.id + ':' + i, open = FHS.open.has(k);
++    const certTd = ph ? '<td>' + (sl[9] ? '<a href="' + esc(scanLink(sl[9], sl[10])) + '" target="_blank" rel="noopener">' + esc(String(sl[9]).toUpperCase() + ' ' + sl[10]) + '</a>' +
++      (rd ? '<br><span class="dim" title="' + esc('The grader’s page, read ' + String(rd.at || '').slice(0, 10) + (rd.how ? ' - matched by ' + ({cert: 'the cert itself', sales: 'PSA’s own list of sales of this card and grade', words: 'the grader’s name for the card'}[rd.how] || rd.how) : '')) + '">' + esc([rd.gt, rd.pop != null ? 'pop ' + rd.pop + (rd.ph != null ? ' (' + rd.ph + ' higher)' : '') : '', rd.est != null ? 'est ' + fmtMoneyPlain(rd.est) : ''].filter(Boolean).join(' · ')) + '</span>' : '<br><span class="dim">not read yet</span>') : '<span class="dim">-</span>') + '</td>' : '';
++    if (cid == null || !gk) {                            // matches nothing of ours: the reason, the grader's own words
++      return '<tr class="fhs-slab fhs-nxrow">' + certTd + '<td colspan="' + (5 + H.length) + '">' + (rd && rd.nm ? esc([rd.nm, rd.st, rd.no ? '#' + rd.no : '', rd.vr].filter(Boolean).join(' · ')) + ' - ' : '') + '<span class="dim">' + esc('Not in our data: ' + X.why + '.') + '</span></td></tr>';
++    }
++    const base = GR.doc ? fcrMap().get(cid + '|' + gk) : null;
++    const nm = base ? [base[1], String(base[2] || '').replace(/^Pokemon /, '') + (base[3] ? ' · #' + base[3] : '')] : fhgName(cid);
++    const gTxt = esc(base ? base[25] : grLabel(gk)) + (X.down ? '<br><span class="dim" title="' + esc('No Card Ladder line of its own for this half grade: looked back on as ' + grLabel(X.down) + ' (rounded down)') + '">as ' + esc(grLabel(X.down)) + ' ↓</span>' : '');
++    let s = '<tr class="fhs-slab' + (open ? ' open' : '') + '" data-sk="' + esc(k) + '">' + certTd + '<td>' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td><td><b>' + gTxt + '</b></td><td class="num">' + (Math.round(dk) / 10) + '%</td><td class="num">' + (std == null ? '<span class="dim">-</span>' : fmtMoneyPlain(std)) + '</td><td class="num">' + (pk == null ? '<span class="dim">no score</span>' : Math.round(pk / 10) + '%') + '</td>';
+     if (X.loading) s += H.map(() => '<td class="num"><span class="dim">…</span></td>').join('');
+     else if (!X.tot) s += '<td colspan="' + H.length + '"><span class="dim">' + esc('Not looked back: ' + X.why + '.') + '</span></td>';
+     else s += H.map(h => { const T = X.tot[h - 1]; return '<td class="num' + (h === rec.h ? ' fhr-on' : '') + '">' + (!T.nb ? '<span class="dim">' + (T.n ? 'no buys' : '-') + '</span>'
+       : '<b>' + T.nb + '</b> buy' + (T.nb > 1 ? 's' : '') + (T.nd ? ' · <b class="' + (T.win / T.nd >= 0.5 ? 'up' : 'down') + '">' + T.win + ' won</b>' : '') + '<br><span class="dim">' + fcPct(T.se / T.nb, 1) + ' → </span>' + (T.nd ? fhsPctS(T.sa / T.nd) : '<span class="dim">not up yet</span>')) + '</td>'; }).join('');
+     s += '</tr>';
+-    if (open && X.months) s += '<tr class="fhs-mo"><td colspan="' + (5 + H.length) + '">' + fhsMonths(X, H, bar) + '</td></tr>';
++    if (open && X.months) s += '<tr class="fhs-mo"><td colspan="' + (5 + (ph ? 1 : 0) + H.length) + '">' + fhsMonths(X, H, bar) + '</td></tr>';
+     return s;
+   }).join('');
+-  return '<h4>' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' sent ' + fhrDate(rec.t) + ' from ' + r.src + ' · bar ' + Math.round(bar * 100) + '% · gate ' + (rec.gate === 0 ? 'off' : 'on') + ' · ' + fmtMoneyPlain(rec.ship || 0) + ' shipping, eBay’s fee ' + (Math.round((rec.fee || 0) * 1000) / 10) + '% · your Hold then ' + rec.h + ' month' + (rec.h > 1 ? 's' : '') + '</h4>' +
++  return '<h4>' + (rec.name ? esc(rec.name) + ' · ' : '') + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' sent ' + fhrDate(rec.t) + ' from ' + r.src + ' · bar ' + Math.round(bar * 100) + '% · gate ' + (rec.gate === 0 ? 'off' : 'on') + ' · ' + fmtMoneyPlain(rec.ship || 0) + ' shipping, eBay’s fee ' + (Math.round((rec.fee || 0) * 1000) / 10) + '% · your Hold then ' + rec.h + ' month' + (rec.h > 1 ? 's' : '') +
++    (ph ? ' · the phone’s plan: ' + Math.round((rec.disc || 0) * 1000) / 10 + '% under, $' + fmtInt(rec.cap || 0) + ' capital, ' + (rec.share || 0) + '% a slab, ' + (rec.minsales || 0) + '+ sales last month' : '') + '</h4>' +
+     '<p class="dim">Each hold: how many times since 2022 the model would have bought the slab (a month at or above the bar' + (rec.gate === 0 ? '' : ', the market rising') + '), how many of those buys made money, and the average ROI it expected → the average it made. Click a slab for its months.</p>' +
+     '<table class="fhs-slabs"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>' +
+     '<button type="button" class="fhr-del fhs-del" data-id="' + esc(rec.id) + '" title="Take this set off Pre-Sales Spotcheck">Remove this set</button>';
+@@ -498,18 +635,21 @@ function fhsMonths(X, H, bar) {                           // a slab opened: its
+ }
+ tables.fhs = makeTable('fhs', {rows: fhsRowsData, noun: 'spotcheck sets', ranges: [], labels: {}, defaults: {}, root: '#fhg-sc', name: 'Forecast · graded pre-sales spotcheck', onCols: h => fhhTake('fhs', h),
+   key: r => r.key, row: fhsRow, rowClass: () => 'fhr-row fhs-row',
+-  hay: r => r.rec.slabs.map(s => { const b = GR.doc ? fcrMap().get(s[0] + '|' + s[1]) : null; return b ? b[1] + ' ' + b[2] + ' ' + b[25] : fhgName(s[0]).join(' ') + ' ' + grLabel(s[1]); }).join(' ') + ' ' + fhrDate(r.rec.t),
++  hay: r => r.rec.slabs.map(s => { const R = fhsRes(s), x = R.s || [], rd = R.rd || {}, b = GR.doc && x[0] != null ? fcrMap().get(x[0] + '|' + x[1]) : null;
++    return (b ? b[1] + ' ' + b[2] + ' ' + b[25] : x[0] != null ? fhgName(x[0]).join(' ') + ' ' + grLabel(x[1]) : '') + ' ' + (s[10] || '') + ' ' + (rd.nm || '') + ' ' + (rd.st || ''); }).join(' ') + ' ' + fhrDate(r.rec.t) + ' ' + (r.rec.name || ''),
+   after: t => {
+     fhxInsert('fhs', t, r => FHG.open.has('s:' + r.key), fhsDetail);
+     const none = $('fhs-none'); if (!none) return;
+-    none.textContent = !FHG.doc ? (FHG.err || 'Loading the replay…') : !FHG.doc.rq ? 'Pre-Sales Spotcheck needs the rank cut points in the replay file: they arrive with the next site build.' : t.view.length ? '' : (LIVE.data ? 'No sets yet: Add to Pre-Sales Spotcheck (above the table on Forecasting or Recording) sends the green rows here.' : 'Waiting for the live data.');
++    none.textContent = !FHG.doc ? (FHG.err || 'Loading the replay…') : !FHG.doc.rq ? 'Pre-Sales Spotcheck needs the rank cut points in the replay file: they arrive with the next site build.' : t.view.length ? '' : (LIVE.data ? 'No sets yet: Record scans on the phone (Buys tab), or Add to Pre-Sales Spotcheck above the table on Forecasting or Recording, sends them here.' : 'Waiting for the live data.');
+   }});
+ fhxTidy('fhs');
+ $('rows-fhs').addEventListener('click', e => {
++  const nx = e.target.closest('.fhs-nx');
++  if (nx) { fhsNxOpen(+nx.dataset.id); return; }
+   const del = e.target.closest('.fhs-del');
+   if (del) {
+     if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = 'Click again to remove it'; setTimeout(() => { if (del.isConnected) { del.classList.remove('arm'); del.textContent = 'Remove this set'; } }, 4000); return; }
+-    const id = +del.dataset.id; FHS.gone.add(id); grSave('fcg-gspot-gone', [...FHS.gone]);
++    const id = +del.dataset.id; FHS.gone.add(id); grSave('fcg-gspot-gone', [...FHS.gone]); SCAN.phone.delete(id);
+     FHS.echo = FHS.echo.filter(x => x.id !== id); grSave('fcg-gspot-echo', FHS.echo);
+     alSend({type: 'gspot_del', t: nextT(), id}).catch(() => { FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); favSay('The collector could not be told; the set stays.'); tables.fhs.apply(true); });
+     tables.fhs.apply(true); fhsCount(); return;
+@@ -610,7 +750,7 @@ function fhgRender() {
+   if (!GR.doc && !GR.loading) grLoad().then(() => { if (FHG.win === 'rec') tables.fhr.apply(true); if (FHG.win === 'sc') tables.fhs.apply(true); });
+   if (w === 'rec') { tables.fhr.apply(true); return; }   // the replay file is read for the replay and the Spotcheck only
+   if (!FHG.doc) { if (!FHG.err) fhgLoad(); $('fhg-run').textContent = FHG.err || 'Loading the replay…'; }
+-  if (w === 'sc') { tables.fhs.apply(true); return; }
++  if (w === 'sc') { tables.fhs.apply(true); if (Date.now() - SCAN.at > 5000) scanTick(true); return; }
+   fhgNote();
+   if (!FHG.doc) { fhgCards(); tables.fhg.apply(true); }
+   else { fhgRun(); if (!FHG.todo) fhgPaint(); else { fhgCards(); tables.fhg.apply(true); } }
+@@ -631,6 +771,11 @@ Object.assign(HELP, {
+ Object.assign(HELP, {
+   fhs_spot: {t: 'Pre-Sales Spotcheck', md: 1, m: [
+     '> Before you buy: how would the model have done on these exact slabs? Each set is the green rows you sent with Add to Pre-Sales Spotcheck, each slab looked back on month by month since 2022.',
++    '## The phone’s shows',
++    '- **Record scans** on the phone (Buys tab) sends every slab of the show so far as one set, with the name you gave it and the phone’s own plan (its % under, bar, gate, share, min sales). Each tap is a new set.',
++    '- Each slab is named by its cert’s read (the page you open from scans.csv): its card, and always the grader’s grade. A half grade with no Card Ladder line of its own is looked back on one grade down (↓).',
++    '- **Not in our data:** the slabs that match nothing of ours - under $50, a card we don’t follow, more than one possible card, no grade on the page - are left out of the set’s numbers; the number opens their links. Slabs whose page is not read yet wait there too.',
++    '- The reads arrive within a minute while this window is open. If the box above the table asks for it, add the collector’s key to scan-results once.',
+     '## How each slab is looked back on',
+     '1. **Its own Card Ladder line, month by month:** the price then (the middle of its sales), its 12-month level and its 3-month price.',
+     '2. **Its rank that month:** its dip below the 12-month level, placed among every Card Ladder line that month (the same cut points the model used then).',
+diff --git a/page/style.css b/page/style.css
+index 69bcd1e..ff4b611 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -552,6 +552,7 @@ table tbody tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--link, #3b8
+   #gm-note { font-size:12.5px; }
+   td.ctr { text-align:center; }
+   td.gmix sup { color:var(--muted); font-size:10px; margin-left:1px; }
++.gdown { color: #b26a00; font-weight: 700; margin-left: 1px; cursor: help; }   /* a half grade priced one grade down on the PriceCharting side (2026-11-14) */
+   .gpick { display:flex; gap:28px; flex-wrap:wrap; margin:6px 0 10px; }
+   .gpick > div { display:flex; flex-direction:column; gap:3px; min-width:150px; }
+   .gpick h4 { margin:0 0 4px; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+@@ -695,6 +696,16 @@ input.fcr-d { font:inherit; font-size:12px; width:58px; padding:3px 5px; border:
+ #fhg tr.fhx h4 { margin:8px 0 2px; font-size:13px; }
+ #fhg .fhr-del { font:inherit; font-size:12px; padding:3px 10px; border-radius:6px; border:1px solid var(--line); background:none; color:var(--muted); cursor:pointer; margin-top:6px; }
+ #fhg .fhr-del.arm { border-color:var(--down); color:var(--down); }
++/* Pre-Sales Spotcheck: the phone's shows (2026-11-14) - the collector's key box, the Not in our data button and pop-up */
++#fhg .fhs-key { margin:8px 0; padding:10px 12px; border:1px solid var(--warn, #b26a00); border-radius:8px; background:rgba(245,158,11,.08); font-size:13px; line-height:1.45; }
++#fhg .fhs-keyrow { display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap; }
++#fhg .fhs-keyrow code { font-size:11.5px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; word-break:break-all; user-select:all; flex:1 1 320px; }
++#fhg .fhs-nx { font:inherit; font-weight:700; padding:2px 10px; border-radius:6px; border:1px solid var(--line); background:none; color:var(--down); cursor:pointer; }
++#fhg tr.fhx tr.fhs-nxrow td { opacity:.8; }
++#fhs-pop { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:flex; align-items:flex-start; justify-content:center; padding:48px 16px; overflow:auto; }
++#fhs-pop .fhs-popbox { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:12px; max-width:720px; width:100%; padding:16px 20px; position:relative; box-shadow:0 12px 40px rgba(0,0,0,.35); }
++#fhs-pop .fhs-popx { position:absolute; top:10px; right:12px; font:inherit; border:none; background:none; font-size:18px; cursor:pointer; color:var(--muted); }
++#fhs-pop h4 { margin:14px 0 4px; } #fhs-pop ul { margin:0; padding-left:18px; line-height:1.6; font-size:13px; }
+ /* the recorded plans' slab lists (2026-11-04): the plan's own figures tinted light blue, the listing details plain */
+ #fhg tr.fhx .fhr-slabs th.fhr-h, #fhg tr.fhx .fhr-slabs td.fhr-h, #fhg tr.fhx:hover .fhr-slabs td.fhr-h { background:rgba(59,130,246,.16); }
+ #fhg .fhr-slabs th.pcx .help { margin-left:3px; }
+diff --git a/scans.py b/scans.py
+index 2d145b8..9af0357 100644
+--- a/scans.py
++++ b/scans.py
+@@ -23,8 +23,30 @@ HOW A SCAN GETS THERE
+   4. Once a start, flush() tries the key even with nothing waiting (it writes the header if the file has none, else a
+      dry-run push), so collector.log says at once whether card-data can be written.
+ 
+-collector.py uses only record() and flush(); it sets log (its own, into collector.log) and DRY_RUN. Nothing here runs
+-on its own.
++START A NEW SHOW (2026-11-14, Brett: "when I click the start a new show button ... I want all of the links in the
++scans.csv file to be erased ... I want that action to be immediate"; "scans still waiting to send go out before the
++erase, so last show's scans can't land in the new file"): the phone sends its waiting slabs, then {type: 'scan_clear',
++t}. clear() drops what still waits here (it belongs to the show that ended) and the next push writes the header alone,
++then the new show's slabs. A generation number keeps a push that was already running from taking a new show's slab out
++of the queue when it settles.
++
++THE READS OF THE SCANS (2026-11-14, Brett: "as soon as read results are made available from the scans results file,
++then I want those results to be immediately updated to the website ... those readings should also be uploaded to reflect
++in the app itself"): Brett opens the scanned slabs' cert pages himself; his reader leaves each page, as read, in the
++private repo BrettS600/scan-results, folder scans/ (one JSON per read: grader_cert_time.json - the same shape as the cert
++pages of card-data data/certs). reads_tick() (every SR_EVERY_S, from collector.py's fast tick) fetches that folder with
++this machine's own read-only key (SR_KEY - made here on the first run; Brett adds its public half to scan-results as a
++deploy key, read only; the website shows it while the key is not let in), reads the new files (the newest read of a
++cert wins) and matches each slab to a card and grade of ours with match() and the site's index (scanidx.bin, built
++by graded_site.py): the same cert known to us, else (PSA) another slab of the same card and grade in PSA's own list of
++sales on that page, else the grader's wording of the card (name, set, number, variant) as on a cert page Brett opened
++for a slab of ours. The grade is always the page's. A slab that matches nothing, or more than one card, or a grade we
++have no data on, keeps its reason (why) - the website lists those under "Not in our data". collector.py sends the
++changed reads at once on the channel's scan topic (<channel>-scr) and keeps them all in scan.bin on the live branch.
++Nothing else in scan-results is read, and nothing is ever written there.
++
++collector.py uses record(), clear(), flush() and reads_tick(); it sets log (its own, into collector.log) and DRY_RUN.
++Nothing here runs on its own.
+ """
+ import os
+ import re
+@@ -34,6 +56,7 @@ import sys
+ import threading
+ import time
+ import json
++import unicodedata
+ import urllib.request
+ 
+ # ---------------- settings ----------------
+@@ -49,6 +72,13 @@ FILE = "data/scans/scans.csv"
+ HEADER = "Cert ID"
+ MAX_WAITING = 20000              # links held while card-data can't be reached
+ RETRY_S = 600                    # after a failed try (card-data unreachable, a key problem)
++# the reads of the scans: the private repo BrettS600/scan-results, folder scans/ only, read with this machine's own key
++SR_REMOTE = os.environ.get("SCAN_RESULTS_REMOTE", "git@github.com:BrettS600/scan-results.git")
++SR_KEY = os.path.join(BASE, ".ssh", "scan_results_ed25519")            # made here on the first run; its .pub goes to the repo's deploy keys
++SR_CHECKOUT = os.path.join(DATA, "scan-results")                       # a sparse, shallow checkout of scans/ only
++SR_DIR = "scans"
++SR_EVERY_S = 15                  # how often the folder is fetched (Brett: "the faster the better")
++SR_RETRY_S = 120                 # after a failed fetch (the key not let in yet, GitHub unreachable)
+ DRY_RUN = "--dry-run" in sys.argv   # collector.py sets this too; a dry run never touches git
+ 
+ 
+@@ -57,7 +87,10 @@ def log(*a):                     # collector.py replaces this with its own log (
+ 
+ 
+ # the background push's progress, read by flush() on the main loop
+-_run = {"thread": None, "done": None, "added": 0, "err": None, "logged": 0.0, "err_logged": 0.0, "next": 0.0, "checked": False}
++_run = {"thread": None, "done": None, "added": 0, "err": None, "logged": 0.0, "err_logged": 0.0, "next": 0.0, "checked": False,
++        "gen": 0, "cleared": None}
++# the reads' background fetch: its result, read by reads_tick() on the main loop
++_sr = {"thread": None, "out": None, "err": None, "next": 0.0, "err_logged": 0.0, "seen": {}, "first": True}
+ _CERT = re.compile(r"(psacard\.com/cert|cgccards\.com/certlookup)/(\d{7,13})")
+ 
+ 
+@@ -100,17 +133,36 @@ def record(v, msg, t):
+         log(f"Scans: {n} slab link(s) from the phone app queued for card-data scans.csv ({len(q)} waiting)")
+ 
+ 
+-# ---------------- 2. every minute (called by collector.py's cycle) ----------------
++# ---------------- 1b. Start a new show on the phone (collector.py's read_requests) ----------------
++def clear(v, msg, t):
++    """{type: 'scan_clear', t}: empty scans.csv (the header stays). What still waits here belongs to the show that just
++    ended - the phone sent it before the erase - so it goes too; the new show's slabs, queued after this, are written
++    after the erase. A push already running settles without touching the new show's queue (the generation)."""
++    v["scan_q"] = []
++    v["scan_gen"] = v.get("scan_gen", 0) + 1
++    v["scan_clear"] = t                                      # waiting to be written (flush)
++    v["scan_clear_t"] = t                                    # asked (the phone and the website show "erased" once done >= asked)
++    log("Scans: Start a new show on the phone - scans.csv will be emptied")
++
++
++# ---------------- 2. every few seconds (called by collector.py's cycle and its fast tick) ----------------
+ def flush(v):
+-    """Settle the last push, then start one for whatever is waiting (never two at once)."""
++    """Settle the last push, then start one for whatever is waiting - the erase first when one was asked (never two at
++    once)."""
+     th = _run["thread"]
+     if th is not None and th.is_alive():
+         return
+     if _run["done"] is not None:
+-        done = set(_run["done"])
+-        v["scan_q"] = [x for x in v.get("scan_q", []) if x not in done]
++        if _run["gen"] == v.get("scan_gen", 0):              # a push of the show before an erase leaves the new queue alone
++            done = set(_run["done"])
++            v["scan_q"] = [x for x in v.get("scan_q", []) if x not in done]
+         v["scan_n"] = v.get("scan_n", 0) + _run["added"]
+         _run["done"], _run["added"] = None, 0
++    if _run["cleared"] is not None:
++        if v.get("scan_clear") == _run["cleared"]:
++            v["scan_clear"] = 0
++        v["scan_cleared_t"] = max(v.get("scan_cleared_t", 0), _run["cleared"])
++        _run["cleared"] = None
+     if _run["err"]:
+         _run["next"] = time.time() + RETRY_S
+         if time.time() - _run["err_logged"] > 3600:
+@@ -118,8 +170,9 @@ def flush(v):
+             log(f"Scans: card-data could not be written ({_run['err']}); {len(v.get('scan_q', []))} link(s) wait for the next try")
+         _run["err"] = None
+     q = v.get("scan_q") or []
++    clr = v.get("scan_clear") or 0
+     check = not _run["checked"]                              # once a start: try the key even with nothing waiting
+-    if (not q and not check) or DRY_RUN or time.time() < _run["next"]:
++    if (not q and not check and not clr) or DRY_RUN or (time.time() < _run["next"] and not clr):
+         return
+     if not os.path.exists(KEY):
+         if time.time() - _run["logged"] > 3600:
+@@ -128,10 +181,286 @@ def flush(v):
+         _run["checked"] = True
+         return
+     _run["checked"] = True
+-    _run["thread"] = threading.Thread(target=push, args=(list(q), check), daemon=True)
++    _run["gen"] = v.get("scan_gen", 0)
++    _run["thread"] = threading.Thread(target=push, args=(list(q), check, clr), daemon=True)
+     _run["thread"].start()
+ 
+ 
++# ---------------- 4. the reads of the scans (scan-results/scans; called by collector.py's fast tick) ----------------
++_NUM = re.compile(r"\d+(?:\.\d)?")
++GRADES = {"psa": {"10", "9", "8.5", "8", "7.5", "7", "6.5", "6", "5.5", "5", "4.5", "4", "3.5", "3", "2.5", "2", "1.5", "1"},
++          "cgc": {"10", "9.5", "9", "8.5", "8", "7.5", "7", "6.5", "6", "5.5", "5", "4.5", "4", "3.5", "3", "2.5", "2", "1.5", "1"}}
++
++
++def grade_key(g, text, label=""):
++    """The grade a cert page shows, as our grade key: PSA "NM-MT 8" -> 'psa|g8', "NM-MT+ 8.5" -> 'psa|g8_5'; CGC "7.5" ->
++    'cgc|g7_5', a Pristine / Perfect 10 -> 'cgc|g10pristine' / 'cgc|g10perfect'. None when the page shows no number
++    (Authentic, Unavailable)."""
++    t = str(text or "")
++    if g == "cgc" and re.search(r"pristine", t + " " + str(label or ""), re.I):
++        return "cgc|g10pristine"
++    if g == "cgc" and re.search(r"perfect", t + " " + str(label or ""), re.I):
++        return "cgc|g10perfect"
++    m = _NUM.findall(t)
++    if not m or m[-1] not in GRADES.get(g, ()):
++        return None
++    return f"{g}|g{m[-1].replace('.', '_')}"
++
++
++def lower_grade(gk):
++    """The grade a half grade is priced at when its own line is too thin: PSA 8.5 -> 8, CGC 7.5 -> 7, a Pristine or
++    Perfect 10 -> 10 (Brett, 2026-11-14: "rounding down would be safer"). Whole grades have none."""
++    if not gk:
++        return None
++    g, k = gk.split("|", 1)
++    if k in ("g10pristine", "g10perfect"):
++        return f"{g}|g10"
++    if k.endswith("_5"):
++        return f"{g}|{k[:-2]}"
++    return None
++
++
++def _norm(x):
++    x = unicodedata.normalize("NFKD", str(x or "")).encode("ascii", "ignore").decode().lower()
++    return " ".join(re.sub(r"[^a-z0-9]+", " ", x).split())
++
++
++def _num(x):
++    """A card number as words compare it: '084/109' and '84/109' alike, 'SWSH204' kept."""
++    return re.sub(r"\d+", lambda m: str(int(m.group())), re.sub(r"[^A-Za-z0-9/]+", "", str(x or "")).upper())
++
++
++def words_key(g, name, cset, number, variety, year="", language=""):
++    """How the grader names the card, as one key: PSA year | brand | number | subject | variety, CGC name | set | number
++    | variant | language. graded_site.py builds the index's keys with this same function from the cert pages Brett opened
++    for slabs of ours, so a scanned slab's page finds its card when the grader names it the same way."""
++    if g == "psa":
++        parts = [_norm(year), _norm(cset), _num(number), _norm(name), _norm(variety)]
++    else:
++        parts = [_norm(name), _norm(cset), _num(number), _norm(variety), _norm(language or "english")]
++    return "|".join(parts) if parts[0] or parts[1] else ""
++
++
++def _int(x):
++    try:
++        return int(str(x).replace(",", "").strip())
++    except (TypeError, ValueError):
++        return None
++
++
++def _money(x):
++    try:
++        return round(float(str(x).replace(",", "").replace("$", "").strip()), 2)
++    except (TypeError, ValueError):
++        return None
++
++
++def parse_read(o, name=""):
++    """One file of scan-results/scans (a cert page as Brett's reader read it) -> the read, or None."""
++    g = str(o.get("grader") or "").lower()
++    cert = re.sub(r"\D", "", str(o.get("cert") or ""))
++    if g not in ("psa", "cgc") or not cert:
++        return None
++    info, top = o.get("info") or {}, o.get("top") or {}
++    if g == "psa":
++        nm, st, no, vr, yr, lg = info.get("Subject"), info.get("Brand/Title"), info.get("Card Number"), info.get("Variety/Pedigree"), info.get("Year"), ""
++        gt, lb = info.get("Item Grade") or top.get("Item Grade"), info.get("Label Type")
++        pop, ph, est = _int(top.get("PSA Population")), _int(top.get("PSA Pop Higher")), _money(top.get("PSA Estimate"))
++        cat = str(info.get("Category") or "")
++        np_ = bool(cat) and "TCG" not in cat.upper()
++        sales = []
++        for x in o.get("sales") or []:
++            m = re.match(r"^\s*PSA\s+(\d+(?:\.5)?)\s+(\d{7,10})\s*$", str(x.get("Cert") or ""))
++            if m and m.group(2) != cert:
++                sales.append(m.group(2))
++    else:
++        nm, st, no, vr, yr, lg = info.get("Card Name"), info.get("Card Set"), info.get("Card Number"), info.get("Variant 1"), info.get("Year"), info.get("Language")
++        gt, lb = info.get("Grade"), None
++        pp = o.get("pop") or {}
++        pop = next((_int(v) for k, v in pp.items() if re.match(r"In .*Grade$", k) and "Higher" not in k), None)
++        ph = _int(pp.get("In Higher Grades"))
++        est, sales = None, []
++        game = str(info.get("Game") or "")
++        np_ = bool(game) and "pok" not in _norm(game)
++    at = str(o.get("read_at") or "")
++    if not at:
++        m = re.search(r"_(\d{12,14})\.json$", name)
++        at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(int(m.group(1)) / 1000)) if m else ""
++    rd = {"g": g, "c": cert, "at": at, "nm": str(nm or ""), "st": str(st or ""), "no": str(no or ""), "vr": str(vr or ""),
++          "yr": str(yr or ""), "lg": str(lg or ""), "gt": str(gt or ""), "lb": str(lb or ""), "pop": pop, "ph": ph, "est": est,
++          "gk": grade_key(g, gt, lb), "wk": words_key(g, nm, st, no, vr, yr, lg), "sales": sales[:30]}
++    if np_:
++        rd["np"] = 1
++    return rd
++
++
++def match(rd, idx):
++    """Which card and grade of ours a read is: {"cid", "gk" (always the page's grade), "how" ('cert' - the same cert is
++    ours; 'sales' - PSA's own list of sales of this card and grade on the page names slabs of ours of one card; 'words' -
++    the grader names it exactly as on a page Brett opened for a slab of ours), "why" ('' matched; 'no card' - not a card
++    in our data, e.g. under $50; 'several' - it could be more than one of our cards; 'no grade' - the page shows no
++    grade; 'no grade data' - our card, but we have no figures for this grade or the one below; 'not pokemon'; 'wait' -
++    the site's index not read yet)}."""
++    m = {"cid": None, "gk": rd.get("gk"), "how": "", "why": ""}
++    if not idx:
++        m["why"] = "wait"
++        return m
++    certs, words, rows, gks = idx.get("certs") or {}, idx.get("words") or {}, idx.get("rows") or {}, idx.get("gk") or []
++    cid, how, several = None, "", False
++    hit = certs.get(rd["g"] + ":" + rd["c"])
++    if hit:
++        cid, how = hit[0], "cert"
++    if cid is None and rd.get("sales"):
++        found = {certs[k][0] for k in (rd["g"] + ":" + c for c in rd["sales"]) if k in certs}
++        if len(found) == 1:
++            cid, how = found.pop(), "sales"
++        elif len(found) > 1:
++            several = True
++    if cid is None and rd.get("wk"):
++        w = words.get(rd["g"] + "|" + rd["wk"])
++        if w:
++            cid, how = w, "words"
++        elif w == 0:
++            several = True
++    if cid is None:
++        m["why"] = "several" if several else "not pokemon" if rd.get("np") else "no card"
++        return m
++    m["cid"], m["how"] = int(cid), how
++    gk = rd.get("gk")
++    if not gk:
++        m["why"] = "no grade"
++        return m
++    have = set(rows.get(str(cid)) or [])
++    lo = lower_grade(gk)
++    if (gk not in gks or gks.index(gk) not in have) and (lo not in gks or gks.index(lo) not in have):
++        m["why"] = "no grade data"
++    return m
++
++
++def compact(rd):
++    """A read as the website and the phone get it (the empty fields left out)."""
++    m = rd.get("m") or {}
++    out = {"g": rd["g"], "c": rd["c"], "at": rd.get("at", ""), "gk": m.get("gk") or rd.get("gk"), "cid": m.get("cid"),
++           "how": m.get("how", ""), "why": m.get("why", "")}
++    for k in ("nm", "st", "no", "vr", "yr", "lg", "gt", "lb", "pop", "ph", "est"):
++        if rd.get(k) not in (None, ""):
++            out[k] = rd[k]
++    return {k: v for k, v in out.items() if v not in (None, "")}
++
++
++def sr_git(*args, cwd=None, check=True, timeout=120):
++    env = dict(os.environ)
++    env["GIT_SSH_COMMAND"] = f"ssh -i {SR_KEY} -o UserKnownHostsFile={KNOWN_HOSTS} -o IdentitiesOnly=yes -o BatchMode=yes"
++    r = subprocess.run(["git", *args], cwd=cwd or SR_CHECKOUT, capture_output=True, text=True, env=env, timeout=timeout)
++    if check and r.returncode != 0:
++        raise RuntimeError(f"git {' '.join(args[:2])}: {r.stderr.strip()[:300]}")
++    return r
++
++
++def sr_pub(v):
++    """This machine's read-only key for scan-results (made on the first run; the private half never leaves this
++    machine). Its public half is kept in v["sr_pub"] for the website, which shows it while the key is not let in."""
++    if not os.path.exists(SR_KEY):
++        if DRY_RUN:
++            return None
++        try:
++            os.makedirs(os.path.dirname(SR_KEY), exist_ok=True)
++            r = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "pokemon-collector, read only: BrettS600/scan-results",
++                                "-f", SR_KEY], capture_output=True, text=True, timeout=60)
++            if r.returncode != 0:
++                raise RuntimeError(r.stderr.strip()[:200])
++            log(f"Scans: made this machine's read-only key for scan-results; its public half: {open(SR_KEY + '.pub').read().strip()}")
++        except Exception as e:
++            if time.time() - _sr["err_logged"] > 3600:
++                _sr["err_logged"] = time.time()
++                log(f"Scans: could not make the key for scan-results ({str(e)[:200]})")
++            return None
++    try:
++        v["sr_pub"] = open(SR_KEY + ".pub", encoding="utf-8").read().strip()
++    except OSError:
++        return None
++    return v["sr_pub"]
++
++
++def _sr_fetch():
++    """(its own thread) Fetch scan-results' scans/ and read the files not read before. -> _sr["out"]: {grader:cert: read}."""
++    try:
++        _sr["n"] = _sr.get("n", 0) + 1
++        if _sr["n"] % 2000 == 0:                             # scan-results keeps one commit, replaced on every save (Brett):
++            shutil.rmtree(SR_CHECKOUT, ignore_errors=True)   # now and then a fresh clone, so the old ones don't pile up here
++        if not os.path.isdir(os.path.join(SR_CHECKOUT, ".git")):
++            shutil.rmtree(SR_CHECKOUT, ignore_errors=True)
++            os.makedirs(DATA, exist_ok=True)
++            sr_git("clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", SR_REMOTE, SR_CHECKOUT, cwd=DATA, timeout=300)
++            sr_git("sparse-checkout", "set", SR_DIR)
++        else:
++            sr_git("fetch", "-q", "--depth", "1", "origin", "main", timeout=120)   # never a pull: the one commit is replaced on every save
++            sr_git("reset", "-q", "--hard", "FETCH_HEAD")
++        d, out = os.path.join(SR_CHECKOUT, SR_DIR), {}
++        for name in sorted(os.listdir(d)) if os.path.isdir(d) else []:
++            if not name.endswith(".json") or name in _sr["seen"]:
++                continue
++            _sr["seen"][name] = 1
++            try:
++                with open(os.path.join(d, name), encoding="utf-8") as f:
++                    rd = parse_read(json.load(f), name)
++            except (OSError, ValueError):
++                continue
++            if rd:
++                k = rd["g"] + ":" + rd["c"]
++                if k not in out or rd["at"] >= out[k]["at"]:
++                    out[k] = rd
++        _sr["out"] = out
++    except Exception as e:
++        _sr["err"] = str(e)[:300]
++
++
++def reads_tick(v, idx=None):
++    """Settle the last fetch of scan-results (new reads into v["scan_reads"], matched with the site's index idx), match
++    every read again when the index changed, then start the next fetch once SR_EVERY_S has passed. Returns
++    (the keys whose read changed, True when every read was matched again)."""
++    changed, full = [], False
++    th = _sr["thread"]
++    if th is not None and th.is_alive():
++        return changed, full
++    reads = v.setdefault("scan_reads", {})
++    if _sr["out"] is not None:
++        out, _sr["out"] = _sr["out"], None
++        for k, rd in out.items():
++            old = reads.get(k)
++            if old is None or rd["at"] > old.get("at", ""):
++                reads[k] = rd
++                changed.append(k)
++        if not v.get("sr_ok"):
++            log(f"Scans: scan-results is read ({len(reads)} slab read(s) on file)")
++        v["sr_ok"], v["sr_err"] = True, ""
++        if changed:
++            log(f"Scans: {len(changed)} new read(s) from scan-results")
++    if _sr["err"]:
++        err, _sr["err"] = _sr["err"], None
++        v["sr_ok"] = False
++        v["sr_err"] = "the key is not let in yet" if re.search(r"Permission denied|not found|Could not read from remote", err, re.I) else err[:200]
++        _sr["next"] = time.time() + SR_RETRY_S
++        if time.time() - _sr["err_logged"] > 3600:
++            _sr["err_logged"] = time.time()
++            log(f"Scans: scan-results could not be read ({err[:200]}) - "
++                + ("add this machine's public key to BrettS600/scan-results as a read-only deploy key" if v["sr_err"].startswith("the key") else "next try in a while"))
++    stamp = (idx or {}).get("t") if idx else None
++    if stamp is not None and stamp != v.get("sr_idx_t"):
++        v["sr_idx_t"] = stamp
++        changed, full = list(reads), True
++    for k in changed:
++        reads[k]["m"] = match(reads[k], idx)
++    if DRY_RUN or time.time() < _sr["next"]:
++        return changed, full
++    if not sr_pub(v):
++        return changed, full
++    _sr["next"] = time.time() + SR_EVERY_S
++    _sr["thread"] = threading.Thread(target=_sr_fetch, daemon=True)
++    _sr["thread"].start()
++    return changed, full
++
++
+ # ---------------- 3. the write itself (in its own thread) ----------------
+ def git(*args, cwd=None, check=True, timeout=120):
+     env = dict(os.environ)
+@@ -161,10 +490,11 @@ def start_scan_run(n):
+     except Exception as e:
+         log(f"Scans: couldn't start scrap's run ({str(e)[:200]}); scrap's own check will pick the scans up")
+ 
+-def push(snap, check=False):
++def push(snap, check=False, clr=0):
+     """Add the slabs not yet in scans.csv (the Cert ID header first if the file has none), commit, push to card-data's
+     main - from the top again when someone else pushed in between (the other card-data writers pull --rebase too). check
+-    (once a start): with nothing to add, a dry-run push proves the key may write."""
++    (once a start): with nothing to add, a dry-run push proves the key may write. clr (the time of a Start a new show):
++    the file is emptied first - the header, then only snap."""
+     try:
+         if not os.path.isdir(os.path.join(CHECKOUT, ".git")):
+             shutil.rmtree(CHECKOUT, ignore_errors=True)
+@@ -177,6 +507,9 @@ def push(snap, check=False):
+             git("fetch", "-q", "--depth", "1", "origin", "main", timeout=300)
+             git("reset", "-q", "--hard", "FETCH_HEAD")
+             old = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
++            gone = len(slabs_in(old)) if clr else 0
++            if clr:
++                old = HEADER + "\n"                          # Start a new show: the file starts over
+             have = slabs_in(old)
+             new = []
+             for x in snap:
+@@ -186,7 +519,7 @@ def push(snap, check=False):
+                         new.append(k)
+             lines = old.splitlines()
+             head = not lines or lines[0].strip().lstrip(chr(0xFEFF)) != HEADER
+-            if not new and not head:
++            if not new and not head and not clr:
+                 if check:
+                     git("push", "--dry-run", "-q", "origin", "HEAD:main", timeout=300)
+                     log(f"Scans: card-data's key works (read and write); {FILE} is ready ({len(have)} slab(s) in it)")
+@@ -200,10 +533,18 @@ def push(snap, check=False):
+             with open(path, "w", encoding="utf-8", newline="\n") as f:
+                 f.write(body)
+             git("add", FILE)
+-            git("commit", "-q", "-m", f"scans: {len(new)} slab link(s) from Slab Show Scanner" if new else "scans: the Cert ID header (links.csv's format)")
++            msg = (f"scans: Start a new show - the {gone} link(s) of the last show erased" + (f", {len(new)} new" if new else "")) if clr else \
++                f"scans: {len(new)} slab link(s) from Slab Show Scanner" if new else "scans: the Cert ID header (links.csv's format)"
++            if git("diff", "--cached", "--quiet", check=False).returncode == 0:     # the same text: nothing to commit
++                _run["added"], _run["done"], _run["cleared"] = 0, list(snap), (clr or None)
++                return
++            git("commit", "-q", "-m", msg)
+             if git("push", "-q", "origin", "HEAD:main", check=False, timeout=300).returncode == 0:
+                 _run["added"], _run["done"] = len(new), list(snap)
+-                log(f"Scans: {len(new)} slab link(s) added to card-data {FILE} ({len(have)} in the file)" if new else
++                if clr:
++                    _run["cleared"] = clr
++                log((f"Scans: Start a new show - {FILE} emptied ({gone} link(s) of the last show erased)" + (f", {len(new)} new slab link(s) written" if new else "")) if clr else
++                    f"Scans: {len(new)} slab link(s) added to card-data {FILE} ({len(have)} in the file)" if new else
+                     f"Scans: card-data's key works (read and write); the Cert ID header is in {FILE}")
+                 if new:
+                     start_scan_run(len(new))
