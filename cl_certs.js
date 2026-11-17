@@ -28,6 +28,16 @@
    Card Ladder's own copies - sharp decodes those; the first run, without it, left them "not a JPEG", which is read
    again at once and counts as no try).
 
+   THE LIST OF CERTS (2026-11-17, Brett: "create a CSV file ... put all of the card ladder cert numbers and have them
+   hyperlinked ... in the same format as the scans.csv file ... this sheet must be continuously updated as to include
+   the new cert numbers"): every run ends by writing card-data data/cardladder/pic_certs/card_ladder_cert.csv - every
+   cert read so far (status ok, each grader + cert once), in scans.csv's format (links.csv's): a "Cert ID" header, then
+   one CSV-quoted cell a cert that opens its PSA / CGC page and shows the number:
+     "=HYPERLINK(""https://www.psacard.com/cert/46790116/psa"",""46790116"")"
+     "=HYPERLINK(""https://www.cgccards.com/certlookup/6153192005/"",""6153192005"")"
+   Oldest read first, so new certs land at the bottom. Rebuilt whole from reads_*.csv each run (also a run with nothing
+   to read); the workflow commits it with the reads. Only a list: nothing here or in the workflow opens those pages.
+
    Order: the cards in the Card Ladder run's order (cardladder/queue.csv), the four grades the page shows first (PSA 10,
    PSA 9, CGC 10, CGC 10 Pristine), then every other PSA / CGC grade. Workers: one per CPU (at most 4), each with its own
    zxing; downloads run ahead of them, at most PACE a second (Card Ladder's picture store and eBay's are public, but a
@@ -197,10 +207,30 @@ function loadReads() {                       // {pic: {status, tries, v, at}} - 
       const pic = r[ix.pic]; if (!pic) continue;
       // a PNG / WebP picture the first runs could not decode ("not a JPEG") is no failed try: it is read again at once
       const prev = out.get(pic), st = r[ix.status], fmt = st === 'err' && /^not a JPEG/.test(r[ix.seen] || '');
-      out.set(pic, {status: st, fmt, v: +r[ix.v] || 0, at: r[ix.read_at] || '', tries: (prev ? prev.tries : 0) + (st === 'err' && !fmt ? 1 : 0)});
+      out.set(pic, {status: st, fmt, v: +r[ix.v] || 0, at: r[ix.read_at] || '', tries: (prev ? prev.tries : 0) + (st === 'err' && !fmt ? 1 : 0),
+        gk: r[ix.gk] || '', cert: r[ix.cert] || ''});
     }
   }
   return out;
+}
+function certLink(grader, cert) {            // the cert's page, spelled as scans.py / links.csv spell it
+  return grader === 'cgc' ? 'https://www.cgccards.com/certlookup/' + cert + '/' : 'https://www.psacard.com/cert/' + cert + '/psa';
+}
+function writeCertList(reads) {              // card_ladder_cert.csv: every cert read so far, as clickable cells (header)
+  const first = new Map();                   // "grader|cert" -> its earliest read
+  for (const r of reads.values()) {
+    const g = r.gk.split('|')[0];
+    if (r.status !== 'ok' || !/^\d+$/.test(r.cert) || (g !== 'psa' && g !== 'cgc')) continue;
+    const k = g + '|' + r.cert, t = first.get(k);
+    if (t === undefined || r.at < t) first.set(k, r.at);
+  }
+  const list = [...first].sort((a, b) => a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const body = 'Cert ID\n' + list.map(([k]) => { const [g, c] = k.split('|'); return '"=HYPERLINK(""' + certLink(g, c) + '"",""' + c + '"")"\n'; }).join('');
+  const file = path.join(OUTDIR, 'card_ladder_cert.csv');
+  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === body) return log('card_ladder_cert.csv:', list.length, 'certs, no change');
+  fs.mkdirSync(OUTDIR, {recursive: true});
+  fs.writeFileSync(file, body);
+  log('card_ladder_cert.csv:', list.length, 'certs written');
 }
 
 async function main() {
@@ -223,7 +253,7 @@ async function main() {
     }
   }
   log('to read', todo.length, '(the page\'s four grades first) | workers', NW, '| minutes', MINUTES);
-  if (!todo.length) return;
+  if (!todo.length) return writeCertList(reads);
   fs.mkdirSync(OUTDIR, {recursive: true});
   const month = new Date().toISOString().slice(0, 7), file = path.join(OUTDIR, 'reads_' + month + '.csv');
   if (!fs.existsSync(file)) fs.writeFileSync(file, COLS.join(',') + '\n');
@@ -264,5 +294,6 @@ async function main() {
   flush();
   for (const w of pool) await w.terminate();
   log('done:', done, 'pictures in', Math.round((Date.now() - T0) / 1000), 's |', JSON.stringify(tally), '| how', JSON.stringify(hows), '| left', todo.length - done);
+  writeCertList(loadReads());                // this run's reads included
 }
 if (require.main === module) main().catch(e => { console.error('ERR', e); process.exit(1); });

@@ -2384,6 +2384,15 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   (0.33.5, libvips; the workflow installs it); the first run's "not a JPEG" rows are read again at once and count as no
   try (cl_certs.js loadReads, graded_site.load_pic_certs). Tested: the 60 test pictures as PNG / lossy WebP read as the
   JPEGs on 59 (one WebP lost a weak reading).
+  THE LIST OF CL CERTS (2026-11-17, Brett: "create a CSV file ... put all of the card ladder cert numbers and have them
+  hyperlinked ... in the same format as the scans.csv file ... continuously updated"; "Name the CSV card ladder cert"):
+  card-data data/cardladder/pic_certs/card_ladder_cert.csv - every cert read off Card Ladder's pictures so far (status
+  ok, newest row of each picture, each grader + cert once), scans.py's row() format exactly ("Cert ID" header, one
+  =HYPERLINK cell a cert: PSA .../cert/<n>/psa, CGC .../certlookup/<n>/), oldest read first so new certs land at the
+  bottom. cl_certs.js writeCertList() rebuilds it whole at the end of every run (also when there is nothing to read) and
+  writes only on a change; cl_certs.yml's `git add -- data/cardladder/pic_certs` commits it with the reads (no workflow
+  change). Kept out of data/scans on purpose: it is a list only, nothing opens those pages (scrap is started for
+  scans.csv alone). First build: 98,619 certs (64,024 PSA, 34,595 CGC) from 104,814 pictures, 7.6 MB.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
