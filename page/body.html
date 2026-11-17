@@ -8,6 +8,8 @@
   <button class="tab" data-t="fv" title="The rows you starred, from every tab">Favorites <span class="tcnt" id="nfv"></span></button>
   <div class="tools">
     <span class="pcpill" id="pcpill" hidden></span>
+    <button class="readme" id="tabs-btn" title="Which tabs show in this row - untick the ones you don't use (remembered in this browser)">Tabs</button>
+    <div class="tabsmenu" id="tabs-menu" hidden></div>
     <button class="readme" id="app-btn" title="Slab Show Scanner - the phone app for card shows, in a pop-up">Phone app</button>
     <button class="readme" id="readme-btn" title="How this tab works">README</button>
   </div>
@@ -15,10 +17,12 @@
 
 <!-- ============ Tab 1: PriceCharting Catalog (default) ============ -->
 <section class="panel" id="p-pc">
+<!-- Raw cards / Graded cards (2026-11-17, Brett: "i like how "graded cards" and "raw cards" are formatted [on the Forecast tab].
+     lets have it look that way in the pricecharting tab as well"): the Forecast tab's row, same buttons; the lit one
+     clicked again shows raw and graded together (both lit) -->
+<div class="kindbar" id="pc-kind"><button type="button" class="kb" id="gm-raw" aria-pressed="true" title="Only the raw (ungraded) cards; click again to show raw and graded together"><i class="kic"></i>Raw cards</button><button type="button" class="kb" id="gm-g" aria-pressed="false" title="Only the graded rows (PSA and CGC, the grades ticked in Grading); click again to show raw and graded together"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="pc_kind">?</button></div>
 <div class="meta" id="meta-pc">Updated __UPDATED__ · __NCARDS__ cards · __NSETS__ sets · prices from PriceCharting (USD) · __HDAYS__ day(s) of history</div>
 <div class="gmode" id="gmode">
-  <button type="button" class="gm" id="gm-raw" aria-pressed="true" title="Only the raw (ungraded) cards; click again to show raw and graded together">Only show raw</button>
-  <button type="button" class="gm" id="gm-g" aria-pressed="false" title="Only the graded rows (PSA and CGC, the grades ticked in Grading); click again to show raw and graded together">Only show graded</button>
   <button type="button" class="gm2" id="gm-grades" title="Which grades and graders the graded rows show">Grading <span id="gm-gn"></span> ▾</button>
   <span class="gterms" id="gm-terms" hidden></span>
   <span class="dim" id="gm-note"></span>
@@ -555,12 +559,13 @@
 <!-- ============ Tab 4: Alerts - the numbers that decide what reaches the phone ============ -->
 <!-- ============ Tab: Forecast (Brett, 2026-10-17: capital in, cards + quantities + net profit range + confidence out) ============ -->
 <section class="panel" id="p-fc" hidden>
-<div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting and Planning as they were"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): Forecasting, Recording and Planning"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
+<div class="kindbar" id="fc-kind"><button type="button" class="kb" data-k="raw" title="Raw (ungraded) cards: Forecasting, Recording, Purchases and History, laid out like the graded side"><i class="kic"></i>Raw cards</button><button type="button" class="kb" data-k="graded" title="Graded cards (PSA and CGC): Forecasting, Recording and Planning"><i class="kic slab"></i>Graded cards</button><button class="help" data-h="fc_kind">?</button></div>
 <div class="meta" id="meta-fcg">Forecast &middot; graded cards (PSA and CGC)</div>
+<div class="meta" id="meta-rfc">Forecast &middot; raw cards &middot; loading the model&hellip;</div>
 <div class="meta" id="meta-fc">Forecast · which cards to buy and hold, ranked by how far each sits below its own 12-month PriceCharting level, gated by the market · loading the model&hellip;</div>
 <div class="meta" id="meta-fh">Forecast &middot; raw cards &middot; History: the Forecast tab&rsquo;s standard plans month by month: a replay of 2022&ndash;2026 from PriceCharting&rsquo;s history, and the live plans the collector archives on the first day of each month</div>
 <div class="actbar fc-bar">
-  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="Graded cards: the slabs you scanned at a card show, in buy order">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button><button type="button" class="readme fcg-readme" id="fcg-readme" title="The graded Forecast pages' own README - one for Forecasting, Recording, Purchases and History; edit it like a document">README</button></span>
+  <span class="fc-modes" id="fc-modes"><button type="button" class="fvchip on" data-m="fc" title="The model's picks">Forecasting</button><button type="button" class="fvchip" data-m="rc" id="fc-rc" title="The cards you scanned at a card show, in buy order (raw cards: comes with the raw card scanner)">Recording<span class="n" id="nrc">0</span></button><button type="button" class="fvchip" data-m="pl" title="The listings you added with +">Planning<span class="n" id="npl">0</span></button><button type="button" class="fvchip" data-m="hi" title="How the plans would have done, month by month, and the plans you recorded (the old Forecast History tab)">History</button><button class="help" data-h="fc_modes">?</button><button type="button" class="readme fcg-readme" id="fcg-readme" title="The graded Forecast pages' own README - one for Forecasting, Recording, Purchases and History; edit it like a document">README</button></span>
   <button type="button" class="actbtn fc-unfold" id="fc-unfold" hidden title="Show the inputs again (capital, hold, discount, the price band, the switches)">&#9656; Inputs</button>
   <span class="fc-tools"><button class="actbtn" id="fc-flags" title="The Flags archive: cards held for a PC gap, listings far from PriceCharting or the anchor - review and mark them">Flags (<span class="nfg">0</span>)</button><button class="actbtn" id="fc-cols" title="Which Raw Data columns a card's popup shows">Listing columns&hellip;</button></span>
 </div>
@@ -613,7 +618,79 @@
     <div class="al-status" id="pl-status"></div>
   </div>
 </div>
-<div class="fc fh" id="fh-raw"><div class="al-card fh-card" id="fh-body"></div></div>
+<!-- raw History's three windows (2026-11-17, like the graded side's): Forecasting Replay (the replay and the live plans, as they were); Recorded Purchases and Pre-Sales Spotcheck come with the raw card scanner -->
+<div class="fc fh" id="fh-raw" data-win="rp"><div class="al-card fh-card">
+  <div class="fhg-wins" id="fhr-wins"><button type="button" class="fvchip on" data-w="rp" title="The raw plan run on every month since 2022, with only what was known then, and the live plans the collector archives">Forecasting Replay</button><button type="button" class="fvchip" data-w="rec" title="The raw purchases you record - comes with the raw card scanner">Recorded Purchases</button><button type="button" class="fvchip" data-w="sc" title="Raw cards looked back on with the model before you buy - comes with the raw card scanner">Pre-Sales Spotcheck</button><button class="help" data-h="rfh_wins">?</button></div>
+  <div id="fh-body"></div>
+  <div class="gblank rfc-blank" id="fhr-rec"><strong>Recorded Purchases (raw)</strong><span>Comes with the raw card scanner: the raw cards you record on Purchases will be kept here and scored when each hold is up, like the graded side.</span></div>
+  <div class="gblank rfc-blank" id="fhr-sc"><strong>Pre-Sales Spotcheck (raw)</strong><span>Comes with the raw card scanner: raw cards you send from Forecasting or Recording will be looked back on with the model, month by month since 2022, like the graded side.</span></div>
+</div></div>
+<!-- Raw cards, graded-style (2026-11-17, Brett: "when you select raw cards, it show forecasting, planning, recording, and purchases, and behaves in the same way. As the graded cards portion"): page/raw_fc.js. The old raw Forecasting / Planning (#fc-al) stays in the page, hidden: the Raw Data tab's Forecast % column still reads its boxes -->
+<div class="al fc" id="rfc">
+  <div class="al-card" id="rfc-side">
+    <h3>Your plan<button type="button" class="fc-fold" id="rfc-fold" title="Hide the inputs so the table has the whole width (the page shows a button to bring them back)">&#9666; Hide</button></h3>
+    <div class="al-row"><span class="lab">Capital to spend<button class="help" data-h="rfc_cap">?</button></span><span><span class="unit">$</span><input type="number" id="rfc-cap" min="0" step="50" value="1000"></span></div>
+    <div class="al-row"><span class="lab">Hold for<button class="help" data-h="rfc_hold">?</button></span><span><select id="rfc-h"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></span></div>
+    <div class="al-row"><span class="lab">I buy at<button class="help" data-h="rfc_disc">?</button></span><span><input type="number" id="rfc-disc" min="0" max="60" step="0.1" value="14.1"><span class="unit">%</span><span class="dim"> Under PriceCharting&rsquo;s Raw Price</span></span></div>
+    <div class="al-row"><span class="lab">eBay Shipping Fee<button class="help" data-h="rfc_ship">?</button></span><span><span class="unit">$</span><input type="number" id="rfc-ship" min="0" step="0.1" value="5.2"></span></div>
+    <div class="al-row"><span class="lab">Card price between<button class="help" data-h="rfc_price">?</button></span><span><span class="unit">$</span><input type="number" id="rfc-pmin" min="0" step="5" value="50"> <span class="dim">and</span> <span class="unit">$</span><input type="number" id="rfc-pmax" min="0" step="50" value="500"></span></div>
+    <div class="al-row"><span class="lab">At most per card<button class="help" data-h="rfc_share">?</button></span><span><input type="number" id="rfc-share" min="5" max="100" step="5" value="20"><span class="unit">%</span><span class="dim"> of the capital</span></span></div>
+    <div class="al-row"><span class="lab" style="flex:1 1 auto">Buy only cards with a chance of at least<button class="help" data-h="rfc_conf">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="rfc-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span></span></div>
+    <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="rfc_copies">?</button></span><span><input type="number" id="rfc-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
+    <label class="al-check"><input type="checkbox" id="rfc-gate" checked> Buy only when the market is rising<button class="help" data-h="rfc_gate">?</button></label>
+    <label class="al-check"><input type="checkbox" id="rfc-young"> Allow cards from sets under 2 years old<button class="help" data-h="rfc_young">?</button></label>
+    <h3>The market now<button class="help" data-h="rfc_regime">?</button></h3>
+    <div class="al-now" id="rfc-regime">Waiting for the model&hellip;</div>
+  </div>
+  <div class="al-card fcg-main" id="rfc-main">
+    <button type="button" class="actbtn fc-unfold rfc-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <h3>What to buy<button class="help" data-h="rfc_picks">?</button></h3>
+    <div id="rfc-summary" class="al-now"></div>
+    <div class="gmode fcg-gmode"><button type="button" class="gm2 gtb fcg-hits" id="rfc-hits" title="On = show only the green rows: the cards the plan buys with the capital. The plan is worked out on every row the other filters leave, then only its buys are listed.">Only Hits <span class="dim" id="rfc-hits-n"></span></button><button class="help" data-h="rfc_hits">?</button></div>
+    <div class="controls">
+      <input type="search" id="q-rfc" placeholder="Search card, set, number or rarity&hellip; (e.g. charizard 4)">
+      <select id="set-rfc"><option value="">All sets (release order)</option></select>
+      <span class="count" id="count-rfc"></span>
+    </div>
+    <div class="ranges" id="ranges-rfc">
+      <button class="reset" id="reset-rfc">Reset filters</button>
+    </div>
+    <div class="wrap">
+<table class="wide gtable fcgt rfct">
+  <thead><tr>
+    <th class="rn" title="Row number in the current sort and filters">Row</th>
+    <th class="favh" data-k="fav" data-label="Favorite" title="Favorites: a star on a row puts the card on the Favorites tab">★<span class="s">⇅</span><button class="help" data-h="fav">?</button></th>
+    <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="rfc_name">?</button></th>
+    <th data-k="14">Rarity / Finish<span class="s">⇅</span><button class="help" data-h="rfc_rf">?</button></th>
+    <th data-k="4">Release<span class="s">⇅</span><button class="help" data-h="rfc_rel">?</button></th>
+    <th data-k="fcS" class="num">Standard Price<span class="s">⇅</span><button class="help" data-h="rfc_std">?</button></th>
+    <th data-k="fcB" class="num">Buy Price<span class="s">⇅</span><button class="help" data-h="rfc_buy">?</button></th>
+    <th data-k="16" class="num">Sold (last month)<span class="s">⇅</span><button class="help" data-h="rfc_sold">?</button></th>
+    <th data-k="fcPct" class="num">Rank<span class="s">⇅</span><button class="help" data-h="rfc_rank">?</button></th>
+    <th data-k="fcP" class="num">Chance (this card)<span class="s">⇅</span><button class="help" data-h="rfc_chance">?</button></th>
+    <th data-k="fcBB" class="num">Best to Buy<span class="s">⇅</span><button class="help" data-h="rfc_bb">?</button></th>
+    <th data-k="fcBC" class="num">Best Chance<span class="s">⇅</span><button class="help" data-h="rfc_bc">?</button></th>
+    <th data-k="fcQ" class="num">QTY<span class="s">⇅</span><button class="help" data-h="rfc_qty">?</button></th>
+    <th data-k="fcN" class="num">Net<span class="s">⇅</span><button class="help" data-h="rfc_net">?</button></th>
+    <th data-k="fcR" class="num">ROI %<span class="s">⇅</span><button class="help" data-h="rfc_roi">?</button></th>
+    <th>Trend<button class="help" data-h="rfc_trend">?</button></th>
+  </tr></thead>
+  <tbody id="rows-rfc"></tbody>
+</table>
+    </div>
+    <button class="more" id="more-rfc" hidden>Show more</button>
+  </div>
+  <div class="al-card fcg-main" id="rfr-main">
+    <button type="button" class="actbtn fc-unfold rfc-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <h3>Recording (raw cards)<button class="help" data-h="rfc_rec">?</button></h3>
+    <div class="gblank rfc-blank"><strong>Raw Recording</strong><span>Comes with the raw card scanner: the raw cards you scan at a show will be listed here in buy order, with your Yes / No, like graded Recording. Not built yet.</span></div>
+  </div>
+  <div class="al-card fcg-main" id="rfp-main">
+    <button type="button" class="actbtn fc-unfold rfc-unfold" hidden title="Show the inputs again">&#9656; Inputs</button>
+    <h3>What you bought (raw cards)<button class="help" data-h="rfc_pur">?</button></h3>
+    <div class="gblank rfc-blank"><strong>Raw Purchases</strong><span>Empty until the raw card scanner and Recording exist: the raw cards you mark Yes there will be listed here with what you paid, like graded Purchases.</span><span class="dim" id="rfp-old"></span></div>
+  </div>
+</div>
 <div class="gblank" id="fc-graded"><strong id="fcg-t">Graded forecasting</strong><span id="fcg-s">Blank for now.</span></div>
 <!-- Graded cards > Forecasting (2026-11-04, Brett): every graded row assumed for sale, the raw model's method on PriceCharting's graded lines (page/graded_fc.js) -->
 <div class="al fc" id="fcg">

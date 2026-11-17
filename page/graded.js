@@ -752,8 +752,8 @@ function grMeta() {
 function grPaintGrades(F = GF.pc) { const b = $(F.ids.gn); if (b) b.textContent = '(' + F.gsel.size + ')'; }
 function grShowMode() {
   const raw = PCMODE === 'raw', g = PCMODE === 'graded', all = PCMODE === 'all';
-  $('gm-raw').classList.toggle('on', raw); $('gm-raw').setAttribute('aria-pressed', raw);
-  $('gm-g').classList.toggle('on', g); $('gm-g').setAttribute('aria-pressed', g);
+  $('gm-raw').classList.toggle('on', raw || all); $('gm-raw').setAttribute('aria-pressed', raw || all);   // both lit: raw and graded together
+  $('gm-g').classList.toggle('on', g || all); $('gm-g').setAttribute('aria-pressed', g || all);
   $('pcv-raw').hidden = !raw; $('pcv-g').hidden = !g; $('pcv-a').hidden = !all;
   grNote(); grPaintGrades(); grPaintTerms();
   if (!raw) grLoad().then(() => { grPaintAllTerms(); if (tables.pcg && !$('pcv-g').hidden) { tables.pcg.resync(); tables.pcg.apply(); } if (tables.pca && !$('pcv-a').hidden) { GR.allRows = null; tables.pca.resync(); tables.pca.apply(); } });

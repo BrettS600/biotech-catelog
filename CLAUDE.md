@@ -2416,6 +2416,34 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   folder's listing and its new files, each alone (sr_folder / sr_blobs; an object asked for by id comes without its
   subtrees). Never let git fetch a missing tree by itself: its automatic fetch is blob:none and brings every tree
   under it. Tested on GitHub (this repo over https) and on a local copy with 20,000 files.
+- THE TABS BUTTON, THE KIND ROW ON PRICECHARTING, ALERTS OFF, AND RAW CARDS GRADED-STYLE (2026-11-17, g24). Brett: "I'm
+  not going to be buying from eBay anymore. I'm going to just be selling on eBay"; a raw card scanner comes later.
+  (1) TABS (top right, before Phone app): a box per tab; an unticked tab's button is hidden (localStorage tabs-hidden,
+  this browser) - its page, data and stars stay; the last tab showing cannot be hidden; hiding the tab on view opens
+  the first one showing. He hides eBay Catalog, eBay Raw Data and Notification Settings ("wherever you see fit").
+  (2) The PriceCharting tab's Only raw / Only graded pills are the Forecast tab's kind row (#pc-kind, .kindbar): "Raw
+  cards" / "Graded cards", underlined when on; clicking the lit one again shows both, as the pills did (grShowMode).
+  (3) NOTIFICATIONS OFF ("Just turn them all off" - collecting goes on: "keep collecting with alerts off ... It doesn't
+  hurt"): saved from the website's Notification Settings with every send box unticked; the collector confirmed
+  (hits, leads, scam-watch, suspects, auctions, forecast hits only, quiet hours all off). Nothing in the code changed;
+  ticking them again turns them back on.
+  (4) RAW CARDS GRADED-STYLE (page/raw_fc.js, stitched last): "when you select raw cards, it show forecasting, planning,
+  recording, and purchases, and behaves in the same way. As the graded cards portion"; his answers: Forecasting
+  graded-style, Planning replaced with Purchases. Forecasting: every catalog card with a PriceCharting raw price in the
+  band (default $50-$500, the replay's) assumed buyable at the pane's % under (14.1%) and sold on eBay; Buy = price x (1
+  - % under) - shipping, net = price x ((1 + return) x (1 - fee) - (1 - % under)) - graded_fc.js's money and helpers
+  (fcgCdf / fcgOrder / fcgPlaces / fcgMonteCarlo) on the raw model (forecast.bin: pct1/3/6 -> the four rank buckets,
+  calib tables h|up|bucket; holds 1, 3, 6). The eBay supply, floors, sold medians, the recent-sale and unknown-supply
+  switches are gone from it; "Allow cards from sets under 2 years old" stays (off). Same pane, summary, market box,
+  Only Hits, table machinery (makeTable 'rfc'; columns Name, Rarity / Finish, Release, Standard, Buy, Sold, Rank,
+  Chance, Best to Buy, Best Chance, QTY, Net, ROI, Trend). Cap, hold and the fold survive a refresh (rfc-in), as on
+  the graded side. Recording ("we'll hold off ... until the scanner gets built for the raw cards") and Purchases are
+  blank cards; the old eBay Planning basket (PLAN_MAP) is kept in the browser and named on Purchases. History keeps
+  the raw replay and live plans as its Forecasting Replay window, with Recorded Purchases / Pre-Sales Spotcheck blank.
+  Addresses #forecast/raw/forecasting|recording|purchases|history (an old .../raw/planning opens Purchases); NAV.rm
+  takes 'rc'; rm-fc / rm-rc / rm-pl on #p-fc. The old raw page (#fc-al: fcCompute, plRender, Record this forecast,
+  Flags / Listing columns) stays in the page, HIDDEN, because the Raw Data tab's Forecast % column and its Forecast
+  hits tick read its boxes (fc-h, fc-minp); the collector's monthly live plans (fc_auto) are untouched.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a
