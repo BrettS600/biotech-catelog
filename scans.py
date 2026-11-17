@@ -43,7 +43,8 @@ sales on that page, else the grader's wording of the card (name, set, number, va
 for a slab of ours. The grade is always the page's. A slab that matches nothing, or more than one card, or a grade we
 have no data on, keeps its reason (why) - the website lists those under "Not in our data". collector.py sends the
 changed reads at once on the channel's scan topic (<channel>-scr) and keeps them all in scan.bin on the live branch.
-Nothing else in scan-results is read, and nothing is ever written there.
+Nothing else in scan-results is read here, and nothing is ever written there. Since 2026-11-17 the fetch takes scans/
+alone, by id (ONE FOLDER AT A TIME, below): scan-results also holds cardladder/ (clcerts.py reads that, once a day).
 
 collector.py uses record(), clear(), flush() and reads_tick(); it sets log (its own, into collector.log) and DRY_RUN.
 Nothing here runs on its own.
@@ -75,7 +76,7 @@ RETRY_S = 600                    # after a failed try (card-data unreachable, a 
 # the reads of the scans: the private repo BrettS600/scan-results, folder scans/ only, read with this machine's own key
 SR_REMOTE = os.environ.get("SCAN_RESULTS_REMOTE", "git@github.com:BrettS600/scan-results.git")
 SR_KEY = os.path.join(BASE, ".ssh", "scan_results_ed25519")            # made here on the first run; its .pub goes to the repo's deploy keys
-SR_CHECKOUT = os.path.join(DATA, "scan-results")                       # a sparse, shallow checkout of scans/ only
+SR_CHECKOUT = os.path.join(DATA, "scan-results")                       # a bare, tree-less clone: scans/ is all it ever fetches
 SR_DIR = "scans"
 SR_EVERY_S = 15                  # how often the folder is fetched (Brett: "the faster the better")
 SR_RETRY_S = 120                 # after a failed fetch (the key not let in yet, GitHub unreachable)
@@ -382,29 +383,103 @@ def sr_pub(v):
     return v["sr_pub"]
 
 
+# ONE FOLDER AT A TIME, NOTHING ELSE (2026-11-17): scan-results also holds cardladder/ now - Brett's reads of the Card
+# Ladder certs, ~100,000 files - and a checkout, sparse or not, downloads every folder's listing on each fetch (git
+# sends all the trees). So the repository here is a bare, tree-less partial clone (--filter=tree:0): a fetch brings
+# the commit alone; the root's listing, the one folder's listing and that folder's new files are then fetched BY ID,
+# each alone (sr_get - an object asked for by id comes without what it points to). Never let git fetch a missing tree
+# on its own: its automatic fetch asks for every tree under it (that is how cardladder/'s listing came along).
+_SR_GET = ["-c", "fetch.negotiationAlgorithm=noop", "fetch", "-q", "--no-tags", "--no-write-fetch-head", "--recurse-submodules=no",
+           "--filter=tree:0", "--stdin", "origin"]
+
+
+def sr_run(args, cwd, inp=None, timeout=300):
+    """git with this machine's scan-results key, raw bytes in and out."""
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    env["GIT_SSH_COMMAND"] = f"ssh -i {SR_KEY} -o UserKnownHostsFile={KNOWN_HOSTS} -o IdentitiesOnly=yes -o BatchMode=yes"
+    r = subprocess.run(["git", *args], cwd=cwd, input=inp, capture_output=True, env=env, timeout=timeout)
+    if r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(a for a in args[:4] if not a.startswith('-c'))}: {r.stderr.decode('utf-8', 'replace').strip()[:300]}")
+    return r.stdout
+
+
+def sr_get(repo, ids, chunk=5000):
+    """Fetch these objects by id, each alone (a tree without its subtrees, a file)."""
+    ids = [i for i in dict.fromkeys(ids) if i]
+    for n in range(0, len(ids), chunk):
+        sr_run(_SR_GET, repo, inp=("\n".join(ids[n:n + chunk]) + "\n").encode(), timeout=900)
+
+
+def sr_folder(repo, rev, folder):
+    """{file name: blob id} of one top-level folder of the commit rev (its listing fetched alone; {} when it has none)."""
+    root = re.search(rb"^tree ([0-9a-f]{40})", sr_run(["cat-file", "commit", rev], repo), re.M)
+    if not root:
+        return {}
+    root = root.group(1).decode()
+    sr_get(repo, [root])
+    sub = None
+    for ent in sr_run(["ls-tree", "-z", root], repo).split(b"\0"):
+        meta, _, path = ent.partition(b"\t")
+        if path.decode("utf-8", "replace") == folder and meta.split()[1:2] == [b"tree"]:
+            sub = meta.split()[2].decode()
+    if not sub:
+        return {}
+    sr_get(repo, [sub])
+    out = {}
+    for ent in sr_run(["ls-tree", "-z", sub], repo).split(b"\0"):
+        meta, _, path = ent.partition(b"\t")
+        parts = meta.split()
+        if len(parts) == 3 and parts[1] == b"blob":
+            out[path.decode("utf-8", "replace")] = parts[2].decode()
+    return out
+
+
+def sr_blobs(repo, ids):
+    """{blob id: bytes}: the files' contents, fetched in one go (a chunk at a time) and read back with cat-file."""
+    ids = [i for i in dict.fromkeys(ids) if i]
+    if not ids:
+        return {}
+    sr_get(repo, ids)
+    raw, out, i = sr_run(["cat-file", "--batch"], repo, inp=("\n".join(ids) + "\n").encode(), timeout=900), {}, 0
+    while i < len(raw):
+        j = raw.index(b"\n", i)
+        head = raw[i:j].split()
+        if len(head) != 3:                                   # "<id> missing"
+            i = j + 1
+            continue
+        size = int(head[2])
+        out[head[0].decode()] = raw[j + 1:j + 1 + size]
+        i = j + 1 + size + 1
+    return out
+
+
+def sr_repo(repo, fresh=False):
+    """The bare, tree-less clone of scan-results at repo, fetched now -> the commit to read ("HEAD" right after a clone,
+    else FETCH_HEAD). The one commit is replaced on every save (Brett), so: never a pull, and now and then a fresh clone."""
+    if fresh or not os.path.isfile(os.path.join(repo, "HEAD")) or os.path.isdir(os.path.join(repo, ".git")):
+        shutil.rmtree(repo, ignore_errors=True)              # (also the sparse checkout the reads used before 2026-11-17)
+        os.makedirs(os.path.dirname(repo), exist_ok=True)
+        sr_run(["clone", "-q", "--bare", "--depth", "1", "--filter=tree:0", "--single-branch", SR_REMOTE, repo], os.path.dirname(repo))
+        return "HEAD"
+    sr_run(["fetch", "-q", "--depth", "1", "--filter=tree:0", "origin", "main"], repo, timeout=120)
+    return "FETCH_HEAD"
+
+
 def _sr_fetch():
-    """(its own thread) Fetch scan-results' scans/ and read the files not read before. -> _sr["out"]: {grader:cert: read}."""
+    """(its own thread) Fetch scan-results and read the files of scans/ not read before. -> _sr["out"]: {grader:cert: read}.
+    Only scans/'s listing and its new files are ever fetched (ONE FOLDER AT A TIME, above)."""
     try:
         _sr["n"] = _sr.get("n", 0) + 1
-        if _sr["n"] % 2000 == 0:                             # scan-results keeps one commit, replaced on every save (Brett):
-            shutil.rmtree(SR_CHECKOUT, ignore_errors=True)   # now and then a fresh clone, so the old ones don't pile up here
-        if not os.path.isdir(os.path.join(SR_CHECKOUT, ".git")):
-            shutil.rmtree(SR_CHECKOUT, ignore_errors=True)
-            os.makedirs(DATA, exist_ok=True)
-            sr_git("clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", SR_REMOTE, SR_CHECKOUT, cwd=DATA, timeout=300)
-            sr_git("sparse-checkout", "set", SR_DIR)
-        else:
-            sr_git("fetch", "-q", "--depth", "1", "origin", "main", timeout=120)   # never a pull: the one commit is replaced on every save
-            sr_git("reset", "-q", "--hard", "FETCH_HEAD")
-        d, out = os.path.join(SR_CHECKOUT, SR_DIR), {}
-        for name in sorted(os.listdir(d)) if os.path.isdir(d) else []:
-            if not name.endswith(".json") or name in _sr["seen"]:
+        rev = sr_repo(SR_CHECKOUT, fresh=_sr["n"] % 2000 == 0)
+        files = {n: b for n, b in sr_folder(SR_CHECKOUT, rev, SR_DIR).items() if n.endswith(".json") and n not in _sr["seen"]}
+        got, out = sr_blobs(SR_CHECKOUT, files.values()), {}
+        for name in sorted(files):
+            if files[name] not in got:
                 continue
             _sr["seen"][name] = 1
             try:
-                with open(os.path.join(d, name), encoding="utf-8") as f:
-                    rd = parse_read(json.load(f), name)
-            except (OSError, ValueError):
+                rd = parse_read(json.loads(got[files[name]].decode("utf-8")), name)
+            except (UnicodeDecodeError, ValueError):
                 continue
             if rd:
                 k = rd["g"] + ":" + rd["c"]

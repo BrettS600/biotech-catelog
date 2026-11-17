@@ -2393,6 +2393,29 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   writes only on a change; cl_certs.yml's `git add -- data/cardladder/pic_certs` commits it with the reads (no workflow
   change). Kept out of data/scans on purpose: it is a list only, nothing opens those pages (scrap is started for
   scans.csv alone). First build: 98,619 certs (64,024 PSA, 34,595 CGC) from 104,814 pictures, 7.6 MB.
+  THE CL CERT COLUMNS FILLED, AND PC/CL CERT MATCH (2026-11-17, Brett: "results for the card ladders certs will be
+  stored here: .../scan-results/tree/main/cardladder ... only retrieve results from this file. please update the card
+  ladder columns with all of the results in the files once per day ... if the text from pc cert matches the text from
+  the cl cert, then we know they are same the card"; on the reads: "i have special api access to psa and cgc"; on a
+  mismatch he chose "Flag it, you review"; "scan-results/scans file is okay to read"). clcerts.py (collector's fast
+  tick, once a UTC day from 08:00 UTC, its own thread): scan-results/cardladder/ ALONE -> card-data
+  data/cardladder/cert_pages/cert_pages_<YYYY-MM>.csv (one row a cert read, appended; the file name is kept, so a file
+  is read once; the newest read of a cert wins), pushed with card-data's key from a sparse checkout of that folder.
+  graded_site.load_cl_pages -> cards[id].clx[gk] (auth_side over the CL cert page, as PC Cert) -> the eleven CL Cert
+  columns (85-95) and the new PC/CL Cert Match (96, page column v13 after CL Cert Estimate): cert_check() of the PC
+  Cert (best[g] of the row's grader, else the other's) against the CL Cert - same grader in its own fields: name, set,
+  number (same_number), variety, year (+ CGC language); PSA vs CGC or a GemRate description: name (one's words inside
+  the other's), number, year. Words: match / match (PC PSA · CL CGC) / mismatch: <fields> (RED) / PC Cert not read / no
+  PC Cert / not looked up / the CL Cert words. Nothing is re-paired; "mismatch" in the search box lists them. First
+  check (the 388 reads of the evening): 380 rows match, 6 do not - all real (Celebrations Ultra-Premium vs Classic
+  Collection Charizard, a Japanese Start Deck vs English Ascended Heroes Mega Charizard Y, Shadowless vs unlimited
+  Blastoise, a Reverse Holo vs Pokemon Day Collection Pikachu).
+  ONE FOLDER AT A TIME (scans.py, same day): a checkout of scan-results - sparse or not - downloads every folder's
+  listing on each fetch (git sends all trees), and cardladder/ heads for ~100,000 files while scans/ was fetched every
+  15 s. Both readers now keep a bare, tree-less clone (--filter=tree:0) and fetch BY ID the root listing, their one
+  folder's listing and its new files, each alone (sr_folder / sr_blobs; an object asked for by id comes without its
+  subtrees). Never let git fetch a missing tree by itself: its automatic fetch is blob:none and brings every tree
+  under it. Tested on GitHub (this repo over https) and on a local copy with 20,000 files.
 - NTFY RATIONS REQUESTS PER ADDRESS, AND THE PICTURE WORKER WAS EATING THE RATION (found 2026-10-23 while testing the
   first star): the message sat on the channel, signed and valid, for ten minutes while the collector saw nothing.
   From the droplet, `since=<id>` polls (what read_requests sends) came back 429 while `since=12h` came back 200 a

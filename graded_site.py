@@ -483,6 +483,63 @@ def load_pic_certs(cd):
     return out
 
 
+def load_cl_pages(cd):
+    """{(grader, cert): row} from cardladder/cert_pages/cert_pages_*.csv (clcerts.py, once a day from scan-results/
+    cardladder): the cert pages of the CL Cert slabs, as Brett's reader read them. The newest read of a cert wins."""
+    import csv
+    out = {}
+    for f in sorted(glob.glob(os.path.join(cd, "cardladder", "cert_pages", "cert_pages_*.csv"))):
+        with open(f, newline="", encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                k = ((r.get("grader") or "").lower(), re.sub(r"\D", "", r.get("cert") or ""))
+                if k[1] and (k not in out or (r.get("read_at") or "") >= (out[k].get("read_at") or "")):
+                    out[k] = r
+    return out
+
+
+def cert_words(g, a):
+    """The card as a grader's record names it, for PC Cert vs CL Cert: ({name, set, number, variety, year, language},
+    exact) - exact = the grader's own fields (a cert page, PSA's API, a CL cert page); GemRate's one-line description
+    (Card Hedge) is not exact: only its name, number and year are compared."""
+    if a.get("src") == "ch":
+        p = gt.parse_description(a.get("desc"))
+        return {"name": p["name"], "set": p["set"], "number": p["num"], "variety": "", "year": p["year"], "language": ""}, False
+    return {"name": a.get("subject") or a.get("name") or "", "set": a.get("brand") or a.get("set") or "",
+            "number": a.get("number") or "", "variety": a.get("variety") or "", "year": a.get("year") or "",
+            "language": a.get("language") or ""}, True
+
+
+def cert_check(pg, pw, pexact, cg, cw):
+    """PC Cert vs CL Cert (2026-11-17, Brett: "if the text from pc cert matches the text from the cl cert, then we know
+    they are same the card"): -> (match, [the fields that differ]). The same grader, both in its own fields: name, set,
+    number, variety and year (and CGC's language) must read the same - letter case, accents and punctuation aside, 023 =
+    23. PSA beside CGC (or a GemRate description): the two word sets and numbers differently, so only the name (one's
+    words inside the other's: PSA's CHARIZARD-HOLO = CGC's Charizard), the number and the year."""
+    n = scans._norm
+    yr = lambda x: (re.findall(r"\d{4}", str(x or "")) or [""])[0]
+    if pg == cg and pexact:
+        fields = ["name", "set", "number", "variety", "year"] + (["language"] if cg == "cgc" else [])
+    else:
+        fields = ["name", "number", "year"]
+    diff = []
+    for f in fields:
+        a, b = pw.get(f, ""), cw.get(f, "")
+        if f == "number":
+            ok = gt.same_number(a, b) if a and b else not a and not b
+        elif f == "year":
+            ok = yr(a) == yr(b)
+        elif f == "name" and fields[1] == "number":
+            A, B = set(n(a).split()), set(n(b).split())
+            ok = bool(A) and bool(B) and (A <= B or B <= A)
+        elif f == "language":
+            ok = n(a or "english") == n(b or "english")
+        else:
+            ok = n(a) == n(b)
+        if not ok:
+            diff.append(f)
+    return not diff, diff
+
+
 def tofloat(v):
     try:
         return float(str(v).replace(",", "").replace("$", ""))
@@ -926,6 +983,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     pop_hist = load_pop_hist(cd, sorted(matched), last_m)   # for Review's Number graded: matched cards only
     psa_c, ch_c, pg_c = load_psa_certs(cd), load_ch_certs(cd), load_page_certs(cd)
     pic_c = load_pic_certs(cd)                            # the CL Cert column: certs read off Card Ladder's pictures
+    cl_pg = load_cl_pages(cd)                             # ... and their cert pages, as Brett's reader read them (2026-11-17)
+    cl_cmp = [0, 0]                                       # PC Cert vs CL Cert: rows that match, rows that do not
     checks = []
     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
     moved_certs = down_pc = 0                               # certs moved to the grader's grade; half grades priced one grade down
@@ -1209,6 +1268,36 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             clc[gk_] = ["wait", ""] if not x_ or (x_[0] == "err" and x_[2] < 3) else [x_[0], x_[1] if x_[0] == "ok" else ""]
         if clc:
             cards[str(cid)]["clc"] = clc
+        # THE CL CERT COLUMNS AND THE PC/CL CERT MATCH (2026-11-17): what the grader says of each grade's CL Cert slab -
+        # its cert page as Brett's reader read it (clcerts.py -> cardladder/cert_pages, once a day) - read the way the
+        # PC Cert columns are (auth_side); then the PC Cert (the row's grader's, else the other's) against it, cert_check.
+        # clx[gk] = [name, set, number, rarity, finish, special, year, language, grade, label, pop, pop higher, estimate,
+        # read, match | mismatch | pc wait | pc none, [fields that differ], the PC Cert's grader]. A mismatch is only
+        # flagged: nothing is re-paired (Brett reviews).
+        clx = {}
+        for gk_, cc_ in clc.items():
+            g_ = gk_.split("|")[0]
+            w = cl_pg.get((g_, re.sub(r"\D", "", cc_[1] or ""))) if cc_[0] == "ok" else None
+            if not w:
+                continue
+            cw = {"subject": w.get("name"), "brand": w.get("set"), "category": w.get("category"), "variety": w.get("variety"),
+                  "label": w.get("label") if g_ == "psa" else None, "year": w.get("year"), "number": w.get("number"),
+                  "language": w.get("language")}
+            s_ = gt.auth_side(dict(cw, src=g_, page=True), dic)
+            pg_ = g_ if g_ in best else next(iter(sorted(best)), None)
+            if pg_:
+                pw_, pexact_ = cert_words(pg_, best[pg_])
+                ok_, diff_ = cert_check(pg_, pw_, pexact_, g_, cert_words(g_, cw)[0])
+                m_ = ["match" if ok_ else "mismatch", diff_, pg_]
+                cl_cmp[0 if ok_ else 1] += 1
+            else:
+                m_ = ["pc wait" if any(x["st"] == "wait" for x in recs.values()) else "pc none", [], ""]
+            clx[gk_] = [s_.name or "", s_.set_name or "", s_.num or "", s_.shown("Rarity"), s_.shown("Finish"), s_.shown("Special"),
+                        s_.year or "", s_.lang or "", w.get("grade") or "", (w.get("label") or "") if g_ == "psa" else None,
+                        toint(w.get("pop")), toint(w.get("pop_higher")), tofloat(w.get("estimate")) if g_ == "psa" else None,
+                        str(w.get("read_at") or "")[:10]] + m_
+        if clx:
+            cards[str(cid)]["clx"] = clx
         lr = sorted(match_pairs(mon, psales.get(cid) or {}, (pmon.get(cid) or {}).get("psa_10", [])))
         cards[str(cid)]["mc"] = {"n": len(lr), "r": round(math.exp(lr[len(lr) // 2]), 2) if lr else None,
                                  "far": round(sum(1 for v in lr if abs(v) > math.log(1.5)) / len(lr), 2) if lr else None}
@@ -1280,6 +1369,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         print("graded: no SITE_PASSWORD - nothing written")
         return doc, trends
     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
+    print(f"CL Cert pages: {len(cl_pg):,} certs read by Brett's reader; PC Cert vs CL Cert: {cl_cmp[0]:,} rows match, "
+          f"{cl_cmp[1]:,} do not")
     try:
         ix = scan_index(doc, ix_certs, ix_rows, ix_known, pg_c)
         ni = write_enc(os.path.join(out_dir, "scanidx.bin"), ix, key)

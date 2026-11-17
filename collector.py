@@ -54,6 +54,7 @@ import ebay_sweep as es
 import account
 import pchist                                                # PriceCharting's own monthly history, off each card's page
 import scans                                                 # Slab Show Scanner's slabs -> card-data data/scans/scans.csv
+import clcerts                                               # scan-results/cardladder -> card-data cert_pages, once a day (2026-11-17)
 
 # ---------------- layout ----------------
 BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")
@@ -1761,6 +1762,10 @@ def fast_tick(state, cat, counters):
     except Exception as e:
         changed, full = [], False
         log(f"Scans: the reads failed ({str(e)[:200]})")
+    try:
+        clcerts.tick(v)                                      # the CL Cert columns' lookups, once a day (clcerts.py)
+    except Exception as e:
+        log(f"CL certs: {str(e)[:200]}")
     reads = v.get("scan_reads") or {}
     if changed:
         v["sr_rev"] = v.get("sr_rev", 0) + 1

@@ -59,7 +59,8 @@ const grClUrl = pid => pid ? 'https://app.cardladder.com/profiles/' + encodeURIC
    75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), 77 Auth Estimate (PSA's estimate on
    its cert page), 78 the order key, 79-82 Card Ladder's standard price / its window / sales a year / confidence, 83 CL
    Cert (the cert read off Card Ladder's picture of this grade, or a word), 84 its cert page, 85-95 CL Cert Name / Set /
-   Set/Card No. / Rarity/Finish / Release / Language / Grade / Label / Pop / Pop Higher / Estimate (not looked up yet).
+   Set/Card No. / Rarity/Finish / Release / Language / Grade / Label / Pop / Pop Higher / Estimate (the CL Cert slab's
+   cert page as Brett's reader read it - cards[id].clx[gk], 2026-11-17), 96 PC/CL Cert Match (r.clx = that clx entry).
    2026-11-10 (Brett: "all of the auth columns are derived from auth cert ... label all of those columns, to say PC Cert ...
    because all of these columns are derived from PC certs. then we add a copy of each column, but have it start with CL
    Cert ... the cl cert number can be found in the images"; "just prepare the columns for now and and only fill out the
@@ -150,7 +151,19 @@ function grBuildRow(d, x) {
       : cc[0] === 'ok' && cc[1] ? '' : cc[0] === 'many' ? 'two slabs' : cc[0] === 'err' ? 'picture gone' : 'unreadable';
     r[83] = ccw || grader + ' ' + cc[1];
     r[84] = ccw ? '' : grader === 'PSA' ? 'https://www.psacard.com/cert/' + encodeURIComponent(cc[1]) + '/psa' : 'https://www.cgccards.com/certlookup/' + encodeURIComponent(cc[1]) + '/';
-    for (let i = 85; i <= 95; i++) r[i] = ccw || 'not looked up';   // what the grader says of that slab: the lookups come later
+    // 85-95 what the grader says of that slab - its cert page as Brett's reader read it (graded_site.py clx, from
+    // clcerts.py once a day); 96 PC/CL Cert Match: the PC Cert's words against the CL Cert's (2026-11-17)
+    const X = ccw ? null : (c.clx || {})[gk];
+    r.clx = X || null;
+    if (!X) for (let i = 85; i <= 96; i++) r[i] = ccw || 'not looked up';
+    else {
+      r[85] = X[0] || 'none'; r[86] = X[1] || 'none'; r[87] = X[2] || 'none'; r[88] = grRF(X[3], X[4], X[5]); r[89] = X[6] || 'none'; r[90] = X[7] || 'none';
+      r[91] = X[8] || 'none'; r[92] = X[9] == null ? 'not given' : X[9] || 'none'; r[93] = X[10]; r[94] = X[11]; r[95] = X[12];
+      const pg = X[16] ? X[16].toUpperCase() : '', A = X[16] ? (c.a || {})[X[16]] : null;
+      const how = pg && pg !== grader ? ' (PC ' + pg + ' · CL ' + grader + ')' : A && A.src === 'ch' ? ' (GemRate text)' : '';
+      r[96] = X[14] === 'match' ? 'match' + how : X[14] === 'mismatch' ? 'mismatch' + how + ': ' + (X[15] || []).join(', ')
+        : X[14] === 'pc wait' ? 'PC Cert not read' : 'no PC Cert';
+    }
     return r;
 }
 function grRebuildCard(cid) {                               // after a Review answer: the card's rows as they now read
@@ -376,16 +389,44 @@ const GR_CLC_TIP = {'not read': 'Card Ladder’s picture of this grade’s slab 
   'unreadable': 'No cert number could be read off Card Ladder’s picture of this grade - the label too small or blurred, a cropped or back-side photo. Review shows the picture.',
   'two slabs': 'Card Ladder’s picture of this grade shows two slabs’ certs (a lot), so neither was taken. Review shows the picture.',
   'picture gone': 'Card Ladder’s picture of this grade did not load three times (eBay drops old pictures).',
-  'not looked up': 'The CL cert is known (the CL Cert column) but not looked up yet: these columns will hold what the grader says of that slab.'};
+  'not looked up': 'The CL cert is known (the CL Cert column) but your reader has not read its cert page yet (scan-results/cardladder, from card_ladder_cert.csv) - what it reads comes in once a day and shows after the next site build.'};
 function grClCertCell(r, clNone) {
   if (r[75] === 'pending' || r[75] === 'no match') return '<td>' + clNone + '</td>';
   if (r[84]) return '<td><a href="' + esc(r[84]) + '" target="_blank" rel="noopener" title="' + esc('The cert number on Card Ladder’s picture of a ' + r[25] + ' slab of this card (the picture Review shows), read off its barcode; opens its ' + r[26] + ' cert page. Another copy of the card than PC Cert’s - each slab has its own cert.') + '">' + esc(r[83]) + '</a></td>';
   return '<td><span class="dim" title="' + esc(GR_CLC_TIP[r[83]] || '') + '">' + esc(r[83] || 'none') + '</span></td>';
 }
 function grClCertCells(r, clNone) {
-  const off = r[75] === 'pending' || r[75] === 'no match'; let h = '';
-  for (let i = 85; i <= 95; i++) h += '<td' + (i === 87 || i >= 93 ? ' class="num"' : '') + '>' + (off ? clNone : '<span class="dim" title="' + esc(GR_CLC_TIP[r[i]] || '') + '">' + esc(r[i] || 'none') + '</span>') + '</td>';
+  const off = r[75] === 'pending' || r[75] === 'no match', X = r.clx; let h = '';
+  const src = X ? r[26] + '’s cert page of ' + r[83] + ' (the slab on Card Ladder’s picture), as your reader read it' + (X[13] ? ' on ' + X[13] : '') : '';
+  for (let i = 85; i <= 96; i++) {
+    const num = i === 87 || (i >= 93 && i <= 95), td = '<td' + (num ? ' class="num"' : '') + '>';
+    if (off) { h += td + clNone + '</td>'; continue; }
+    if (i === 96) { h += grCertMatchCell(r); continue; }
+    const v = r[i] == null ? (i === 95 ? 'not given' : 'none') : r[i];
+    if (!X || GR_CLC_TIP[v] !== undefined || v === 'none' || v === 'not given') {
+      h += td + '<span class="dim" title="' + esc(GR_CLC_TIP[v] || (v === 'not given' ? (i === 92 ? 'CGC’s cert page shows no label type.' : 'Only PSA’s cert page shows an estimate.') : X ? 'The grader’s page does not say. ' + src : '')) + '">' + esc(v) + '</span></td>';
+      continue;
+    }
+    h += '<td' + (num ? ' class="num"' : '') + ' title="' + esc(src) + '">' + (i === 95 ? fmtMoney(v) : typeof v === 'number' ? fmtInt(v) : esc(v)) + '</td>';
+  }
   return h;
+}
+// PC/CL Cert Match (2026-11-17, Brett: "if the text from pc cert matches the text from the cl cert, then we know they
+// are same the card ... i do suspect their are some mismatches"; a mismatch is flagged for him to review, nothing re-paired)
+function grCertMatchCell(r) {
+  const X = r.clx, v = r[96];
+  if (!X) return '<td><span class="dim" title="' + esc(GR_CLC_TIP[v] || '') + '">' + esc(v || 'none') + '</span></td>';
+  if (X[14] !== 'match' && X[14] !== 'mismatch')
+    return '<td><span class="dim" title="' + esc(X[14] === 'pc wait' ? 'The PC Cert slab is known but its record is not read yet, so there is nothing to compare the CL Cert with.' : 'No PC Cert slab read for this card (either grader), so there is nothing to compare the CL Cert with.') + '">' + esc(v) + '</span></td>';
+  const c = (GR.doc.cards || {})[String(r[0])] || {}, pg = X[16], A = (c.a || {})[pg] || {}, G = String(r[26]);
+  const pc = [A.name, A.set, A.num && '#' + A.num, A.year].filter(Boolean).join(' · ');
+  const cl = [X[0], X[1], X[2] && '#' + X[2], X[6]].filter(Boolean).join(' · ');
+  const exact = pg === G.toLowerCase() && A.src !== 'ch';
+  const tip = 'PC Cert (' + pg.toUpperCase() + ' ' + (A.cert || '') + '): ' + pc + '\nCL Cert (' + r[83] + '): ' + cl + '\n' +
+    (exact ? 'The same grader: name, set, number, variety and year compared' + (G === 'CGC' ? ', and language' : '') + ' (letter case, accents and punctuation aside; 023 = 23).'
+      : 'PSA and CGC (or GemRate’s one-line description) word cards differently: only the name, number and year are compared.') +
+    (X[14] === 'mismatch' ? ' They differ in: ' + (X[15] || []).join(', ') + ' - flagged for you to check in Review; nothing is re-paired.' : ' The graders name the same card.');
+  return '<td class="' + (X[14] === 'mismatch' ? 'rfbad' : '') + '" title="' + esc(tip) + '">' + esc(v) + '</td>';
 }
 function grRow(r) {
   if (r[48]) return grRawCells(r);
@@ -437,7 +478,7 @@ function grRow(r) {
 }
 function grRawCells(r) {                                    // a raw card in the both-view (the raw tab's figures, the CL columns empty)
   return '<td><span class="dim">Raw</span></td>' + gdash + gdash + cells4(r, pcRFCell(pcRF(r)), '', (pcRF(r) || [])[0]) +
-    gdash.repeat(7) + gdash.repeat(22) + gdash.repeat(2) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
+    gdash.repeat(7) + gdash.repeat(23) + gdash.repeat(2) + gdash.repeat(2) + grInt(r[5]) + grMoney(r[6]) + gdash + gdash +
     grPct(r[7]) + grPct(r[8]) + grPct(r[9], false, 0) +
     '<td class="num">' + (r[10] == null ? dash : '<span class="' + (r[11] > 0 ? 'up' : r[11] < 0 ? 'down' : '') + '">' + (r[11] > 0 ? '+' : '') + r[11] + ' (' + (r[10] > 0 ? '+' : '') + r[10].toFixed(1) + '%)</span>') + '</td>' +
     grPct(r[12], false, 2) + grPct(r[13]) +
@@ -457,7 +498,8 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
   extra: r => r[48] ? !GF.pc.flag && !GF.pc.unsure && !GF.pc.authread && GF.pc.clread === 'both' && GF.pc.clmatch === 'both' && grTermPass(r[0], true)
     : grPass(r),
   rowClass: r => r[48] ? '' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
-  hay: r => [r[1], r[2], r[14], r[25], r[71], r[72], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63], r[75], r[84] ? r[83] : ''].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
+  hay: r => [r[1], r[2], r[14], r[25], r[71], r[72], r[29], r[30], r[27], r[33], r[53], r[54], r[51], r[56], r[57], r[59], r[62], r[63], r[75], r[84] ? r[83] : '',
+    r.clx ? r[85] : '', r.clx ? r[86] : '', r.clx ? r[96] : ''].filter(x => x && !GR_AST_TIP.hasOwnProperty(x)).join(' '),
   // columns added (or removed, n < 0) since a layout was saved, so Brett's own order and eyes stay on the same columns:
   // v1 Graded To PC Sales Ratio removed; v2 PC Illustrator, CL Illustrator, Series, Era after CL Release (2026-10-28);
   // v3 the ten Auth columns after CL Release, v4 Auth Illustrator after CL Illustrator; v5 / v6 Auth Pop and Auth Pop
@@ -465,9 +507,9 @@ const grCfg = (rows, noun) => ({rows, noun, ranges: GR_RANGES, labels: GR_LABELS
   // after CL Grade (2026-10-30: every PriceCharting graded card, read / pending / no match); v9 Auth Pop, Auth Pop Higher
   // and Auth Estimate after Auth Label (2026-11-02: the cert pages Brett opens carry them); 2026-11-10 (the Auth columns
   // became the PC Cert columns): v10 Auth Illustrator removed, v11 CL Cert after CL Release, v12 the eleven CL Cert
-  // columns after PC Cert Estimate
+  // columns after PC Cert Estimate; v13 PC/CL Cert Match after CL Cert Estimate (2026-11-17)
   inserted: [{v: 1, at: 28, n: -1}, {v: 2, at: 14, n: 4}, {v: 3, at: 14, n: 10}, {v: 4, at: 26, n: 1}, {v: 5, at: 22, n: -1}, {v: 6, at: 22, n: -1}, {v: 7, at: 3, n: 1}, {v: 8, at: 4, n: 1}, {v: 9, at: 24, n: 3},
-    {v: 10, at: 29, n: -1}, {v: 11, at: 16, n: 1}, {v: 12, at: 28, n: 11}],
+    {v: 10, at: 29, n: -1}, {v: 11, at: 16, n: 1}, {v: 12, at: 28, n: 11}, {v: 13, at: 39, n: 1}],
   row: grRow, root: null});
 const GR_TABLES = {pcg: Object.assign(grCfg(() => GR.rows, 'graded rows'), {root: '#pcv-g', name: 'PriceCharting · graded'}),
                    pca: Object.assign(grCfg(grAll, 'rows'), {root: '#pcv-a', name: 'PriceCharting · raw + graded'})};
