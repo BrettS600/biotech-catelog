@@ -1,0 +1,14 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index c4e2287..264b0bb 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3454,6 +3454,9 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
+   BACKGROUND - not full control, which would hide Chrome and its Card Ladder tab). Finder would not take background
+   clicks while his screen was a full-screen app.
+ - first time on the phone: "Untrusted Developer" until Settings > General > VPN & Device Management > Trust.
++- THE 7-DAY RENEWAL WORKS OVER WI-FI: reinstalled 2026-11-18 00:59 UTC with no cable (phone unlocked, on the same Wi-Fi;
++  a LOCKED phone gives "iPhone is not available because the Developer Disk Image is not mounted" and Xcode waits, then
++  goes on by itself once it is unlocked). Run, then Stop. Runs to about Nov 25.
+ - 2026-11-10: built with no error and no warning at the first try and installed (01:38 UTC Nov 11).
+ THE FIRST TWO NATIVE FILES (n1, tests 1 and 2, 2026-11-11 02:00 UTC; the files held everything - 79 MB each):
+ - 9 inches (8.4 by the codes' size): 47 right of 50, none wrong, 45 of them within 0.5 s (the web app: 50, half by
