@@ -219,3 +219,5 @@ button.rvb.diff{color:var(--rd);border-color:var(--rd)}
 /* Record scans' name and Start a new show (2026-11-14): the app's own pop-ups, in the middle */
 .modalwrap{align-items:center;z-index:8;padding:16px}
 .sheet.modal{max-width:440px;width:100%;height:auto;border-radius:18px;padding:18px;border:1px solid var(--ln)}
+/* Show's typed-or-stepped boxes (g17): a box like Capital's between − and + */
+.minin{width:84px;height:44px;padding:0 6px;text-align:center;font:700 17px 'Space Grotesk',Inter,sans-serif;font-variant-numeric:tabular-nums}

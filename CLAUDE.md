@@ -3381,6 +3381,26 @@ PriceCharting columns round half grades down with a symbol, and a cert moves to 
   part); Start a new show pop-up puts ['__clear__', t] in the scan queue (sendScans sends in order); Sync from website
   (SYNC_STORE ssc-sync {day, vals, prev}); WKWebView shows no prompt()/confirm(), so the app draws its own pop-ups (#modal).
 
+### SHOW'S TYPED BOXES, RECORD WITH A NAME, NO PSA TOKEN BOX (2026-11-18, g17; sw.js ssc-v20)
+Brett, 2026-11-18: % under, the chance bar, at most per slab and min sales "variable ... press it into the box and then
+like type the number ... leave the pluses and minus signs ... kind of like how I did with capital"; Record scans AND
+Record purchases open a pop-up whose name defaults to Show's name, editable, Enter sends; "remove the PSA API token section
+... I do have API, but I don't need to do it through the app".
+- page/app: mini() is now − [input data-in="num:<k>"] +; SET_LIM {under [0,60] 0.1, bar [5,95] 0.1, share [5,100] 0.1,
+  minSales [0,999] whole} shared by the steppers and typing (setClamp); typing keeps the clamped number at once (the box is
+  not redrawn under the finger), leaving the box shows it tidied (setTxt), focus selects it, Enter closes the keyboard.
+- recName() = Show's name (else "Show N"). 'record' runs purchasesReady() first (its warnings as before), then #modal kind
+  'recpur'; 'recscans' warns first when nothing / locked, then kind 'recscans'; both: "Show name" box (#recname), Enter =
+  Record, Cancel sends nothing. gplan part 0 carries name; collector.gplan_record keeps head["name"] for kind gplan;
+  graded_fh.js Recorded Purchases shows the name above the date and in the slab list's heading.
+- The PSA token box and its Remove link are gone from Show (a token saved before still works for Look slabs up; WHY.token
+  now says the slab is named when its cert page is read). Heading "Card data".
+- CHECKED HERE (Chromium, synthetic data.bin with 1-6 month tables): every hold 1-6 changes every chance; at most per slab
+  10% of $10,000 moved the $1,099 and $1,283 slabs to "Just missed" and 20% brought them back (it bites only on a slab whose
+  pay is over capital x share - none of his were at 20%); bar 70 -> no buys, bar typed 3 -> kept at 5; min sales 11 ->
+  12 slabs left out; % under 20.5 -> higher chances. The real app/data.bin holds tables for all six holds (126 keys); at a
+  1-month hold the real chances run ~40-50% (most slabs under a 50% bar), 3 months ~46-68%, 6 months ~53-76%.
+
 ## THE NATIVE TRIAL APP - "Slab Scanner" for the iPhone (2026-11-10, n1; ios/SlabScanner)
 WHY. Brett ran 16 tests with the web app g14 on 2026-11-10 (sheet 2: 50 codes; files in his ~/scan-test). What they said:
 - the reader got through 5-9 of the camera's ~25 frames a second (125-275 ms a frame with two readers);

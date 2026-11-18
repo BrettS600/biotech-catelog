@@ -70,6 +70,10 @@ function gkLabel(gk) {
 const gkShort = gk => !gk ? '?' : gk.endsWith('pristine') ? '10P' : gk.endsWith('perfect') ? '10★' : gk.split('|')[1].slice(1).replace('_', '.');
 const titleCase = s => String(s || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
 // numbers typed in Show's boxes are kept as typed ("10,000") and read as numbers where used
+// the four stepped-or-typed boxes of Show: their limits [low, high, decimals], how they read, how a typed number is kept
+const SET_LIM = {under: [0, 60, 1], bar: [5, 95, 1], share: [5, 100, 1], minSales: [0, 999, 0]};
+const setClamp = (k, n) => { const L = SET_LIM[k], f = Math.pow(10, L[2]); return Math.max(L[0], Math.min(L[1], Math.round(n * f) / f)); };
+const setTxt = k => { const v = +S.settings[k] || 0; return k === 'minSales' ? String(Math.round(v)) : (k === 'under' ? v.toFixed(1) : String(Math.round(v * 10) / 10)) + '%'; };
 const numSet = k => { const n = parseFloat(String(S.settings[k]).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; };
 let TOAST_T = 0;
 function toast(msg) { const el = $('toast'); el.innerHTML = '<div class="toast">' + esc(msg) + '</div>'; clearTimeout(TOAST_T); TOAST_T = setTimeout(() => { el.innerHTML = ''; }, 3200); }
@@ -300,23 +304,32 @@ function basket(rows, h, n = 2000) {
   return {lo: at(0.1), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(FC_P_CAP, a.filter(v => v > 0).length / n)};
 }
 // Record Purchases: the slabs marked Bought, to History > Recorded Purchases (the website's Purchases button, type 'gplan')
-async function recordPurchases() {
+// RECORD WITH A NAME (2026-11-18, Brett: "When I go and hit either the record scans button or the record purchases button, I
+// want there to be a pop-up ... the show name to default to what the show button says ... then it would give me the option
+// to change the name and then hit enter"): the checks run first (purchasesReady), the pop-up (#modal, kind 'recpur') takes
+// the name - Show's name by default - and the record carries it to the website (the collector keeps it, History shows it).
+const recName = () => String(S.settings.show || '').trim() || 'Show ' + showNext();
+function purchasesReady() {                               // the slabs' figures to record, or null with the reason shown
   const real = slabsArr().filter(sl => sl.st === 'bought' && !sl.demo && !sl.rec);
-  if (!real.length) { UI.recMsg = ['warn', slabsArr().some(sl => sl.st === 'bought' && sl.demo) ? 'Nothing to record: sample slabs are never sent to the website.' : slabsArr().some(sl => sl.st === 'bought' && sl.rec) ? 'Everything you bought is recorded already.' : 'Nothing to record yet: mark a slab Bought first.']; return render(); }
-  if (!KEY || !D) { UI.recMsg = ['warn', 'Unlock the app first (Show tab): recording needs your site password.']; return render(); }
+  if (!real.length) { UI.recMsg = ['warn', slabsArr().some(sl => sl.st === 'bought' && sl.demo) ? 'Nothing to record: sample slabs are never sent to the website.' : slabsArr().some(sl => sl.st === 'bought' && sl.rec) ? 'Everything you bought is recorded already.' : 'Nothing to record yet: mark a slab Bought first.']; return null; }
+  if (!KEY || !D) { UI.recMsg = ['warn', 'Unlock the app first (Show tab): recording needs your site password.']; return null; }
   const xs = real.filter(identified).map(calc).filter(x => x.std != null && x.pay > 0);
-  if (!xs.length) { UI.recMsg = ['warn', 'The slabs you bought have no Card Ladder price or are not identified yet (Find the card), so there is nothing the website can follow.']; return render(); }
+  if (!xs.length) { UI.recMsg = ['warn', 'The slabs you bought have no Card Ladder price or are not identified yet (Find the card), so there is nothing the website can follow.']; return null; }
+  return xs;
+}
+async function recordPurchases(name) {
+  const xs = purchasesReady(); if (!xs) return render();
   const s = S.settings, fc = D.fc;
   const slabs = xs.map(x => [x.sl.cid, x.sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000)]);
   const holds = [1, 2, 3, 4, 5, 6].map(h => { const mc = basket(xs.map(x => Object.assign({}, x, {g: x.g})), h); return mc ? [r2(mc.mean), r2(mc.lo), r2(mc.hi), Math.round(mc.p * 1000) / 1000] : null; });
   const spent = r2(xs.reduce((a, x) => a + x.pay, 0)), id = nextT(), PART = 20, n = Math.max(1, Math.ceil(slabs.length / PART));
   const head = {h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'), fee: Math.round(FEE * 10000) / 10000,
-    month: fc ? fc.month : '', reg: fc ? regOf(fc) : '', spent, model: fc ? fc.model : '', smp: 0, holds};
+    month: fc ? fc.month : '', reg: fc ? regOf(fc) : '', spent, model: fc ? fc.model : '', smp: 0, holds, name: String(name || recName()).slice(0, 80)};
   UI.sending = true; UI.recMsg = ['', 'Sending ' + xs.length + ' slab' + (xs.length > 1 ? 's' : '') + '…']; render();
   try {
     for (let k = 0; k < n; k++) await alSend(Object.assign({type: 'gplan', t: k ? nextT() : id, id, k, n, s: slabs.slice(k * PART, (k + 1) * PART)}, k ? {} : head));
     xs.forEach(x => { x.sl.rec = id; }); save();
-    UI.recMsg = ['ok', 'Recorded ' + xs.length + ' slab' + (xs.length > 1 ? 's' : '') + ', ' + money(spent) + ', held ' + s.hold + ' month' + (s.hold > 1 ? 's' : '') + '. It shows on the website under History › Recorded Purchases in a minute or two.'];
+    UI.recMsg = ['ok', 'Recorded “' + head.name + '”: ' + xs.length + ' slab' + (xs.length > 1 ? 's' : '') + ', ' + money(spent) + ', held ' + s.hold + ' month' + (s.hold > 1 ? 's' : '') + '. It shows on the website under History › Recorded Purchases in a minute or two.'];
   } catch (e) { UI.recMsg = ['warn', 'Could not reach the collector (' + (e.message || e) + '). Nothing was recorded - try again when you have signal.']; }
   UI.sending = false; render();
 }
@@ -441,7 +454,7 @@ async function recordScans(name) {
       : [identified(sl) ? sl.cid : null, identified(sl) ? sl.gk : null, Math.round((sl.vd != null ? sl.vd : s.under) * 10), null, null, null, null, null, null, sl.grader, sl.cert];
   });
   const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const head = {src: 'ph', name: String(name || ('Show ' + showNext())).slice(0, 80), day, h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'),
+  const head = {src: 'ph', name: String(name || recName()).slice(0, 80), day, h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'),
     fee: Math.round(FEE * 10000) / 10000, minp: s.bar / 100, gate: s.gate ? 1 : 0, minsales: +s.minSales || 0, share: s.share, month: fc ? fc.month : '', reg: fc ? regOf(fc) : '',
     model: fc ? fc.model : '', spent: 0, smp: 0, holds: [], nall: real.length};
   UI.sending = true; UI.scanRecMsg = ['', 'Sending ' + real.length + ' slab' + (real.length > 1 ? 's' : '') + '…']; render();
@@ -610,7 +623,7 @@ let TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, +LS.get('ssc-test-ste
 function testStep(by) { TEST_STEP = Math.min(TEST_PLAN.length - 1, Math.max(0, TEST_STEP + by)); LS.set('ssc-test-step14', TEST_STEP); UI.tpol = planPol(); UI.tdist = ''; UI.tnote = ''; }
 UI.tpol = planPol();
 function testClear() { Object.assign(TEST, testFresh()); TEST.reads.clear(); SCAN.seen.clear(); }
-const APP_VERSION = 'g16';
+const APP_VERSION = 'g17';
 // Test mode's switches (g14): the video of a whole test (on unless switched off), and FAST READING - two reader threads
 // and the pick of the sharp frames (scanFrame) - which is how the scanner reads at a show too; off = exactly as g13b read.
 const optVideo = () => S.settings.tvideo !== false, setFast = () => S.settings.fast !== false, optFast = () => setFast() && !(UI.test && TEST.old);   // (TEST.old: the plan's one test read the old way)
@@ -1561,7 +1574,7 @@ async function lookup(sl) {
 const WHY = {
   lock: 'Unlock the app (Show tab) to look slabs up.',
   cgc: 'CGC slabs are looked up through Card Hedge, which is not connected yet - find the card by name.',
-  token: 'Add your PSA API token on the Show tab to look PSA slabs up - or find the card by name.',
+  token: 'No PSA token on this phone: the slab is named when its cert page is read from scans.csv - or find the card by name.',
   quota: 'PSA’s 100 lookups for today are used up - find the card by name.',
   badtoken: 'PSA did not accept the token on the Show tab - check it, or find the card by name.',
   net: 'No signal reaching PSA - try again later, or find the card by name.',
@@ -1837,8 +1850,12 @@ function syncNote() {
     : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
 }
 function showHtml() {
-  const s = S.settings, mini = (k, txt, lab) => '<div class="frow"><span>' + lab + '</span><span class="minis"><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="-1" aria-label="Less">−</button><span class="minival">' + txt + '</span><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="1" aria-label="More">+</button></span></div>';
-  const tok = !!LS.get(PSA_TOKEN, ''), left = psaLeft();
+  // TYPED OR STEPPED (2026-11-18, Brett: "I want to be able to press it into the box and then like type the number ... You can
+  // leave the pluses and minus signs ... kind of like how I did with capital"): each of these four is a box you can type in,
+  // between its − and +; a typed number is kept within the box's limits (SET_LIM) as you type, and shown tidied when you leave it
+  const s = S.settings, mini = (k, lab) => '<div class="frow"><span>' + lab + '</span><span class="minis"><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="-1" aria-label="Less">−</button>' +
+    '<input class="input minin" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="' + esc(setTxt(k)) + '" data-in="num:' + k + '" aria-label="' + esc(lab) + '">' +
+    '<button class="minibtn" data-a="bump" data-k="' + k + '" data-d="1" aria-label="More">+</button></span></div>';
   const dataLine = DSTATE === 'ok' ? 'Card data from ' + esc(D.built) + ': ' + Object.keys(D.cards).length.toLocaleString() + ' cards' + (D.fc ? ', odds of ' + esc(D.fc.month) + ', market ' + (D.fc.regime && D.fc.regime.up ? 'rising' : 'falling') : ', no odds in this build') + '.'
     : DSTATE === 'loading' ? 'Loading the card data…' : DSTATE === 'err' ? 'Could not load the card data: ' + esc(DERR) : 'Locked: sample show only.';
   return '<div class="stack" style="gap:6px"><h1 class="h1" style="margin-bottom:8px">Show</h1>' +
@@ -1846,8 +1863,8 @@ function showHtml() {
     '<div class="frow" style="margin-top:8px"><span>Capital</span><input class="input" style="width:140px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.capital) + '" data-in="set:capital" aria-label="Capital"></div>' +
     '<div class="field" style="padding:12px 0;border-bottom:1px solid #222A35"><span>Hold before selling</span><div class="seg" role="group" aria-label="Hold in months">' +
     [1, 2, 3, 4, 5, 6].map(h => '<button class="' + (s.hold === h ? 'on' : '') + '" data-a="hold" data-v="' + h + '">' + h + ' mo</button>').join('') + '</div></div>' +
-    mini('under', s.under.toFixed(1) + '%', 'Your ask (% under)') + mini('bar', s.bar + '%', 'Buy only at a chance of at least') + mini('share', s.share + '%', 'At most per slab') +
-    mini('minSales', String(s.minSales), 'Min sales last mo (Card Ladder)') +
+    mini('under', 'Your ask (% under)') + mini('bar', 'Buy only at a chance of at least') + mini('share', 'At most per slab') +
+    mini('minSales', 'Min sales last mo (Card Ladder)') +
     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
     '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
     '<div style="display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid #222A35"><button class="btn" data-a="syncweb">Sync from website</button>' +
@@ -1856,12 +1873,9 @@ function showHtml() {
     '<div class="frow"><span>Look slabs up (PSA, card, prices)</span><button class="btn" style="min-width:76px" data-a="lookup">' + (s.lookup ? 'On' : 'Off') + '</button></div>' +
     (s.lookup ? '' : '<p class="note" style="margin:0">Off: a slab read is only listed as its cert link and sent to scans.csv.</p>') +
     '<p class="note">Chance = how often slabs like it made money over your hold, bought at that % under, after eBay’s fee (14.11%) and shipping - the website’s Recording math. The plan spends best chance first, up to your capital. Min sales last mo keeps slabs that sold fewer times on Card Ladder last month out of your buys.</p>' +
-    '<h2 class="h2" style="margin-top:14px">Card data and lookups</h2>' +
+    '<h2 class="h2" style="margin-top:14px">Card data</h2>' +
     '<div class="' + (DSTATE === 'ok' ? 'okbox' : DSTATE === 'err' ? 'warnbox' : 'note') + '">' + dataLine + '</div>' +
     (DSTATE === 'ok' ? '<button class="btn" data-a="reload">Refresh the card data</button>' : '<button class="btn primary" data-a="unlock">Unlock with your site password</button>') +
-    '<label class="field" style="margin-top:10px"><span class="label">PSA API token ' + (tok ? '· saved on this phone · ' + left + ' of ' + PSA_MAX + ' lookups left today' : '· not set') + '</span>' +
-    '<div style="display:flex;gap:8px"><input class="input" type="password" autocomplete="off" placeholder="' + (tok ? 'Saved - paste a new one to replace it' : 'Paste the token from psacard.com/publicapi') + '" data-in="psaTok"><button class="btn" data-a="savetok">Save</button></div></label>' +
-    (tok ? '<button class="linkbtn" style="align-self:flex-start" data-a="deltok">Remove the PSA token from this phone</button>' : '') +
     '<p class="note">CGC slabs: found by name for now (Card Hedge comes next, through your collector).</p>' +
     '<div class="note" id="scans-line" style="font-size:13px">' + scansLine() + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px"><button class="btn" data-a="demo">Load the sample show (3 tables)</button>' +
@@ -1876,15 +1890,18 @@ function renderModal() {                                  // Record scans' name 
   const m = UI.modal;
   if (!m) { box.innerHTML = ''; box.dataset.kind = ''; return; }
   if (box.dataset.kind === m.kind && box.firstChild) return;   // open already: never redrawn under the typing
+  const nameBox = '<label class="field"><span class="label">Show name</span><input class="input" type="text" id="recname" maxlength="80" enterkeyhint="send" value="' + esc(m.name) + '" data-in="recname"></label>';
   const body = m.kind === 'recscans'
-    ? '<h2 class="h2">Record scans</h2><p class="note" style="margin:0">' + slabsArr().filter(sl => !sl.demo && sl.cert).length + ' slabs of this show so far go to the website (History › Pre-Sales Spotcheck), with your plan.</p>' +
-      '<label class="field"><span class="label">Name</span><input class="input" type="text" id="recname" maxlength="80" value="' + esc(m.name) + '" data-in="recname"></label>' +
-      '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn primary" style="flex:1" data-a="recscansgo">Record</button></div>'
+    ? '<h2 class="h2">Record scans</h2><p class="note" style="margin:0">' + slabsArr().filter(sl => !sl.demo && sl.cert).length + ' slabs of this show so far go to the website (History › Pre-Sales Spotcheck), with your plan, under this name.</p>' +
+      nameBox + '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn primary" style="flex:1" data-a="recscansgo">Record</button></div>'
+    : m.kind === 'recpur'
+    ? '<h2 class="h2">Record purchases</h2><p class="note" style="margin:0">' + slabsArr().filter(sl => sl.st === 'bought' && !sl.demo && !sl.rec).length + ' slab' + (slabsArr().filter(sl => sl.st === 'bought' && !sl.demo && !sl.rec).length === 1 ? '' : 's') + ' you bought go to the website (History › Recorded Purchases), with what you paid and your plan, under this name.</p>' +
+      nameBox + '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn green" style="flex:1" data-a="recpurgo">Record</button></div>'
     : '<h2 class="h2">Start a new show?</h2><p class="note" style="margin:0">Are you sure you would like to continue? This clears every table on this phone and erases the links in scans.csv. A slab from this show can be scanned again at the next one.</p>' +
       '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-a="modalno">Cancel</button><button class="btn danger" style="flex:1" data-a="newshowgo">Yes, start a new show</button></div>';
   box.dataset.kind = m.kind;
   box.innerHTML = '<div class="sheetwrap modalwrap" data-a="modalbg"><div class="sheet modal stack" role="dialog" aria-modal="true" style="gap:12px">' + body + '</div></div>';
-  if (m.kind === 'recscans') { const i = $('recname'); if (i && document.activeElement !== i) setTimeout(() => { try { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} }, 60); }
+  if (m.kind === 'recscans' || m.kind === 'recpur') { const i = $('recname'); if (i && document.activeElement !== i) setTimeout(() => { try { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} }, 60); }
 }
 function renderSheet() {
   renderModal();
@@ -2080,9 +2097,13 @@ async function act(a, ds, el) {
     case 'pickcid': if (sl) { sl.cid = +ds.v; sl.gk = UI.pickGk || sl.gk; sl.look = sl.gk ? 'ok' : 'manual'; sl.how = 'manual'; sl.lookWhy = sl.gk ? null : 'nf'; sl.cands = null; UI.view = sl.gk ? 'slab' : 'search'; save(); if (!sl.gk) toast('Pick the grade too.'); } break;
     case 'confirm': if (sl) { sl.look = 'ok'; sl.how = 'confirmed'; save(); UI.view = 'slab'; } break;
     case 'mark': if (sl && sl.cid != null) return sendMark(sl.cid, +ds.v); return;
-    case 'record': return recordPurchases();
-    case 'recscans': if (UI.sending) return; UI.modal = {kind: 'recscans', name: 'Show ' + showNext()}; break;
-    case 'recscansgo': { const nm = ((($('recname') || {}).value) || '').trim() || ('Show ' + showNext()); UI.modal = null; render(); return recordScans(nm); }
+    case 'record': if (UI.sending) return; if (!purchasesReady()) break; UI.recMsg = null; UI.modal = {kind: 'recpur', name: recName()}; break;   // the pop-up first (Show's name)
+    case 'recpurgo': { const nm = ((($('recname') || {}).value) || '').trim() || recName(); UI.modal = null; render(); return recordPurchases(nm); }
+    case 'recscans': if (UI.sending) return;
+      if (!slabsArr().some(sl => !sl.demo && sl.cert)) { UI.scanRecMsg = ['warn', 'Nothing to record yet: scan a table first (sample slabs are never sent).']; break; }
+      if (!KEY) { UI.scanRecMsg = ['warn', 'Unlock the app first (Show tab): recording needs your site password.']; break; }
+      UI.scanRecMsg = null; UI.modal = {kind: 'recscans', name: recName()}; break;
+    case 'recscansgo': { const nm = ((($('recname') || {}).value) || '').trim() || recName(); UI.modal = null; render(); return recordScans(nm); }
     case 'modalno': UI.modal = null; break;
     case 'modalbg': if (el && el.closest && el.closest('.modal')) return; UI.modal = null; break;
     case 'syncweb': return syncFromWebsite();
@@ -2095,8 +2116,9 @@ async function act(a, ds, el) {
     case 'gate': s.gate = !s.gate; save(); planChanged('gate'); break;
     case 'lookup': s.lookup = !s.lookup; save(); if (s.lookup) pumpLookups(); break;
     case 'bump': {
-      const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k], lim = {under: [0, 60], bar: [5, 95], share: [5, 100], minSales: [0, 50]}[k];
-      s[k] = Math.max(lim[0], Math.min(lim[1], Math.round((+s[k] + d * step) * 10) / 10)); save(); planChanged(k); break;
+      const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k];
+      if (!step) break;
+      s[k] = setClamp(k, (+s[k] || 0) + d * step); save(); planChanged(k); break;
     }
     case 'savetok': { const v = (document.querySelector('[data-in="psaTok"]') || {}).value || ''; if (!v.trim()) return toast('Paste the token first.'); LS.set(PSA_TOKEN, v.trim()); const d = psaDay(); d.stop = 0; LS.set(PSA_DAY, d);
       slabsArr().forEach(x => { if (!x.demo && x.look === 'manual' && ['token', 'badtoken'].includes(x.lookWhy)) x.look = 'queued'; }); pumpLookups(); toast('PSA token saved on this phone.'); break; }
@@ -2135,6 +2157,7 @@ document.addEventListener('input', e => {
   else if (k === 'psaTok') { /* read on Save */ }
   else if (k === 'q') { UI.q = v; const r = $('results'); if (r) r.innerHTML = resultsHtml(v, UI.pickGk || (sl && sl.gk)); }
   else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); if (f !== 'show') planChanged(f); }
+  else if (k.startsWith('num:')) { const f = k.slice(4), n = parseFloat(String(v).replace(/[%\s]/g, '').replace(',', '.')); if (SET_LIM[f] && isFinite(n)) { S.settings[f] = setClamp(f, n); save(); renderTop(); renderTabs(); planChanged(f); } }
   else if (k === 'recname') { if (UI.modal) UI.modal.name = v; }
   else if (k === 'pct' && sl) { const n = parseFloat(v.replace(',', '.')); if (isFinite(n)) { sl.vd = Math.max(0, Math.min(60, n)); sl.vp = null; sl.vpTxt = null; if (sl.st === 'new') sl.st = 'asked'; save(); paintSheetNumbers(); } }
   else if (k === 'usd' && sl) { const n = parseFloat(v.replace(/[$,\s]/g, '')); sl.vpTxt = v; sl.vp = isFinite(n) && n > 0 ? n : null; if (sl.vp != null) { sl.vd = null; if (sl.st === 'new') sl.st = 'asked'; } save(); paintSheetNumbers(); }
@@ -2148,8 +2171,18 @@ document.addEventListener('change', e => {
   const sl = UI.sheet ? S.slabs[UI.sheet] : null;
   if (k === 'pct' && sl) { el.value = (Math.round(calc(sl).d * 1000) / 10).toFixed(1); paintSheetNumbers(); }
   else if (k.startsWith('set:')) { renderTop(); renderTabs(); }
+  else if (k.startsWith('num:') && SET_LIM[k.slice(4)]) { el.value = setTxt(k.slice(4)); renderTop(); renderTabs(); }   // left the box: the number as kept
 });
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'pw') act('dounlock', {}); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target) return;
+  if (e.target.id === 'pw') act('dounlock', {});
+  else if (e.target.id === 'recname' && UI.modal) { e.preventDefault(); act(UI.modal.kind === 'recpur' ? 'recpurgo' : 'recscansgo', {}); }   // Enter = Record
+  else if (/^num:/.test((e.target.dataset && e.target.dataset.in) || '')) { e.preventDefault(); e.target.blur(); }                       // Enter = done typing
+});
+document.addEventListener('focusin', e => {             // a typed box (% under, bar, share, min sales): its number selected, so typing replaces it
+  const el = e.target; if (!el || !/^num:/.test((el.dataset && el.dataset.in) || '')) return;
+  setTimeout(() => { try { el.select(); el.setSelectionRange(0, el.value.length); } catch (x) {} }, 30);
+});
 Object.defineProperty(window, 'SSC', {value: {get S() { return S; }, get D() { return D; }, calc, plan, certOf, addScan, numSet, detailOf, readImage, TEST, SCAN, VREAD, scanLink}});
 
 /* ---------------- start ---------------- */

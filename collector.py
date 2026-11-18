@@ -1904,6 +1904,7 @@ def gplan_record(v, msg, t, kind="gplan"):
     kind "gspot" (2026-11-05): a Pre-Sales Spotcheck set - the green rows of Graded Forecasting or Recording sent with
     "Add to Pre-Sales Spotcheck", the same shape (the buy price for paid, no holds) plus src ('fc' / 'rc'), minp (the
     chance bar) and gate; kept in v["gspots"], shown on History > Pre-Sales Spotcheck, which looks each slab back.
+    The phone's Record purchases (2026-11-18) adds name (Brett's name for it, Show's name by default) to part 0; kept.
     The phone's Record scans (2026-11-14, src 'ph'): every slab of the show so far, as many as there are, each with its
     grader and cert after the nine figures ([..., 'psa', '46790116']; card and grade null while not known - the reads
     of the scans name them), and in part 0 the name Brett gave it, the show's day and the phone's own plan (minsales,
@@ -1950,6 +1951,8 @@ def gplan_record(v, msg, t, kind="gplan"):
                     "disc": round(float(msg.get("disc") or 0), 4), "ship": round(float(msg.get("ship") or 0), 2), "fee": round(float(msg.get("fee") or 0), 4),
                     "month": str(msg.get("month") or "")[:7], "reg": str(msg.get("reg") or "")[:8], "spent": round(float(msg.get("spent") or 0), 2),
                     "model": str(msg.get("model") or "")[:80], "smp": 1 if msg.get("smp") else 0, "holds": holds}
+            if kind == "gplan" and msg.get("name"):         # the phone's Record purchases names its record (2026-11-18: Show's name by default)
+                head["name"] = str(msg.get("name"))[:80]
             if kind == "gspot":
                 head.update({"src": str(msg.get("src") or "")[:4], "minp": round(float(msg.get("minp") or 0), 3), "gate": 1 if msg.get("gate") else 0})
                 if head["src"] == "ph":                      # the phone's Record scans: its name, the show's day and the phone's plan
@@ -1971,7 +1974,7 @@ def gplan_record(v, msg, t, kind="gplan"):
     recs[:] = [r for r in recs if r.get("id") != pid] + [rec]
     del recs[:-GPLAN_KEEP]
     v[kind + "_t"] = t
-    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)" + (f" - {rec['name']!r} from the phone" if rec.get("src") == "ph" else ""))
+    log(f"{what} recorded: {len(rec['slabs'])} slab(s), ${rec['spent']:.0f}, hold {rec['h']} month(s)" + (f" - {rec['name']!r} from the phone" if rec.get("src") == "ph" or (kind == "gplan" and rec.get("name")) else ""))
 
 
 # ---------------- Your Plan, phone <-> website (Brett, 2026-11-14) ----------------
