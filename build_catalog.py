@@ -147,7 +147,105 @@ def newest_snapshot_csv():
     return None, None
 
 
+# ---------- 1b. Without the subscription (2026-11-19) ----------
+# Brett cancels his PriceCharting subscription (it runs to about 2026-12-18): "update the build so that it functions without
+# a subscription ... run it side by side". The collector walks PriceCharting's public set pages every morning and publishes
+# pc_free.bin (collector.py "PriceCharting without the subscription": the download's columns - ids, names, the ungraded /
+# Grade 9 / PSA 10 prices off the set pages, the other grades from each card's page, sales-volume from the volume per month).
+# While the download works the two are compared here every day (the log's "Side by side" lines); once the download stops,
+# the build uses the walk (if complete and at most FREE_MAX_AGE_D days old), with anything it lacks (TCGplayer id, retail
+# prices ...) taken from the newest snapshot, and archives the day's snapshot as before.
+FREE_URL = (f"https://raw.githubusercontent.com/{os.environ['GITHUB_REPOSITORY']}/live/pc_free.bin" if os.environ.get("GITHUB_REPOSITORY")
+            else os.environ.get("PC_FREE_URL", ""))
+FREE_MAX_AGE_D = 2
+FREE_PRICES = ["loose-price", "graded-price", "manual-only-price", "cib-price", "new-price", "box-only-price", "bgs-10-price",
+               "condition-17-price", "condition-18-price"]
+
+
+def free_catalog():
+    """-> (DataFrame in the download's columns, info) from the collector's pc_free.bin, or (None, why not)."""
+    pw = os.environ.get("SITE_PASSWORD", "")
+    if not FREE_URL or not pw:
+        return None, "no address or no SITE_PASSWORD"
+    try:
+        r = requests.get(FREE_URL, timeout=60, headers={"Cache-Control": "no-cache"})
+    except requests.RequestException as e:
+        return None, f"not fetched ({type(e).__name__})"
+    if r.status_code != 200:
+        return None, f"HTTP {r.status_code} (not published yet)"
+    try:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        key = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), b"biotech-catalog-live-v1", 600_000)   # the live files' key
+        doc = json.loads(gzip.decompress(AESGCM(key).decrypt(r.content[:12], r.content[12:], None)))
+        df = pd.DataFrame(doc["rows"], columns=doc["cols"]).fillna("").astype(str)
+    except Exception as e:
+        return None, f"unreadable ({type(e).__name__})"
+    return df, {k: doc.get(k) for k in ("t", "day", "complete", "stats")}
+
+
+def free_compare(dl, fr):
+    """The download against the walk, the English cards of both: who is where, and how often the prices agree."""
+    a = dl[~dl["console-name"].str.contains(NON_ENGLISH)].drop_duplicates("id").set_index("id")
+    b = fr[~fr["console-name"].str.contains(NON_ENGLISH)].drop_duplicates("id").set_index("id")
+    common = a.index.intersection(b.index)
+    only_a, only_b = a.index.difference(b.index), b.index.difference(a.index)
+    print(f"Side by side (no subscription): download {len(a):,} English cards, set-page walk {len(b):,}; {len(common):,} in both, "
+          f"{len(only_a):,} only in the download, {len(only_b):,} only in the walk")
+    if len(only_a):
+        print("  only in the download, e.g.: " + "; ".join(f"{a.at[i, 'console-name']} / {a.at[i, 'product-name']}" for i in list(only_a)[:6]))
+    if len(only_b):
+        print("  only in the walk, e.g.: " + "; ".join(f"{b.at[i, 'console-name']} / {b.at[i, 'product-name']}" for i in list(only_b)[:6]))
+    out = {"download": len(a), "walk": len(b), "both": len(common), "only_download": len(only_a), "only_walk": len(only_b)}
+    a, b = a.loc[common], b.loc[common]
+    same_name = (a["product-name"].str.strip() == b["product-name"].str.strip()).mean() if len(common) else 0
+    same_set = (a["console-name"].str.strip() == b["console-name"].str.strip()).mean() if len(common) else 0
+    print(f"  names agree on {100 * same_name:.1f}%, set names on {100 * same_set:.1f}%")
+    for c in FREE_PRICES:
+        if c not in a.columns or c not in b.columns:
+            continue
+        x, y = pd.to_numeric(a[c], errors="coerce"), pd.to_numeric(b[c], errors="coerce")
+        have = x.notna() & (x > 0)
+        both = have & y.notna() & (y > 0)
+        if not have.sum():
+            continue
+        rel = ((y[both] - x[both]).abs() / x[both])
+        out[c] = {"download_has": int(have.sum()), "walk_has": int(both.sum()), "exact": round(float((rel < 0.0005).mean()), 4) if both.sum() else None,
+                  "within_2pct": round(float((rel <= 0.02).mean()), 4) if both.sum() else None, "median_diff": round(float(rel.median()), 4) if both.sum() else None}
+        print(f"  {c}: the walk has {both.sum():,} of the download's {have.sum():,}; same price on {100 * out[c]['exact']:.1f}%, within 2% on "
+              f"{100 * out[c]['within_2pct']:.1f}% (median difference {100 * out[c]['median_diff']:.2f}%)" if both.sum() else f"  {c}: the walk has none")
+    x, y = pd.to_numeric(a.get("sales-volume"), errors="coerce"), pd.to_numeric(b.get("sales-volume"), errors="coerce")
+    both = x.notna() & y.notna() & (x > 0) & (y > 0)
+    if both.sum():
+        out["sales_volume_ratio"] = round(float((y[both] / x[both]).median()), 3)
+        print(f"  sales-volume: {both.sum():,} cards with both; the walk's (12 months of the volume bars / counted sales) is a median "
+              f"{out['sales_volume_ratio']:.2f}x the download's (a different measure: the download counts the trailing year its own way)")
+    return out
+
+
+def free_filled(fr):
+    """The walk with the blanks (columns it does not carry, prices its cards' pages have not given yet) taken from the newest
+    snapshot, card by card - in the download's column order."""
+    snap_text, name = newest_snapshot_csv()
+    if snap_text is None:
+        return fr
+    import io
+    snap = pd.read_csv(io.StringIO(snap_text), dtype=str).fillna("").drop_duplicates("id").set_index("id")
+    out = fr.drop_duplicates("id").set_index("id")
+    for c in snap.columns:
+        if c not in out.columns:
+            out[c] = ""
+        blank = out[c].astype(str).str.strip() == ""
+        fill = out.index[blank].intersection(snap.index)
+        if len(fill):
+            out.loc[fill, c] = snap.loc[fill, c]
+    cols = [c for c in snap.columns if c in out.columns] + [c for c in out.columns if c not in snap.columns]
+    print(f"Blanks filled from the newest snapshot ({name}) for the cards it has")
+    return out.reset_index()[["id"] + [c for c in cols if c != "id"]]
+
+
 FALLBACK = False                 # True when the day's table comes from the newest snapshot, not a fresh download
+FREE_USED = False                # True when the day's table comes from the collector's set-page walk (no subscription)
+FREE_CHECK = None
 url = os.environ.get("PC_DOWNLOAD_URL", "").strip()
 if not url and os.path.exists(URL_FILE):
     url = open(URL_FILE, encoding="utf-8").read().strip()
@@ -177,6 +275,25 @@ if url:
             print("Waiting 90 s and trying once more ...")
             import time
             time.sleep(90)
+    free_df, free_info = free_catalog()
+    if free_df is None:
+        print(f"The collector's set-page walk (pc_free.bin): {free_info}")
+    else:
+        print(f"The collector's set-page walk (pc_free.bin): {free_info.get('day')} ({free_info.get('t')}), "
+              f"{'complete' if free_info.get('complete') else 'PARTIAL'}, {json.dumps(free_info.get('stats'))[:300]}")
+    if text is not None and free_df is not None:
+        try:
+            import io
+            FREE_CHECK = free_compare(pd.read_csv(io.StringIO(text), dtype=str).fillna(""), free_df)
+        except Exception as e:
+            print(f"Side by side: the comparison failed ({type(e).__name__}: {str(e)[:120]})")
+    free_ok = (free_df is not None and free_info.get("complete")
+               and (date.today() - date.fromisoformat(str(free_info.get("day")))).days <= FREE_MAX_AGE_D)
+    if text is None and free_ok:                          # no download (the subscription ended): the walk stands in
+        text = free_filled(free_df).to_csv(index=False)
+        FREE_USED = True
+        print(f"PriceCharting's download is unavailable: building from the collector's set-page walk of {free_info.get('day')} "
+              f"({len(free_df):,} cards) - no subscription needed. Today's snapshot is archived as usual.")
     if text is not None:
         with open(PC_CSV, "w", encoding="utf-8", newline="") as f:
             f.write(text)
@@ -190,6 +307,14 @@ if url:
         FALLBACK = True
         print(f"PriceCharting's download is unavailable right now: building from the newest snapshot ({name}) instead. "
               "The prices are a day old; tomorrow's run catches up. No new snapshot is archived for today.")
+
+if not url and not os.path.exists(PC_CSV):                 # no download link at all (2026-11-19): the set-page walk, if there is one
+    _fd, _fi = free_catalog()
+    if _fd is not None and _fi.get("complete"):
+        with open(PC_CSV, "w", encoding="utf-8", newline="") as f:
+            f.write(free_filled(_fd).to_csv(index=False))
+        FREE_USED = True
+        print(f"No PriceCharting download link: building from the collector's set-page walk of {_fi.get('day')} ({len(_fd):,} cards)")
 
 if not os.path.exists(PC_CSV):
     raise SystemExit(f"{PC_CSV} not found. On GitHub, add the PC_DOWNLOAD_URL secret. "

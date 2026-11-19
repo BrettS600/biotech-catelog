@@ -3708,6 +3708,48 @@ and the site password once), and the old screen's two other jobs kept as small b
   (www.pricecharting.com, Brett signed in) runs the new pc_tab.js again (clr-src-pc-prev kept), list loaded, waiting
   for 8 pm. From now on the run goes on every night (the evening check restarts both tabs).
 
+- PRICECHARTING WITHOUT THE SUBSCRIPTION (2026-11-19, Brett: "Its not for business use and I read their terms ... ill stop
+  the subscription today and we can update the build so that it functions without a subscription. my price charting
+  susbription ... repurchased for the month yesterday" - it runs to about 2026-12-18; "test to see if we will be able to get
+  the prices for all the recent sold cards and the number sales volume sold ... even if sales volume doesnt show ... we can
+  also just look at the number of listings that we sold on the site"; then "for the listings that exceed the max amount
+  shown, should be reread more often, so we get an accurate sales volume count. so yeah you can build this and run it side
+  by side"). TESTED SIGNED OUT (his Chrome, credentials: 'omit'): card pages carry every sold-listings table (Base Set
+  Charizard: 421 rows, the same as signed in), the Full Price Guide, chart_data (monthly prices), pop_data, the details
+  (release date, ePID); NOT volume_data (signed-in subscribers only). /category/pokemon-cards lists 304 Pokemon sets (160
+  English by the build's NON_ENGLISH rule); /console/<set>?format=json gives 150 cards a request (id, productName, consoleUri,
+  price1 = ungraded, price2 = PSA 10, price3 = Grade 9 - note the order - and the next page's cursor). VGPC.user_id is ""
+  signed out, a string signed in. THE VOLUME = THE SOLD LISTINGS: October's bar against the listings on the page (ungraded
+  + every grade) on 14 cards: 12/13, 37/36, 2/3, 38/38, 25/18, 12/8, 37/38, 29/33, 33/35, 72/74, 39/37, 89/56, 82/88, 153/88
+  - within a few wherever the tables still held all of October; the shortfalls are busy cards whose tables had rolled. The
+  ungraded table holds the latest 30 OF EACH SOURCE ("Ungraded (60)" = eBay 30 + TCGplayer 30, mixed by date). BUILT:
+  (1) pchist: ungraded_rows() puts the ungraded table's sales beside the graded ones (grade "U", grader "", row id kept),
+  merged by row id across reads in the same gs store (GS_KEEP_N 1,500 -> 4,000) and queued to the pcg chunks;
+  graded_due() paces the ungraded table per source (table_key: ("U", "ebay")), UG_FULL 30, and now measures a table's pace
+  from its oldest sale TO TODAY (it was to the newest sale: 30 old sales on one day looked busy forever) - so a table is
+  re-read before 30 new sales can pile up (daily for the busiest); count_volume(): vc = the sales on file per month, and
+  without the bars ("s") v = max(the bars last read, the count), so the subscription's months keep its numbers and later
+  months get the count; vcheck(): while the bars last, every read with them compares the whole months the page showed all
+  sales of (visible_months: a full table's oldest month and earlier are not whole) - the hourly log's "volume check" line
+  and live.pch.vcheck; details(): rd (release date), ep (ePID); _uid marks a signed-in read. (2) collector: the daily
+  set-page walk (PC_FREE_HOUR 8 UTC, in the PriceCharting reader between card pages, site requests first; pc_free_step /
+  pc_free_finish; ~400 requests, not counted in PC_DAY_CAP) -> pc_free.bin on the live branch: the download's columns
+  (PC_FREE_COLS), the other grades from each card's own guide, sales-volume = the last 12 months of v, rd / ep, genre;
+  "complete" unless a set was skipped or fewer than PC_FREE_MIN_ROWS (30,000) cards; live.pch.free = its stats. The sign-in
+  verdict: a read signed in (_uid) without the bars = "free" (not "expired": no push, no re-read loop for the bars; the pill
+  stays green, its tip says so; the chart note says the bars are PriceCharting's up to sv, then counted). (3) data_archive:
+  the "U" rows go to card-data data/pricecharting/ungraded_sales/ungraded_sales_<YYYY-MM>.csv.gz (card_id, date, price,
+  best_offer, source, row_id, title), the graded files stay graded only. (4) build_catalog: free_catalog() reads
+  pc_free.bin; while the download works free_compare() prints the "Side by side (no subscription)" lines (who is where,
+  names, every price column's exact / within-2% share, the sales-volume ratio); when the download fails and the walk is
+  complete and at most FREE_MAX_AGE_D = 2 days old, the build uses it (free_filled: blanks - TCGplayer id, retail, prices
+  a card's page has not given yet - from the newest snapshot) and archives the day's snapshot as usual (FREE_USED); with no
+  download link at all, the same. Expected after the subscription ends: grades 7 / 8 / 9.5 / CGC / BGS / SGC 10 move only
+  as each card's page is re-read (busy daily, $50+ every two weeks, the rest monthly); ungraded, Grade 9 and PSA 10 stay
+  daily; sales-volume is the counted measure (a different number from the download's trailing-year count). Tests on
+  stand-ins: t_pchist (merge, counts, bars kept, the check, pacing), t_walk (two sets, a Japanese one skipped, cursor, a
+  retry, the fill), t_build (decode, compare, fill), t_worker (walk before plan cards, verdict "free"), t_archive.
+
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
   fixtures with no network and no git; the jsdom refresh test (test_refresh.js in the harness) needs

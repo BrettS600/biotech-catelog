@@ -64,8 +64,10 @@ SPREAD_MIN_N = 6
 GRADED_VERSION = 2                                          # records read by an older parser are re-read once
 GRADE_SERIES = (("cib", "g7"), ("new", "g8"), ("graded", "g9"), ("boxonly", "g95"), ("manualonly", "psa10"))
 GS_KEEP_D = 400                                             # graded sales kept on the data disk this long ...
-GS_KEEP_N = 1500                                            # ... and at most this many per card (newest)
+GS_KEEP_N = 4000                                            # ... and at most this many per card (newest; 1,500 before the ungraded
+                                                            # sales joined them - 2026-11-19: a busy card sells ~600 a month)
 GS_FULL = 30                                                # a grade's table shows at most this many sales
+UG_FULL = 30                                                # the ungraded table: its latest 30 of each source (eBay, TCGplayer ...)
 GS_MIN_GRADE = 1                                            # every "Grade N" table is kept (2026-11-03, Brett: grades 1-6 too;
                                                             # it was 7 - PSA / CGC 1-6 rows showed 0 PriceCharting sales)
 GDUE_MIN_D, GDUE_MAX_D = 1, REFRESH_OTHER_D                 # a card whose busiest graded table would gather GS_FULL new sales within
@@ -73,7 +75,8 @@ GDUE_SHARE = 0.7                                            # GDUE_MAX_D / 0.7 d
 GDUE_MIN_N = 3                                              # a table needs this many sales before its pace is trusted
 GDUE_RECENT_D = 30                                          # ... and its pace over the last 30 days counts when it is faster
 GS_COLS = ["card_id", "row_id", "date", "cents", "grade", "grader", "best_offer", "title"]
-PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue", "guide", "guide_t")   # kept off the page's pc/<shard>.bin (the posted sales, the graded data)
+PAGE_DROP = ("sl", "gs", "g", "pop", "gv", "gdue", "guide", "guide_t", "vc", "rd", "ep", "_vis", "_cov", "_uid")   # kept off the page's pc/<shard>.bin
+                                                            # (the posted sales, the graded data, the counted volume, the details)
 GS_SHARDS = 1000                                            # the graded sales live in their own files (<store>/gs/<card id % 1000>.json.gz),
                                                             # so the hourly reads of every history shard stay light
 OPTION = re.compile(r'<option value="completed-auctions-([a-z0-9-]+)"\s*>\s*([^<(]+?)\s*\((\d+)\)\s*</option>')
@@ -95,6 +98,7 @@ _lock = threading.Lock()
 _gq = []                                                    # graded sales first seen, not yet written out: [card id, *row]
 _gdirty = set()                                             # shards whose graded lines / population changed since the last pcgh publish
 _gstat = {"day": None, "new": 0, "by": {}, "cards": 0}      # today's graded intake, for the log
+_vcheck = {"day": None, "n": 0, "exact": 0, "near": 0, "pro": 0, "cnt": 0, "cards": 0}   # counted sold listings vs the bars, today
 SHAPES = []                                                 # what the first pages carried, for the log
 
 
@@ -122,10 +126,12 @@ def month_of_day(day):
 def last_complete_month(rec):
     """[month index, sales] for the latest month whose bar was complete when the volume was read: the month before
     the read date's month (the read's own month is still running). A month after the record's last point had no
-    sales. None when the record carries no volume (read without the sign-in, nothing to keep)."""
-    if not rec or not (rec.get("s") or rec.get("sv")):
+    sales. None when the record carries no volume (read without the sign-in, nothing to keep). Since 2026-11-19 a record
+    with the counted sold listings (vc) and no bars counts up to its latest read."""
+    if not rec or not (rec.get("s") or rec.get("sv") or rec.get("vc") is not None):
         return None
-    read = day_of(rec.get("sv") or rec.get("t"))
+    counted = rec.get("vc") is not None and not rec.get("s")   # 2026-11-19: without the bars the month is counted, up to the read
+    read = day_of(rec.get("t") if counted else (rec.get("sv") or rec.get("t")))
     if not read:
         return None
     target = month_of_day(read) - 1
@@ -324,6 +330,76 @@ def graded_tables(html):
     return out, sizes
 
 
+def ungraded_rows(html):
+    """The ungraded sold-listings table as rows like graded_tables()' ([row id, date, cents, "U", "", best offer, title]),
+    so they are merged across reads and counted with the graded ones (2026-11-19, Brett, cancelling his PriceCharting
+    subscription: "for the listings that exceed the max amount shown, should be reread more often, so we get an accurate
+    sales volume count"). The table holds the latest 30 of each source (eBay, then e.g. TCGplayer - "Ungraded (60)")."""
+    i = html.find('<div class="completed-auctions-used"')
+    if i < 0:
+        return []
+    seg = html[i:]
+    j = seg.find("</table>")
+    if j > 0:
+        seg = seg[:j]
+    out = []
+    for r in GRADED_ROW.finditer(seg):
+        pm = PRICE.search(r.group(5))
+        if not pm:
+            continue
+        try:
+            cents = int(round(float(pm.group(1).replace(",", "")) * 100))
+        except ValueError:
+            continue
+        bo = 1 if "best offer accepted" in r.group(5).lower() else 0
+        out.append([r.group(1)[:80], r.group(2), cents, "U", "", bo, _plain(r.group(4))[:70]])
+    return out
+
+
+MONTHS = {m: i + 1 for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july", "august", "september",
+                                           "october", "november", "december"))}
+
+
+def details(html):
+    """The card page's details that the subscription's download used to give (2026-11-19): {"rd": release date
+    YYYY-MM-DD, "ep": eBay product id} - each only when the page states it."""
+    out = {}
+    m = re.search(r"Release Date:\s*</td>\s*<td[^>]*>\s*([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})", html)
+    if m and m.group(1).lower() in MONTHS:
+        out["rd"] = f"{int(m.group(3)):04d}-{MONTHS[m.group(1).lower()]:02d}-{int(m.group(2)):02d}"
+    m = re.search(r"ePID \(eBay\):\s*</td>\s*<td[^>]*>\s*(\d{3,})", html)
+    if m:
+        out["ep"] = m.group(1)
+    return out
+
+
+def visible_months(rows):
+    """For the check of the counted volume against PriceCharting's bars while both exist: the sales the page shows per
+    month (every table, ungraded too) and the first month the page shows WHOLE - a full table (30 of a grade, 30 of an
+    ungraded source) may have let older sales go, so the months up to its oldest sale's are not counted whole."""
+    vis, groups = {}, {}
+    for r in rows:
+        try:
+            m = month_index(int(datetime.strptime(r[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000))
+        except Exception:
+            continue
+        vis[m] = vis.get(m, 0) + 1
+        groups.setdefault(table_key(r), []).append(m)
+    cov = 0
+    for k, ms in groups.items():
+        if len(ms) >= (UG_FULL if k[0] == "U" else GS_FULL):
+            cov = max(cov, min(ms) + 1)
+    return vis, cov
+
+
+def table_key(r):
+    """Which shown table a sale sits in: a grade's table (a 10 per grader; Grade N per grade), or the ungraded table's
+    source (row id ebay-..., tcgplayer-...)."""
+    if r[3] == "U":
+        return ("U", str(r[0]).split("-")[0])
+    return (r[3], r[4] if r[3].startswith("10") else "")
+
+
 def pop_report(html):
     """The population report the page carries (VGPC.pop_data = {"psa": [grade 1..10], "cgc": [...]}) or None."""
     m = re.search(r"VGPC\.pop_data\s*=\s*", html)
@@ -406,17 +482,18 @@ def graded_due(rows, sizes, today=None):
     best = None
     by = {}
     for r in rows:
-        by.setdefault((r[3], r[4] if r[3].startswith("10") else ""), []).append(day_of(r[1]))
-    for (grade, grader), days in by.items():
+        by.setdefault(table_key(r), []).append(day_of(r[1]))
+    for (grade, grader), days in by.items():                # (the ungraded table per source: "U", "ebay" - 2026-11-19)
         n = len(days)
         if n < GDUE_MIN_N:
             continue
-        span = max(1, max(days) - min(days))                # whole days; sales all on one day count as a day
+        span = max(1, today - min(days))                    # the table's oldest sale to today (2026-11-19: was to its newest sale,
+                                                            # so 30 old sales on one day - a TCGplayer batch - looked busy forever)
         rate = n / span                                     # sales a day over the table
         recent = sum(1 for d in days if today - d <= GDUE_RECENT_D)
         if recent >= GDUE_MIN_N:                             # a grade turning busy: its last month's pace, not its old sales'
             rate = max(rate, recent / GDUE_RECENT_D)
-        due = int(GS_FULL / rate * GDUE_SHARE)              # 70% of the days GS_FULL new sales take at this pace
+        due = int((UG_FULL if grade == "U" else GS_FULL) / rate * GDUE_SHARE)   # 70% of the days a full table's worth takes
         if due >= GDUE_MAX_D:                                # slower than that: the monthly refresh keeps up
             continue
         due = max(GDUE_MIN_D, due)
@@ -471,12 +548,18 @@ def extract(html):
             if guide:
                 rec["guide"] = guide
             gs, sizes = graded_tables(html)
-            rec["gs"] = gs
-            gd = graded_due(gs, sizes)
+            us = ungraded_rows(html)                     # 2026-11-19: the ungraded sales too, merged and counted
+            rec["gs"] = gs + us
+            rec["_vis"], rec["_cov"] = visible_months(gs + us)
+            rec.update(details(html))
+            uid = re.search(r'VGPC\.user_id\s*=\s*"([^"]*)"', html)
+            if uid and uid.group(1):                     # the page was read signed in (with or without a subscription)
+                rec["_uid"] = 1
+            gd = graded_due(gs + us, sizes)
             if gd:
                 rec["gdue"] = gd
             rec["gv"] = GRADED_VERSION
-            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables" + (", pop" if pop else "") + (", guide" if guide else "") + (f", due {gd} d" if gd else "")
+            how += f"; graded: {len(g)} lines, {len(gs)} sales in {len(sizes)} tables, {len(us)} ungraded" + (", pop" if pop else "") + (", guide" if guide else "") + (f", due {gd} d" if gd else "")
         except Exception as e:                               # never lose the ungraded record over the graded part
             how += f"; graded parse failed: {str(e)[:80]}"
     if rec is not None and sales is not None:
@@ -607,6 +690,15 @@ def file(cid, rec, today=None):
         if old and (old.get("s") or old.get("sv")) and not rec.get("s"):
             rec = keep_volume(old, rec)
         rec = keep_graded(cid, old, rec, today)
+        for k in ("rd", "ep"):                               # the page's details: a read that lacked one keeps the old
+            if k not in rec and old and k in old:
+                rec[k] = old[k]
+        vis, cov = rec.pop("_vis", None), rec.pop("_cov", None)
+        rec.pop("_uid", None)
+        if rec.get("gs") is not None:                         # 2026-11-19: the volume counted from the sold listings on file
+            rec = count_volume(rec)
+        if vis and rec.get("s"):                              # while the subscription lasts: the counted sales against the bars
+            vcheck(rec, vis, cov)
         gs = rec.pop("gs", None)
         if gs is not None:                                   # the merged graded sales go to their own file
             gd = _gs_read(int(cid) % GS_SHARDS)
@@ -622,6 +714,62 @@ def file(cid, rec, today=None):
         _dirty.add(sh)
         if rec.get("g") or rec.get("pop") or rec.get("guide"):
             _gdirty.add(sh)
+
+
+def count_volume(rec):
+    """vc = the sales on file per month of the record (every grade and the ungraded table, each sale once - they are
+    merged by row id across reads). Without PriceCharting's own bars (no subscription: no "s"), a month's volume is the
+    larger of what the bars said when they were last read and the count, so the months before the subscription ended
+    keep its numbers and the months after it get the count."""
+    m0, n = rec["m0"], len(rec["p"])
+    vc = [0] * n
+    for r in rec.get("gs") or []:
+        try:
+            m = month_index(int(datetime.strptime(r[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000))
+        except Exception:
+            continue
+        if 0 <= m - m0 < n:
+            vc[m - m0] += 1
+    rec = dict(rec, vc=vc)
+    if not rec.get("s"):
+        v = list(rec.get("v") or [0] * n)
+        rec["v"] = [max(v[k] if k < len(v) else 0, vc[k]) for k in range(n)]
+    return rec
+
+
+def vcheck(rec, vis, cov):
+    """While the bars are still there: for each whole month the page showed every sale of (cov .. last month), the
+    sales it showed against the bar. For the log (vcheck_summary), so the count can be trusted before the bars go."""
+    m0, v = rec["m0"], rec.get("v") or []
+    now = month_index(int(datetime.now(timezone.utc).timestamp() * 1000))
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _vcheck["day"] != today:
+        _vcheck.update(day=today, n=0, exact=0, near=0, pro=0, cnt=0, cards=0)
+    used = False
+    for m in range(max(cov or 0, m0), now):
+        k = m - m0
+        if k >= len(v):
+            break
+        pro, cnt = v[k] or 0, vis.get(m, 0)
+        if not pro and not cnt:
+            continue
+        used = True
+        _vcheck["n"] += 1
+        _vcheck["exact"] += pro == cnt
+        _vcheck["near"] += abs(pro - cnt) <= max(1, 0.1 * pro)
+        _vcheck["pro"] += pro
+        _vcheck["cnt"] += cnt
+    _vcheck["cards"] += used
+
+
+def vcheck_summary():
+    """Today's check of the counted sold listings against PriceCharting's bars (cards read with the subscription)."""
+    c = dict(_vcheck)
+    if not c["n"]:
+        return "volume check: no card-month compared yet today"
+    return (f"volume check: {c['n']:,} card-months on {c['cards']:,} cards - the sold listings counted {c['cnt']:,} against "
+            f"PriceCharting's bars {c['pro']:,} ({100 * c['cnt'] / max(1, c['pro']):.0f}%); exact on {100 * c['exact'] / c['n']:.0f}%, "
+            f"within 10% on {100 * c['near'] / c['n']:.0f}%")
 
 
 def keep_volume(old, new):

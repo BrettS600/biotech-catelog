@@ -2377,6 +2377,158 @@ PCM_PUBLISH_S = 3600             # pcm.bin (every card's last complete month of 
 PC_IMG_FAIL_RETRY_D = 7          # a card whose page gave no picture is tried again after this many days
 
 
+# ---------------- PriceCharting without the subscription (Brett, 2026-11-19) ----------------
+# Brett cancels his PriceCharting subscription (it runs to about 2026-12-18): "update the build so that it functions
+# without a subscription ... run it side by side". The site build's daily price-guide download needs the subscription;
+# PriceCharting's public set pages do not: /category/pokemon-cards lists every Pokemon set, and /console/<set>?format=json
+# gives 150 cards a request (id, name, the ungraded / PSA 10 / Grade 9 prices as price1 / price2 / price3, the next
+# page's cursor). The reader walks the English sets once a day (PC_FREE_HOUR on, between the card pages) and publishes
+# pc_free.bin: the download's columns, the other grades from each card's own page (its price guide, read on the usual
+# schedule), the release date and eBay id off the card page, and sales-volume = the last 12 months of the volume
+# (PriceCharting's own bars while they lasted, then the sold listings counted - pchist.count_volume). The build compares
+# it with the download every day and builds from it once the download stops.
+PC_FREE_HOUR = 8                 # the walk starts from 08:00 UTC, before the site build (10:00 UTC) and the data archive
+PC_FREE_MIN_ROWS = 30000         # fewer English cards than this (44,333 in the download on 2026-11-18): kept as partial
+PC_FREE_TRIES = 3                # a set page that fails this often is skipped for the day (the walk is then partial)
+PC_FREE_NON_ENGLISH = re.compile(r"\b(?:Japanese|Korean|Chinese|Thai|Indonesian|German|French|Italian|Spanish|Portuguese|Dutch|"
+                                 r"Russian|Polish)\b", re.I)   # the site build's ENGLISH_ONLY rule, on the set's name
+PC_FREE_COLS = ["id", "console-name", "product-name", "loose-price", "cib-price", "new-price", "graded-price", "box-only-price",
+                "manual-only-price", "bgs-10-price", "condition-17-price", "condition-18-price", "sales-volume", "genre", "epid",
+                "release-date"]
+PC_FREE_GUIDE = (("cib-price", "grade_7"), ("new-price", "grade_8"), ("box-only-price", "grade_9_5"), ("bgs-10-price", "bgs_10"),
+                 ("condition-17-price", "cgc_10"), ("condition-18-price", "sgc_10"))
+PC_FREE = {"done_day": None, "walk": None, "out": None}   # the walk in progress (worker thread) and the finished one (main loop)
+
+
+def pc_free_money(v):
+    """'$32,940.00' -> '32940.00'; '' / '-' / None -> ''."""
+    try:
+        return f"{float(str(v).replace('$', '').replace(',', '').strip()):.2f}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def pc_free_get(path):
+    """One set-listing request (anonymous: the set pages need no sign-in) -> (HTTP status, text)."""
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) personal card check, set listing"}
+    t0 = time.time()
+    try:
+        r = requests.get("https://www.pricecharting.com" + path, timeout=30, headers=headers)
+    except Exception as e:
+        PC_LAST_READ.update(code=None, s=time.time() - t0, err=str(e)[:80])
+        return None, ""
+    PC_LAST_READ.update(code=r.status_code, s=time.time() - t0, err=None)
+    return r.status_code, r.text
+
+
+def pc_free_sets(html):
+    """The category page -> [(set path, set name)] for the English Pokemon sets, in the page's order."""
+    out, seen = [], set()
+    for href, name in re.findall(r'<a[^>]+href="(/console/pokemon[^"?#]*)"[^>]*>(.*?)</a>', html, re.S):
+        name = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", name)).strip()
+        href = html_unescape(href)                           # "/console/pokemon-scarlet-&amp;-violet-151" in the page
+        if not name or href in seen or PC_FREE_NON_ENGLISH.search(name + " " + href):
+            continue
+        seen.add(href)
+        out.append((href, html_unescape(name)))
+    return out
+
+
+def html_unescape(t):
+    import html as html_mod
+    return html_mod.unescape(t)
+
+
+def pc_free_step():
+    """One request of the day's walk (called by the reader in place of a card page). -> True when a request was made.
+    The walk: the category page, then each English set's pages (150 cards each, cursor to cursor). A page that fails is
+    tried again later (PC_FREE_TRIES), then the set is skipped and the walk counts as partial."""
+    w = PC_FREE["walk"]
+    if w is None:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        code, text = pc_free_get("/category/pokemon-cards")
+        if code != 200:
+            return "error", code
+        sets = pc_free_sets(text)
+        if not sets:
+            return "error", "no sets on the category page"
+        PC_FREE["walk"] = {"day": today, "t0": time.time(), "todo": deque((path, name, None, 0) for path, name in sets),
+                           "rows": {}, "sets": len(sets), "pages": 1, "skipped": [], "errors": 0}
+        return "ok", None
+    if not w["todo"]:
+        return "done", None
+    path, name, cursor, tries = w["todo"].popleft()
+    q = "?format=json" + ("&cursor=" + requests.utils.quote(str(cursor), safe="") if cursor else "")
+    code, text = pc_free_get(path + q)
+    w["pages"] += 1
+    try:
+        doc = json.loads(text) if code == 200 else None
+    except ValueError:
+        doc = None
+    if not isinstance(doc, dict):
+        w["errors"] += 1
+        if tries + 1 < PC_FREE_TRIES:
+            w["todo"].append((path, name, cursor, tries + 1))
+        else:
+            w["skipped"].append(name)
+        return "error", code
+    prods = doc.get("products") or []
+    for p in prods:
+        try:
+            cid = int(p.get("id"))
+        except (TypeError, ValueError):
+            continue
+        w["rows"][cid] = {"id": cid, "console-name": name, "product-name": str(p.get("productName") or "").strip(),
+                          "loose-price": pc_free_money(p.get("price1")), "manual-only-price": pc_free_money(p.get("price2")),
+                          "graded-price": pc_free_money(p.get("price3"))}
+    nxt = doc.get("cursor")
+    if prods and nxt and str(nxt) != str(cursor) and len(prods) >= 150:
+        w["todo"].appendleft((path, name, nxt, 0))           # the same set's next page next
+    return "ok", None
+
+
+def pc_free_due():
+    now = datetime.now(timezone.utc)
+    return PC_FREE["done_day"] != now.strftime("%Y-%m-%d") and now.hour >= PC_FREE_HOUR
+
+
+def pc_free_finish():
+    """The walk is through: fill each card's other columns from what is on file for it (pchist: the price guide, the
+    page's details, the volume) and hand the result to the main loop (PC_FREE["out"])."""
+    w = PC_FREE["walk"]
+    rows = w["rows"]
+    fill = {}
+    for sh in range(pchist.SHARDS):
+        with pchist._lock:
+            d = dict(pchist._load(sh))
+        for k, rec in d.items():
+            try:
+                cid = int(k)
+            except ValueError:
+                continue
+            if cid not in rows:
+                continue
+            g = rec.get("guide") or {}
+            f = {col: ("" if g.get(key) is None else f"{g[key] / 100:.2f}") for col, key in PC_FREE_GUIDE}
+            v = rec.get("v") or []
+            f["sales-volume"] = str(sum(int(x or 0) for x in v[-12:])) if v else ""
+            f["release-date"], f["epid"] = rec.get("rd") or "", rec.get("ep") or ""
+            fill[cid] = f
+    out = []
+    for cid, r in rows.items():
+        f = fill.get(cid, {})
+        row = dict(r, genre="Pokemon Card", **{k: f.get(k, "") for k in ("cib-price", "new-price", "box-only-price", "bgs-10-price",
+                                                                          "condition-17-price", "condition-18-price", "sales-volume",
+                                                                          "release-date", "epid")})
+        out.append([row.get(c, "") for c in PC_FREE_COLS])
+    complete = not w["skipped"] and len(out) >= PC_FREE_MIN_ROWS
+    PC_FREE["out"] = {"t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "day": w["day"], "complete": complete,
+                      "stats": {"sets": w["sets"], "pages": w["pages"], "cards": len(out), "with_page_data": len(fill),
+                                "errors": w["errors"], "skipped": w["skipped"][:20], "minutes": round((time.time() - w["t0"]) / 60, 1)},
+                      "cols": PC_FREE_COLS, "rows": out}
+    PC_FREE["done_day"], PC_FREE["walk"] = w["day"], None
+
+
 class PcImageWorker(threading.Thread):
     """Reads PriceCharting's picture for every card the Review button on the site can be pressed for, in the
     background, so the site has the picture ready the way the phone does. A card Brett asks for (Review pressed on a
@@ -2498,6 +2650,31 @@ class PcImageWorker(threading.Thread):
         return PC_DAY_CAP - self.day_n
 
     def step(self):
+        with self.lock:
+            site_waiting = bool(self.wanted or self.wanted_hist)
+        if not site_waiting and (PC_FREE["walk"] is not None or pc_free_due()):   # the day's set-page walk (2026-11-19)
+            try:
+                status, info = pc_free_step()
+            except Exception as e:
+                status, info = "error", str(e)[:80]
+            if status == "done":
+                try:
+                    pc_free_finish()
+                except Exception as e:
+                    log(f"PriceCharting set pages: the walk could not be finished ({str(e)[:120]})")
+                    PC_FREE["done_day"], PC_FREE["walk"] = datetime.now(timezone.utc).strftime("%Y-%m-%d"), None
+                return True
+            if status == "error":
+                self.errors += 1
+                if PC_LAST_READ.get("code") in (403, 429, 503) or self.errors >= 3:
+                    self.gap = min(30.0, self.gap * 2)
+                    self.paused_until = time.time() + (900 if self.errors >= 5 else 60)
+                if PC_FREE["walk"] is None and self.errors >= 5:      # the category page itself keeps failing: try tomorrow
+                    PC_FREE["done_day"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                    log(f"PriceCharting set pages: the category page could not be read ({info}) - the walk is left for tomorrow")
+            else:
+                self.errors = 0
+            return True
         cid, urgent, want_img = self.next_card()
         if cid is None:
             return False
@@ -2596,7 +2773,7 @@ def pc_plan(state, cards, cat=None):
     worth = PC_REST_ORDER.get("worth") or set()
     out, seen = [], set()
     today_i = pchist.day_index()
-    want_signed = bool(PC_COOKIE) and v.get("pch_signin") != "expired"   # a sign-in that works (or is untested): re-read for the bars
+    want_signed = bool(PC_COOKIE) and v.get("pch_signin") not in ("expired", "free")   # a sign-in with the bars (or untested): re-read for them
     first = []
     for group, ids in enumerate(([r["card"] for r in recent], list(active), rest)):
         for cid in ids:
@@ -2637,12 +2814,16 @@ def file_pc_images(state, worker):
                     was = v.get("pch_signin")
                     if hist.get("s"):
                         v["pch_nosig"], v["pch_signin"] = 0, "ok"
+                    elif hist.get("_uid"):                   # signed in, but no bars: the subscription ended (2026-11-19) - the
+                        v["pch_nosig"], v["pch_signin"] = 0, "free"   # sign-in works; the volume is counted from the sold listings
                     else:                                    # one page without the series proves nothing (2026-10-13: a run of
                         v["pch_nosig"] = v.get("pch_nosig", 0) + 1   # no-sales pages flipped the verdict - and the phone - every minute)
                         if v["pch_nosig"] >= PC_SIGNIN_STRIKES:
                             v["pch_signin"] = "expired"
                     if v["pch_signin"] != was:
                         log("PriceCharting sign-in: " + ("working - pages carry the volume series" if hist.get("s") else
+                            "signed in, but the pages carry no volume bars (no subscription): the volume is counted from the sold "
+                            "listings on each read instead (pchist.count_volume)" if v["pch_signin"] == "free" else
                             "the page came WITHOUT the volume series: the PC_COOKIE in /etc/pokemon-collector.env has expired "
                             "or was not accepted. The chart keeps the bars it has until it is replaced and the service restarted")
                             + "; the page: " + PC_SIGNIN_CLUES.get(bool(hist.get("s")), "?"))
@@ -3995,10 +4176,11 @@ def cycle(state, cat, sched, counters):
             f"history: {pchist.count():,} of {len(cat.cards):,} cards on file, {pchist.count_signed():,} with the volume series; "
             + pchist.graded_summary())
     if due("graded_log", 3600):                              # PriceCharting's graded data (2026-10-26): hourly
-        log("PriceCharting " + pchist.graded_summary())
+        log("PriceCharting " + pchist.graded_summary() + "; " + pchist.vcheck_summary())
     live["pcimg"] = pc_image_table(state)
     live["pch"] = {"n": pchist.count(), "total": len(cat.cards), "shards": pchist.SHARDS,   # the page's "history for N cards so far"
-                   "signed": pchist.count_signed(), "signin": v.get("pch_signin", "none") if PC_COOKIE else "none"}
+                   "signed": pchist.count_signed(), "signin": v.get("pch_signin", "none") if PC_COOKIE else "none",
+                   "vcheck": dict(pchist._vcheck), "free": v.get("pc_free_info")}
     live["alert"]["learned"] = {"words": sorted(learned["words"].items(), key=lambda kv: -kv[1])[:40],
                                 "titles": len(learned["titles"]), "sellers": len(learned["sellers"])}
     if not v.get("au_backfilled"):
@@ -4065,6 +4247,20 @@ def cycle(state, cat, sched, counters):
                 files.update(pchist.publish_graded_hist(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
             except Exception as e:
                 log(f"PriceCharting graded: pcgh publish failed ({str(e)[:120]})")
+        if PC_FREE.get("out"):                               # the day's set-page walk (2026-11-19): pc_free.bin for the site build
+            try:
+                fo = PC_FREE["out"]
+                files["pc_free.bin"] = live_blob(fo)
+                v["pc_free_info"] = dict(fo["stats"], day=fo["day"], t=fo["t"], complete=fo["complete"])
+                log(f"PriceCharting set pages: {fo['stats']['cards']:,} English cards from {fo['stats']['sets']} sets in "
+                    f"{fo['stats']['pages']} requests ({fo['stats']['minutes']} min, {fo['stats']['errors']} failed"
+                    + (f", skipped {', '.join(fo['stats']['skipped'])}" if fo['stats']['skipped'] else "") + f"); "
+                    f"{fo['stats']['with_page_data']:,} filled from their card pages; "
+                    + ("complete" if fo["complete"] else "PARTIAL - the build will not take it") + " - pc_free.bin published")
+                PC_FREE["out"] = None
+            except Exception as e:
+                log(f"PriceCharting set pages: pc_free.bin failed ({str(e)[:120]})")
+                PC_FREE["out"] = None
         if pchist.dirty_count() and (due("pchist", PC_HIST_PUBLISH_S) or urgent):   # PriceCharting history shards that changed
             try:
                 files.update(pchist.publish_files(lambda raw: es.encrypt_live(raw, es.PASSWORD) if es.PASSWORD else raw))
@@ -4255,7 +4451,7 @@ def main():
             f"(with eBay data) or monthly; PriceCharting sign-in: {pc_signin_startup_note()}")
         if not PC_COOKIE:                                    # the verdict survives a restart; a replaced cookie gets a fresh test
             state["vps"]["pch_signin"] = "none"
-        elif _pc_sess.get("fresh") or state["vps"].get("pch_signin") not in ("ok", "expired"):
+        elif _pc_sess.get("fresh") or state["vps"].get("pch_signin") not in ("ok", "expired", "free"):
             state["vps"]["pch_signin"] = "unknown"
     except Exception as e:
         log(f"PriceCharting history: store failed to open ({e})")

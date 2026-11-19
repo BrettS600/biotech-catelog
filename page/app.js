@@ -2175,7 +2175,10 @@ function paintPcPill() {
   const el = $('pcpill'); if (!el) return;
   const p = (LIVE.data && LIVE.data.pch) || {}, si = p.signin || 'none';
   el.hidden = false;
-  if (si === 'ok') {
+  if (si === 'free') {                       // 2026-11-19: signed in without the subscription - the volume is counted
+    el.className = 'pcpill ok'; el.textContent = 'PriceCharting connected';
+    el.title = 'The collector reads PriceCharting signed in, without a subscription: the Trend charts\u2019 volume bars are PriceCharting\u2019s own up to the end of the subscription, then the sold listings the collector counts on every read (busy cards are re-read before their lists fill up)';
+  } else if (si === 'ok') {
     el.className = 'pcpill ok'; el.textContent = 'PriceCharting connected';
     el.title = 'The collector reads PriceCharting signed in, so the Trend charts get the monthly volume bars' + (p.signed != null ? ' \u00b7 ' + Number(p.signed).toLocaleString('en-US') + ' of ' + Number(p.total || 0).toLocaleString('en-US') + ' cards have them so far' : '');
   } else if (si === 'unknown') {
@@ -2677,7 +2680,8 @@ function drawPcChart() {
   hit.addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
   const first = all[0].m, last = all[all.length - 1].m;
   const si = (LIVE.data && LIVE.data.pch && LIVE.data.pch.signin) || 'none';
-  const why = hasVol && h.sv && !h.s ? ' \u00b7 the ungraded price per month; the volume bars are as of ' + h.sv + ', the last page read with the collector\u2019s PriceCharting sign-in (it has lapsed since: replace PC_COOKIE in /etc/pokemon-collector.env and restart the service)'
+  const why = hasVol && si === 'free' ? ' \u00b7 the ungraded price and the sales per month: PriceCharting\u2019s own volume bars' + (h.sv ? ' up to ' + h.sv : '') + ', then the sold listings the collector counted on its reads of the page'
+    : hasVol && h.sv && !h.s ? ' \u00b7 the ungraded price per month; the volume bars are as of ' + h.sv + ', the last page read with the collector\u2019s PriceCharting sign-in (it has lapsed since: replace PC_COOKIE in /etc/pokemon-collector.env and restart the service)'
     : hasVol ? ' \u00b7 the ungraded price and the total sales volume per month, as the chart on their page shows them'
     : si === 'ok' ? ' \u00b7 the ungraded price per month; the volume bars come once this card\u2019s page is read again with the collector\u2019s PriceCharting sign-in (asked for it now)'
     : si === 'expired' ? ' \u00b7 the ungraded price per month; the collector\u2019s PriceCharting sign-in has expired (replace PC_COOKIE in /etc/pokemon-collector.env and restart the service), so the volume bars are missing'

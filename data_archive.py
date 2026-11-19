@@ -633,6 +633,24 @@ def pc_graded(out, live_dir, password, full):
         df["price"] = (pd.to_numeric(df["cents"], errors="coerce") / 100).round(2)
         df["grade"] = df["grade"].astype(str)
         df = df[GS_OUT]
+        ug = df[df["grade"] == "U"]                          # 2026-11-19: the ungraded sold listings ride the same chunks (merged
+        df = df[df["grade"] != "U"]                          # and counted for the volume once the subscription ends) - own files
+        if len(ug):
+            ufolder = os.path.join(folder, "ungraded_sales")
+            os.makedirs(ufolder, exist_ok=True)
+            uadded = 0
+            for month, part in ug.drop(columns=["grade", "grader"]).groupby(ug["date"].astype(str).str[:7]):
+                path = os.path.join(ufolder, f"ungraded_sales_{month}.csv.gz")
+                n0 = 0
+                if os.path.exists(path):
+                    old = pd.read_csv(path, dtype={"row_id": str, "title": str})
+                    n0 = len(old)
+                    part = pd.concat([old, part], ignore_index=True)
+                part = part.drop_duplicates(["card_id", "row_id"], keep="last").sort_values(["date", "card_id", "row_id"])
+                part.to_csv(path, index=False, compression={"method": "gzip", "compresslevel": 6})
+                uadded += len(part) - n0
+            res["ungraded_sales"] = {"rows_added": uadded}
+            log(f"ungraded: {uadded:,} new ungraded sales filed")
         for month, part in df.groupby(df["date"].astype(str).str[:7]):
             path = os.path.join(gfolder, f"graded_sales_{month}.csv.gz")
             n0 = 0
