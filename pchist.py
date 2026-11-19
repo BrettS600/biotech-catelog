@@ -48,6 +48,9 @@ EPOCH_Y = 2000
 VGPC = re.compile(r"VGPC\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*")
 REFRESH_ACTIVE_D = 7                                        # a card with eBay data is re-read this often ...
 REFRESH_OTHER_D = 30                                        # ... any other card this often
+REFRESH_WORTH_D = 14                                        # ... but a card worth $50+ every two weeks (2026-11-19, Brett: a card
+                                                            # that starts selling should reach the nightly Card Ladder refresh
+                                                            # sooner than a month - card-data make_refresh.py reads these sales)
 MISS_RETRY_D = 7                                            # a page with no history is tried again after this long
 # PriceCharting's posted ungraded sales (the "Ungraded Sold Listings" table on the card's page; 2026-10-25, Brett: "when
 # you open price chart for a card, you see that there are many listings with radically different values. This would
@@ -769,10 +772,10 @@ def get(cid):
         return _load(shard_of(cid)).get(str(cid))
 
 
-def stale(cid, active=False, today=None, want_signed=False, want_graded=False):
-    """Does this card need its page read for the history? Never read, read longer ago than its refresh, (with a
-    working sign-in) read without the volume series, (want_graded) read by an older parser than the graded one, or
-    due early because a graded table is busy (gdue)."""
+def stale(cid, active=False, today=None, want_signed=False, want_graded=False, worth=False):
+    """Does this card need its page read for the history? Never read, read longer ago than its refresh (a week with
+    eBay data, two weeks when worth $50+, else a month), (with a working sign-in) read without the volume series,
+    (want_graded) read by an older parser than the graded one, or due early because a graded table is busy (gdue)."""
     today = day_index() if today is None else today
     cid = int(cid)
     last = _index.get(cid)
@@ -788,7 +791,7 @@ def stale(cid, active=False, today=None, want_signed=False, want_graded=False):
         return True
     if active and month_of_day(day) < month_of_day(today):   # a new month: last month's bar is final now, read it
         return True                                           # (Brett, 2026-10-13: "PC sales" shows last month's bar)
-    refresh = REFRESH_ACTIVE_D if active else REFRESH_OTHER_D
+    refresh = REFRESH_ACTIVE_D if active else REFRESH_WORTH_D if worth else REFRESH_OTHER_D
     if gdue:
         refresh = min(refresh, gdue)
     return today - day >= refresh

@@ -429,6 +429,63 @@ def read_live(live_dir, password):
     return json.loads(raw.decode("utf-8"))
 
 
+LIVE_RAW = "https://raw.githubusercontent.com/" + os.environ.get("GITHUB_REPOSITORY", "BrettS600/biotech-catelog") + "/live/"
+
+
+def watch(out, live_dir, password):
+    """cardladder/watch.csv (2026-11-19, the nightly Card Ladder refresh - Brett: "collect data on the cards that are
+    changing in price every night"): the card of every slab Brett recorded (Graded > Purchases, the phone's Record
+    purchases; in the live file) or sent to Pre-Sales Spotcheck (Forecasting, Recording, the phone's Record scans;
+    spots.bin on the live branch). card-data's tools/clingest/make_refresh.py reads their Card Ladder pages again first.
+    One row per card and kind (the newest record's grade); a phone slab known only by its cert takes its card from the
+    cert's read (scan.bin), and waits until a read names it."""
+    import requests
+    rows, named = {}, {}
+
+    def live_file(name):
+        r = requests.get(LIVE_RAW + name, timeout=60)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        return json.loads(gzip.decompress(F.decrypt_live(r.content, password)).decode("utf-8"))
+
+    def add(recs, kind):
+        for rec in recs or []:
+            for sl in rec.get("slabs") or []:
+                cid = sl[0] if sl else None
+                if cid is None and sl and len(sl) >= 11:          # a phone slab: its cert's read names the card
+                    cid = named.get((str(sl[9]).lower(), str(sl[10])))
+                if cid is None:
+                    continue
+                k, t = (int(cid), kind), int(rec.get("t") or 0)
+                if k not in rows or t >= rows[k]["t"]:
+                    rows[k] = {"card_id": int(cid), "grade": sl[1] or "", "kind": kind, "t": t}
+    live = read_live(live_dir, password)
+    add((live.get("gplans") or {}).get("recs"), "recorded")
+    nspot = 0
+    try:
+        for rd in live_file("scan.bin").get("reads") or []:
+            if rd.get("cid") is not None:
+                named[(str(rd.get("g") or "").lower(), str(rd.get("c") or ""))] = rd["cid"]
+    except Exception as e:                                             # noqa - cards named on the slabs still count
+        log(f"watch: scan.bin not read ({str(e)[:120]}) - phone slabs known by their cert only are left out this time")
+    try:
+        spots = live_file("spots.bin")
+        nspot = len(spots.get("recs") or [])
+        add(spots.get("recs"), "spotcheck")
+    except Exception as e:                                             # noqa - the recorded plans still count
+        log(f"watch: spots.bin not read ({str(e)[:120]}) - the Spotcheck sets are left out this time")
+    p = os.path.join(out, "cardladder", "watch.csv")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    out_rows = sorted(rows.values(), key=lambda x: (x["card_id"], x["kind"]))
+    with open(p, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["card_id", "grade", "kind", "t"])
+        w.writeheader()
+        w.writerows(out_rows)
+    log(f"watch: {len({x['card_id'] for x in out_rows})} card(s) from {len((live.get('gplans') or {}).get('recs') or [])} recorded plan(s) "
+        f"and {nspot} Spotcheck set(s) -> cardladder/watch.csv")
+    return {"cards": len({x["card_id"] for x in out_rows}), "spot_sets": nspot}
+
+
 def names_by_id(snapshots, password):
     try:
         cat = F.read_catalog(F.latest_snapshot(snapshots), password)
@@ -695,6 +752,11 @@ def main():
             report["pricecharting_graded"] = {"error": str(e)[:160]}
         if not a.skip_ebay:
             report["ebay"] = ebay(a.out, a.live_dir, a.snapshots, a.password, a.full)
+        try:
+            report["watch"] = watch(a.out, a.live_dir, a.password)
+        except Exception as e:                       # the rest of the archive must not fail over the watch list
+            log(f"watch: failed ({str(e)[:160]})")
+            report["watch"] = {"error": str(e)[:160]}
     report["seconds"] = round(time.time() - t0)
     json.dump(report, open(os.path.join(a.out, "last_run.json"), "w"), indent=1)
     log(f"done in {report['seconds']} s")

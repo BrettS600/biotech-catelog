@@ -3666,6 +3666,40 @@ and the site password once), and the old screen's two other jobs kept as small b
   app unlocked once (the messages are signed with the site key); the collector writes the file. scans.csv held 48 of
   sheet 2's 50 codes from the 2026-11-09 tests (not 172100519 and 119103691) - scanning sheet 2 adds only those two.
 
+- THE NIGHTLY CARD LADDER REFRESH (2026-11-19, Brett: "After that we will need to collect data on the cards that are
+  changing in price every night, because the price data will update for the cards that are being sold"; on cards that
+  start selling and new releases, "i like your recommendations"; laptop off: DigitalOcean only priced for him - about
+  +$12/month (resize to 4 GB, $24) or a second $12-18 droplet - plus the flag risk of reading from a data-center address;
+  nothing decided, the run stays in his Chrome). The first pass was to end the night of 2026-11-19/20 (Brett: "lets just
+  start now" - the UTC day's 900 were used, so it started at 7 pm Eastern that night: RUNX.H0 = 19 set by hand in the
+  running loop; any restart before 01:00 UTC must set it again after evaluating common.js). PIECES: (1) card-data
+  tools/clingest/make_refresh.py, run by the hourly ingest (cl_ingest.py calls make_refresh.maybe(): the first run from
+  22:00 UTC makes the coming night's lists once; no workflow of its own - workflow files are edited only through Chrome):
+  the Card Ladder list (at most 1,000; the tab still stops at 900 a UTC day) = matched cards with no read on file (49 at
+  the start: the first 100 summarised in the browser) and the cards of recorded / Spotcheck slabs (watch.csv) first
+  (r 3,000,000+), then cards with new PSA / CGC PriceCharting sales since their last read (lines/ or a timing "read"),
+  by min(new sales, 30) x days since the read (r 5,000,000+), then the rotation: no such sale, read 14+ days ago, oldest
+  first (r 5,500,000+); the PriceCharting list (at most 1,500) = cards with no Card Ladder page, worth $50+ (highest PC
+  value of any grade: guide / monthly chart / catalog, or a $50+ PSA / CGC sale), PSA / CGC sales in the last 30 days,
+  not scanned in 14 days (r 4,000,000+, most sales first), then never-scanned $50+ cards ("group 3", r 6,000,000+, PSA 10
+  value first - behind every re-read, so spare pages only). Record: card-data data/cardladder/refresh/refresh.json and
+  .csv (why each card is there). Delivery, sealed with the run's key: refresh.bin on card-inbox's branch "refresh" (one
+  fresh commit a night, force-pushed; the ingest's clean-up only touches main) for the Card Ladder tab (its card-inbox
+  key); the PriceCharting list on the side channel <topic>-s2 in parts of 250 (ntfy keeps 12 h; that tab has no
+  card-inbox key). First numbers (2026-11-19): 13,005 known pages, 4,220 with new sales, 1,204 selling cards without a
+  page, 9,841 group 3. (2) cl_tab.js (blob 672a15b8...): C.refresh() every 30 min loads a new list (lid), drops the
+  unread rf jobs and adds jobs k 'p' rf 1 (a done card is read again); a job put back after a restart loses rf (kept
+  across lists); takeHandoff takes a card again when the hand-off says again 1; ready empty = "waiting for the next list";
+  C.status() adds ready_rf, ready_first, rf (the list loaded), rf_last. (3) pc_tab.js (blob 3c0fc309...): S1.list()
+  every 30 min takes the newest complete -s2 list into clr-pcq ([rank, pc, 1]), hands its cards over with again 1, and
+  waits for the next list instead of stopping ("list finished - waiting for the next one"). (4) biotech-catelog: the
+  collector re-reads a card worth $50+ on PriceCharting every REFRESH_WORTH_D = 14 days (was 30; ebay_sweep Catalog
+  "top" = the highest of the CSV's grade prices; pc_plan's rest goes by top, highest first; PC_DAY_CAP unchanged);
+  data_archive.py writes card-data data/cardladder/watch.csv daily (recorded plans from the live file, Spotcheck sets
+  from spots.bin, a phone slab's card from its cert's read in scan.bin). Checked on stand-ins: the Card Ladder tab in
+  Chromium on a fake Card Ladder app (first-pass jobs first, the day cap, a new list replacing the old, again
+  hand-offs), the PriceCharting tab with a fake page and barcode reader, the publish into a local card-inbox and ntfy.
+
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
   fixtures with no network and no git; the jsdom refresh test (test_refresh.js in the harness) needs

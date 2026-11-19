@@ -2366,6 +2366,7 @@ def pc_image(state, pid):
 
 
 PC_PREFETCH_GAP_S = 2.0          # the background reader waits this long between PriceCharting pages (30 a minute)
+PC_WORTH = 50.0                  # a card whose highest PriceCharting price of any grade is this or more: re-read every two weeks
 PC_DAY_CAP = 2500                # planned page reads a UTC day at most (2026-11-03, Brett: re-read the busy cards daily, but
                                  # keep the total modest - about 1,300 a day before); pages asked for from the site are not counted
 PC_POLL_S = 20                   # how often the picture worker polls its request topic (-pc); see poll_requests for why not 4 s
@@ -2569,7 +2570,9 @@ def pc_plan(state, cards, cat=None):
     """The order the background reader takes cards in: the newest listings' cards first (the top of the Raw Data
     tab), then every card with eBay data, then the rest of the catalog by price. A card is in the plan when its
     picture is wanted (the first two groups, no picture on file and no miss this week) or its PriceCharting history
-    is due (pchist.stale: never read, or older than a week for cards with eBay data, a month otherwise).
+    is due (pchist.stale: never read, or older than a week for cards with eBay data, two weeks for a card worth $50+ -
+    its highest PriceCharting price of any grade, ebay_sweep's "top" - a month otherwise; 2026-11-19). The rest of the
+    catalog goes by that same highest price, so the $50+ cards come before the cheap ones.
     -> [(card id, picture wanted)]."""
     v = state["vps"]
     cache, miss = v.get("pc_img", {}), v.get("pc_miss", {})
@@ -2587,8 +2590,10 @@ def pc_plan(state, cards, cat=None):
         if PC_REST_ORDER.get("cat") is not cat:              # holds the catalog object, so a new one is never mistaken for it
             PC_REST_ORDER.clear()
             PC_REST_ORDER["cat"] = cat
-            PC_REST_ORDER["ids"] = [c["id"] for c in sorted(cat.cards, key=lambda c: -(c.get("pc") or 0))]
+            PC_REST_ORDER["ids"] = [c["id"] for c in sorted(cat.cards, key=lambda c: -(c.get("top") or c.get("pc") or 0))]
+            PC_REST_ORDER["worth"] = {c["id"] for c in cat.cards if (c.get("top") or 0) >= PC_WORTH}
         rest = PC_REST_ORDER["ids"]
+    worth = PC_REST_ORDER.get("worth") or set()
     out, seen = [], set()
     today_i = pchist.day_index()
     want_signed = bool(PC_COOKIE) and v.get("pch_signin") != "expired"   # a sign-in that works (or is untested): re-read for the bars
@@ -2599,7 +2604,7 @@ def pc_plan(state, cards, cat=None):
             if cid in seen:
                 continue
             want_img = group < 2 and k not in cache and not fresh_miss(k)
-            if want_img or pchist.stale(cid, active=cid in active, today=today_i, want_signed=want_signed, want_graded=True):
+            if want_img or pchist.stale(cid, active=cid in active, today=today_i, want_signed=want_signed, want_graded=True, worth=cid in worth):
                 seen.add(cid)
                 (first if group == 0 else out).append((cid, want_img))
     # the busy cards first after the newest listings' (2026-11-03): a card whose graded table fills in days is due again

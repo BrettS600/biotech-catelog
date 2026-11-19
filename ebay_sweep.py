@@ -465,6 +465,10 @@ def stem(t):
     return t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t
 
 
+TOP_COLS = ("loose-price", "cib-price", "new-price", "graded-price", "box-only-price", "manual-only-price", "bgs-10-price",
+            "condition-17-price", "condition-18-price")   # ungraded, grade 7, 8, 9, 9.5, PSA 10, BGS 10, CGC 10, SGC 10
+
+
 class Catalog:
     """Card identities from the newest PriceCharting snapshot, indexed for title matching."""
 
@@ -502,6 +506,9 @@ class Catalog:
                 "epid": str(r.get("epid", "")).strip(), "release": release, "rel": rel,
                 # PriceCharting's ungraded price and sales/yr: used only by the wrong-match check (pc_flag)
                 "pc": money(r.get("loose-price", "")), "vol": whole(r.get("sales-volume", "")),
+                # the highest PriceCharting price of any grade (2026-11-19): a card worth $50+ is re-read every
+                # REFRESH_WORTH_D days for its graded sales (collector.pc_plan; the site lists a card from $50 the same way)
+                "top": max([x for x in (money(r.get(k, "")) for k in TOP_COLS) if x is not None], default=None),
                 # what the card is (cardfacts.py, from the daily build): "Rare Holo", "Holo" / "Reverse Holo" ...
                 "rarity": str(r.get("rarity", "")).strip(), "finish": str(r.get("finish", "")).strip(),
                 "rfsrc": str(r.get("rf-source", "")).strip(),   # tcgplayer | dataset | tag: how sure the finish is
