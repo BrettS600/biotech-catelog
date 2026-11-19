@@ -3674,7 +3674,9 @@ and the site password once), and the old screen's two other jobs kept as small b
   start now" - the UTC day's 900 were used, so it started at 7 pm Eastern that night: RUNX.H0 = 19 set by hand in the
   running loop; any restart before 01:00 UTC must set it again after evaluating common.js). PIECES: (1) card-data
   tools/clingest/make_refresh.py, run by the hourly ingest (cl_ingest.py calls make_refresh.maybe(): the first run from
-  22:00 UTC makes the coming night's lists once; no workflow of its own - workflow files are edited only through Chrome):
+  13:00 UTC makes the coming night's lists once - GitHub runs the "hourly" ingest only every 6-9 hours at times, so a
+  check can start it by hand: gh api -X POST repos/BrettS600/card-data/actions/workflows/cl_ingest.yml/dispatches -f
+  ref=main; no workflow of its own - workflow files are edited only through Chrome):
   the Card Ladder list (at most 1,000; the tab still stops at 900 a UTC day) = matched cards with no read on file (49 at
   the start: the first 100 summarised in the browser) and the cards of recorded / Spotcheck slabs (watch.csv) first
   (r 3,000,000+), then cards with new PSA / CGC PriceCharting sales since their last read (lines/ or a timing "read"),
@@ -3699,6 +3701,12 @@ and the site password once), and the old screen's two other jobs kept as small b
   from spots.bin, a phone slab's card from its cert's read in scan.bin). Checked on stand-ins: the Card Ladder tab in
   Chromium on a fake Card Ladder app (first-pass jobs first, the day cap, a new list replacing the old, again
   hand-offs), the PriceCharting tab with a fake page and barcode reader, the publish into a local card-inbox and ntfy.
+  DEPLOYED 2026-11-19 ~18:15-18:30 UTC: the ingest (started by hand) made the Nov 20 list (1,000 pages; 1,500 for the
+  PriceCharting tab) and pushed card-inbox's "refresh" branch (INBOX_TOKEN can); the Card Ladder tab read it in a
+  read-only test (200, 1,000 entries); its cached clr-src-cl is the new code (old kept as clr-src-cl-prev /
+  clr-src-cl-prev-sha d06b5fd5... for a rollback), evaluated at the 7 pm restart; a PriceCharting tab
+  (www.pricecharting.com, Brett signed in) runs the new pc_tab.js again (clr-src-pc-prev kept), list loaded, waiting
+  for 8 pm. From now on the run goes on every night (the evening check restarts both tabs).
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
