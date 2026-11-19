@@ -2676,7 +2676,9 @@ class PcImageWorker(threading.Thread):
     def step(self):
         with self.lock:
             site_waiting = bool(self.wanted or self.wanted_hist)
-        if not site_waiting and (PC_FREE["walk"] is not None or pc_free_due()):   # the day's set-page walk (2026-11-19)
+        if not site_waiting and (PC_FREE["walk"] is not None or (pc_free_due() and PC_REST_ORDER.get("cat") is not None)):   # the day's
+            # set-page walk (2026-11-19); it waits for the main loop's first plan, which brings the catalog's sets - a walk started
+            # right after a restart had none, so it read only the category page's 160 sets
             try:
                 status, info = pc_free_step()
             except Exception as e:

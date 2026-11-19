@@ -3761,7 +3761,8 @@ and the site password once), and the old screen's two other jobs kept as small b
   every set the catalog knows (pc_free_slug: lower case, ':' ',' '.' dropped, spaces to '-', apostrophe kept, "pokemon-" in
   front - the rule held for 286 of the category page's 304 links, the rest being non-English names), a 404 is "missing"
   (noted, not partial), category names get "Pokemon " in front as the download writes them; free_filled() keeps the
-  snapshot's cards of sets the walk did not reach (a card gone from a walked set is dropped).
+  snapshot's cards of sets the walk did not reach (a card gone from a walked set is dropped). g27d: the walk waits for the
+  main loop's first plan after a restart (PC_REST_ORDER["cat"]) - started at once it had no catalog and read 160 sets again.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
