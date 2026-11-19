@@ -1,0 +1,130 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index b826cc2..a7d551f 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3749,6 +3749,19 @@ and the site password once), and the old screen's two other jobs kept as small b
+   daily; sales-volume is the counted measure (a different number from the download's trailing-year count). Tests on
+   stand-ins: t_pchist (merge, counts, bars kept, the check, pacing), t_walk (two sets, a Japanese one skipped, cursor, a
+   retry, the fill), t_build (decode, compare, fill), t_worker (walk before plan cards, verdict "free"), t_archive.
++  FIRST REAL RUNS (2026-11-19 ~19:45 UTC): the walk read 43,118 English cards from 160 sets in 376 requests (15.3 min, no
++  failure; 41,057 had a card page on file). The build's side by side: all 43,118 in the download, names 100% equal;
++  ungraded the same price on 95.7% (within 2%: 96.6%), Grade 9 97.3% (98.8%), PSA 10 97.2% (99.0%) - the rest is the
++  hours between the two reads; the card-page grades (7, 8, 9.5, CGC / BGS / SGC 10) on 9.5k-12.9k of 15k-38k cards (only
++  the cards read since the guide parser began, 2026-10-29), 67-76% equal, 79-86% within 2% (older reads) - they fill in as
++  the cards are re-read before the subscription ends; sales-volume a median 1.29x the download's. 3,270 singles (plus 325
++  other products) were only in the download: 89 sets the category page does not link (2000 Topps Movie 213, 2003 Topps
++  Advanced 178, 2004 Topps Advanced Challenge 175, 2001 Topps Johto 126, 2000 Dunkin Boomer 92, 2022 Battle Academy 84,
++  Artbox Flipz Series 1 80, the World Championships decks ...) though they answer at their address. So (g27c) the walk adds
++  every set the catalog knows (pc_free_slug: lower case, ':' ',' '.' dropped, spaces to '-', apostrophe kept, "pokemon-" in
++  front - the rule held for 286 of the category page's 304 links, the rest being non-English names), a 404 is "missing"
++  (noted, not partial), category names get "Pokemon " in front as the download writes them; free_filled() keeps the
++  snapshot's cards of sets the walk did not reach (a card gone from a walked set is dropped).
+ 
+ ## Testing before pushing
+ - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
+diff --git a/build_catalog.py b/build_catalog.py
+index 15b9d57..68b0093 100644
+--- a/build_catalog.py
++++ b/build_catalog.py
+@@ -249,7 +249,12 @@ def free_filled(fr):
+         if len(fill):
+             out.loc[fill, c] = snap.loc[fill, c]
+     cols = [c for c in snap.columns if c in out.columns] + [c for c in out.columns if c not in snap.columns]
+-    print(f"Blanks filled from the newest snapshot ({name}) for the cards it has")
++    walked = set(out["console-name"].astype(str).str.strip())
++    keep = snap[~snap.index.isin(out.index) & ~snap["console-name"].astype(str).str.strip().isin(walked)]   # whole sets the walk
++    if len(keep):                                                                                          # could not reach: as they were
++        out = pd.concat([out, keep.reindex(columns=out.columns, fill_value="")])
++    print(f"Blanks filled from the newest snapshot ({name}) for the cards it has; {len(keep):,} cards of "
++          f"{keep['console-name'].nunique() if len(keep) else 0} sets the walk did not reach kept as they were")
+     return out.reset_index()[["id"] + [c for c in cols if c != "id"]]
+ 
+ 
+diff --git a/collector.py b/collector.py
+index aad5702..40b34c4 100644
+--- a/collector.py
++++ b/collector.py
+@@ -2421,8 +2421,18 @@ def pc_free_get(path):
+     return r.status_code, r.text
+ 
+ 
+-def pc_free_sets(html):
+-    """The category page -> [(set path, set name)] for the English Pokemon sets, in the page's order."""
++def pc_free_slug(name):
++    """A set's name -> its address on PriceCharting (their rule, checked on the 304 links of the category page on
++    2026-11-19): lower case, ':' ',' '.' dropped, spaces to '-', an apostrophe kept, "pokemon-" in front."""
++    s = re.sub(r"\s+", "-", re.sub(r"[:,.]", "", name.lower().strip()))
++    return "/console/" + (s if s.startswith("pokemon-") else "pokemon-" + s)
++
++
++def pc_free_sets(html, known=()):
++    """The category page -> [(set path, set name)] for the English Pokemon sets, in the page's order, then the sets the
++    catalog knows that the page does not link (2026-11-19: 89 of the download's 248 English sets - the Topps sets, the
++    World Championships decks, Battle Academy ... - are reachable at their address but not listed there). A name without
++    "Pokemon " in front gets it, as the download writes every set's name."""
+     out, seen = [], set()
+     for href, name in re.findall(r'<a[^>]+href="(/console/pokemon[^"?#]*)"[^>]*>(.*?)</a>', html, re.S):
+         name = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", name)).strip()
+@@ -2430,7 +2440,16 @@ def pc_free_sets(html):
+         if not name or href in seen or PC_FREE_NON_ENGLISH.search(name + " " + href):
+             continue
+         seen.add(href)
+-        out.append((href, html_unescape(name)))
++        name = html_unescape(name)
++        out.append((href, name if name.startswith("Pokemon ") else "Pokemon " + name))
++    names = {n for _, n in out}
++    for name in sorted(set(known)):
++        if not name or name in names or PC_FREE_NON_ENGLISH.search(name):
++            continue
++        href = pc_free_slug(name)
++        if href not in seen:
++            seen.add(href)
++            out.append((href, name))
+     return out
+ 
+ 
+@@ -2449,11 +2468,12 @@ def pc_free_step():
+         code, text = pc_free_get("/category/pokemon-cards")
+         if code != 200:
+             return "error", code
+-        sets = pc_free_sets(text)
++        cat = PC_REST_ORDER.get("cat")                       # the catalog the reader's plan was made from (the sets it knows)
++        sets = pc_free_sets(text, {c.get("set") for c in cat.cards} if cat is not None else ())
+         if not sets:
+             return "error", "no sets on the category page"
+         PC_FREE["walk"] = {"day": today, "t0": time.time(), "todo": deque((path, name, None, 0) for path, name in sets),
+-                           "rows": {}, "sets": len(sets), "pages": 1, "skipped": [], "errors": 0}
++                           "rows": {}, "sets": len(sets), "pages": 1, "skipped": [], "missing": [], "errors": 0}
+         return "ok", None
+     if not w["todo"]:
+         return "done", None
+@@ -2465,6 +2485,9 @@ def pc_free_step():
+         doc = json.loads(text) if code == 200 else None
+     except ValueError:
+         doc = None
++    if code == 404:                                          # no such address (a set the catalog knows under another name):
++        w["missing"].append(name)                            # noted, not a failure - its cards come from the snapshot
++        return "ok", None
+     if not isinstance(doc, dict):
+         w["errors"] += 1
+         if tries + 1 < PC_FREE_TRIES:
+@@ -2524,7 +2547,8 @@ def pc_free_finish():
+     complete = not w["skipped"] and len(out) >= PC_FREE_MIN_ROWS
+     PC_FREE["out"] = {"t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "day": w["day"], "complete": complete,
+                       "stats": {"sets": w["sets"], "pages": w["pages"], "cards": len(out), "with_page_data": len(fill),
+-                                "errors": w["errors"], "skipped": w["skipped"][:20], "minutes": round((time.time() - w["t0"]) / 60, 1)},
++                                "errors": w["errors"], "skipped": w["skipped"][:20], "missing": w["missing"][:40],
++                                "minutes": round((time.time() - w["t0"]) / 60, 1)},
+                       "cols": PC_FREE_COLS, "rows": out}
+     PC_FREE["done_day"], PC_FREE["walk"] = w["day"], None
+ 
+@@ -4254,7 +4278,8 @@ def cycle(state, cat, sched, counters):
+                 v["pc_free_info"] = dict(fo["stats"], day=fo["day"], t=fo["t"], complete=fo["complete"])
+                 log(f"PriceCharting set pages: {fo['stats']['cards']:,} English cards from {fo['stats']['sets']} sets in "
+                     f"{fo['stats']['pages']} requests ({fo['stats']['minutes']} min, {fo['stats']['errors']} failed"
+-                    + (f", skipped {', '.join(fo['stats']['skipped'])}" if fo['stats']['skipped'] else "") + f"); "
++                    + (f", skipped {', '.join(fo['stats']['skipped'])}" if fo['stats']['skipped'] else "")
++                    + (f", no page for {len(fo['stats']['missing'])} set(s) the catalog knows: {', '.join(fo['stats']['missing'][:6])}" if fo['stats'].get('missing') else "") + f"); "
+                     f"{fo['stats']['with_page_data']:,} filled from their card pages; "
+                     + ("complete" if fo["complete"] else "PARTIAL - the build will not take it") + " - pc_free.bin published")
+                 PC_FREE["out"] = None
