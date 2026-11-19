@@ -249,7 +249,12 @@ def free_filled(fr):
         if len(fill):
             out.loc[fill, c] = snap.loc[fill, c]
     cols = [c for c in snap.columns if c in out.columns] + [c for c in out.columns if c not in snap.columns]
-    print(f"Blanks filled from the newest snapshot ({name}) for the cards it has")
+    walked = set(out["console-name"].astype(str).str.strip())
+    keep = snap[~snap.index.isin(out.index) & ~snap["console-name"].astype(str).str.strip().isin(walked)]   # whole sets the walk
+    if len(keep):                                                                                          # could not reach: as they were
+        out = pd.concat([out, keep.reindex(columns=out.columns, fill_value="")])
+    print(f"Blanks filled from the newest snapshot ({name}) for the cards it has; {len(keep):,} cards of "
+          f"{keep['console-name'].nunique() if len(keep) else 0} sets the walk did not reach kept as they were")
     return out.reset_index()[["id"] + [c for c in cols if c != "id"]]
 
 

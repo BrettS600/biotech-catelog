@@ -3749,6 +3749,19 @@ and the site password once), and the old screen's two other jobs kept as small b
   daily; sales-volume is the counted measure (a different number from the download's trailing-year count). Tests on
   stand-ins: t_pchist (merge, counts, bars kept, the check, pacing), t_walk (two sets, a Japanese one skipped, cursor, a
   retry, the fill), t_build (decode, compare, fill), t_worker (walk before plan cards, verdict "free"), t_archive.
+  FIRST REAL RUNS (2026-11-19 ~19:45 UTC): the walk read 43,118 English cards from 160 sets in 376 requests (15.3 min, no
+  failure; 41,057 had a card page on file). The build's side by side: all 43,118 in the download, names 100% equal;
+  ungraded the same price on 95.7% (within 2%: 96.6%), Grade 9 97.3% (98.8%), PSA 10 97.2% (99.0%) - the rest is the
+  hours between the two reads; the card-page grades (7, 8, 9.5, CGC / BGS / SGC 10) on 9.5k-12.9k of 15k-38k cards (only
+  the cards read since the guide parser began, 2026-10-29), 67-76% equal, 79-86% within 2% (older reads) - they fill in as
+  the cards are re-read before the subscription ends; sales-volume a median 1.29x the download's. 3,270 singles (plus 325
+  other products) were only in the download: 89 sets the category page does not link (2000 Topps Movie 213, 2003 Topps
+  Advanced 178, 2004 Topps Advanced Challenge 175, 2001 Topps Johto 126, 2000 Dunkin Boomer 92, 2022 Battle Academy 84,
+  Artbox Flipz Series 1 80, the World Championships decks ...) though they answer at their address. So (g27c) the walk adds
+  every set the catalog knows (pc_free_slug: lower case, ':' ',' '.' dropped, spaces to '-', apostrophe kept, "pokemon-" in
+  front - the rule held for 286 of the category page's 304 links, the rest being non-English names), a 404 is "missing"
+  (noted, not partial), category names get "Pokemon " in front as the download writes them; free_filled() keeps the
+  snapshot's cards of sets the walk did not reach (a card gone from a walked set is dropped).
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
