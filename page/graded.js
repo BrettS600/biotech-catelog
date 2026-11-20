@@ -857,7 +857,7 @@ function grOpenReview(key) {
   // be another grade's): none of this grade -> no picture, never the page's main picture of some other slab
   const clu = GR_CL_IMG((c.imgs || {})[r[50]]), clPage = grClUrl(c.pid);
   const fact = (lab, val, sub) => '<span class="lab">' + lab + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
-  const row = (l, rr, a) => '<div class="rrow r3"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div><div>' + (a || '') + '</div></div>';
+  const row = (l, rr, a, x) => '<div class="rrow r4"><div>' + (l || '') + '</div><div>' + (rr || '') + '</div><div>' + (a || '') + '</div><div>' + (x || '') + '</div></div>';
   const v = r[41], mk = GMARKS[key] || {};
   const year = s => s ? String(s).slice(0, 4) : '<span class="dim">unknown</span>';
   const tcg = c.tcg ? '<a href="https://www.tcgplayer.com/product/' + esc(c.tcg) + '" target="_blank" rel="noopener">' + esc(c.tcg) + '</a>' : '<span class="dim">none</span>';
@@ -868,8 +868,20 @@ function grOpenReview(key) {
   const amk = f => afc[f] === 'mismatch' ? 'bad' : '';
   const aw = v => '<span class="dim">' + esc(v) + '</span>';
   const av = v => A ? (v ? esc(v) : '<span class="dim">none</span>') : aw(r[56]);
-  const aSub = A ? (A.src === 'psa' ? 'PSA’s cert record (' + esc(r[26] + ' ' + A.cert) + ')' : 'GemRate’s description via Card Hedge (' + esc(r[26] + ' ' + A.cert) + ')') : esc(GR_AST_TIP[r[56]] || '');
+  const aSub = A ? (A.src === 'pg' ? esc(r[26]) + '’s own cert page, as you read it (' + esc(r[26] + ' ' + A.cert) + (A.read ? ', ' + esc(A.read) : '') + ')'
+    : A.src === 'psa' ? 'PSA’s cert record (' + esc(r[26] + ' ' + A.cert) + ')' : 'GemRate’s description via Card Hedge (' + esc(r[26] + ' ' + A.cert) + ')') : esc(GR_AST_TIP[r[56]] || '');
   const sOk = S && S[0] === 'ok', sWord = sOk ? '' : (S ? (S[0] === 'nf' ? 'not found' : 'not read') : 'no ' + r[25] + ' slab read');
+  // THE CL CERT COLUMN (2026-11-20, Brett: "may we add an additional column, but this time for CL cert. Some of the CL
+  // certs have yet to be read ... they have to be updated accordingly after they're read and the results are in"): the
+  // slab on Card Ladder's picture of this grade (r[83] / r[84], cl_certs.js) as its grader's page says - r.clx, the page
+  // Brett's reader read (clcerts.py, once a day; each site build shows the new ones). Until then each cell says why not.
+  const X4 = r[75] === 'pending' || r[75] === 'no match' ? null : r.clx;
+  const x4w = r[75] === 'pending' || r[75] === 'no match' ? r[75] : !r[84] ? (r[83] || 'none') : X4 ? '' : 'not looked up';
+  const x4tip = w => w === 'pending' ? 'Card Ladder’s page for this card is not read yet.' : w === 'no match' ? 'No Card Ladder page for this card.'
+    : w === 'not looked up' ? 'Your reader has not read this cert’s page yet (card_ladder_cert.csv) - it fills in after the next site build once it is read.' : GR_CLC_TIP[w] || '';
+  const x4bad = f => X4 && X4[14] === 'mismatch' && (X4[15] || []).includes(f) ? 'bad' : '';
+  const x4v = v => X4 ? (v ? esc(v) : '<span class="dim">none</span>') : aw(x4w);
+  const x4Sub = X4 ? esc(r[26]) + '’s own cert page, as you read it (' + esc(r[83]) + (X4[13] ? ', ' + esc(X4[13]) : '') + ')' : esc(x4tip(x4w));
   $('btitle').textContent = r[1] + ' — ' + String(r[2] || '').replace('Pokemon ', '') + ' · ' + r[25];
   $('bsub').innerHTML = 'Is Card Ladder’s card the same card PriceCharting shows? ' + (v === 1 ? '<b class="up">You said: same card.</b>' : v === 0 ? '<b class="down">You said: not the same card.</b>' : '') +
     (c.st && c.st !== 'review' ? ' <span class="dim">Matched: ' + esc(c.st) + (c.by ? ' (' + esc(c.by) + ')' : '') + '</span>' : '');
@@ -891,7 +903,10 @@ function grOpenReview(key) {
         : '<div class="rvbox"><span class="dim">none</span><small>Card Ladder has no picture of a ' + esc(r[25]) + ' slab of this card</small></div>') + '</div>' +
     '<div class="rvside"><h4>' + esc(r[26]) + ' (PC Cert) ' + (certUrl ? '<a href="' + esc(certUrl) + '" target="_blank" rel="noopener">↗</a>' : '') + '</h4>' +
       (A && A.ch && A.ch.image ? '<a href="' + esc(certUrl || A.ch.image) + '" target="_blank" rel="noopener"><img class="rvpic" src="' + esc(A.ch.image) + '" alt="Card Hedge’s picture of the card it matched to the cert"></a><small class="dim">Card Hedge’s picture of the card it matched to ' + esc(r[26] + ' ' + A.cert) + '</small>'
-        : '<div class="rvbox">' + (certUrl ? '<a href="' + esc(certUrl) + '" target="_blank" rel="noopener">Open the cert on ' + esc(r[26]) + '’s site</a>' : '') + '<small>' + esc(A ? 'no picture from the cert lookups' : GR_AST_TIP[r[56]] || 'no slab read') + '</small></div>') + '</div></div>';
+        : '<div class="rvbox">' + (certUrl ? '<a href="' + esc(certUrl) + '" target="_blank" rel="noopener">Open the cert on ' + esc(r[26]) + '’s site</a>' : '') + '<small>' + esc(A ? 'no picture from the cert lookups' : GR_AST_TIP[r[56]] || 'no slab read') + '</small></div>') + '</div>' +
+    '<div class="rvside"><h4>' + esc(r[26]) + ' (CL Cert) ' + (r[84] ? '<a href="' + esc(r[84]) + '" target="_blank" rel="noopener">↗</a>' : '') + '</h4>' +
+      '<div class="rvbox">' + (r[84] ? '<a href="' + esc(r[84]) + '" target="_blank" rel="noopener">Open the cert on ' + esc(r[26]) + '’s site</a>' : '') +
+      '<small>' + (r[84] ? esc(r[83]) + ': the slab on Card Ladder’s picture' + (X4 ? ', its page read ' + esc(X4[13] || '') : ' - its page is not read yet') : esc(x4tip(x4w) || x4w)) + '</small></div></div></div>';
   // the field checks (graded_site.py): red = PC and CL disagree, amber = one side says nothing
   const mk2 = f => { const x = grFC(c, f); return x === 'mismatch' ? 'bad' : x === 'pc_none' || x === 'cl_none' ? 'amber' : ''; };
   const factc = (lab, val, sub, cls) => '<span class="lab">' + lab + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '');
@@ -925,30 +940,39 @@ function grOpenReview(key) {
     : 'Card Ladder has no ' + esc(r[26]) + ' cert on file for this card') +
     (r[26] === 'PSA' ? (c.spec ? ' · PSA spec ' + esc(c.spec) : '') : (c.cgc ? ' · CGC number ' + esc(c.cgc) : ''));
   h += '<div class="rvrows">' +
-    row(factc('Release year', year(base[4]), '', mk2('release')), factc('Release year', year(cl[1]), '', mk2('release')), factc('Release year', A ? year(A.year) : aw(r[56]), aSub, amk('release'))) +
-    row(factc('Set name', base[2] ? esc(base[2]) : none), factc('Set name', cl[2] ? esc(cl[2]) : none, isGame ? 'PSA’s own name: Pokemon Game = 1999 Base Set' : ''), factc('Set name', av(A && A.set))) +
-    row(factc('Card name', esc(base[1] || '')), factc('Card name', cl[4] ? esc(cl[4]) : none), factc('Card name', av(A && A.name), A ? 'language: ' + esc(A.lang || 'none') + (A.ls ? '' : ' (the grader names none)') : '')) +
+    row(factc('Release year', year(base[4]), '', mk2('release')), factc('Release year', year(cl[1]), '', mk2('release')), factc('Release year', A ? year(A.year) : aw(r[56]), aSub, amk('release')),
+        factc('Release year', X4 ? year(X4[6]) : aw(x4w), x4Sub, x4bad('year'))) +
+    row(factc('Set name', base[2] ? esc(base[2]) : none), factc('Set name', cl[2] ? esc(cl[2]) : none, isGame ? 'PSA’s own name: Pokemon Game = 1999 Base Set' : ''), factc('Set name', av(A && A.set)), factc('Set name', x4v(X4 && X4[1]), '', x4bad('set'))) +
+    row(factc('Card name', esc(base[1] || '')), factc('Card name', cl[4] ? esc(cl[4]) : none), factc('Card name', av(A && A.name), A ? 'language: ' + esc(A.lang || 'none') + (A.ls ? '' : ' (the grader names none)') : ''),
+        factc('Card name', x4v(X4 && X4[0]), X4 ? 'language: ' + esc(X4[7] || 'none') : '', x4bad('name') || x4bad('language'))) +
     row(factc('Card / set number', esc(c.pn || 'none'), c.pnf ? 'from ' + esc(c.pnf) : '', mk2('number') || mk2('total')), factc('Card / set number', esc(c.cn || 'none'), c.cnf ? 'from ' + esc(c.cnf) : 'Card Ladder gives no number', mk2('number') || mk2('total')),
-        factc('Card / set number', av(A && A.num), A ? 'graders print no set size' : '', amk('number'))) +
+        factc('Card / set number', av(A && A.num), A ? 'graders print no set size' : '', amk('number')),
+        factc('Card / set number', x4v(X4 && X4[2]), X4 ? 'graders print no set size' : '', x4bad('number'))) +
     row(factc('Rarity / finish', esc(grRF(c.pr, c.pf, c.ps)), 'rarity: ' + esc(c.prf || 'none') + ' · finish: ' + esc(c.pff || 'none'), mk2('rarity') || mk2('finish') || mk2('special')),
         factc('Rarity / finish', esc(grRF(c.cr, c.cf, c.cs)), 'Card Ladder’s own words (variation, name, set, its cert lookups); a ? = a word the dictionary only thinks it knows', mk2('rarity') || mk2('finish') || mk2('special')),
-        factc('Rarity / finish', A ? esc(grRF(A.rar, A.fin, A.sp)) : aw(r[56]), A ? 'the grader’s own words, read with the dictionary' : '', amk('rarity') || amk('finish') || amk('special'))) +
+        factc('Rarity / finish', A ? esc(grRF(A.rar, A.fin, A.sp)) : aw(r[56]), A ? 'the grader’s own words, read with the dictionary' : '', amk('rarity') || amk('finish') || amk('special')),
+        factc('Rarity / finish', X4 ? esc(grRF(X4[3], X4[4], X4[5])) : aw(x4w), X4 ? 'the grader’s own words, read with the dictionary' : '', x4bad('variety'))) +
     row(factc('Illustrator', c.pi ? esc(c.pi) : '<span class="dim">' + (c.pi === '' ? 'none' : 'not read') + '</span>',
           c.pi ? 'the Artist on TCGplayer’s product page' : c.pi === '' ? 'TCGplayer’s product page shows none' : esc(c.pif || 'TCGplayer’s product page; not read yet (each site build reads the new cards)')),
-        factc('Illustrator', none, 'Card Ladder does not record it'), factc('Illustrator', none, 'PSA and CGC do not record it')) +
+        factc('Illustrator', none, 'Card Ladder does not record it'), factc('Illustrator', none, 'PSA and CGC do not record it'), factc('Illustrator', none, 'PSA and CGC do not record it')) +
     row(factc('Series', (c.ser || [])[0] ? esc(c.ser[0]) : none, 'only where the text names it', mk2('series')), factc('Series', (c.ser || [])[1] ? esc(c.ser[1]) : none, 'only where the text names it', mk2('series')),
-        factc('Series', (c.ser || [])[2] ? esc(c.ser[2]) : A ? none : aw(r[56]), A ? 'only where the text names it' : '', amk('series'))) +
-    row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era')), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era'))) +
+        factc('Series', (c.ser || [])[2] ? esc(c.ser[2]) : A ? none : aw(r[56]), A ? 'only where the text names it' : '', amk('series')),
+        factc('Series', X4 && X4[17] ? esc(X4[17]) : X4 ? none : aw(x4w), X4 ? 'only where the text names it' : '')) +
+    row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era')), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era')), factc('Era', X4 && X4[18] ? esc(X4[18]) : X4 ? none : aw(x4w), '')) +
     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded'), '') +
     row(factc('Grade and grader', r[71] ? esc(r[71]) : none, r[71] ? 'from ' + esc(GR_PCG_FROM[r[73]] || 'PriceCharting') : 'PriceCharting has no ' + esc(r[25]), gDiffR ? 'bad' : ''),
-        factc('Grade and grader', r[72] ? esc(r[72]) : none, r[72] ? 'from ' + esc(GR_CLG_FROM[r[74]] || 'Card Ladder') : 'Card Ladder has no ' + esc(r[25]), gDiffR ? 'bad' : ''), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && S[5] === 'psa' ? 'label type: ' + esc(S[2] || 'none') : sOk ? 'from Card Hedge (GemRate); no label type' : '')) +
+        factc('Grade and grader', r[72] ? esc(r[72]) : none, r[72] ? 'from ' + esc(GR_CLG_FROM[r[74]] || 'Card Ladder') : 'Card Ladder has no ' + esc(r[25]), gDiffR ? 'bad' : ''), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && (S[5] === 'psa' || (S[5] === 'pg' && r[26] === 'PSA')) ? 'label type: ' + esc(S[2] || 'none') : sOk && S[5] === 'pg' ? 'CGC’s page shows no label type' : sOk ? 'from Card Hedge (GemRate); no label type' : ''),
+        fact('Grade on the slab', X4 ? esc(X4[8] || 'none') : aw(x4w), X4 ? (r[26] === 'PSA' ? 'label type: ' + esc(X4[9] || 'none') : 'CGC’s page shows no label type') : '')) +
     row(fact('Grade price', r[6] != null ? fmtMoneyPlain(r[6]) : (r[69] || [])[2] === 'not_read' ? '<span class="dim">not read</span>' : '<span class="dim">none</span>', esc(grPc1Title(r)) + (r[67] != null ? ' · today ' + fmtMoneyPlain(r[67]) : '')), fact('Grade price', fmtMoneyPlain(r[35]), 'Card Ladder’s average of its ' + esc(gl) + ' sales in ' + esc(grMonthName(r[17])) + (r[68] != null ? ' · its value today ' + fmtMoneyPlain(r[68]) : '') + (r[46] != null ? ' · last sold ' + fmtMoneyPlain(r[46]) : '')),
         fact('Card Hedge’s card', A && A.ch ? esc([A.ch.player, A.ch.set, A.ch.number ? '#' + A.ch.number : '', A.ch.variant].filter(Boolean).join(' · ')) : aw(A ? 'none' : r[56]),
-          A && A.ch ? (A.ch.source === 'gemrate_id' ? 'found by a direct ID link from the cert' : A.ch.source === 'card_match' ? 'an AI guess from the description' + (A.ch.conf ? ' (confidence ' + esc(A.ch.conf) + ')' : '') + ' - check it' : esc(A.ch.source || '')) : 'the card Card Hedge matched to the cert')) +
+          A && A.ch ? (A.ch.source === 'gemrate_id' ? 'found by a direct ID link from the cert' : A.ch.source === 'card_match' ? 'an AI guess from the description' + (A.ch.conf ? ' (confidence ' + esc(A.ch.conf) + ')' : '') + ' - check it' : esc(A.ch.source || '')) : 'the card Card Hedge matched to the cert'),
+        fact('Population', X4 ? (X4[10] != null ? fmtInt(X4[10]) : '<span class="dim">none</span>') : aw(x4w), X4 ? [X4[11] != null ? fmtInt(X4[11]) + ' graded higher' : '', X4[12] != null ? 'PSA’s estimate ' + fmtMoneyPlain(X4[12]) : ''].filter(Boolean).join(' · ') + (X4[10] != null ? (X4[11] != null || X4[12] != null ? ' · ' : '') + 'as of ' + esc(X4[13] || '') : '') : '')) +
     row(fact(r[26] === 'CGC' ? 'CGC cert' : 'PSA cert', idl, idSub), fact(r[26] === 'CGC' ? 'CGC cert' : 'PSA cert', clCert, clCertSub),
-        fact('PC cert', sOk || S ? '<a href="' + esc(r[26] === 'CGC' ? 'https://www.cgccards.com/certlookup/' + S[6] + '/' : 'https://www.psacard.com/cert/' + S[6] + '/psa') + '" target="_blank" rel="noopener">' + esc(r[26] + ' ' + S[6]) + '</a>' : aw('none'), S ? (sOk ? (S[5] === 'psa' ? 'PSA’s record' : 'Card Hedge’s record') + (S[8] ? ', read ' + esc(S[8]) : '') : sWord) : 'no ' + esc(r[25]) + ' slab read yet')) +
+        fact('PC cert', sOk || S ? '<a href="' + esc(r[26] === 'CGC' ? 'https://www.cgccards.com/certlookup/' + S[6] + '/' : 'https://www.psacard.com/cert/' + S[6] + '/psa') + '" target="_blank" rel="noopener">' + esc(r[26] + ' ' + S[6]) + '</a>' : aw('none'), S ? (sOk ? (S[5] === 'pg' ? 'its cert page, as you read it' : S[5] === 'psa' ? 'PSA’s record' : 'Card Hedge’s record') + (S[8] ? ', read ' + esc(S[8]) : '') : sWord) : 'no ' + esc(r[25]) + ' slab read yet'),
+        fact('CL cert', r[84] ? '<a href="' + esc(r[84]) + '" target="_blank" rel="noopener">' + esc(r[83]) + '</a>' : aw(x4w), r[84] ? 'the slab on Card Ladder’s picture of this grade' + (X4 ? ', its page read ' + esc(X4[13] || '') : ' - its page is not read yet') : esc(x4tip(x4w)))) +
     row(fact('TCGplayer ID', tcg, 'the TCGplayer product PriceCharting references'), fact('Card Ladder card', c.pid ? '<a href="' + esc(clPage) + '" target="_blank" rel="noopener">' + esc(c.pid) + '</a>' : none, 'its Card Ladder profile'),
-        fact(r[26] === 'PSA' ? 'PSA spec' : 'Grader’s card', A && A.spec ? '<a href="https://www.psacard.com/spec/psa/' + esc(A.spec) + '" target="_blank" rel="noopener">' + esc(A.spec) + '</a>' : aw('none'), A && A.spec ? 'PSA’s ID for the card - every slab of it shares this number' : '')) +
+        fact(r[26] === 'PSA' ? 'PSA spec' : 'Grader’s card', A && A.spec ? '<a href="https://www.psacard.com/spec/psa/' + esc(A.spec) + '" target="_blank" rel="noopener">' + esc(A.spec) + '</a>' : aw('none'), A && A.spec ? 'PSA’s ID for the card - every slab of it shares this number' : ''),
+        factc('PC Cert vs CL Cert', X4 ? esc(r[96]) : aw(x4w), X4 ? (X4[14] === 'match' ? 'the two cert pages name the same card' : X4[14] === 'mismatch' ? 'the two cert pages name different cards - check it' : X4[14] === 'pc wait' ? 'the PC Cert’s page is not read yet' : 'no PC Cert to compare with') : '', X4 && X4[14] === 'mismatch' ? 'bad' : '')) +
     '</div>' +
     '<div class="rvbtns"><button class="rvno" id="grv-no">Not the same card<small>for every grade: hides its rows, keeps the data</small></button><button class="rvyes" id="grv-yes">Same card<small>confirms the match for every grade</small></button><button type="button" class="help" data-h="g_match">?</button></div>' +
     (v != null ? '<div class="rvundo"><button class="linkbtn" id="grv-undo">Withdraw my answer</button></div>' : '') + '<div id="grv-msg" class="dim"></div>';

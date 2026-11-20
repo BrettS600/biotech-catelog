@@ -1300,8 +1300,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         # its cert page as Brett's reader read it (clcerts.py -> cardladder/cert_pages, once a day) - read the way the
         # PC Cert columns are (auth_side); then the PC Cert (the row's grader's, else the other's) against it, cert_check.
         # clx[gk] = [name, set, number, rarity, finish, special, year, language, grade, label, pop, pop higher, estimate,
-        # read, match | mismatch | pc wait | pc none, [fields that differ], the PC Cert's grader]. A mismatch is only
-        # flagged: nothing is re-paired (Brett reviews).
+        # read, match | mismatch | pc wait | pc none, [fields that differ], the PC Cert's grader, series, era]. A mismatch is
+        # only flagged: nothing is re-paired (Brett reviews). Series and era (2026-11-20) are for Review's CL Cert column.
         clx = {}
         for gk_, cc_ in clc.items():
             g_ = gk_.split("|")[0]
@@ -1323,7 +1323,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             clx[gk_] = [s_.name or "", s_.set_name or "", s_.num or "", s_.shown("Rarity"), s_.shown("Finish"), s_.shown("Special"),
                         s_.year or "", s_.lang or "", w.get("grade") or "", (w.get("label") or "") if g_ == "psa" else None,
                         toint(w.get("pop")), toint(w.get("pop_higher")), tofloat(w.get("estimate")) if g_ == "psa" else None,
-                        str(w.get("read_at") or "")[:10]] + m_
+                        str(w.get("read_at") or "")[:10]] + m_ + [s_.shown("Series") or "", s_.shown("Era") or ""]
         if clx:
             cards[str(cid)]["clx"] = clx
         lr = sorted(match_pairs(mon, psales.get(cid) or {}, (pmon.get(cid) or {}).get("psa_10", [])))

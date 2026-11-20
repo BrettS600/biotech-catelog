@@ -307,6 +307,10 @@ sup.dim { font-size:9px; margin-left:1px; }
 .rrow > div { min-width:0; }
 .rrow.r3 { grid-template-columns:1fr 1fr 1fr; }            /* the graded Review: PriceCharting · Card Ladder · the grader (Auth) */
 @media (max-width:640px) { .rrow.r3 b { font-size:14px; } .rrow.r3 small { font-size:11px; } }
+.rrow.r4 { grid-template-columns:repeat(4, minmax(0, 1fr)); }   /* the graded Review since 2026-11-20: ... · PC Cert · CL Cert */
+.rrow.r4 b { overflow-wrap:anywhere; }
+.modal.mid:has(.rrow.r4) { width:min(1080px, 100%); }          /* four columns need the room */
+@media (max-width:640px) { .rrow.r4 { gap:5px; padding:7px 4px; } .rrow.r4 b { font-size:13px; } .rrow.r4 small { font-size:10.5px; } .rvpair { gap:5px; } .rvside { padding:5px; } .rvbox a { padding:7px 6px; font-size:12px; } }
 .rrow .lab { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:1px; }
 .rrow b { font-size:16px; }
 .rrow small { display:block; font-size:12px; color:var(--muted); margin-top:1px; }

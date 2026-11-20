@@ -2413,6 +2413,19 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   PriceCharting's photos (matches "barcodes", ~23,000 not read yet) that the site does not show. First run: 100,653
   PriceCharting certs on file - 23,022 on the list already as Card Ladder certs, 46,238 read already, 31,393 added
   (16,995 PSA, 14,398 CGC): the list went from 110,927 to 142,320 certs, the old rows unchanged.
+  REVIEW'S CL CERT COLUMN (2026-11-20, Brett, on the Review window's PriceCharting · Card Ladder · PSA (PC Cert)
+  columns: "May we add an additional column, but this time for CL cert. Some of the CL certs have yet to be read, as
+  well as the PSA, so they have to be updated accordingly after they're read and the results are in"). graded.js
+  grOpenReview: a fourth side "<grader> (CL Cert)" (the slab on Card Ladder's picture of this grade, r[83] / r[84]:
+  a box to open its cert page and when its page was read) and a fourth cell on every row (.rrow.r4; the modal widens
+  to 1080px when it has them): release year, set, card name + language, number, rarity / finish, series, era (clx[17]
+  / clx[18], added to graded_site.py's clx for this), grade on the slab + label type, population / graded higher /
+  PSA's estimate, the CL cert link, and PC Cert vs CL Cert (r[96]) on the last row - red where cert_check found the
+  field differs. Until the page is read each cell says why not in the CL Cert column's own words (not read / none /
+  unreadable / two slabs / picture gone / not looked up / pending / no match); the site build fills them as Brett's
+  reads come in (clcerts.py, daily). Also fixed in Review: a PC Cert record from a cert page Brett read (src "pg")
+  said "GemRate's description via Card Hedge" / "Card Hedge's record" - now "<grader>'s own cert page, as you read
+  it", with PSA's label type.
   THE CL CERT COLUMNS FILLED, AND PC/CL CERT MATCH (2026-11-17, Brett: "results for the card ladders certs will be
   stored here: .../scan-results/tree/main/cardladder ... only retrieve results from this file. please update the card
   ladder columns with all of the results in the files once per day ... if the text from pc cert matches the text from
