@@ -1,0 +1,17 @@
+diff --git a/page/graded.js b/page/graded.js
+index 05051bb..cabc6f8 100644
+--- a/page/graded.js
++++ b/page/graded.js
+@@ -830,8 +830,10 @@ function grSerFrom(c) {
+   if (!c || !c.cl) return '';                                 // no Card Ladder page read for the card
+   const set = c.cl[2] || '', ser = (c.ser || [])[1] || '', q = set ? ' (“' + set + '”)' : '';
+   const why = c.sf === 't' ? 'the set table, by Card Ladder’s set name' + q : c.sf === 'c' ? 'the page of the card’s CL cert' : 'Card Ladder’s own words: its set name' + q + ', variation or cert lookups';
+-  if (!ser) return c.sf === 't' ? 'Card Ladder’s set' + q + ' is in no series - not a Pokemon TCG set.' : 'Card Ladder’s set' + q + ' names no series and is not in the set table yet.';
+-  return 'Card Ladder’s series, from ' + why + '.' + (/\?/.test(ser) ? ' A ? = placed by judgment (a promo or yearly product, by when it came out), not by a reference.' : '');
++  if (!ser) return c.sf === 't' ? 'Card Ladder’s set' + q + ' is in no series - not a Pokemon TCG set.' : 'Card Ladder’s set' + q + ' names no series and has no row in the set table - not a Pokemon TCG set (Topps, Burger King …), or a set still to be added.';
++  const qm = !/\?/.test(ser) ? '' : c.sf === 't' ? ' A ? = placed by judgment: a promo or yearly product by when it came out, or a Japanese set by its English counterpart.'
++    : ' A ? = the dictionary takes an abbreviation in the name (SM, SWSH, SV …) for the series.';
++  return 'Card Ladder’s series, from ' + why + '.' + qm;
+ }
+ /* ---- the Review button: is Card Ladder's card the same card as PriceCharting's? ---- */
+ const GR_REASONS = ['set mismatch', 'name mismatch', 'number mismatch', 'variant mismatch', 'language', 'other'];
