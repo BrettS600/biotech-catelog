@@ -1,0 +1,192 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 4f7409b..31d72fc 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2393,6 +2393,26 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   writes only on a change; cl_certs.yml's `git add -- data/cardladder/pic_certs` commits it with the reads (no workflow
+   change). Kept out of data/scans on purpose: it is a list only, nothing opens those pages (scrap is started for
+   scans.csv alone). First build: 98,619 certs (64,024 PSA, 34,595 CGC) from 104,814 pictures, 7.6 MB.
++  THE PRICECHARTING CERTS ON THE LIST TOO (2026-11-20, Brett: "make sure that all of the certs from PC and from CL are
++  in that sheet so I can read them. Please add the rest now"; before that: the PriceCharting photos "that don't have a
++  results yet should be included", "differentiating the certs results from card ladder and from PC", and matching
++  works across grades - a card's name on the site is the same for every grade). card-data tools/clingest/pc_certs.py
++  (called at the end of build_ids.py in each Card Ladder ingest - no workflow change) appends to
++  data/cardladder/pic_certs/pc_certs.csv (added_at, grader, cert, pc, gk) every PriceCharting cert - the newest slab of
++  each grade in matches "slabs", Card Ladder's lookups ("cl_cert") and card_ids.csv psa_cert / cgc_cert - that is not on
++  the list as a Card Ladder cert and has no page yet (certs/results.csv or cardladder/cert_pages/); a row stays once
++  added. cl_certs.js writeCertList() adds them (cl_certs.yml already checks out pic_certs/), and since then KEEPS THE
++  ROWS ALREADY ON THE LIST IN PLACE and puts new ones (Card Ladder reads and PriceCharting certs alike) below, oldest
++  first - so a run overlapping the ingest cannot slip an older read above newer rows. The list's format is unchanged
++  (one "Cert ID" column - Brett's reader reads it as before). Results: his reader's pages still come back through
++  scan-results/cardladder -> clcerts.py -> cert_pages/ (clcerts.py files every read there, no filter); graded_site.py
++  list_pages() turns them into certs/results.csv's shape and merges them under Brett's own pages (results.csv first)
++  for the PC Cert side (auth_rec, the move to the grader's grade, the scan index) - so a PriceCharting cert's page
++  shows under the PC Cert columns and a Card Ladder cert's under the CL Cert columns (a slab on both: both). Which
++  side a cert is: reads_*.csv = Card Ladder, pc_certs.csv = PriceCharting. Not on the list: the other slabs read off
++  PriceCharting's photos (matches "barcodes", ~23,000 not read yet) that the site does not show. First run: 100,653
++  PriceCharting certs on file - 23,022 on the list already as Card Ladder certs, 46,238 read already, 31,393 added
++  (16,995 PSA, 14,398 CGC): the list went from 110,927 to 142,320 certs, the old rows unchanged.
+   THE CL CERT COLUMNS FILLED, AND PC/CL CERT MATCH (2026-11-17, Brett: "results for the card ladders certs will be
+   stored here: .../scan-results/tree/main/cardladder ... only retrieve results from this file. please update the card
+   ladder columns with all of the results in the files once per day ... if the text from pc cert matches the text from
+diff --git a/cl_certs.js b/cl_certs.js
+index 91db38f..d1db3b2 100644
+--- a/cl_certs.js
++++ b/cl_certs.js
+@@ -37,6 +37,12 @@
+      "=HYPERLINK(""https://www.cgccards.com/certlookup/6153192005/"",""6153192005"")"
+    Oldest read first, so new certs land at the bottom. Rebuilt whole from reads_*.csv each run (also a run with nothing
+    to read); the workflow commits it with the reads. Only a list: nothing here or in the workflow opens those pages.
++   THE PRICECHARTING CERTS ON IT (2026-11-20, Brett: "make sure that all of the certs from PC and from CL are in that
++   sheet so I can read them"): the list also holds the certs off PriceCharting's sold-listing photos that are not read
++   yet - card-data's ingest keeps them in pic_certs/pc_certs.csv (tools/clingest/pc_certs.py: only appended, each with
++   the time it joined). Since then a row never moves: the rows already on the list keep their places and the new ones -
++   Card Ladder reads and PriceCharting certs alike - go below them, oldest first. A cert on both sides is one row. Which side a result belongs to: reads_*.csv = a Card Ladder cert, pc_certs.csv = a PriceCharting
++   cert (graded_site.py puts the page under the CL Cert or the PC Cert columns accordingly).
+ 
+    Order: the cards in the Card Ladder run's order (cardladder/queue.csv), the four grades the page shows first (PSA 10,
+    PSA 9, CGC 10, CGC 10 Pristine), then every other PSA / CGC grade. Workers: one per CPU (at most 4), each with its own
+@@ -216,6 +222,12 @@ function loadReads() {                       // {pic: {status, tries, v, at}} -
+ function certLink(grader, cert) {            // the cert's page, spelled as scans.py / links.csv spell it
+   return grader === 'cgc' ? 'https://www.cgccards.com/certlookup/' + cert + '/' : 'https://www.psacard.com/cert/' + cert + '/psa';
+ }
++function loadPcCerts() {                     // [["grader|cert", added_at]] - pc_certs.csv (card-data tools/clingest/pc_certs.py)
++  const p = path.join(OUTDIR, 'pc_certs.csv'), out = []; if (!fs.existsSync(p)) return out;
++  const rows = csvRows(fs.readFileSync(p, 'utf8')), head = rows.shift() || [], ix = Object.fromEntries(head.map((h, i) => [h, i]));
++  for (const r of rows) { const g = r[ix.grader], c = r[ix.cert] || ''; if ((g === 'psa' || g === 'cgc') && /^\d+$/.test(c)) out.push([g + '|' + c, r[ix.added_at] || '']); }
++  return out;
++}
+ function writeCertList(reads) {              // card_ladder_cert.csv: every cert read so far, as clickable cells (header)
+   const first = new Map();                   // "grader|cert" -> its earliest read
+   for (const r of reads.values()) {
+@@ -224,13 +236,23 @@ function writeCertList(reads) {              // card_ladder_cert.csv: every cert
+     const k = g + '|' + r.cert, t = first.get(k);
+     if (t === undefined || r.at < t) first.set(k, r.at);
+   }
+-  const list = [...first].sort((a, b) => a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+-  const body = 'Cert ID\n' + list.map(([k]) => { const [g, c] = k.split('|'); return '"=HYPERLINK(""' + certLink(g, c) + '"",""' + c + '"")"\n'; }).join('');
+-  const file = path.join(OUTDIR, 'card_ladder_cert.csv');
+-  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === body) return log('card_ladder_cert.csv:', list.length, 'certs, no change');
++  const ncl = first.size;
++  for (const [k, at] of loadPcCerts()) { const t = first.get(k); if (t === undefined || at < t) first.set(k, at); }   // + PriceCharting's
++  // the rows already on the list keep their places (a cert read in a run that overlapped the ingest can be older than a
++  // PriceCharting cert added meanwhile: it still goes below); the new ones follow, oldest first
++  const file = path.join(OUTDIR, 'card_ladder_cert.csv'), old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
++  const keep = [], seen = new Set();
++  for (const m of old.matchAll(/(psacard|cgccards)\.com\/(?:cert|certlookup)\/(\d+)\//g)) {
++    const k = (m[1] === 'psacard' ? 'psa' : 'cgc') + '|' + m[2]; if (first.has(k) && !seen.has(k)) { seen.add(k); keep.push(k); }
++  }
++  const add = [...first].filter(([k]) => !seen.has(k)).sort((a, b) => a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
++  const list = keep.concat(add.map(([k]) => k));
++  const body = 'Cert ID\n' + list.map(k => { const [g, c] = k.split('|'); return '"=HYPERLINK(""' + certLink(g, c) + '"",""' + c + '"")"\n'; }).join('');
++  const what = '(' + ncl + ' Card Ladder, ' + (list.length - ncl) + ' PriceCharting; ' + add.length + ' new at the bottom)';
++  if (old === body) return log('card_ladder_cert.csv:', list.length, 'certs', what, 'no change');
+   fs.mkdirSync(OUTDIR, {recursive: true});
+   fs.writeFileSync(file, body);
+-  log('card_ladder_cert.csv:', list.length, 'certs written');
++  log('card_ladder_cert.csv:', list.length, 'certs', what, 'written');
+ }
+ 
+ async function main() {
+diff --git a/clcerts.py b/clcerts.py
+index 49658f6..c5a13ef 100644
+--- a/clcerts.py
++++ b/clcerts.py
+@@ -9,7 +9,9 @@ special api access to psa and cgc"; on a mismatch: flag it, he reviews (nothing
+ 
+ WHAT IT DOES
+   The certs are the ones in card-data data/cardladder/pic_certs/card_ladder_cert.csv (cl_certs.js: the cert numbers read
+-  off Card Ladder's sale pictures). Brett's reader leaves one JSON a cert page in scan-results/cardladder/
++  off Card Ladder's sale pictures, and since 2026-11-20 the PriceCharting photo certs not read yet - pic_certs/
++  pc_certs.csv; every read is filed here alike, and graded_site.py puts each page under the side its cert is from).
++  Brett's reader leaves one JSON a cert page in scan-results/cardladder/
+   (<grader>_<cert>_<ms>.json - the same shape as scans/, parsed with scans.parse_read). Once a UTC day, after HOUR_UTC
+   (the site builds at 10:00 UTC), collector.py's fast tick starts tick() here, which in its own thread:
+     1. fetches scan-results' cardladder/ ALONE (scans.sr_repo / sr_folder / sr_blobs: a bare, tree-less clone of its own;
+diff --git a/graded_site.py b/graded_site.py
+index 2d7a29e..31b1f7e 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -29,6 +29,10 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
+                                            card-inbox and card-data's hourly ingest): one row per cert (optional)
+   cardladder/pic_certs/reads_*.csv         the cert number read off Card Ladder's picture of each grade's slab (cl_certs.js,
+                                            every two hours) - the CL Cert column (optional)
++  cardladder/cert_pages/cert_pages_*.csv   the cert pages of the certs on Brett's cert list (card_ladder_cert.csv), as his
++                                           reader read them (clcerts.py, daily): the CL Cert columns, and since 2026-11-20
++                                           the PC Cert columns too - the list now also holds PriceCharting's photo certs
++                                           (pic_certs/pc_certs.csv); a page there counts like one in certs/results.csv
+ and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
+ PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
+ 
+@@ -485,7 +489,8 @@ def load_pic_certs(cd):
+ 
+ def load_cl_pages(cd):
+     """{(grader, cert): row} from cardladder/cert_pages/cert_pages_*.csv (clcerts.py, once a day from scan-results/
+-    cardladder): the cert pages of the CL Cert slabs, as Brett's reader read them. The newest read of a cert wins."""
++    cardladder): the cert pages of the certs on his cert list - the CL Cert slabs and, since 2026-11-20, the PriceCharting
++    certs too (list_pages) - as Brett's reader read them. The newest read of a cert wins."""
+     import csv
+     out = {}
+     for f in sorted(glob.glob(os.path.join(cd, "cardladder", "cert_pages", "cert_pages_*.csv"))):
+@@ -497,6 +502,24 @@ def load_cl_pages(cd):
+     return out
+ 
+ 
++def list_pages(cl_pg):
++    """The cert list's pages (load_cl_pages) in certs/results.csv's shape, for the PC Cert columns (2026-11-20, Brett:
++    "make sure that all of the certs from PC and from CL are in that sheet so I can read them" - and their results told
++    apart: a PriceCharting cert's page goes under the PC Cert columns, a Card Ladder cert's under the CL Cert columns, a
++    slab on both under both). Only ever looked up for PriceCharting certs; a page in certs/results.csv comes first."""
++    out = {}
++    for (g, c), w in cl_pg.items():
++        out[(g, c)] = {"grader": g, "cert": c, "card_name": w.get("name") or "", "set": w.get("set") or "",
++                       "card_number": w.get("number") or "", "variety": w.get("variety") or "", "year": w.get("year") or "",
++                       "language": w.get("language") or "", "grade": w.get("grade") or "", "pop_this_grade": w.get("pop") or "",
++                       "pop_higher": w.get("pop_higher") or "", "price_estimate": w.get("estimate") or "",
++                       "read_at": w.get("read_at") or "", "title": "", "recent_sales": "",
++                       "page_url": (f"https://www.cgccards.com/certlookup/{c}/" if g == "cgc" else f"https://www.psacard.com/cert/{c}/psa"),
++                       "PSA Category": (w.get("category") or "") if g == "psa" else "",
++                       "PSA Label Type": (w.get("label") or "") if g == "psa" else "", "_list": 1}
++    return out
++
++
+ def cert_words(g, a):
+     """The card as a grader's record names it, for PC Cert vs CL Cert: ({name, set, number, variety, year, language},
+     exact) - exact = the grader's own fields (a cert page, PSA's API, a CL cert page); GemRate's one-line description
+@@ -984,6 +1007,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+     psa_c, ch_c, pg_c = load_psa_certs(cd), load_ch_certs(cd), load_page_certs(cd)
+     pic_c = load_pic_certs(cd)                            # the CL Cert column: certs read off Card Ladder's pictures
+     cl_pg = load_cl_pages(cd)                             # ... and their cert pages, as Brett's reader read them (2026-11-17)
++    pg_n = len(pg_c)                                      # the PC Cert columns: Brett's own page first, then the cert list's (2026-11-20)
++    pg_c = {**list_pages(cl_pg), **pg_c}
++    pc_list = 0                                           # PC Cert slabs whose page came from the cert list
+     cl_cmp = [0, 0]                                       # PC Cert vs CL Cert: rows that match, rows that do not
+     checks = []
+     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
+@@ -993,7 +1019,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
+           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
+           f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}, "
+-          f"cert pages Brett opened {len(pg_c)}")
++          f"cert pages Brett opened {pg_n} (+ his reader's pages of the cert list, {len(cl_pg):,})")
+     pop = load_pop(cd, ids)
+     pc_read = load_pc_read(cd, ids)                         # grades 1-6 on record only from a read on or after LOW_FROM
+     psales = load_pc_sales(cd, ids, today)
+@@ -1166,6 +1192,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+             if pgl and cgl and pgf != "down" and grade_norm(pgl) != grade_norm(cgl):
+                 grade_diff += 1
+             ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c, pg_c)
++            if ar and ar.get("src") == "pg" and (pg_c.get((k.split("|")[0], ar["cert"])) or {}).get("_list"):
++                pc_list += 1
+             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
+                                         ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None, ar.get("est")]
+             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
+@@ -1370,7 +1398,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+         return doc, trends
+     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
+     print(f"CL Cert pages: {len(cl_pg):,} certs read by Brett's reader; PC Cert vs CL Cert: {cl_cmp[0]:,} rows match, "
+-          f"{cl_cmp[1]:,} do not")
++          f"{cl_cmp[1]:,} do not; {pc_list:,} PC Cert rows show a page from the cert list")
+     try:
+         ix = scan_index(doc, ix_certs, ix_rows, ix_known, pg_c)
+         ni = write_enc(os.path.join(out_dir, "scanidx.bin"), ix, key)
