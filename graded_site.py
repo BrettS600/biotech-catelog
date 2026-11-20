@@ -29,6 +29,10 @@ Reads (card-data is the private repo BrettS600/card-data, checked out by the wor
                                            card-inbox and card-data's hourly ingest): one row per cert (optional)
   cardladder/pic_certs/reads_*.csv         the cert number read off Card Ladder's picture of each grade's slab (cl_certs.js,
                                            every two hours) - the CL Cert column (optional)
+  cardladder/cert_pages/cert_pages_*.csv   the cert pages of the certs on Brett's cert list (card_ladder_cert.csv), as his
+                                           reader read them (clcerts.py, daily): the CL Cert columns, and since 2026-11-20
+                                           the PC Cert columns too - the list now also holds PriceCharting's photo certs
+                                           (pic_certs/pc_certs.csv); a page there counts like one in certs/results.csv
 and tcg_facts.json.gz (build_catalog.py: TCGplayer's own rarity / number / printings for the product each
 PriceCharting card links to), pricecharting.csv (today's PriceCharting prices) and snapshots/pc_catalog_*.csv.gz.enc (the daily history).
 
@@ -485,7 +489,8 @@ def load_pic_certs(cd):
 
 def load_cl_pages(cd):
     """{(grader, cert): row} from cardladder/cert_pages/cert_pages_*.csv (clcerts.py, once a day from scan-results/
-    cardladder): the cert pages of the CL Cert slabs, as Brett's reader read them. The newest read of a cert wins."""
+    cardladder): the cert pages of the certs on his cert list - the CL Cert slabs and, since 2026-11-20, the PriceCharting
+    certs too (list_pages) - as Brett's reader read them. The newest read of a cert wins."""
     import csv
     out = {}
     for f in sorted(glob.glob(os.path.join(cd, "cardladder", "cert_pages", "cert_pages_*.csv"))):
@@ -494,6 +499,24 @@ def load_cl_pages(cd):
                 k = ((r.get("grader") or "").lower(), re.sub(r"\D", "", r.get("cert") or ""))
                 if k[1] and (k not in out or (r.get("read_at") or "") >= (out[k].get("read_at") or "")):
                     out[k] = r
+    return out
+
+
+def list_pages(cl_pg):
+    """The cert list's pages (load_cl_pages) in certs/results.csv's shape, for the PC Cert columns (2026-11-20, Brett:
+    "make sure that all of the certs from PC and from CL are in that sheet so I can read them" - and their results told
+    apart: a PriceCharting cert's page goes under the PC Cert columns, a Card Ladder cert's under the CL Cert columns, a
+    slab on both under both). Only ever looked up for PriceCharting certs; a page in certs/results.csv comes first."""
+    out = {}
+    for (g, c), w in cl_pg.items():
+        out[(g, c)] = {"grader": g, "cert": c, "card_name": w.get("name") or "", "set": w.get("set") or "",
+                       "card_number": w.get("number") or "", "variety": w.get("variety") or "", "year": w.get("year") or "",
+                       "language": w.get("language") or "", "grade": w.get("grade") or "", "pop_this_grade": w.get("pop") or "",
+                       "pop_higher": w.get("pop_higher") or "", "price_estimate": w.get("estimate") or "",
+                       "read_at": w.get("read_at") or "", "title": "", "recent_sales": "",
+                       "page_url": (f"https://www.cgccards.com/certlookup/{c}/" if g == "cgc" else f"https://www.psacard.com/cert/{c}/psa"),
+                       "PSA Category": (w.get("category") or "") if g == "psa" else "",
+                       "PSA Label Type": (w.get("label") or "") if g == "psa" else "", "_list": 1}
     return out
 
 
@@ -984,6 +1007,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     psa_c, ch_c, pg_c = load_psa_certs(cd), load_ch_certs(cd), load_page_certs(cd)
     pic_c = load_pic_certs(cd)                            # the CL Cert column: certs read off Card Ladder's pictures
     cl_pg = load_cl_pages(cd)                             # ... and their cert pages, as Brett's reader read them (2026-11-17)
+    pg_n = len(pg_c)                                      # the PC Cert columns: Brett's own page first, then the cert list's (2026-11-20)
+    pg_c = {**list_pages(cl_pg), **pg_c}
+    pc_list = 0                                           # PC Cert slabs whose page came from the cert list
     cl_cmp = [0, 0]                                       # PC Cert vs CL Cert: rows that match, rows that do not
     checks = []
     grade_diff = 0                                          # rows whose PC grade and CL grade differ (no price comparison there)
@@ -993,7 +1019,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
           f"TCGplayer product pages read for {sum(1 for d in tdet.values() if d.get('status') == 'ok'):,}, "
           f"population history for {len(pop_hist)} cards, {len(marks)} Review answers, "
           f"PSA cert records {sum(1 for r in psa_c.values() if r.get('status') == 'ok')}, Card Hedge cert rows {len(ch_c)}, "
-          f"cert pages Brett opened {len(pg_c)}")
+          f"cert pages Brett opened {pg_n} (+ his reader's pages of the cert list, {len(cl_pg):,})")
     pop = load_pop(cd, ids)
     pc_read = load_pc_read(cd, ids)                         # grades 1-6 on record only from a read on or after LOW_FROM
     psales = load_pc_sales(cd, ids, today)
@@ -1166,6 +1192,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             if pgl and cgl and pgf != "down" and grade_norm(pgl) != grade_norm(cgl):
                 grade_diff += 1
             ar = auth_rec(k.split("|")[0], slabs.get(k), psa_c, ch_c, pg_c)
+            if ar and ar.get("src") == "pg" and (pg_c.get((k.split("|")[0], ar["cert"])) or {}).get("_list"):
+                pc_list += 1
             auth = None if not ar else [ar["st"], ar.get("grade") or None, ar.get("label") or None, ar.get("pop"), ar.get("poph"),
                                         ar.get("src"), ar["cert"], ar.get("popq"), ar.get("read") or None, ar.get("est")]
             rows.append([cid, GI[k], r2(pc_price), src, pc_n1, pop.get(cid, {}).get(k), r2(cl[1]), r2(cl[2]), cl_n1,
@@ -1370,7 +1398,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         return doc, trends
     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
     print(f"CL Cert pages: {len(cl_pg):,} certs read by Brett's reader; PC Cert vs CL Cert: {cl_cmp[0]:,} rows match, "
-          f"{cl_cmp[1]:,} do not")
+          f"{cl_cmp[1]:,} do not; {pc_list:,} PC Cert rows show a page from the cert list")
     try:
         ix = scan_index(doc, ix_certs, ix_rows, ix_known, pg_c)
         ni = write_enc(os.path.join(out_dir, "scanidx.bin"), ix, key)

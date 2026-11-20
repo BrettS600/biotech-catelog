@@ -2393,6 +2393,26 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   writes only on a change; cl_certs.yml's `git add -- data/cardladder/pic_certs` commits it with the reads (no workflow
   change). Kept out of data/scans on purpose: it is a list only, nothing opens those pages (scrap is started for
   scans.csv alone). First build: 98,619 certs (64,024 PSA, 34,595 CGC) from 104,814 pictures, 7.6 MB.
+  THE PRICECHARTING CERTS ON THE LIST TOO (2026-11-20, Brett: "make sure that all of the certs from PC and from CL are
+  in that sheet so I can read them. Please add the rest now"; before that: the PriceCharting photos "that don't have a
+  results yet should be included", "differentiating the certs results from card ladder and from PC", and matching
+  works across grades - a card's name on the site is the same for every grade). card-data tools/clingest/pc_certs.py
+  (called at the end of build_ids.py in each Card Ladder ingest - no workflow change) appends to
+  data/cardladder/pic_certs/pc_certs.csv (added_at, grader, cert, pc, gk) every PriceCharting cert - the newest slab of
+  each grade in matches "slabs", Card Ladder's lookups ("cl_cert") and card_ids.csv psa_cert / cgc_cert - that is not on
+  the list as a Card Ladder cert and has no page yet (certs/results.csv or cardladder/cert_pages/); a row stays once
+  added. cl_certs.js writeCertList() adds them (cl_certs.yml already checks out pic_certs/), and since then KEEPS THE
+  ROWS ALREADY ON THE LIST IN PLACE and puts new ones (Card Ladder reads and PriceCharting certs alike) below, oldest
+  first - so a run overlapping the ingest cannot slip an older read above newer rows. The list's format is unchanged
+  (one "Cert ID" column - Brett's reader reads it as before). Results: his reader's pages still come back through
+  scan-results/cardladder -> clcerts.py -> cert_pages/ (clcerts.py files every read there, no filter); graded_site.py
+  list_pages() turns them into certs/results.csv's shape and merges them under Brett's own pages (results.csv first)
+  for the PC Cert side (auth_rec, the move to the grader's grade, the scan index) - so a PriceCharting cert's page
+  shows under the PC Cert columns and a Card Ladder cert's under the CL Cert columns (a slab on both: both). Which
+  side a cert is: reads_*.csv = Card Ladder, pc_certs.csv = PriceCharting. Not on the list: the other slabs read off
+  PriceCharting's photos (matches "barcodes", ~23,000 not read yet) that the site does not show. First run: 100,653
+  PriceCharting certs on file - 23,022 on the list already as Card Ladder certs, 46,238 read already, 31,393 added
+  (16,995 PSA, 14,398 CGC): the list went from 110,927 to 142,320 certs, the old rows unchanged.
   THE CL CERT COLUMNS FILLED, AND PC/CL CERT MATCH (2026-11-17, Brett: "results for the card ladders certs will be
   stored here: .../scan-results/tree/main/cardladder ... only retrieve results from this file. please update the card
   ladder columns with all of the results in the files once per day ... if the text from pc cert matches the text from

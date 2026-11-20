@@ -37,6 +37,12 @@
      "=HYPERLINK(""https://www.cgccards.com/certlookup/6153192005/"",""6153192005"")"
    Oldest read first, so new certs land at the bottom. Rebuilt whole from reads_*.csv each run (also a run with nothing
    to read); the workflow commits it with the reads. Only a list: nothing here or in the workflow opens those pages.
+   THE PRICECHARTING CERTS ON IT (2026-11-20, Brett: "make sure that all of the certs from PC and from CL are in that
+   sheet so I can read them"): the list also holds the certs off PriceCharting's sold-listing photos that are not read
+   yet - card-data's ingest keeps them in pic_certs/pc_certs.csv (tools/clingest/pc_certs.py: only appended, each with
+   the time it joined). Since then a row never moves: the rows already on the list keep their places and the new ones -
+   Card Ladder reads and PriceCharting certs alike - go below them, oldest first. A cert on both sides is one row. Which side a result belongs to: reads_*.csv = a Card Ladder cert, pc_certs.csv = a PriceCharting
+   cert (graded_site.py puts the page under the CL Cert or the PC Cert columns accordingly).
 
    Order: the cards in the Card Ladder run's order (cardladder/queue.csv), the four grades the page shows first (PSA 10,
    PSA 9, CGC 10, CGC 10 Pristine), then every other PSA / CGC grade. Workers: one per CPU (at most 4), each with its own
@@ -216,6 +222,12 @@ function loadReads() {                       // {pic: {status, tries, v, at}} - 
 function certLink(grader, cert) {            // the cert's page, spelled as scans.py / links.csv spell it
   return grader === 'cgc' ? 'https://www.cgccards.com/certlookup/' + cert + '/' : 'https://www.psacard.com/cert/' + cert + '/psa';
 }
+function loadPcCerts() {                     // [["grader|cert", added_at]] - pc_certs.csv (card-data tools/clingest/pc_certs.py)
+  const p = path.join(OUTDIR, 'pc_certs.csv'), out = []; if (!fs.existsSync(p)) return out;
+  const rows = csvRows(fs.readFileSync(p, 'utf8')), head = rows.shift() || [], ix = Object.fromEntries(head.map((h, i) => [h, i]));
+  for (const r of rows) { const g = r[ix.grader], c = r[ix.cert] || ''; if ((g === 'psa' || g === 'cgc') && /^\d+$/.test(c)) out.push([g + '|' + c, r[ix.added_at] || '']); }
+  return out;
+}
 function writeCertList(reads) {              // card_ladder_cert.csv: every cert read so far, as clickable cells (header)
   const first = new Map();                   // "grader|cert" -> its earliest read
   for (const r of reads.values()) {
@@ -224,13 +236,23 @@ function writeCertList(reads) {              // card_ladder_cert.csv: every cert
     const k = g + '|' + r.cert, t = first.get(k);
     if (t === undefined || r.at < t) first.set(k, r.at);
   }
-  const list = [...first].sort((a, b) => a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-  const body = 'Cert ID\n' + list.map(([k]) => { const [g, c] = k.split('|'); return '"=HYPERLINK(""' + certLink(g, c) + '"",""' + c + '"")"\n'; }).join('');
-  const file = path.join(OUTDIR, 'card_ladder_cert.csv');
-  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === body) return log('card_ladder_cert.csv:', list.length, 'certs, no change');
+  const ncl = first.size;
+  for (const [k, at] of loadPcCerts()) { const t = first.get(k); if (t === undefined || at < t) first.set(k, at); }   // + PriceCharting's
+  // the rows already on the list keep their places (a cert read in a run that overlapped the ingest can be older than a
+  // PriceCharting cert added meanwhile: it still goes below); the new ones follow, oldest first
+  const file = path.join(OUTDIR, 'card_ladder_cert.csv'), old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const keep = [], seen = new Set();
+  for (const m of old.matchAll(/(psacard|cgccards)\.com\/(?:cert|certlookup)\/(\d+)\//g)) {
+    const k = (m[1] === 'psacard' ? 'psa' : 'cgc') + '|' + m[2]; if (first.has(k) && !seen.has(k)) { seen.add(k); keep.push(k); }
+  }
+  const add = [...first].filter(([k]) => !seen.has(k)).sort((a, b) => a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const list = keep.concat(add.map(([k]) => k));
+  const body = 'Cert ID\n' + list.map(k => { const [g, c] = k.split('|'); return '"=HYPERLINK(""' + certLink(g, c) + '"",""' + c + '"")"\n'; }).join('');
+  const what = '(' + ncl + ' Card Ladder, ' + (list.length - ncl) + ' PriceCharting; ' + add.length + ' new at the bottom)';
+  if (old === body) return log('card_ladder_cert.csv:', list.length, 'certs', what, 'no change');
   fs.mkdirSync(OUTDIR, {recursive: true});
   fs.writeFileSync(file, body);
-  log('card_ladder_cert.csv:', list.length, 'certs written');
+  log('card_ladder_cert.csv:', list.length, 'certs', what, 'written');
 }
 
 async function main() {

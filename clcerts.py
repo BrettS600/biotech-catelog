@@ -9,7 +9,9 @@ special api access to psa and cgc"; on a mismatch: flag it, he reviews (nothing 
 
 WHAT IT DOES
   The certs are the ones in card-data data/cardladder/pic_certs/card_ladder_cert.csv (cl_certs.js: the cert numbers read
-  off Card Ladder's sale pictures). Brett's reader leaves one JSON a cert page in scan-results/cardladder/
+  off Card Ladder's sale pictures, and since 2026-11-20 the PriceCharting photo certs not read yet - pic_certs/
+  pc_certs.csv; every read is filed here alike, and graded_site.py puts each page under the side its cert is from).
+  Brett's reader leaves one JSON a cert page in scan-results/cardladder/
   (<grader>_<cert>_<ms>.json - the same shape as scans/, parsed with scans.parse_read). Once a UTC day, after HOUR_UTC
   (the site builds at 10:00 UTC), collector.py's fast tick starts tick() here, which in its own thread:
     1. fetches scan-results' cardladder/ ALONE (scans.sr_repo / sr_folder / sr_blobs: a bare, tree-less clone of its own;
