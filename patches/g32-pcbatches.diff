@@ -1,0 +1,28 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index db83147..8abd475 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -3764,6 +3764,23 @@ and the site password once), and the old screen's two other jobs kept as small b
+   clr-src-cl-prev-sha d06b5fd5... for a rollback), evaluated at the 7 pm restart; a PriceCharting tab
+   (www.pricecharting.com, Brett signed in) runs the new pc_tab.js again (clr-src-pc-prev kept), list loaded, waiting
+   for 8 pm. From now on the run goes on every night (the evening check restarts both tabs).
++  THE FIRST NIGHT (Nov 19/20) AND THE PRICECHARTING TAB'S BATCHES: Card Ladder 900 pages (first pass finished; of the
++  refresh list only the 49 "first" cards - the PriceCharting tab's hand-offs, rank 4e6, sit ahead of the changed cards,
++  5e6; Brett was asked whether to swap them and has not answered). The PriceCharting tab scanned its 1,500 cards
++  (slab certs on 1,439; 674 got a Card Ladder page the same night) - but NONE of its 15 batches reached card-data:
++  that tab has no card-inbox key and no ntfy token (localStorage is per site; Brett's keys sit on the Card Ladder
++  tab), so its batches go over ntfy's free tier, which keeps a file 3 hours, and the "hourly" ingest ran at 03:04 and
++  11:26 UTC. The tab sends unacknowledged batches again only inside its loop (CLX.acks), which does not turn while it
++  waits for the next list or for 8 pm. So the list for Nov 21 (made 19:48 UTC) held the same cards again. Fixed on
++  2026-11-20 ~21:45 UTC: CLX.acks() run by hand in the tab (15 re-sent, no page read), an ingest started (12 batches:
++  2,794 match records, 1,429 scans; 4,614 more PriceCharting certs joined Brett's cert list), and
++  make_refresh.maybe(new_scans) now MAKES THE LIST AGAIN when a run files PriceCharting scans after the coming
++  night's list was made (before 7 pm Eastern only; done that run: 1,089 selling without a page, 8,682 never scanned).
++  THE NIGHT CHECKS START AN INGEST RUN AT EVERY CHECK (gh api ... cl_ingest.yml/dispatches) so the batches are taken
++  inside the 3 hours; the evening check and the morning summary look at the tab's waiting batches (CLX.pendAll(): count
++  and ages) and run CLX.acks() first when any is older than 3 hours - the morning one before 13:00 UTC, when the next
++  list is made. Still open (would end the dependence on the checks): the tab sending again while it waits, or Brett's
++  card-inbox key pasted on the PriceCharting tab too.
+ 
+ - PRICECHARTING WITHOUT THE SUBSCRIPTION (2026-11-19, Brett: "Its not for business use and I read their terms ... ill stop
+   the subscription today and we can update the build so that it functions without a subscription. my price charting
