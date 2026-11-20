@@ -1820,7 +1820,8 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   else the dictionary words in PriceCharting's [brackets]; PC finish = brackets, else TCGplayer's printings (only
   Holofoil -> Holo, only Normal -> Non-Holo); CL = dictionary words in Card Ladder's variation, subject, set and its cert
   lookups' labels. Series / Era: one column each, blank unless a side's text names one (set strings also match the
-  set-only short names EX, SM, SWSH, Base, Gym ...; "A ≠ B" when the sides disagree). The ratio column is gone. The four
+  set-only short names EX, SM, SWSH, Base, Gym ...; "A ≠ B" when the sides disagree) - UNTIL 2026-11-20: the two
+  columns are Card Ladder's alone now, see SERIES AND ERA FROM CARD LADDER below. The ratio column is gone. The four
   new columns went in with makeTable cfg.inserted {v: 2, at: 14, n: 4}, so Brett's saved order / hidden / widths stay on
   the same columns (tested on his real layout). Review popup: a top bar (Trend, Number graded last month, PC to CL %),
   then both sides: release, set, name, card / set number, rarity · finish, illustrator, series, era, sales, price, cert
@@ -2426,6 +2427,29 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   reads come in (clcerts.py, daily). Also fixed in Review: a PC Cert record from a cert page Brett read (src "pg")
   said "GemRate's description via Card Hedge" / "Card Hedge's record" - now "<grader>'s own cert page, as you read
   it", with PSA's label type.
+  SERIES AND ERA FROM CARD LADDER (2026-11-20, Brett: "To build the mathematical model for the forecast for graded
+  cards, we will be using card ladder data ... would it be possible to fill out the ... columns for series and ...
+  era? ... I would only like to reference ... cert data specified from card ladder, or alternatively, what card
+  ladder said on its website itself"; then "it doesn't need to be matched to PC because we're just using CL. So we
+  can technically fill in all the blanks for card ladder. Also, if the cert isn't read yet for CL, it may not
+  matter"; asked about the sets whose Card Ladder name leaves the series out he chose "Table of CL set names", and
+  for the era "Era from the series"). graded_terms.cl_fill, for every card with a Card Ladder page, in this order:
+  (1) card-data dictionary/cl_set_series.csv (cl_set, year, series, confidence, note - Card Ladder's set name, and
+  the year on its page for yearly products, -> series; a blank series = in none, e.g. "Topps ... Series 3 Pop-Up"
+  is not POP; likely rows show a "?": promos and yearly products placed by when they came out, Japanese sets by
+  their English counterpart); (2) the series Card Ladder's own words name (cl_side - where they name two, the one in
+  the page's own set name); (3) the series on the page of the card's CL cert (none needed it so far). The era is the
+  series' era from dictionary/sets.csv (gt.load_series_era - PokeViews': E-Card is Classic there, not Vintage as the
+  question's preview had it; Brett was told). cards[id].ser[1] / .era[1] carry them and .sf where the series came from
+  (t / w / c); c.t.cl and doc.terms too, so the Series and Era filter buttons count them. The PC-vs-CL field checks
+  (gt.compare, field_checks.csv) are made BEFORE the fill, on the words alone, so nothing new is flagged. Page:
+  columns 53 / 54 show Card Ladder's value only (no "A ≠ B", no red; pending / no match like the other CL cells;
+  none = Card Ladder's set is in no series), hover says where it came from (grSerFrom); Review's Card Ladder column
+  the same, and its CL Cert column's Era is the era of the series the cert page names. PriceCharting's and the PC
+  Cert's Series / Era in Review are still only what their text names. First build: 13,821 cards with a Card Ladder
+  page - 13,112 with a series (4,750 through the table, 8,364 from Card Ladder's words; 597 with a "?"), 709 none
+  (Topps, Burger King ... and 12 unplaced promos). A new Card Ladder set whose name leaves the series out needs a
+  row in cl_set_series.csv; the build log's "CL Series / Era" line counts the nones.
   THE CL CERT COLUMNS FILLED, AND PC/CL CERT MATCH (2026-11-17, Brett: "results for the card ladders certs will be
   stored here: .../scan-results/tree/main/cardladder ... only retrieve results from this file. please update the card
   ladder columns with all of the results in the files once per day ... if the text from pc cert matches the text from

@@ -53,7 +53,7 @@ const grClUrl = pid => pid ? 'https://app.cardladder.com/profiles/' + encodeURIC
    34 CL release, 35 CL Graded $, 36 PC to CL %, 37 CL sales last month, 38 graded this past month, 39 number graded
    last month, 40 graded : PC sales ratio, 41 your answer, 42 flag reason, 43 PC price source, 44 PC pop, 45 CL pop,
    46 CL last sold, 47 CL average last month, 48 raw row?, 49 profile id, 50 grade key, 51 PC Illustrator, 52 CL
-   Illustrator, 53 Series, 54 Era, 55 PC number (TCGplayer's), 56-66 Auth Name / Set / Set/Card No. / Rarity/Finish /
+   Illustrator, 53 Series, 54 Era (Card Ladder's - grSerFrom below), 55 PC number (TCGplayer's), 56-66 Auth Name / Set / Set/Card No. / Rarity/Finish /
    Release / Language / Grade / Label / Pop / Pop Higher / Illustrator, 67 PC price today, 68 CL value today, 69 last
    month's PC price [average, sales, source], 70 the slab's Auth record, 71-74 PC / CL Grade and where each came from,
    75 CL Status (read / pending / no match), 76 PC sales (last mo) is an estimate (~), 77 Auth Estimate (PSA's estimate on
@@ -85,7 +85,6 @@ const grClUrl = pid => pid ? 'https://app.cardladder.com/profiles/' + encodeURIC
    not there, then it should none"): 3/14/15 and 32/33 are the PC / CL sides as graded_site.py read them (graded_terms.py),
    nothing filled in from the other side or the open dataset. */
 const grRF = (rar, fin, sp) => (rar || 'none') + RF_SEP + (fin || 'none') + (sp ? RF_SEP + sp : '');   // "Holo Rare · Holo · 1st Edition"
-const grBoth = p => { if (!p) return ''; const v = [...new Set(p.filter(Boolean))]; return v.join(' ≠ '); };   // PC, CL, Auth: "Original ≠ Neo"
 function grBuildRows() {
   const d = GR.doc; if (!d) return [];
   const out = [];
@@ -123,7 +122,7 @@ function grBuildRow(d, x) {
       cl[4] || null, cl[2] || null, ns ? '' : grClUrl(c.pid), ns ? null : c.cn || null, pend || ns ? null : grRF(c.cr, c.cf, c.cs), cl[1] || null, clv,
       pcp && clv && same ? Math.round((clv - pcp) / pcp * 1000) / 10 : null, ns ? null : x[8], null, null, null,
       grMatchV(cid) !== undefined ? grMatchV(cid) : m && m.v !== undefined ? m.v : x[16], m && m.reason !== undefined ? m.reason : x[17], x[3], x[5], ns ? null : x[10], ns ? null : x[7], ns ? null : x[9], false, c.pid || '', gk,
-      c.pi ? c.pi : c.pi === '' ? 'none' : 'not read', 'none', grBoth(c.ser) || null, grBoth(c.era) || null, c.pn || null,
+      c.pi ? c.pi : c.pi === '' ? 'none' : 'not read', 'none', ns || pend ? null : (c.ser || [])[1] || null, ns || pend ? null : (c.era || [])[1] || null, c.pn || null,
       A ? A.name || 'none' : aSt, A ? A.set || 'none' : aSt, A ? A.num || 'none' : aSt, A ? grRF(A.rar, A.fin, A.sp) : aSt, A ? A.year || 'none' : aSt, A ? A.lang || 'none' : aSt,
       sOk ? S[1] || 'none' : sSt, sOk ? (S[5] === 'psa' || (S[5] === 'pg' && g === 'psa') ? S[2] || 'none' : 'not given') : sSt, sOk && S[3] != null ? S[3] : null, sOk && S[4] != null ? S[4] : null,
       A ? 'none' : aSt === 'not read' ? 'not read' : 'none',
@@ -432,8 +431,7 @@ function grRow(r) {
   if (r[48]) return grRawCells(r);
   const pcSrc = grSrcTitle(r), mixed = (r[69] || [])[2] === 'chart_mixed';
   const c = (GR.doc.cards || {})[String(r[0])] || {};
-  const aFC = (((c.a || {})[String(r[26]).toLowerCase()] || {}).fc) || {};
-  const relMis = grFC(c, 'release') === 'mismatch', serMis = grFC(c, 'series') === 'mismatch' || aFC.series === 'mismatch', eraMis = grFC(c, 'era') === 'mismatch' || aFC.era === 'mismatch';
+  const relMis = grFC(c, 'release') === 'mismatch';
   const rfMis = grFC(c, 'rarity') === 'mismatch' || grFC(c, 'finish') === 'mismatch' || grFC(c, 'special') === 'mismatch';   // a Special word only one side names counts (2026-10-29)
   const setTip = /^pokemon game( promo)?$/i.test(String(r[30] || '')) ? ' title="PSA’s own name: Pokemon Game = 1999 Base Set, Pokemon Game Promo = the Wizards promos (Card Ladder uses PSA’s names)"' : '';
   const gSame = grSameGrade(r[71], r[72]), gDiff = !!r[71] && !!r[72] && !gSame;
@@ -457,8 +455,9 @@ function grRow(r) {
     (c.pi ? '<td title="' + esc('The Artist on TCGplayer’s product page for the product PriceCharting links to') + '">' + esc(c.pi) + '</td>'
       : '<td><span class="dim" title="' + esc(c.pi === '' ? 'TCGplayer’s product page shows no artist for this card' : c.pif || 'TCGplayer’s product page has not been read for this card yet - each site build reads the new cards') + '">' + (c.pi === '' ? 'none' : 'not read') + '</span></td>') +
     '<td><span class="dim" title="Card Ladder does not record the illustrator">none</span></td>' +
-    (r[53] ? '<td' + (serMis ? ' class="rfbad"' : '') + ' title="' + esc('PC: ' + ((c.ser || [])[0] || 'none') + ' · CL: ' + ((c.ser || [])[1] || 'none') + ' · PC Cert: ' + ((c.ser || [])[2] || 'none') + ' - only where a series name is written in the text') + '">' + esc(r[53]) + '</td>' : '<td></td>') +
-    (r[54] ? '<td' + (eraMis ? ' class="rfbad"' : '') + ' title="' + esc('PC: ' + ((c.era || [])[0] || 'none') + ' · CL: ' + ((c.era || [])[1] || 'none') + ' · PC Cert: ' + ((c.era || [])[2] || 'none')) + '">' + esc(r[54]) + '</td>' : '<td></td>') +
+    (pend || nom ? '<td>' + clNone + '</td><td>' + clNone + '</td>'
+      : '<td title="' + esc(grSerFrom(c)) + '">' + (r[53] ? esc(r[53]) : '<span class="dim">none</span>') + '</td>' +
+        '<td title="' + esc(r[54] ? 'The era of the card’s series (' + r[53] + '), as PokeViews groups the series: Vintage, Classic, Mid Era, Modern, Contemporary.' : 'No series, so no era.') + '">' + (r[54] ? esc(r[54]) : '<span class="dim">none</span>') + '</td>') +
     grInt(r[5]) +
     (r[6] == null ? '<td class="num"><span class="dim" title="' + esc((grPc1Title(r) || 'No ' + r[25] + ' sale recorded by PriceCharting last month') + '. Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + ((r[69] || [])[2] === 'not_read' ? 'not read' : (r[69] || [])[2] === 'none' ? 'none' : '-') + '</span></td>'
       : '<td class="num' + (mixed ? ' gmix' : '') + '" title="' + esc(grPc1Title(r) + ' · Today: ' + (r[67] != null ? fmtMoneyPlain(r[67]) + ' (' + pcSrc + ')' : 'none')) + '">' + fmtMoney(r[6]) + (mixed ? '<sup>*</sup>' : '') + ((r[69] || [])[2] === 'down' ? '<sup class="gdown">↓</sup>' : '') + '</td>') +
@@ -822,6 +821,18 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 { const rb = rebuildLive; rebuildLive = function () { const out = rb.apply(this, arguments); if (PCMODE === 'all' && tables.pca && GR.doc) { GR.allRows = null; tables.pca.apply(true); } return out; }; }
 
+/* ---- Series and Era: Card Ladder's, for every card with a Card Ladder page (2026-11-20, Brett: "I would only like to
+   reference ... cert data specified from card ladder, or alternatively, what card ladder said on its website itself";
+   "it doesn't need to be matched to PC because we're just using CL"). graded_site.py / graded_terms.cl_fill: cards[id]
+   .ser[1] / .era[1], and .sf = where the series came from - t the set table (card-data dictionary/cl_set_series.csv:
+   Card Ladder's set name -> series), w Card Ladder's own words, c the page of its CL cert. The era is the series' era. */
+function grSerFrom(c) {
+  if (!c || !c.cl) return '';                                 // no Card Ladder page read for the card
+  const set = c.cl[2] || '', ser = (c.ser || [])[1] || '', q = set ? ' (“' + set + '”)' : '';
+  const why = c.sf === 't' ? 'the set table, by Card Ladder’s set name' + q : c.sf === 'c' ? 'the page of the card’s CL cert' : 'Card Ladder’s own words: its set name' + q + ', variation or cert lookups';
+  if (!ser) return c.sf === 't' ? 'Card Ladder’s set' + q + ' is in no series - not a Pokemon TCG set.' : 'Card Ladder’s set' + q + ' names no series and is not in the set table yet.';
+  return 'Card Ladder’s series, from ' + why + '.' + (/\?/.test(ser) ? ' A ? = placed by judgment (a promo or yearly product, by when it came out), not by a reference.' : '');
+}
 /* ---- the Review button: is Card Ladder's card the same card as PriceCharting's? ---- */
 const GR_REASONS = ['set mismatch', 'name mismatch', 'number mismatch', 'variant mismatch', 'language', 'other'];
 function grRowOfKey(key) { const [c, gk] = key.split('|').length > 2 ? [key.split('|')[0], key.split('|').slice(1).join('|')] : key.split('|'); return GR.rows.find(r => String(r[0]) === c && r[50] === gk); }
@@ -955,10 +966,10 @@ function grOpenReview(key) {
     row(factc('Illustrator', c.pi ? esc(c.pi) : '<span class="dim">' + (c.pi === '' ? 'none' : 'not read') + '</span>',
           c.pi ? 'the Artist on TCGplayer’s product page' : c.pi === '' ? 'TCGplayer’s product page shows none' : esc(c.pif || 'TCGplayer’s product page; not read yet (each site build reads the new cards)')),
         factc('Illustrator', none, 'Card Ladder does not record it'), factc('Illustrator', none, 'PSA and CGC do not record it'), factc('Illustrator', none, 'PSA and CGC do not record it')) +
-    row(factc('Series', (c.ser || [])[0] ? esc(c.ser[0]) : none, 'only where the text names it', mk2('series')), factc('Series', (c.ser || [])[1] ? esc(c.ser[1]) : none, 'only where the text names it', mk2('series')),
+    row(factc('Series', (c.ser || [])[0] ? esc(c.ser[0]) : none, 'only where the text names it'), factc('Series', (c.ser || [])[1] ? esc(c.ser[1]) : none, esc(grSerFrom(c))),
         factc('Series', (c.ser || [])[2] ? esc(c.ser[2]) : A ? none : aw(r[56]), A ? 'only where the text names it' : '', amk('series')),
-        factc('Series', X4 && X4[17] ? esc(X4[17]) : X4 ? none : aw(x4w), X4 ? 'only where the text names it' : '')) +
-    row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, '', mk2('era')), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, '', mk2('era')), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era')), factc('Era', X4 && X4[18] ? esc(X4[18]) : X4 ? none : aw(x4w), '')) +
+        factc('Series', X4 && X4[17] ? esc(X4[17]) : X4 ? none : aw(x4w), X4 ? 'only where the cert page names it' : '')) +
+    row(factc('Era', (c.era || [])[0] ? esc(c.era[0]) : none, ''), factc('Era', (c.era || [])[1] ? esc(c.era[1]) : none, (c.era || [])[1] ? 'the era of its series' : ''), factc('Era', (c.era || [])[2] ? esc(c.era[2]) : A ? none : aw(r[56]), '', amk('era')), factc('Era', X4 && X4[18] ? esc(X4[18]) : X4 ? none : aw(x4w), X4 && X4[18] ? 'the era of that series' : '')) +
     row(fact('PC sold last month', r[16] == null ? '-' : r[16], r[25] + ', the sales PriceCharting recorded'), fact('CL sold last month', r[37] == null ? '-' : r[37], r[25] + ', every sale Card Ladder recorded'), '') +
     row(factc('Grade and grader', r[71] ? esc(r[71]) : none, r[71] ? 'from ' + esc(GR_PCG_FROM[r[73]] || 'PriceCharting') : 'PriceCharting has no ' + esc(r[25]), gDiffR ? 'bad' : ''),
         factc('Grade and grader', r[72] ? esc(r[72]) : none, r[72] ? 'from ' + esc(GR_CLG_FROM[r[74]] || 'Card Ladder') : 'Card Ladder has no ' + esc(r[25]), gDiffR ? 'bad' : ''), fact('Grade on the slab', sOk ? esc(S[1] || 'none') : aw(sWord), sOk && (S[5] === 'psa' || (S[5] === 'pg' && r[26] === 'PSA')) ? 'label type: ' + esc(S[2] || 'none') : sOk && S[5] === 'pg' ? 'CGC’s page shows no label type' : sOk ? 'from Card Hedge (GemRate); no label type' : ''),

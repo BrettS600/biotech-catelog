@@ -93,6 +93,7 @@ Also writes into the card-data checkout (the site workflow commits them there):
                                illustrator): what PC says, what CL says, match / mismatch / pc_none / cl_none / both_none
 """
 import argparse
+import collections
 import glob
 import gzip
 import hashlib
@@ -997,6 +998,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     pc = pd.read_csv(pc_csv, dtype=str).fillna("") if os.path.exists(pc_csv) else pd.DataFrame(columns=["id"])
     pc["id"] = pd.to_numeric(pc["id"], errors="coerce")
     dic = gt.Dictionary.load(cd)
+    cl_sets, series_era = gt.load_cl_sets(cd), gt.load_series_era(cd)   # the Card Ladder side's Series and Era (gt.cl_fill, 2026-11-20)
+    ser_src = collections.Counter()
     tally = gt.Tally()
     if "product-name" in pc.columns:                        # PriceCharting's [bracket] words over the whole catalog
         tally.catalog(pc["product-name"].tolist(), dic)
@@ -1219,13 +1222,25 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
                                      "year": a.get("year"), "number": a.get("number"), "desc": a.get("desc"),
                                      "language": a.get("language")}, dic)
         au = merge_sides(aside.values()) if aside else None
+        fc = gt.compare(ps, cs, pc_year, (pr or {}).get("year")) if r else {}   # PC vs CL: only with a Card Ladder card
+        afc = {g: gt.compare_auth(s_, ps, cs, pc_year, (pr or {}).get("year")) for g, s_ in aside.items()}
+        # the Card Ladder side's Series and Era, from Card Ladder alone (gt.cl_fill) - after the checks above, which
+        # stay on the words; before the tallies and the card's own lists, which carry the filled series and era
+        sf = ""
+        if pr:
+            pages_ = []
+            for k_, pic_ in (pr.get("imgs") or {}).items():
+                x_ = pic_c.get(pic_) if k_.endswith("|base") else None
+                w_ = cl_pg.get((k_.split("|")[0], re.sub(r"\D", "", x_[1] or ""))) if x_ and x_[0] == "ok" else None
+                if w_:
+                    pages_.append((w_.get("set") or "", w_.get("variety") or ""))
+            sf = gt.cl_fill(cs, pr, cl_sets, series_era, pages_, dic)
+            ser_src[sf or "none"] += 1
         tally.side(cid, "pc", ps)
         if r:
             tally.side(cid, "cl", cs)
         if au:
             tally.side(cid, "auth", au)
-        fc = gt.compare(ps, cs, pc_year, (pr or {}).get("year")) if r else {}   # PC vs CL: only with a Card Ladder card
-        afc = {g: gt.compare_auth(s_, ps, cs, pc_year, (pr or {}).get("year")) for g, s_ in aside.items()}
         a1 = afc.get("psa") or afc.get("cgc") or {}
         for f, (a, b, res) in fc.items():
             checks.append([cid, f, a if a is not None else "", b if b is not None else "", res,
@@ -1267,6 +1282,7 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             "cn": cs.num, "cnf": cs.num_from, "cr": cs.rarity_text, "cf": cs.finish_text, "cs": cs.shown("Special"),
             "ser": [ps.shown("Series"), cs.shown("Series"), au.shown("Series") if au else ""],
             "era": [ps.shown("Era"), cs.shown("Era"), au.shown("Era") if au else ""],
+            "sf": sf,                                        # where the CL series came from: t set table / w its own words / c a CL cert's page
             "t": {"pc": {c: ps.terms(c) for c in gt.CATS},
                   "cl": {c: cs.terms(c) for c in gt.CATS},
                   "auth": {c: au.terms(c) for c in gt.CATS} if au else {},
@@ -1301,7 +1317,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
         # PC Cert columns are (auth_side); then the PC Cert (the row's grader's, else the other's) against it, cert_check.
         # clx[gk] = [name, set, number, rarity, finish, special, year, language, grade, label, pop, pop higher, estimate,
         # read, match | mismatch | pc wait | pc none, [fields that differ], the PC Cert's grader, series, era]. A mismatch is
-        # only flagged: nothing is re-paired (Brett reviews). Series and era (2026-11-20) are for Review's CL Cert column.
+        # only flagged: nothing is re-paired (Brett reviews). Series and era (2026-11-20) are for Review's CL Cert column:
+        # the series the cert page names, and that series' era.
         clx = {}
         for gk_, cc_ in clc.items():
             g_ = gk_.split("|")[0]
@@ -1323,7 +1340,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             clx[gk_] = [s_.name or "", s_.set_name or "", s_.num or "", s_.shown("Rarity"), s_.shown("Finish"), s_.shown("Special"),
                         s_.year or "", s_.lang or "", w.get("grade") or "", (w.get("label") or "") if g_ == "psa" else None,
                         toint(w.get("pop")), toint(w.get("pop_higher")), tofloat(w.get("estimate")) if g_ == "psa" else None,
-                        str(w.get("read_at") or "")[:10]] + m_ + [s_.shown("Series") or "", s_.shown("Era") or ""]
+                        str(w.get("read_at") or "")[:10]] + m_ + [s_.shown("Series") or "",
+                                                                  gt.shown_terms(gt.era_terms(s_.t["Series"], series_era))]
         if clx:
             cards[str(cid)]["clx"] = clx
         lr = sorted(match_pairs(mon, psales.get(cid) or {}, (pmon.get(cid) or {}).get("psa_10", [])))
@@ -1399,6 +1417,9 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     n = write_enc(os.path.join(out_dir, "graded.bin"), doc, key)
     print(f"CL Cert pages: {len(cl_pg):,} certs read by Brett's reader; PC Cert vs CL Cert: {cl_cmp[0]:,} rows match, "
           f"{cl_cmp[1]:,} do not; {pc_list:,} PC Cert rows show a page from the cert list")
+    print(f"CL Series / Era: {sum(ser_src.values()):,} cards with a Card Ladder page - series from the set table {ser_src['t']:,}, "
+          f"Card Ladder's own words {ser_src['w']:,}, a CL cert's page {ser_src['c']:,}, none {ser_src['none']:,} "
+          f"({len(cl_sets)} set table rows, {len(series_era)} series with an era)")
     try:
         ix = scan_index(doc, ix_certs, ix_rows, ix_known, pg_c)
         ni = write_enc(os.path.join(out_dir, "scanidx.bin"), ix, key)

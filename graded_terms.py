@@ -13,7 +13,9 @@ Each side is read only from its own source:
   CL   rarity / finish / special = dictionary words in Card Ladder's variation, the part of its card name after a
                hyphen ("Alakazam-Holo"), its set name, and the variations its cert lookups returned
        number  = Card Ladder's number; the total from its CGC cert lookup when the profile has none; else "/none"
-  Series / Era = only where a series / era name is written in the text (set names count) - nothing looked up yet.
+  Series / Era = PC and the graders' records: only where a series / era name is written in the text (set names count).
+               CL (2026-11-20, cl_fill below): every card with a Card Ladder page - its set name through the set table,
+               else the series its own words name, else its CL cert's page; the era is the series' era.
   Auth         = what the grader says, per slab (2026-10-29): PSA's own cert record from PSA's Public API (subject, brand,
                variety, label type), else the one-line description Card Hedge relays from GemRate; CGC slabs only the
                latter. auth_side() reads it with the same dictionary; compare_auth() checks it against PC and CL.
@@ -281,6 +283,90 @@ def cl_side(pr, lookups, dic):
     return s
 
 
+# THE SERIES AND ERA OF A CARD LADDER CARD (2026-11-20). Brett, for the graded forecast's model, which runs on Card
+# Ladder's data: "would it be possible to fill out the ... columns for series and ... era? ... I would only like to
+# reference ... cert data specified from card ladder, or alternatively, what card ladder said on its website itself";
+# then "it doesn't need to be matched to PC because we're just using CL. So we can technically fill in all the blanks
+# for card ladder. Also, if the cert isn't read yet for CL, it may not matter"; asked how to fill the sets whose Card
+# Ladder name leaves the series out he chose "Table of CL set names", and for the era "Era from the series".
+# So, for every card with a Card Ladder page, in this order:
+#   1. the set table - card-data dictionary/cl_set_series.csv: Card Ladder's set name (and the year on its page, for
+#      products that come out every year) -> the series; a row with no series says the set is in none (Topps ...)
+#   2. the series Card Ladder's own words name (its set name, variation, card name and its cert lookups - cl_side);
+#      where they name two, the one in the page's own set name ("Pokemon Xy Ancient Origins", sold in a "Sun & Moon
+#      Guardians Rising Blister" = XY)
+#   3. the series named on the page of the card's CL cert (the slab on Card Ladder's picture), where Brett's reader read it
+# and the era is the series' era as dictionary/sets.csv has it (PokeViews': Original / Neo / Legendary Collection =
+# Vintage, E-Card / EX / POP = Classic, ...). Nothing of PriceCharting's is looked at, and the PC-vs-CL field checks
+# (compare) are made before this, on the words alone - a filled series raises no flag.
+def set_key(name):
+    return " ".join(str(name or "").lower().split())
+
+
+def load_cl_sets(cd):
+    """dictionary/cl_set_series.csv -> {(Card Ladder set name, year or ""): (series or "", confidence)}"""
+    p, out = os.path.join(cd, "dictionary", "cl_set_series.csv"), {}
+    if os.path.exists(p):
+        with open(p, newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                if (r.get("cl_set") or "").strip():
+                    out[(set_key(r["cl_set"]), (r.get("year") or "").strip())] = ((r.get("series") or "").strip(), (r.get("confidence") or "likely").strip())
+    return out
+
+
+def load_series_era(cd):
+    """dictionary/sets.csv -> {series: era} (the era most of the series' sets carry - each series has one)."""
+    p, n = os.path.join(cd, "dictionary", "sets.csv"), collections.defaultdict(collections.Counter)
+    if os.path.exists(p):
+        with open(p, newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                if (r.get("series") or "").strip() and (r.get("era") or "").strip():
+                    n[r["series"].strip()][r["era"].strip()] += 1
+    return {s: c.most_common(1)[0][0] for s, c in n.items()}
+
+
+def era_terms(series, series_era):
+    """{era: confidence} of {series: confidence}"""
+    out = {}
+    for k, conf in series.items():
+        e = series_era.get(k)
+        if e and (e not in out or conf == "confirmed"):
+            out[e] = conf
+    return out
+
+
+def shown_terms(t):
+    return ", ".join(k + ("" if v == "confirmed" else "?") for k, v in t.items())
+
+
+def cl_fill(cs, pr, cl_sets, series_era, cert_texts, dic):
+    """Fill the Card Ladder side's Series and Era (see above). cert_texts: [(set, variety)] of the card's CL cert pages.
+    -> where the series came from: "t" the set table, "w" Card Ladder's own words, "c" a CL cert's page, "" none."""
+    key, year = set_key((pr or {}).get("set")), str((pr or {}).get("year") or "").strip()
+    row = cl_sets.get((key, year))
+    if row is None:
+        row = cl_sets.get((key, ""))
+    if row is not None:
+        cs.t["Series"] = {row[0]: row[1]} if row[0] else {}
+        cs.src["Series"] = {row[0]: "CL set table"} if row[0] else {}
+        src = "t"
+    elif cs.t["Series"]:
+        src = "w"
+        own = {x["canon"] for x in dic.match(str((pr or {}).get("set") or ""), "set")[0] if x["cat"] == "Series"}
+        if own and len(cs.t["Series"]) > 1:                 # its own set name comes before a blister's name in the variation
+            cs.t["Series"] = {k: v for k, v in cs.t["Series"].items() if k in own}
+            cs.src["Series"] = {k: v for k, v in cs.src["Series"].items() if k in own}
+    else:
+        src = ""
+        for st, var in cert_texts or []:
+            cs.add(dic.match(st, "set")[0] + dic.match(var, "any")[0], "CL cert page", cats={"Series"})
+        if cs.t["Series"]:
+            src = "c"
+    cs.t["Era"] = era_terms(cs.t["Series"], series_era)
+    cs.src["Era"] = {e: "the series' era" for e in cs.t["Era"]}
+    return src
+
+
 LANGS = {"japanese": "Japanese", "japan": "Japanese", "korean": "Korean", "chinese": "Chinese", "french": "French",
          "german": "German", "italian": "Italian", "spanish": "Spanish", "portuguese": "Portuguese", "dutch": "Dutch",
          "polish": "Polish", "russian": "Russian", "thai": "Thai", "indonesian": "Indonesian"}
@@ -457,7 +543,8 @@ class Tally:
             for k, conf in s.t[cat].items():
                 e = self.n[(cat, k)]
                 e[side].add(cid)
-                e["conf"] = e["conf"] or conf
+                if conf == "confirmed" or not e["conf"]:    # a term one card carries for sure is a sure term
+                    e["conf"] = conf
                 e["where"].add(s.src[cat].get(k, ""))
         for ph, where in s.unid.items():
             e = self.n[("Unidentified", ph)]
