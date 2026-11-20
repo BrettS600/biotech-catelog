@@ -55,6 +55,7 @@ import account
 import pchist                                                # PriceCharting's own monthly history, off each card's page
 import scans                                                 # Slab Show Scanner's slabs -> card-data data/scans/scans.csv
 import clcerts                                               # scan-results/cardladder -> card-data cert_pages, once a day (2026-11-17)
+import pp_pop                                                # PSA's population history from PokemonPrice.com -> card-data data/graded (2026-11-20)
 
 # ---------------- layout ----------------
 BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")
@@ -1766,6 +1767,10 @@ def fast_tick(state, cat, counters):
         clcerts.tick(v)                                      # the CL Cert columns' lookups, once a day (clcerts.py)
     except Exception as e:
         log(f"CL certs: {str(e)[:200]}")
+    try:
+        pp_pop.tick(v)                                       # PSA's population history for the graded model: a one-time backfill (pp_pop.py)
+    except Exception as e:
+        log(f"PSA pop history: {str(e)[:200]}")
     reads = v.get("scan_reads") or {}
     if changed:
         v["sr_rev"] = v.get("sr_rev", 0) + 1
