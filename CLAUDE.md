@@ -3870,8 +3870,29 @@ and the site password once), and the old screen's two other jobs kept as small b
   todo.csv also lists a Wizards card's pages in the set's other printings (rank 6 and up, 270 more pages), and
   pp_monthly.py must choose by the numbers among all of a card's rows, one page to one card, judging mainly on PSA 9
   and PSA 10 (the low grades grew much faster 2024-2026: Nidorino 1st Edition PSA 10 385 -> 395, PSA 7 156 -> 251).
-  THAT STEP IS NOT FINISHED: the scheduled follow-up (12:00 UTC Nov 21) calibrates it on the full read, then writes
-  cards.csv and monthly/.
+  FINISHED 2026-11-21 (the read was through at 11:57 UTC, never refused: 10,892 pages - 8,204 with numbers, 2,686
+  without, 2 gone). What the full read showed, and what pp_monthly.py does about it: (a) ~340 pages hold MORE THAN
+  ONE RUN of numbers (to May 2018 the site filed every card of one name under each of them - the nine Arceus, Totodile
+  80 and 81; later second runs; switches) -> a page's rows are split into series by continuity (split / stitch) and
+  only a series that reaches 2021 is used. (b) THE WRONG PRINTING OR KIND is common, not only in Base Set: Neo Genesis
+  / Fossil / Jungle "Unlimited" holo pages hold the 1st Edition's numbers, Vivid Voltage Dialga 121 and Shining
+  Legends Latios 41 have plain and Reverse Holo swapped, Dragon Flygon 15's "Reverse Holo" page holds the Cosmos
+  Holo's -> pp_match.py also lists the card's OTHER KINDS in its own set (rank 8 and up), and every card is tried
+  against every series of all its pages. (c) THE FIT: no grade above Card Ladder's today (3% + 2 slabs), and PSA 10 /
+  PSA 9 not grown beyond what cards of that age do - measured on the data itself (bands.csv: the cards whose words
+  name one page with one run that no other card names; by release and by the year of the page's last look; a card
+  from 2010 or before, last look 2024: PSA 10 x1.1, PSA 9 x1.3, all grades x1.6; the limit = the 95th percentile x
+  1.25). The whole is a limit only where PSA 9 and 10 are too few. Up to twice beyond the limit the card's OWN page is
+  kept as "unsure" (Umbreon Prime, the Tag Teams really did outgrow the rest). Best fit first, the own page ahead by
+  1.0, one series to one PSA population (cards of one PSA spec share). cards.csv: check (ok / ok, other printing's
+  page / ok, other kind's page / unsure / no fit / no rows / not read / no page), sure (high = own page and an
+  ordinary growth; medium; low = unsure), fit, next, note. RESULT 2026-11-21, 14,657 cards with a Card Ladder page:
+  7,939 with months (ok 7,310 - 6,740 of them sure high; other printing's page 128; other kind's page 220; unsure
+  281), 502,271 card-months; no fit 1,220, no rows 2,427, not read 351, no page 2,720. Checked by eye: Neo Genesis 1st
+  Edition Lugia 9 (PSA 10: 32 in Sept 2017, 44 in June 2024, 45 today). STILL TO DO THAT DAY: the list grew by 2,557
+  pages (398 own pages of cards that got a Card Ladder page since, the rest other kinds) - the collector reads them at
+  its next six-hourly look, then pp_monthly.py is run again (a scheduled follow-up in the session). NOT AUTOMATIC:
+  cards that get a Card Ladder page later need pp_match.py + pp_monthly.py run again by hand (Brett was told).
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
