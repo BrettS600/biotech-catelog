@@ -3952,7 +3952,32 @@ and the site password once), and the old screen's two other jobs kept as small b
   and manifest.csv. 216 MB. WHAT THE GATHERING SHOWED: Card Ladder's sales on file are thin before 2022 (2021: 96
   thousand, 2022: 516, 2025: 1,443, 2026: 1,890 thousand), each page stops at its own last read, PriceCharting's
   graded sales only reach back to September 2025, Google Trends ends at October 2026. The analysis's own notes are
-  to go in data/graded/research/ (the layout of data/research). NOT STARTED: the analysis itself - wait for Brett.
+  to go in data/graded/research/ (the layout of data/research). The analysis: round 1 done 2026-11-22, next note.
+- GRADED FORECAST RESEARCH, ROUND 1 (2026-11-22, Brett: "Do not update the website. Do not apply your findings to the
+  forecast tab ... Just perform the statistical analysis"; assumptions: bought at a vendor show 14% under, sold on eBay,
+  $5.20 shipping, hold 1-3 months). RESEARCH ONLY - NOTHING OF IT IS IN THE SITE; graded_forecast.py is unchanged.
+  Where: card-data data/graded/research/ - FINDINGS.md (its first paragraph is the whole result), experiments.csv
+  (about 57 experiments, the failures too - look an idea up there before trying it), rules_v0.json (the rules that came
+  out, as data), notes/ (01_protocol_and_pitfalls.md first), results/, scripts/, ideas_backlog.csv, sources.md.
+  THE RESULT IN ONE LINE: a slab bought 14% under and sold on eBay 3 months later breaks even if the market stands
+  still; each point the market moves over the hold adds or takes about 1.2 points; a clean, older, dearer line adds 2-5
+  points, an extended one takes 5 away. WHAT HELD UP: (1) the market's state - own index (median monthly move of lines
+  12+ months old, chained) above its own 12-month average: gated lines +14.7% net over 3 months, below it -4.2%; the
+  tab's current rule (3-month move above zero) separates much worse (+8.3% / +1.1%); (2) age - a slab under 6 months
+  since release loses 20-33% in the next 3 months, every year; no drift under 2 years; (3) the cost arithmetic - under
+  $100 the shipping eats the trade, a 1-month flip loses at the median, 3 months is the best of 1-3; (4) CGC lost to
+  PSA every year; (5) do not buy what is extended (up 15%+ in a month) or still falling, nor a line whose segment (era
+  x PSA 10 / below 10) rose 20%+ in 3 months; (6) auctions close 9% under fixed-price sales; one point of buying
+  discount = 1.25 points of ROI. WHAT FAILED: the dip rank as the tab has it (+7.1 points from the dip month's own
+  price, -1.9 from a price one could really pay - the bounce of a noisy month; a quarter to a third of the deepest dips
+  are new releases); momentum; set / Pokemon / era rotation; machine learning as the selector (12 variants); take-profit
+  at the target; chance tables built in one market state. THE PROTOCOL every test used: signals from months <= t, entry
+  = month t+1's median, exit = month t+1+h (never the signal month's own price). CAUTIONS: one falling market (2022-23)
+  and one rising one (2024-26); every rule was chosen on the history it was tested on - the past numbers are upper
+  bounds. THE FORWARD TEST: results/E24_forward_test_2026-10.csv holds every gated line with its flags as of 2026-10;
+  scripts/score_forward_tests.py scores it once later months are in (from February 2027) - do that first in the next
+  round. A LESSON KEPT: a level compared over time from a median over whichever lines trade is not like for like (the
+  PSA 10 / PSA 9 ratio "doubled" by mix alone) - chain the same lines, as the market index does.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
