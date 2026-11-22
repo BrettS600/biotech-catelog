@@ -3957,7 +3957,7 @@ and the site password once), and the old screen's two other jobs kept as small b
   forecast tab ... Just perform the statistical analysis"; assumptions: bought at a vendor show 14% under, sold on eBay,
   $5.20 shipping, hold 1-3 months). RESEARCH ONLY - NOTHING OF IT IS IN THE SITE; graded_forecast.py is unchanged.
   Where: card-data data/graded/research/ - FINDINGS.md (its first paragraph is the whole result), experiments.csv
-  (about 95 experiments, the failures too - look an idea up there before trying it), rules_v0.json (the rules that came
+  (about 120 experiments, the failures too - look an idea up there before trying it), rules_v0.json (the rules that came
   out, as data), notes/ (01_protocol_and_pitfalls.md first), results/, scripts/, ideas_backlog.csv, sources.md.
   THE RESULT IN ONE LINE: a slab bought 14% under and sold on eBay 3 months later breaks even if the market stands
   still; each point the market moves over the hold adds or takes about 1.2 points; a clean, older, dearer line adds 2-5
@@ -3991,8 +3991,13 @@ and the site password once), and the old screen's two other jobs kept as small b
   the usual result elsewhere) and "extended" / "still falling" are clear only in the newer eras; (f) the going price is
   the median of the month's SECOND HALF (the whole month is stale when a line moves), and auctions move first by
   weeks; (g) every move and threshold in that folder is a LOG change (0.20 = +22%); (h) results/F02_predictions_2026-10.csv
-  holds ten dated predictions for the forward test - score them first; a first, thin look at November 2026 (E77) went
-  their way: the older eras' October spike was coming back within weeks.
+  holds eleven dated predictions for the forward test - score them first (scripts/score_forward_tests.py measures them);
+  a first, thin look at November 2026 (E77) went their way: the older eras' October spike was coming back within weeks;
+  (i) THE MARKET IN THREE LEVELS (E107-E120) - red: index below its 12-month average (gated lines -4% over 3 months);
+  amber: above it, but hot (heat score 0.70+, E93) or under 40% of gated lines pass the three line filters (+5.5%;
+  only the passing lines dependable, +12%); green: above, not hot, 40%+ pass (+34%, never a losing month). The order
+  survived past-only thresholds, a threshold grid and a placebo; built from that round's own filters on four or five
+  waves, so forward-test it first. Amber is not "stay out": it is "only what passes". 2026-10 read amber on both counts.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
