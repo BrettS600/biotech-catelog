@@ -3931,6 +3931,28 @@ and the site password once), and the old screen's two other jobs kept as small b
   from the old queue.csv only, so that needs work there. The site still shows its own row-by-row "PC/CL Cert Match"
   (graded_site.py cert_check, 2026-11-17); the card-level verdict reaches the site through the status and
   confirmed_by / note only.
+- **THE GRADED FORECAST'S DATA KIT: card-data data/graded/ (2026-11-22).** Brett sent the graded forecast's brief
+  (build the model from Card Ladder's prices and monthly sales volumes; $2,000-10,000 of capital, holds of 1 to 3
+  months, profit reinvested, diversified; look for patterns, record everything tried in the data folder for later
+  runs and for other models; do not touch the website) with the instruction: "Simply read the following prompt, but
+  please do not perform it yet. First, collect the data ... and store all the data so we have it readily available
+  for analysis. After having collected and stored the data, please let me know what you collected and stored, and
+  then I will determine whether or not we should proceed with analysis." So only the gathering is done. card-data
+  tools/graded/build_dataset.py (a snapshot, run by hand, ~8 minutes) writes data/graded/: cards.csv.gz (23,003
+  cards, 15,146 with a Card Ladder page: both sides' words, release, series / era, pairing status, cert verdict);
+  cl/ (every Card Ladder sale - 5,361,620, by year -, the months, Card Ladder's values per read, grades, pages);
+  pc/ (pc_graded_tab.csv.gz = the site's PriceCharting graded tab with every column, REBUILT LOCALLY WITH
+  graded_site.py: PriceCharting's daily tables are put together again from card-data pricecharting/daily, the build
+  runs with no password and writes nothing; the three files the build rewrites in card-data are put back; TCGplayer
+  facts are missing there because tcgcsv.com is not reachable from the session, so PC rarity comes from the catalog
+  columns; plus PriceCharting's graded monthly, graded and ungraded sales, raw monthly, daily prices, pop, guide,
+  catalog for those cards); psa_pop/ (as before); market/ (copies of data/pokeviews and data/google_trends);
+  reference/ (the dictionary, the raw-card research's notes); site/graded_forecast_now.json.gz (the Forecast tab's
+  current graded model output, doc.fc); README.md (what each file is, how they join, what to know before analysing)
+  and manifest.csv. 216 MB. WHAT THE GATHERING SHOWED: Card Ladder's sales on file are thin before 2022 (2021: 96
+  thousand, 2022: 516, 2025: 1,443, 2026: 1,890 thousand), each page stops at its own last read, PriceCharting's
+  graded sales only reach back to September 2025, Google Trends ends at October 2026. The analysis's own notes are
+  to go in data/graded/research/ (the layout of data/research). NOT STARTED: the analysis itself - wait for Brett.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
