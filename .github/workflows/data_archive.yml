@@ -8,7 +8,7 @@ name: Data archive
 # of PriceCharting's daily download (data/pricecharting/daily: graded prices, dealer buy / sell, volume).
 # 2026-10-26 (later): the graded data the collector reads off the card pages - graded sales (pcg/ chunks on the live
 # branch -> data/pricecharting/graded_sales), the PSA / CGC population report (pop/), monthly graded prices (full runs).
-# 2026-10-27: THE DATA FOLDER LIVES IN THE PRIVATE REPO BrettS600/card-data (same layout: data/...). This repo is public
+# 2026-10-27: THE DATA FOLDER LIVES IN THE PRIVATE REPO driftcodedev/card-data (same layout: data/...). This repo is public
 # (the website loads its live files from it) and none of the data is for redistribution (PriceCharting's terms, PokeViews',
 # the paid sources to come), so the workflow checks card-data out with the DATA_REPO_TOKEN secret (a fine-grained token:
 # card-data only, Contents read and write), writes the archive there and pushes it there. The first run copies this repo's
@@ -38,10 +38,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check out the private data repo (BrettS600/card-data)
+      - name: Check out the private data repo (driftcodedev/card-data)
         uses: actions/checkout@v4
         with:
-          repository: BrettS600/card-data
+          repository: driftcodedev/card-data
           token: ${{ secrets.DATA_REPO_TOKEN }}
           path: card-data
 
@@ -118,7 +118,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -r -q data
-          git commit -q -m "Move data/ to the private repo BrettS600/card-data" -m "This repo is public; the data is not for redistribution. The Data archive and Research workflows now read and write card-data (DATA_REPO_TOKEN)."
+          git commit -q -m "Move data/ to the private repo driftcodedev/card-data" -m "This repo is public; the data is not for redistribution. The Data archive and Research workflows now read and write card-data (DATA_REPO_TOKEN)."
           for i in 1 2 3; do
             if git push origin HEAD:main; then exit 0; fi
             git pull --rebase origin main
