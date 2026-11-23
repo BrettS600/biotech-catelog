@@ -9,7 +9,7 @@
 
    Data: data.bin next to this page (graded_site.py app_doc, the website's key = PBKDF2 of the site password, entered here
    once and kept on this phone). The money math is the website's Recording page's: Card Ladder's standard price, the
-   Forecast's odds tables at the hold and today's rank, eBay's fee 13.25% with the 6.5% buyer tax, the shipping in the price.
+   Forecast's odds tables at the hold, the market's level and the line's reading today, eBay's fee 13.25% with the 6.5% buyer tax, the shipping in the price.
    Scanning: the camera's frames read with zxing (zxing/reader.js + .wasm). A PSA slab is looked up with PSA's own API (the
    token Brett pastes on the Show tab, kept on this phone only; 100 a day); its spec leads to the catalog card. A CGC slab
    is found by name until the Card Hedge step. Record Purchases sends a 'gplan' to the collector, as the website's button.
@@ -41,7 +41,8 @@ const LS = {
 const NATIVE = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sscNative) || null;   // inside the iPhone app
 function nativePost(o) { try { NATIVE.postMessage(o); } catch (e) {} }
 const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the buyer tax on it (the website's 14.11%)
-const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
+const FC_RHO = 0.5, FC_P_CAP = 0.85;        // the website's basket: the market's share of a pick's swings; no chance above 85% (95% until the model of 2026-11-23)
+const capOf = fc => (fc && fc.cap) || FC_P_CAP;
 const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
 const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
 const READS_STORE = 'ssc-reads', SHOW_N = 'ssc-show-n', SYNC_STORE = 'ssc-sync', GSET_DAY = 'ssc-gset-day';   // the reads of the scans; shows recorded; Sync from website; the plan sent today (2026-11-14)
@@ -71,7 +72,7 @@ const gkShort = gk => !gk ? '?' : gk.endsWith('pristine') ? '10P' : gk.endsWith(
 const titleCase = s => String(s || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
 // numbers typed in Show's boxes are kept as typed ("10,000") and read as numbers where used
 // the four stepped-or-typed boxes of Show: their limits [low, high, decimals], how they read, how a typed number is kept
-const SET_LIM = {under: [0, 60, 1], bar: [5, 95, 1], share: [5, 100, 1], minSales: [0, 999, 0]};
+const SET_LIM = {under: [0, 60, 1], bar: [5, 85, 1], share: [5, 100, 1], minSales: [0, 999, 0]};   // the bar stops at the chance's cap (85%)
 const setClamp = (k, n) => { const L = SET_LIM[k], f = Math.pow(10, L[2]); return Math.max(L[0], Math.min(L[1], Math.round(n * f) / f)); };
 const setTxt = k => { const v = +S.settings[k] || 0; return k === 'minSales' ? String(Math.round(v)) : (k === 'under' ? v.toFixed(1) : String(Math.round(v * 10) / 10)) + '%'; };
 const numSet = k => { const n = parseFloat(String(S.settings[k]).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; };
@@ -190,8 +191,34 @@ async function loadData(keyHex) {
 }
 
 /* ---------------- the money (the website's Recording math) ---------------- */
-const regOf = fc => fc.regime && fc.regime.up ? 'up' : 'down';
-const tabFor = (fc, h, g) => g == null ? null : fc.tables[h + '|' + regOf(fc) + '|' + g] || fc.tables[h + '|all|all'] || null;
+/* THE MODEL SINCE 2026-11-23 (the website's graded_fc.js, graded_forecast.py): the dip rank no longer scores a slab. Its
+   chance is read from the market's level (fc.level.now: green / amber / red), its line's cell (fc.sig: a card under 12
+   months old, CGC, a Modern / Contemporary PSA line that passes or fails the three rules, a Vintage PSA line, a Classic /
+   Mid Era PSA line; busy and thin lines apart) and the hold - fc.tables["hold|level|cell"] = [mean, grid, the range's low grid,
+   its high grid, cases, months], else the level's pooled "hold|level|all" - and is never above fc.cap. The gate closes
+   on red. x.pct is the tie-breaker now (the order among slabs with the same chance). */
+const levelOf = fc => (fc && fc.level && fc.level.now) || null;
+const regOf = fc => levelOf(fc) || (fc.regime && fc.regime.up ? 'up' : 'down');
+const tabFor = (fc, h, g) => g == null ? null : fc.tables[h + '|' + regOf(fc) + '|' + g] || fc.tables[h + '|' + regOf(fc) + '|all'] || fc.tables[h + '|all|all'] || null;
+// (by graded_forecast.CELLS' order: 0-3 Modern / Contemporary PSA, 4-5 Vintage PSA, 6-7 Classic / Mid Era PSA, 8 new card, 9 CGC, 10 era not known)
+const CELL_WORD = ['Passes the rules', 'Passes the rules', 'Fails a rule', 'Fails a rule', 'Vintage', 'Vintage', 'Classic / Mid Era', 'Classic / Mid Era', 'New card', 'CGC', 'Era not known'];
+const CELL_NOTE = ['A Modern / Contemporary PSA line: not extended, not still falling, its segment has not run. A busy line (10+ sales last month).',
+  'A Modern / Contemporary PSA line: not extended, not still falling, its segment has not run. A thin line (under 10 sales last month).',
+  'A Modern / Contemporary PSA line that fails one of the three rules. A busy line (10+ sales last month).',
+  'A Modern / Contemporary PSA line that fails one of the three rules, or has too few sales to read them. A thin line (under 10 sales last month).',
+  'A Vintage PSA line, busy (10+ sales last month): in the older eras the three rules did not matter, the market’s level does.',
+  'A Vintage PSA line, thin (under 10 sales last month): in the older eras the three rules did not matter, the market’s level does.',
+  'A Classic / Mid Era PSA line, busy (10+ sales last month): in the older eras the three rules did not matter, the market’s level does.',
+  'A Classic / Mid Era PSA line, thin (under 10 sales last month): in the older eras the three rules did not matter, the market’s level does.',
+  'A card under 12 months since its release: these lost money in amber and red months.', 'A CGC line: measured apart from PSA.', 'A PSA line with no era on file: the market level’s pooled history.'];
+function flagWords(f) {                      // a line's flags in words (graded_forecast.F_*)
+  const o = [];
+  if (f & 1) o.push('extended (up 16%+ last month, or 28%+ above its 6-month average)');
+  if (f & 2) o.push('still falling (down 7%+ last month)');
+  if (f & 4) o.push('its segment is up 22%+ in 3 months');
+  if (f & 32) o.push('under 3 sales in each of the last two months: its rules cannot be read');
+  return o;
+}
 function cdf(fc, t, x) {                     // P(return <= x) off the 1..99% grid (graded_fc.js fcgCdf)
   const qs = fc.qs, q = t[1], n = q.length;
   if (x < q[0]) return Math.max(0, qs[0] * (1 - (q[0] - x) / Math.max(1e-6, q[1] - q[0])));
@@ -229,8 +256,9 @@ function calc(sl) {
         : sl.look === 'queued' || sl.look === 'looking' ? 'Looking it up with PSA…' : 'Tap to find the card',
       std: r ? r[2] : null, win: r && r[3] ? r[3] + ' days' : null, n: r ? r[4] : null, n12: r ? r[5] : null, conf: r ? r[6] : null,
       sold: r ? r[7] : null, pc: r ? r[8] : null, soldPC: r ? r[9] : null, clv: r ? r[10] : null, card: c, row: r, img: c ? c[7] : null, down: pgk !== sl.gk ? pgk : null});
-    const fc = D && D.fc, li = fc && pgk ? IDX.lines.indexOf(pgk) : -1, pv = li >= 0 ? (fc.pct[String(sl.cid)] || {})[li] : null;
-    x.pct = pv == null ? null : pv / 1000;
+    const fc = D && D.fc, li = fc && fc.sig && pgk ? IDX.lines.indexOf(pgk) : -1, sv = li >= 0 ? (fc.sig[String(sl.cid)] || {})[li] : null;
+    x.sig = sv == null ? null : sv; x.cell = sv == null ? null : (sv >> 10) & 15; x.flags = sv == null ? 0 : sv >> 14;   // the line's code: tie-breaker x 1000 (1023: none) + 1024 x cell + 16384 x flags
+    x.pct = sv == null || (sv & 1023) === 1023 ? null : (sv & 1023) / 1000;
   }
   const std = x.std;
   if (std != null && sl.vp != null && sl.vp > 0) { x.pay = sl.vp; x.d = 1 - (sl.vp + ship) / std; }
@@ -239,12 +267,14 @@ function calc(sl) {
   if (std == null) { x.chance = x.net = x.roi = null; return x; }
   if (sl.demo) {
     const c = POOL[sl.c], mu = c.mu3 * h / 3, sd = c.sd3 * Math.sqrt(h / 3), be = (1 - x.d) / (1 - FEE) - 1;
-    x.chance = Math.min(0.95, Math.max(0.02, 1 - phi((be - mu) / sd)));
+    x.chance = Math.min(FC_P_CAP, Math.max(0.02, 1 - phi((be - mu) / sd)));
     x.net = std * ((1 + mu) * (1 - FEE) - (1 - x.d));
   } else {
-    const fc = D && D.fc, g = x.pct == null ? null : Math.min(9, Math.floor(x.pct * 10)), t = fc ? tabFor(fc, h, g) : null;
+    const fc = D && D.fc, g = x.cell == null ? null : x.cell, t = fc && !(x.flags & 256) ? tabFor(fc, h, g) : null;   // 256: beyond the history - no odds
+    const be = (1 - x.d) / (1 - FEE) - 1, cap = capOf(fc), one = q => Math.min(cap, Math.max(0, 1 - cdf(fc, [0, q], be)));
     x.g = g; x.t = t;
-    x.chance = t ? Math.round(Math.min(0.95, 1 - cdf(fc, t, (1 - x.d) / (1 - FEE) - 1)) * 1000) / 1000 : null;
+    x.chance = t ? Math.round(one(t[1]) * 1000) / 1000 : null;
+    x.lo = t && t[2] ? Math.min(x.chance, one(t[2])) : x.chance; x.hi = t && t[3] ? Math.max(x.chance, one(t[3])) : x.chance;   // the chance's range
     x.net = t ? netOf(std, t[0], x.d) : null;
   }
   x.roi = x.net != null && x.pay > 0 ? x.net / x.pay : null;
@@ -253,11 +283,11 @@ function calc(sl) {
 const lowerGk = gk => { if (!gk) return null; const [g, k] = String(gk).split('|'); if (k === 'g10pristine' || k === 'g10perfect') return g + '|g10'; return /_5$/.test(k) ? g + '|' + k.slice(0, -2) : null; };
 const identified = sl => sl.demo || (sl.look === 'ok' || sl.look === 'check') && sl.cid != null && !!sl.gk;
 const confirmed = sl => sl.demo || sl.look === 'ok';
-const marketDown = () => !!(D && D.fc && D.fc.regime && !D.fc.regime.up);
-// the plan: what you already bought first, then best chance (to the whole percent), deeper rank, dearer slab; at most the
+const marketDown = () => !!(D && D.fc && (levelOf(D.fc) ? levelOf(D.fc) === 'red' : D.fc.regime && !D.fc.regime.up));   // red: the index at or below its 12-month average
+// the plan: what you already bought first, then best chance (to the whole percent), the tie-breaker, dearer slab; at most the
 // per-slab share each, up to the capital; the chance bar, the min sales last month, and the market gate as the website's
 function plan() {
-  const s = S.settings, cap = numSet('capital'), per = cap * (s.share / 100), bar = s.bar / 100, minS = Math.max(0, +s.minSales || 0);
+  const s = S.settings, cap = numSet('capital'), per = cap * (s.share / 100), bar = Math.min(capOf(D && D.fc), s.bar / 100), minS = Math.max(0, +s.minSales || 0);   // a bar above the cap (set before 2026-11-23) counts as the cap
   const gated = !!(s.gate && marketDown());
   const all = slabsArr().map(sl => ({sl, x: calc(sl)}));
   let spent = 0; all.forEach(o => { if (o.sl.st === 'bought' && o.x.pay > 0) spent += o.x.pay; });
@@ -301,7 +331,7 @@ function basket(rows, h, n = 2000) {
   if (!P.length) return null;
   for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; for (const [std, t, d] of P) { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += netOf(std, draw(fc, t, u), d); } tot[k] = s; }
   const a = Array.from(tot).sort((x, y) => x - y), at = p => a[Math.min(n - 1, Math.floor(p * n))];
-  return {lo: at(0.1), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(FC_P_CAP, a.filter(v => v > 0).length / n)};
+  return {lo: at(0.1), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(capOf(fc), a.filter(v => v > 0).length / n)};
 }
 // Record Purchases: the slabs marked Bought, to History > Recorded Purchases (the website's Purchases button, type 'gplan')
 // RECORD WITH A NAME (2026-11-18, Brett: "When I go and hit either the record scans button or the record purchases button, I
@@ -320,7 +350,7 @@ function purchasesReady() {                               // the slabs' figures 
 async function recordPurchases(name) {
   const xs = purchasesReady(); if (!xs) return render();
   const s = S.settings, fc = D.fc;
-  const slabs = xs.map(x => [x.sl.cid, x.sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000)]);
+  const slabs = xs.map(x => [x.sl.cid, x.sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.sig == null ? null : x.sig]);   // the 9th: the line's code (the dip rank x 1000 before the model of 2026-11-23; the record's model tells them apart)
   const holds = [1, 2, 3, 4, 5, 6].map(h => { const mc = basket(xs.map(x => Object.assign({}, x, {g: x.g})), h); return mc ? [r2(mc.mean), r2(mc.lo), r2(mc.hi), Math.round(mc.p * 1000) / 1000] : null; });
   const spent = r2(xs.reduce((a, x) => a + x.pay, 0)), id = nextT(), PART = 20, n = Math.max(1, Math.ceil(slabs.length / PART));
   const head = {h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'), fee: Math.round(FEE * 10000) / 10000,
@@ -450,7 +480,7 @@ async function recordScans(name) {
   const s = S.settings, fc = D && D.fc;
   const slabs = real.map(sl => {
     const x = identified(sl) ? calc(sl) : null;
-    return x && x.std != null ? [sl.cid, sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000), sl.grader, sl.cert]
+    return x && x.std != null ? [sl.cid, sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.sig == null ? null : x.sig, sl.grader, sl.cert]
       : [identified(sl) ? sl.cid : null, identified(sl) ? sl.gk : null, Math.round((sl.vd != null ? sl.vd : s.under) * 10), null, null, null, null, null, null, sl.grader, sl.cert];
   });
   const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -1832,7 +1862,7 @@ function planHtml() {
     '<div class="progress"><span style="width:' + (P.cap > 0 ? Math.min(100, Math.round((total + P.spent) / P.cap * 100)) : 0) + '%"></span></div>' +
     '<div class="stats"><span class="stat"><b>' + P.chosen.length + '</b> slabs</span><span class="stat"><b>' + new Set(P.chosen.map(o => o.sl.t)).size + '</b> tables</span><span class="stat">expected <b>' + signed(net) + '</b></span><span class="stat">avg chance <b>' + (P.chosen.length ? pctS(avg) : '-') + '</b></span></div>' +
     '<p class="note" style="margin:0">Best chance first, each slab at the vendor’s price or at your ' + s.under.toFixed(1) + '% ask if not asked yet; at most ' + money(P.per) + ' a slab; chance at least ' + s.bar + '%, ' + s.minSales + '+ Card Ladder sales last month, ' + s.hold + '-month hold.</p></div>' +
-    (P.gated && P.blocked.length ? '<div class="warnbox"><b>The graded market is falling</b> and “Buy only when the market is rising” is on (Show tab), so ' + P.blocked.length + ' real slab' + (P.blocked.length > 1 ? 's that clear' : ' that clears') + ' your bar ' + (P.blocked.length > 1 ? 'are' : 'is') + ' left out - as on the website.</div>' : '') +
+    (P.gated && P.blocked.length ? '<div class="warnbox"><b>The graded market is red</b> (below its 12-month average) and “Buy only when the market is green or amber” is on (Show tab), so ' + P.blocked.length + ' real slab' + (P.blocked.length > 1 ? 's that clear' : ' that clears') + ' your bar ' + (P.blocked.length > 1 ? 'are' : 'is') + ' left out - as on the website.</div>' : '') +
     (groups || '<div class="empty">Nothing clears your bar yet. Scan a table, or lower the chance bar or the min sales on Show.</div>') +
     '<div class="card stack" style="gap:10px"><span class="label">Record purchases</span><p class="note" style="margin:0">Sends the slabs you marked Bought to the website, History › Recorded Purchases - with what you paid, your settings and the odds of the day.</p>' +
     '<button class="btn green" data-a="record"' + (UI.sending ? ' disabled' : '') + '>Record purchases' + (toRec ? ' (' + toRec + ')' : '') + '</button>' +
@@ -1856,7 +1886,7 @@ function showHtml() {
   const s = S.settings, mini = (k, lab) => '<div class="frow"><span>' + lab + '</span><span class="minis"><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="-1" aria-label="Less">−</button>' +
     '<input class="input minin" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="' + esc(setTxt(k)) + '" data-in="num:' + k + '" aria-label="' + esc(lab) + '">' +
     '<button class="minibtn" data-a="bump" data-k="' + k + '" data-d="1" aria-label="More">+</button></span></div>';
-  const dataLine = DSTATE === 'ok' ? 'Card data from ' + esc(D.built) + ': ' + Object.keys(D.cards).length.toLocaleString() + ' cards' + (D.fc ? ', odds of ' + esc(D.fc.month) + ', market ' + (D.fc.regime && D.fc.regime.up ? 'rising' : 'falling') : ', no odds in this build') + '.'
+  const dataLine = DSTATE === 'ok' ? 'Card data from ' + esc(D.built) + ': ' + Object.keys(D.cards).length.toLocaleString() + ' cards' + (D.fc ? ', odds of ' + esc(D.fc.month) + ', market ' + (levelOf(D.fc) || (D.fc.regime && D.fc.regime.up ? 'rising' : 'falling')) : ', no odds in this build') + '.'
     : DSTATE === 'loading' ? 'Loading the card data…' : DSTATE === 'err' ? 'Could not load the card data: ' + esc(DERR) : 'Locked: sample show only.';
   return '<div class="stack" style="gap:6px"><h1 class="h1" style="margin-bottom:8px">Show</h1>' +
     '<label class="field"><span class="label">Show name</span><input class="input" type="text" value="' + esc(s.show) + '" data-in="set:show"></label>' +
@@ -1866,7 +1896,7 @@ function showHtml() {
     mini('under', 'Your ask (% under)') + mini('bar', 'Buy only at a chance of at least') + mini('share', 'At most per slab') +
     mini('minSales', 'Min sales last mo (Card Ladder)') +
     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
-    '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
+    '<div class="frow"><span>Buy only when the market is green or amber</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
     '<div style="display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid #222A35"><button class="btn" data-a="syncweb">Sync from website</button>' +
     (UI.syncMsg ? '<div class="' + (UI.syncMsg[0] === 'ok' ? 'okbox' : UI.syncMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.syncMsg[1]) + '</div>' : syncNote()) + '</div>' +
     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
@@ -1932,8 +1962,10 @@ function planLine(sl, x) {
   if (x.std == null) return 'No Card Ladder price - not in your buys';
   if (P.picks[sl.id]) return 'In your buys';
   if (P.few[sl.id]) return 'Only ' + (x.sold || 0) + ' Card Ladder sale' + (x.sold === 1 ? '' : 's') + ' last month (your min is ' + s.minSales + ')';
+  if (!sl.demo && (x.flags || 0) & 256) return 'No chance given: its era has run beyond anything in the history';
+  if (!sl.demo && x.chance == null) return 'No chance for this slab - not in your buys';
   if (x.chance != null && x.chance < s.bar / 100) return 'Below your ' + s.bar + '% bar';
-  if (P.gated && !sl.demo) return 'Left out: the market is falling and the gate is on';
+  if (P.gated && !sl.demo) return 'Left out: the market is red and the gate is on';
   return 'Not in your buys (budget or per-slab cap)';
 }
 function chipsHtml(x) {
@@ -1965,9 +1997,22 @@ function slabHtml(sl, x) {
     (x.n12 != null ? '<div class="kv"><span class="k">Card Ladder sales a year</span><span class="v">' + x.n12 + '</span></div>' : '') + '</div>' +
     (NATIVE && !sl.demo && identified(sl) ? nativeReviewHtml(sl, x)
       : identified(sl) || sl.demo ? '<button class="btn" data-a="review">Review: is it the right card?' + (!sl.demo && sl.look === 'check' ? ' <span class="tag t-check">Check it</span>' : '') + '</button>' : '') +
-    '<div class="card stack" style="gap:6px"><span class="label">Rank</span><span style="font-weight:600">' + (x.pct == null ? 'Not ranked' : ord(Math.round(x.pct * 100)) + ' percentile · group ' + Math.min(10, Math.floor(x.pct * 10) + 1) + ' of 10') + '</span>' +
-    '<span class="small muted">' + (x.pct == null ? 'Card Ladder has too few sales of this grade (or a price under $25) to rank it.' : x.pct >= 0.5 ? 'Its price sits below its own 12-month level - the deeper, the higher the percentile.' : 'Its price sits near or above its own 12-month level.') + '</span></div>' +
+    lineCard(sl, x) +
     '<button class="linkbtn" style="color:var(--rdt);align-self:flex-start" data-a="remove">Remove this slab from the table</button>';
+}
+// the slab's line as the model reads it (it was the dip rank until the model of 2026-11-23): the kind of line, its warnings,
+// the chance's range and the market's level
+function lineCard(sl, x) {
+  if (sl.demo) return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">Sample slab</span><span class="small muted">A sample has no Card Ladder line: its chance is made up for the demo.</span></div>';
+  const fc = D && D.fc, lv = levelOf(fc);
+  if (x.cell == null) return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">Not read</span><span class="small muted">' + (fc && !fc.sig ? 'The card data on this phone is from before the new model: it updates the next time the app is online.' : 'Card Ladder has too few sales of this grade to price it, so the model has nothing to read.') + '</span></div>';
+  if ((x.flags || 0) & 256) { const b = (fc.level && fc.level.beyond) || [], pc0 = v => (v > 0 ? '+' : '') + Math.round(v * 100) + '%';
+    return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">' + esc(CELL_WORD[x.cell] || '-') + ' <span class="flag">beyond history</span></span><span class="small muted">No chance is given: this slab’s era has risen more in 3 months than any era did in the months the odds were measured on' +
+      (b.length ? ' (' + esc(b.map(y => y[0] + ' ' + pc0(y[1])).join(', ')) + ', against ' + pc0(Math.max(...b.map(y => y[2]))) + ' for the largest past run)' : '') + '. The past has no case like it. It comes back by itself once the run cools.</span></div>'; }
+  const fw = flagWords(x.flags || 0), ext = (x.flags || 0) & 1;
+  return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">' + esc(CELL_WORD[x.cell] || '-') + (ext ? ' <span class="flag">extended</span>' : '') + '</span>' +
+    '<span class="small muted">' + esc(CELL_NOTE[x.cell] || '') + (fw.length ? ' Now: ' + esc(fw.join('; ')) + '.' : '') + '</span>' +
+    (x.chance != null ? '<span class="small muted">Chance ' + pctS(x.chance) + (x.lo != null && x.hi != null ? ', range ' + Math.round(x.lo * 100) + '–' + Math.round(x.hi * 100) + '%' : '') + (lv ? ': how often such lines made money after ' + (lv === 'amber' ? 'an' : 'a') + ' ' + lv + ' month, 2022 on' : '') + '. No chance is shown above ' + Math.round(capOf(fc) * 100) + '%.</span>' : '') + '</div>';
 }
 // inside the iPhone app: the website's own Review button (its look, its same / not-the-same colours), and beside it the two
 // jobs the old Review screen did that the website's cannot - confirming PSA's best guess, and picking another card

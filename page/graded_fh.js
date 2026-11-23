@@ -306,7 +306,7 @@ function fhrRow(r) {
 // know which columns related to history and which from pc reg listing attributes"): the plan's own figures are tinted
 // blue; which columns show is the graded pages' shared choice (FCG_COLS), set with this list's Columns… button too.
 const FHR_COLS = [{key: 'k:fav', label: '★'}, {key: 'k:42', label: 'Flag'}, {key: 'l:Review', label: 'Review'}, {key: 'k:1', label: 'PC Card Name'}, {key: 'k:24', label: 'Grade'},
-  {key: 'k:fcPct', label: 'Rank', h: 1, num: 1}, {key: 'k:fcS', label: 'Standard Price', h: 1, num: 1}, {key: 'k:fcD', label: '% Under Paid', h: 1, num: 1}, {key: 'k:fcB', label: 'Price Paid', h: 1, num: 1},
+  {key: 'k:fcPct', label: 'Line', h: 1, num: 1}, {key: 'k:fcS', label: 'Standard Price', h: 1, num: 1}, {key: 'k:fcD', label: '% Under Paid', h: 1, num: 1}, {key: 'k:fcB', label: 'Price Paid', h: 1, num: 1},
   {key: 'k:16', label: 'Sold (last month)', num: 1}, {key: 'k:fcP', label: 'Chance', h: 1, num: 1}, {key: 'k:fcQ', label: 'QTY', h: 1, num: 1}, {key: 'k:fcN', label: 'Net', h: 1, num: 1},
   {key: 'k:fcR', label: 'ROI %', h: 1, num: 1}, {key: 'h:actual', label: 'Actual', h: 1, num: 1}, {key: 'k:fcU', label: 'Purchased', h: 1}]
   .concat(FCG_PCH ? FCG_PCX.map((i, j) => ({key: 'pc:' + i, label: fcgColText(FCG_PCH[i]), pc: j, th: FCG_PCH[i]})) : []);
@@ -320,7 +320,8 @@ function fhrDetail(r) {
     const p1 = up ? fhrPrice(cid, gk, ym) : null, real = p1 == null ? null : p1 * (1 - rec.fee) - rec.ship - paid;
     const cl = stdc == null ? null : stdc * (1 - d) - rec.ship, two = (a, b, k) => '<td class="num fcg2' + k + '"><span><i>CL</i> ' + a + '</span><span><i>PC</i> ' + b + '</span></td>';
     const pcb = std == null ? null : std * (1 - d) - rec.ship;
-    const pct = rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10)), dash = k => '<td class="num' + k + '"><span class="dim">-</span></td>';
+    const v3 = /\bv3\b/.test(rec.model || ''), sg = v3 && rk != null ? fcgSigOf(rk) : null;   // a record of the model of 2026-11-23 files the line's code; an older one the dip rank x 1000
+    const pct = v3 || rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10)), dash = k => '<td class="num' + k + '"><span class="dim">-</span></td>';
     const pcx = cols.some(x => x.pc != null) ? fcgPcx(base) : [];
     const cell = {
       'k:fav': k => '<td class="favc' + k + '">' + favBtn('pc', cid, cid) + '</td>',
@@ -329,7 +330,7 @@ function fhrDetail(r) {
       'l:Review': k => '<td class="' + k + '">' + (c.pid ? '<button class="rvb grvb' + (base && base[41] === 1 ? ' same' : base && base[41] === 0 ? ' diff' : '') + '" data-k="' + esc(cid + '|' + gk) + '">Review</button>' : '<span class="dim">-</span>') + '</td>',
       'k:1': k => '<td class="' + k + '">' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td>',
       'k:24': k => '<td class="' + k + '"><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td>',
-      'k:fcPct': k => pct == null ? dash(k) : '<td class="num' + k + '">' + fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + '</span></td>',
+      'k:fcPct': k => sg ? fcgLineCell(sg.g, sg.f, sg.tb).replace('<td class="num', '<td class="num' + k) : pct == null ? dash(k) : '<td class="num' + k + '" title="Recorded with the model before 2026-11-23: the dip rank (how far the price sat below its own 12-month level)">' + fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + ' · dip rank</span></td>',
       'k:fcS': k => two(stdc == null ? '<span class="dim">-</span>' : fmtMoney(stdc), std == null ? '<span class="dim">-</span>' : fmtMoney(std), k),
       'k:fcD': k => '<td class="num' + k + '">' + (Math.round(d * 1000) / 10) + '%</td>',
       'k:fcB': k => clb ? two(fmtMoney(paid), pcb == null ? '<span class="dim">-</span>' : fmtMoney(pcb), k) : two(cl == null ? '<span class="dim">-</span>' : fmtMoney(cl), fmtMoney(paid), k),
@@ -673,9 +674,9 @@ async function fhsSend() {
   if (!rows.length) return favSay('No green rows to send: the plan buys nothing at these settings.');
   if (!HKEY) return favSay('This page has no key for the collector.');
   const price = r => rc ? r.fcPx : r.fcB;
-  const slabs = rows.map(r => [r[0], r[50], Math.round((r.fcD != null ? r.fcD : I.disc) * 1000), r2(r.fcS), r2(r.fcSc), r2(price(r)), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcPct == null ? null : Math.round(r.fcPct * 1000)]);
+  const slabs = rows.map(r => [r[0], r[50], Math.round((r.fcD != null ? r.fcD : I.disc) * 1000), r2(r.fcS), r2(r.fcSc), r2(price(r)), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcV == null ? null : r.fcV]);   // the 9th: the line's code (graded_fc.js fcgSigOf); the dip rank x 1000 before the model of 2026-11-23
   const spent = r2(rows.reduce((s, r) => s + (r.fcQ || 1) * (price(r) || 0), 0)), id = nextT(), n = Math.max(1, Math.ceil(slabs.length / 20));
-  const head = {h: I.h, cap: I.cap, disc: rc ? (+FCG_IN.rdisc || 14.1) / 100 : I.disc, ship: I.ship, fee, month: D ? D.month : '', reg: D && D.regime ? (D.regime.up ? 'up' : 'down') : '', spent, model: D ? D.model : '',
+  const head = {h: I.h, cap: I.cap, disc: rc ? (+FCG_IN.rdisc || 14.1) / 100 : I.disc, ship: I.ship, fee, month: D ? D.month : '', reg: D ? fcgLevel(D) : '', spent, model: D ? D.model : '',
                 smp: rows.some(r => r.rec && r.rec.smp) ? 1 : 0, src: m, minp: I.minp, gate: I.gate ? 1 : 0, holds: []};
   btn.disabled = true;
   try {
@@ -729,7 +730,8 @@ $('rows-fhr').addEventListener('click', e => {
 function fhgNote() {
   const el = $('fhg-note'); if (!el) return;
   const I = fcgInputs(), grades = [...GF.fc.gsel].filter(gk => FCG_LINE(gk)).map(grLabel);
-  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.length > 8 ? grades.length + ' grades ticked' : grades.join(', ')) : 'no PSA or CGC grade ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.';
+  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.length > 8 ? grades.length + ' grades ticked' : grades.join(', ')) : 'no PSA or CGC grade ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.' +
+    (FHG.win !== 'rec' ? '<br><b>Forecasting Replay and Pre-Sales Spotcheck still run the model used until 2026-11-23</b> (the dip rank, a rising / falling market): they show how that model did, not the one now on Forecasting (the market’s level, the kind of line). They are next to be rebuilt.' : '');
 }
 function fhgPaint() {                                     // the cards and the replay table, once its cells are in
   if (FHG.win !== 'rp') return;

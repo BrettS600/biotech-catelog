@@ -2163,7 +2163,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
 - GRADED CARDS > FORECASTING (2026-11-04, Brett: "i plan to go to card vendor, scan graded card links, then sell them on
   ebay ... we assume all cards are available for purchase"; "lets just use the same predictive model but on the graded
   cards ... its okay if its flawed"; "shipping is factored into buy price"; "i will only buy cards that are least 14.1%
-  under"). MODEL graded_forecast.py (called by graded_site.py -> graded.bin doc.fc; ~10 s, ~1 GB): the raw v2 method on
+  under"). (THE MODEL WAS REPLACED ON 2026-11-23 - see "THE GRADED FORECAST'S MODEL SINCE 2026-11-23" near the end of
+  these notes; what follows describes the dip-rank model, which only History's replay still runs.)
+  MODEL graded_forecast.py (called by graded_site.py -> graded.bin doc.fc; ~10 s, ~1 GB): the raw v2 method on
   card-data pricecharting/pc_graded_monthly_*.csv.gz (PSA 10, Grade 9.5 / 9 / 8 / 7 lines, monthly since 2021): rank =
   percentile of -dev12 among lines $25+ with 12 months of prices, TEN groups (raw: 4); odds tables h = 1..6 x regime x
   group, quantile grid 1..99%, mean, p_up, buying at max(price, 3-mo avg); pct per (listed card, line) as 0..1000. ONE
@@ -3998,6 +4000,82 @@ and the site password once), and the old screen's two other jobs kept as small b
   only the passing lines dependable, +12%); green: above, not hot, 40%+ pass (+34%, never a losing month). The order
   survived past-only thresholds, a threshold grid and a placebo; built from that round's own filters on four or five
   waves, so forward-test it first. Amber is not "stay out": it is "only what passes". 2026-10 read amber on both counts.
+- **THE GRADED FORECAST'S MODEL SINCE 2026-11-23 (v3: the market's level, the kind of line, the hold).** Brett, after
+  the research round, asked whether the dip rank and the Chance should come off the site; the answer given (rank off
+  as a buy ranking, its far-above end kept as an "extended" warning; Chance kept but rebuilt on the level / the rules /
+  the era / the hold, shown with a range, capped well under 95%; Best to Buy reworked; the raw tab untouched) he took
+  with "first we make those changes". WHAT IS BUILT (graded_forecast.py, VERSION "graded v3 ..."): _prep also returns
+  SD (the spread of the month's sales), H (second half of the month over the first), page, first_m, era, relm (the
+  card's Card Ladder era and its release month: graded_site.fc_meta - cards[id].era[1], PriceCharting's release date
+  of the card, else dictionary/sets.csv by the set's name; a date only, no PriceCharting price). _model(P) follows
+  the research's definitions on the site's own lines (checked: the levels of 54 of 55 months equal the research's
+  E112 - 2026-03 sits on the 0.70 heat line -, and the extended / still-falling / segment flags of all 2,273 gated
+  lines of 2026-10 equal its forward-test file): the index (median monthly log move of lines 12+ months past
+  release, 5+ sales both months, $50+, one line per Card Ladder page and grade, chained from 2021-01); red = at or
+  below the average of its 12 months before; amber = above, but heat score 0.70+ (four gauges ranked against the
+  months up to then: scatter of the moves, share at a 12-month high, sales against their 12-month average, the
+  index's own move) or under 40% of the busy seasoned PSA lines ($100+, 10+ sales) pass the three rules; green
+  otherwise. THE CELLS (CELLS, doc.fc.cells): np_b / np_t = Modern / Contemporary PSA that passes (not extended: up
+  over 0.15 log in the month or 0.25 over its 6-month average; not still falling: down over 0.07 or H under -0.07;
+  its segment - era x PSA 10 / below 10 - not up 0.20+ in 3 months), busy (10+ sales in the month) / thin; nf_b /
+  nf_t = fails one; vin_b / vin_t = Vintage PSA, cm_b / cm_t = Classic / Mid Era PSA (in the older eras the rules
+  did not separate anything; the two are apart because Classic and Mid Era moved about twice as far as Vintage in
+  the rise - amber, 3 months, thin lines: Vintage median +14%, Classic / Mid Era +30-35% - so one pooled "older"
+  cell overstated a Vintage slab's Net; the page and the phone app name the cells by CELLS' order);
+  new = under 12 months since release (any grader; with no release date: an era that ended years ago counts as
+  seasoned, else 12+ months of sales on file); cgc; unk = PSA with no era (read from the level's pooled table).
+  Busy and thin are apart because the "fails" cell differs a lot by it (amber, 3 months: busy 44%, thin 61%).
+  THE ODDS (doc.fc.tables["hold|level|cell"], "hold|level|all" = the level's seasoned PSA lines pooled, "hold|all|all"):
+  decision month j, bought at month j+1's median (3+ sales; NEVER month j's own - that is what flattered the dip),
+  sold at the median h months later, lines $50+ with a price in month j; n, nm (decision months), mean (returns
+  clipped to -80% .. +170%), p_up, q (1..99%), lo / hi (the 5% / 95% of each grid point over 200 resamples of the
+  cell's months, seed fixed: the Chance's range). A cell needs 30 cases over 4 months AND half of its level's
+  months, else the pooled table is read (CGC's red months are all from the last year of the fall: on its own it read
+  59-66% in a red market). doc.fc.level = {now, month, above, vs12, mom1, mom3 (fractions), heat, hot, share, few,
+  n_gated, n_pass, n_index, months (count per level since 2022), last (12 months), segs (each segment's 3-month
+  move), beyond ([era, its run, the largest past run] for eras beyond the history), th}; doc.fc.sig = {card id: {line index:
+  code}} for lines with a standard price, code = tie-breaker x 1000 (1023 none) + 1024 x cell + 16384 x flags
+  (F_EXT 1, F_FALL 2, F_SEG 4, F_NEW 8, F_THIN 16, F_NOPRICE 32, F_PROXY 64, F_PREV 128, F_BEYOND 256); the line's own reading is
+  of the last complete month, else the month before (F_PREV), else none (F_NOPRICE: in the newer eras counted with
+  the failing lines - never "passes" without a reading). doc.fc.cap = 0.85. NO CHANCE BEYOND THE HISTORY (F_BEYOND,
+  added while testing, NOT in the answer Brett took - told to him): an era's run = the larger 3-month move of its
+  two PSA segments; when it is larger than the largest run any era of its side (older / newer) had in the decision
+  months behind the odds, every line of that era (PSA and CGC, not "new") shows "beyond history" and gets no Chance,
+  no place and no money. On the first build: Classic +122% and Mid Era +136% against +66% - about 10,800 of 39,600
+  lines; the older cell would have shown them 80% and put them at the top of Best to Buy, in a state the history
+  has never seen and that the research's first look at November saw coming back. It lifts by itself. THE TIE-BREAKER (_tb): rank inside
+  month x segment (era x grader x 10 / below) of "the card's other grades rose more than this one over 3 months"
+  minus the rank of the month's own spread - TWO of the research's three terms; the third (slab cheap against the
+  raw card) needs PriceCharting's raw price and Brett keeps PriceCharting out of the forecast's calculations, so it
+  is left out (measured on the site's lines: top over bottom fifth 4.8 points on gated lines, 43 of 55 months; 1.8
+  on thin lines). doc.fc.regime ({up: level != red ...}) and an empty doc.fc.pct stay only so a page or phone app
+  from before the change shows "no score" instead of failing; tiers / tier_levels are gone (never used by the page).
+  THE PAGE (graded_fc.js): fcgDoc() wants level + sig; fcgTab keys on fcgReg(D) = the level (the raw model: up /
+  down - raw_fc.js runs fcgTab, fcgCdf, fcgOrder, fcgPlaces, fcgMonteCarlo unchanged); fcgSig / fcgSigOf decode a
+  code; fcgChance3 -> [chance, low, high] capped; r.fcPct is now the tie-breaker (so fcgOrder and Best to Buy are:
+  Chance to the whole percent, tie-breaker, price), r.fcG the cell, r.fcF the flags, r.fcV the code, r.fcPl / fcPh
+  the range. The Chance cell: the percent, its range under it (.fcg-rng; "the most shown" when even the low end is
+  at the cap; "beyond history" instead of a percent for F_BEYOND), "extended" (.fcg-warn) on a flagged
+  line of any era (it enters the Chance only in the newer eras); the tooltip names the kind of line, its flags, the
+  cases and months. The market box: the level and why, the index against its 12-month average, the heat score, the
+  share passing, the newer segments' 3-month moves, and a table of every kind of line at the pane's hold (middle
+  move; Chance at the % under with its range). The gate is "Buy only when the market is green or amber" (closes on
+  red; same box, id fcg-gate, same phone sync key). The bar stops at 85 (body.html max, fcgInputs clamp).
+  Recording / Purchases: the Rank column is Line (same header key fcPct, so saved layouts hold; it sorts by the
+  tie-breaker): fcgLineCell - the kind in words, busy / thin, "tie NN", the warning. A recorded plan or a Spotcheck
+  set files the code in the slab's 9th figure (the collector keeps 9 figures, an int there) and the level in reg;
+  History tells a v3 record from an older one (the dip rank x 1000) by /\bv3\b/ in the record's model. Net / ROI
+  are still the cell's mean return (now said in the help: an average, off by ~22 points on a single trade in the
+  research - trust the Chance and its range more). PHONE APP (page/app/app.js, sw.js cache ssc-v21): same data
+  (app/data.bin fc: level, cells, cap, sig, tables as [mean, q, lo, hi, n, nm]), same chance / cap / gate / order;
+  the slab card's "Rank" is "Line" (lineCard); the bar's limit is 85. An app still cached from before shows no
+  score for one start, then fetches the new one. NOT DONE YET, SAID ON THE PAGE: History's Forecasting Replay and
+  Pre-Sales Spotcheck (graded_forecast.build_hist, graded_hist.bin, VERSION_HIST) still run the model before this
+  one - the dip rank and the 3-month rising / falling market; _prep keeps its old fields for them. Next: rebuild
+  both on the cells (per month: the level known then, the cell tables of the holds over by then, candidates by
+  tie-breaker; add each line's cell by month to trends cf so the Spotcheck can place a slab). STILL OPEN FOR BRETT:
+  whether Net / ROI should become a middle outcome with a range; whether the tie-breaker may use PriceCharting's raw
+  price (the third term). All of it rests on one fall and one rise: the help says to read the figures as upper bounds.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

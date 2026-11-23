@@ -1402,10 +1402,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
     FP = None
     try:
         import graded_forecast
-        FP = graded_forecast._prep(cd, keep, today, pages=clp, link=link)
+        FP = graded_forecast._prep(cd, keep, today, pages=clp, link=link, meta=fc_meta(cd, cards, pc))
         doc["fc"] = graded_forecast.build(cd, keep, today, P=FP) if FP is not None else {"err": "no Card Ladder sales for the listed cards yet"}
-        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} of {doc['fc'].get('n_lines', 0):,} Card Ladder lines ranked "
-              f"({doc['fc'].get('n_cards', 0):,} cards), month {doc['fc'].get('month')}, market {'up' if (doc['fc'].get('regime') or {}).get('up') else 'down'}")
+        lvl = doc["fc"].get("level") or {}
+        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} of {doc['fc'].get('n_lines', 0):,} Card Ladder lines have a standard price and are read "
+              f"({doc['fc'].get('n_cards', 0):,} cards), month {doc['fc'].get('month')}, market level {lvl.get('now')} "
+              f"(heat {lvl.get('heat')}, {lvl.get('n_pass')} of {lvl.get('n_gated')} busy seasoned PSA lines pass the rules), "
+              f"{len(doc['fc'].get('tables') or {})} odds tables, lines by cell {dict(zip(doc['fc'].get('cells') or [], doc['fc'].get('n_cells') or []))}, "
+              f"{doc['fc'].get('n_beyond', 0):,} beyond history (no Chance): {lvl.get('beyond')}")
         if FP is not None:                                   # each line's month-by-month figures for Pre-Sales Spotcheck and the
             add_cf(trends, FP, graded_forecast)              # Recorded Purchases' actuals (the model's own numbers)
     except Exception as e:                                   # noqa: BLE001
@@ -1491,10 +1495,12 @@ def app_doc(doc, pc):
     cards {pc id: [PC name, PC set, PC card number, PSA spec, CGC id, CL page, CL label, CL image, CL status, answer]}
     (answer: 1 Same card / 0 Not the same card / null), rows [[pc id, grade index, CL standard, its window days, its
     sales, CL sales in 12 months, CL value confidence, CL sales last month, PC price, PC sales last month, CL value]],
-    fc: the Forecast's odds tables ({key: [mean, q]}), lines, regime, month, model and today's ranks (pct) - the same
-    figures the website's Recording page uses."""
+    fc: the Forecast's odds tables ({"hold|level|cell": [mean, q, the range's low grid, its high grid, cases, months]}),
+    lines, the market's level, month, model, the Chance's cap and each line's cell, flags and tie-breaker today (sig) -
+    the same figures the website's Recording page uses (regime and an empty pct stay for an app still on the phone from
+    before 2026-11-23: it shows no score until it has fetched the new app)."""
     fc = doc.get("fc") or {}
-    tabs = {k: [v.get("mean"), v.get("q")] for k, v in (fc.get("tables") or {}).items() if isinstance(v, dict) and v.get("q")}
+    tabs = {k: [v.get("mean"), v.get("q"), v.get("lo"), v.get("hi"), v.get("n"), v.get("nm")] for k, v in (fc.get("tables") or {}).items() if isinstance(v, dict) and v.get("q")}
     names = {}
     if pc is not None and len(pc) and "product-name" in pc.columns:
         sets = pc["console-name"] if "console-name" in pc.columns else None
@@ -1518,8 +1524,35 @@ def app_doc(doc, pc):
                                c.get("pid") or "", cl[0] or "", cl[6] or "", "nomatch" if ns else c.get("cls") or "",
                                (c.get("ma") or {}).get("v")]
     return {"v": 1, "built": doc.get("built"), "lastm": doc.get("lastm"), "gk": doc.get("gk"), "cards": cards, "rows": rows,
-            "fc": {"model": fc.get("model"), "month": fc.get("month"), "qs": fc.get("qs"), "lines": fc.get("lines"),
-                   "regime": fc.get("regime"), "tables": tabs, "pct": fc.get("pct") or {}} if tabs else None}
+            "fc": {"model": fc.get("model"), "v": fc.get("v"), "month": fc.get("month"), "qs": fc.get("qs"), "lines": fc.get("lines"),
+                   "regime": fc.get("regime"), "level": fc.get("level"), "cells": fc.get("cells"), "cap": fc.get("cap"),
+                   "tables": tabs, "sig": fc.get("sig") or {}, "pct": fc.get("pct") or {}} if tabs else None}
+
+
+def fc_meta(cd, cards, pc):
+    """{card id: (Card Ladder era, release date)} for the graded forecast (graded_forecast._prep, the model of
+    2026-11-23): the era shown on the Card Ladder side (cards[id].era[1]), PriceCharting's release date of the card, else
+    the dictionary's release of its set (dictionary/sets.csv by the PriceCharting set's name) - as the research's data
+    kit put them together (card-data tools/graded/build_dataset.py). A date is only a date here: the card's age in
+    months; no price of PriceCharting's enters the forecast."""
+    sets = {}
+    sp = os.path.join(cd, "dictionary", "sets.csv")
+    if os.path.exists(sp):
+        try:
+            for r in pd.read_csv(sp, dtype=str).fillna("").to_dict("records"):
+                sets[str(r.get("set", "")).strip().lower()] = str(r.get("release", ""))
+        except Exception:                                    # noqa: BLE001
+            sets = {}
+    rels = pc["release-date"].to_dict() if pc is not None and "release-date" in getattr(pc, "columns", []) else {}
+    psets = pc["console-name"].to_dict() if pc is not None and "console-name" in getattr(pc, "columns", []) else {}
+    out = {}
+    for k, c in cards.items():
+        cid = int(k)
+        rel, st = str(rels.get(cid, "") or ""), str(psets.get(cid, "") or "")
+        if not re.match(r"^(19|20)\d\d-\d\d", rel):
+            rel = sets.get(re.sub(r"^pokemon\s+", "", st.strip().lower()), "")
+        out[cid] = (str((c.get("era") or ["", "", ""])[1] or ""), rel)
+    return out
 
 
 def add_cf(trends, P, F):

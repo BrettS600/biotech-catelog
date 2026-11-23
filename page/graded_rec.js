@@ -1,6 +1,7 @@
 /* ---------------- The Forecast tab: Graded cards > Recording and Planning (2026-11-04, Brett) ----------------
    Recording: "when I go into a card show, I collect all of the bar codes from graded cards, and all of those listings go
-   here. All of them" - one row per slab, the Forecasting page's columns plus Rank, a % Under box of its own (Brett: "even
+   here. All of them" - one row per slab, the Forecasting page's columns plus Line (the line's reading; it was Rank, the dip
+   rank, until the model of 2026-11-23 - graded_fc.js), a % Under box of its own (Brett: "even
    though i set it to 14.1%, a vendor may sell for some as low 20%") and Purchased: Yes (bought at the row's buy price:
    the money comes off the capital, the slab goes to Planning), No ("i will reject is the vendor sells above the buy
    price": greyed, it gets no money, so the next-best rows turn green), neither (still open). Green: "what i should buy
@@ -82,7 +83,7 @@ const fcrInBand = r => { const b = r.fcS != null ? r.fcS : r.fcSc, B = FCR.band 
 // the slabs on view: the bought ones the filters leave, and the green (2026-11-05: they followed only the green before)
 function fcrAllocate(view) {
   const I = fcgInputs(), D = fcgDoc(), all = FCR.rows.rc, onView = new Set(view);
-  const gated = !!(D && I.gate && !(D.regime && D.regime.up));
+  const gated = !!(D && I.gate && fcgLevel(D) === 'red');
   const bought = all.filter(r => r.rec.pur === 1), used = new Map();
   const spent = bought.reduce((s, r) => s + (r.fcPx || 0), 0);   // the one price paid (a slab without a PriceCharting price too)
   let left = I.cap - spent;
@@ -120,7 +121,7 @@ function fcrSummary(A) {
   const recs = FCR.recs || [], nsmp = recs.filter(x => x.smp).length, I = A.I, D = fcgDoc(), cost = A.green.reduce((s, r) => s + r.fcB, 0);
   let s = '';
   if (!recs.length) s = '<p><b>No slabs recorded yet.</b> At a show, the slabs you scan come here (the scanning comes next); the star on Forecasting marks the cards you are after.</p>';
-  else if (A.gated) s = '<p><b>Nothing to buy: the graded market is falling</b> and “Buy only when the market is rising” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
+  else if (A.gated) s = '<p><b>Nothing to buy: the graded market is red</b> (below its 12-month average) and “Buy only when the market is green or amber” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
   else s = '<p>' + (A.bought.length ? 'Bought <b>' + A.bought.length + ' slab' + (A.bought.length > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(A.spent) + '</b> (Yes); ' : '') + '<b>' + fmtMoneyPlain(Math.max(0, I.cap - A.spent)) + '</b> of ' + fmtMoneyPlain(I.cap) + ' left. ' +
     (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best to buy first among the open rows on view, each at its own price. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance, ' + I.h + '-month hold). ') +
     'Type the vendor’s price (or their % under) in a row and its chance and place follow. A No (the vendor wants more) sends the row to the bottom and frees its money for the next.' +
@@ -141,12 +142,8 @@ function fcpSummary(F) {
   s += fcrStats(F.mc, F.spentV, I, F.view.length < n ? 'the bought slabs on view' : 'the slabs you bought', [F.left, fmtMoneyPlain(F.spent) + ' of ' + fmtMoneyPlain(I.cap) + ' spent']);
   box.innerHTML = s;
 }
-// the cells: Forecasting's, plus Rank, % Under, Purchased (Planning: % Under Paid and Price Paid in the same places)
-function fcrRankCell(r) {
-  if (r.fcPct == null) return '<td class="num"><span class="dim" title="No rank for this line today">-</span></td>';
-  const p = Math.round(r.fcPct * 100), grp = r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10';
-  return '<td class="num" title="' + esc('How far this grade’s Card Ladder price sits below its own 12-month level, against every Card Ladder line $25+: the ' + fcOrd(p) + ' percentile (100th = furthest below); ' + grp + ' (1 = deepest)') + '">' + fcOrd(p) + '<br><span class="dim">' + grp + '</span></td>';
-}
+// the cells: Forecasting's, plus Line, % Under, Purchased (Planning: % Under Paid and Price Paid in the same places)
+const fcrRankCell = r => fcgLineCell(r.fcG, r.fcF, r.fcPct);   // the Line column (the header keeps its key, fcPct: it sorts by the tie-breaker)
 function fcrRow(r, pl) {
   const x = fcgCells(r, Object.assign({}, fcgInputs(), {ship: r.fcShip})), rec = r.rec, id = esc(rec.id), pur = rec.pur;
   const dv = r.fcD == null ? '' : Math.round(r.fcD * 1000) / 10, pv = r.fcPx == null ? '' : r.fcPx.toFixed(2);
@@ -293,9 +290,10 @@ async function fcpRecord() {
   if (!HKEY) return say('This page has no key for the collector.', 'warn');
   rows.forEach(r => { r.fcQ = 1; });
   const holds = [1, 2, 3, 4, 5, 6].map(h => { const mc = D ? fcgMonteCarlo(D, rows, I, fee, 2000, r => fcgTab(D, h, r.fcG)) : null; return mc ? [r2(mc.mean), r2(mc.lo), r2(mc.hi), Math.round(mc.p * 1000) / 1000] : null; });
-  const slabs = rows.map(r => [r[0], r[50], Math.round(r.fcD * 1000), r2(r.fcS), r2(r.fcSc), r2(r.fcPx), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcPct == null ? null : Math.round(r.fcPct * 1000)]);
+  // a slab's 9th figure: its line's code today (fcgSigOf: cell, flags, tie-breaker) - the dip rank x 1000 in a record made before the model of 2026-11-23 (told apart by the record's model)
+  const slabs = rows.map(r => [r[0], r[50], Math.round(r.fcD * 1000), r2(r.fcS), r2(r.fcSc), r2(r.fcPx), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcV == null ? null : r.fcV]);
   const spent = r2(rows.reduce((s, r) => s + (r.fcPx || 0), 0)), id = nextT(), n = Math.max(1, Math.ceil(slabs.length / FCP_PART));
-  const head = {h: I.h, cap: I.cap, disc: Math.round(((+FCG_IN.rdisc || 14.1) / 100) * 10000) / 10000, ship: I.ship, fee, month: D ? D.month : '', reg: D && D.regime ? (D.regime.up ? 'up' : 'down') : '', spent, model: D ? D.model : '', smp: rows.some(r => r.rec.smp) ? 1 : 0, holds};
+  const head = {h: I.h, cap: I.cap, disc: Math.round(((+FCG_IN.rdisc || 14.1) / 100) * 10000) / 10000, ship: I.ship, fee, month: D ? D.month : '', reg: D ? fcgLevel(D) : '', spent, model: D ? D.model : '', smp: rows.some(r => r.rec.smp) ? 1 : 0, holds};
   say('Sending…');
   try {
     for (let k = 0; k < n; k++) await alSend(Object.assign({type: 'gplan', t: k ? nextT() : id, id, k, n, s: slabs.slice(k * FCP_PART, (k + 1) * FCP_PART)}, k ? {} : head));
@@ -342,34 +340,34 @@ const FCR_PRICE_MD = pl => [
   pl ? '- A change here changes the capital left on Recording, so its green rows re-plan.' : '- Saved with the row in this browser; a refresh keeps it.'].join('\n');
 const fcrNowFees = () => 'shipping <b>' + fmtMoneyPlain(fcgInputs().ship) + '</b> (the plan pane) · eBay’s fee <b>' + (fcgFee() * 100).toFixed(1) + '%</b> · new rows start at <b>' + (+FCG_IN.rdisc || 14.1) + '%</b> under';
 Object.assign(HELP, {
-  fcr_rank: {t: 'Rank', md: 1, m: [
-    '> How far the slab’s Card Ladder price sits below its own normal price, compared with every other Card Ladder line (card × grade) this month. The model’s way of finding slabs that are “on sale” against their own history.',
-    '## How it’s worked out',
-    '1. **Its price now:** the standard price - the middle of Card Ladder’s sales of the grade in the 30 days to the card’s read (60 or 90 days when there are fewer than 3).',
-    '2. **Its normal price:** the middle of its monthly prices over the last 12 months (each month’s middle sale). It needs 3+ sales in those 12 months, or no rank.',
-    '3. **Its dip:**',
-    '   `dip = price now ÷ normal price − 1`',
-    '4. **Line them all up:** every Card Ladder line priced $25+ with 3+ sales a year, from the deepest dip to the furthest above normal.',
-    '5. **Percentile:** its place in that line-up, 0 to 100th; the deepest dip is the 100th.',
-    '6. **Group:** the percentiles cut into 10 equal groups.',
-    '| Percentile | Shown as |',
+  fcr_rank: {t: 'Line', md: 1, m: [
+    '> What the model reads in this slab’s line - its card at its grade on Card Ladder - today. The Chance follows it (with the market’s level and your Hold).',
+    '## The kinds of line',
+    '| It says | The line is |',
     '|---|---|',
-    '| 90th–100th | deepest 10% (group 1) |',
-    '| 80th–90th | group 2 |',
-    '| … | … |',
-    '| 0–10th | group 10: furthest above its normal price |',
-    '## Example',
-    'PSA 10 with a normal price of $200, selling at $150 now:',
-    '`dip = 150 ÷ 200 − 1 = −25%`',
-    'Deeper than 92% of all lines → the 92nd percentile → deepest 10%. A PSA 9 at $84 against an $80 normal price (+5%) ranks far lower.',
-    '## What it means',
-    'The rank only sorts; the history then measures, for each group, how often its slabs made money: that is the Chance. On Card Ladder the deepest 10% has not been the best group - slabs moderately below their normal price have done better - and the Chance shows that.',
+    '| new card | a card under 12 months since its release (any grader) |',
+    '| CGC | a CGC line |',
+    '| passes the rules | Modern / Contemporary PSA: not extended, not still falling, its segment not up 22%+ in 3 months |',
+    '| fails a rule | Modern / Contemporary PSA with one of those three - or too few sales to read them |',
+    '| Vintage | Vintage PSA: in the older eras the three rules did not matter, the market’s level does |',
+    '| Classic / Mid Era | Classic or Mid Era PSA: as Vintage, measured apart (they moved about twice as far in the rise) |',
+    '| era not known | PSA, no era on file: the level’s pooled history |',
+    '## Under it',
+    '- **busy / thin:** 10+ sales last month, or fewer. The history is measured apart for each.',
+    '- **tie 0–100:** the tie-breaker, inside the line’s month and segment - the card’s other grades rose more than this one over 3 months, and a clean month of sales. It orders slabs with the same Chance (Best to Buy); it does not change the Chance. The column sorts by it.',
+    '- **extended:** a warning - the price is up 16%+ on last month, or 28%+ above its own 6-month average. In Modern and Contemporary it is one of the three rules.',
+    '- **beyond history:** the line’s era has risen more in 3 months than any era did in the months the odds were measured on. No Chance is given for it (see Chance).',
+    '## The three rules, in numbers',
+    '- **Extended:** up 16%+ on last month, or 28%+ above its own 6-month average.',
+    '- **Still falling:** down 7%+ on last month, or the second half of the month 7% under the first.',
+    '- **Its segment ran:** the index of its era × PSA 10 / below 10 is up 22%+ in 3 months.',
+    'Hover the cell for which ones apply to the slab.',
+    '## What changed on 2026-11-23',
+    'This column was Rank: how far the price sat below its own 12-month level (the dip), in ten groups. Bought at a price one could really have paid - the month after the dip - the deepest dips did worse than the rest, so the rank no longer scores or orders anything.',
     '## Keep in mind',
-    '- **Relative to the market:** a −25% dip is the deepest 10% in a calm month, maybe only group 3 when everything fell.',
-    '- **As of the card’s Card Ladder read:** the run reads up to 900 cards a night; a card read weeks ago shows the price of then.',
-    '- **Every PSA and CGC grade is its own line** (CGC 10 Pristine and CGC 10 too).',
-    '- **No rank, no Chance:** a card Card Ladder has not read, a grade with fewer than 3 sales in 90 days, under $25 or with fewer than 3 sales a year shows “no score”.'].join('\n'),
-    now: () => { const D = fcgDoc(); return D ? 'data month <b>' + esc(D.month || '') + '</b> · <b>' + Number(D.n_ranked || 0).toLocaleString('en-US') + '</b> Card Ladder lines ranked' : ''; }},
+    '- The reading is of the last complete month (the month before it when the line had under 3 sales); the card’s age and its segment are of today.',
+    '- A card Card Ladder has not read, or a grade with fewer than 3 sales in 90 days, shows “-”.'].join('\n'),
+    now: () => { const D = fcgDoc(); return D ? 'data month <b>' + esc(D.month || '') + '</b> · market <b>' + esc(fcgLevel(D)) + '</b> · <b>' + Number(D.n_ranked || 0).toLocaleString('en-US') + '</b> Card Ladder lines read' : ''; }},
   fcr_disc: {t: '% Under (CL)', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
   fcr_buy: {t: 'Buy Price', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
   fcp_disc: {t: '% Under Paid (CL)', md: 1, m: FCR_PRICE_MD(true), now: fcrNowFees},
