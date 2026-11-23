@@ -5,7 +5,7 @@ name: Research results
 # is in; it commits the results to main. The notes in data/research/notes quote the 2026-10-24 run (round 1,
 # E01-E25) and the 2026-10-26 run (round 2, E26-E42) - results regenerated later differ slightly because data/
 # is refreshed daily (the current month is partial and the eBay snapshot, rollup and daily download are newer).
-# 2026-10-27: the scripts, notes, results and the data they read live in the PRIVATE repo BrettS600/card-data
+# 2026-10-27: the scripts, notes, results and the data they read live in the PRIVATE repo driftcodedev/card-data
 # (data/research/...): this repo is public and the data is not for redistribution. The job checks card-data out with the
 # DATA_REPO_TOKEN secret, runs there and pushes the results there.
 
@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Check out the private data repo (BrettS600/card-data)
+      - name: Check out the private data repo (driftcodedev/card-data)
         uses: actions/checkout@v4
         with:
-          repository: BrettS600/card-data
+          repository: driftcodedev/card-data
           token: ${{ secrets.DATA_REPO_TOKEN }}
           path: card-data
       - uses: actions/setup-python@v5
