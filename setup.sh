@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Installs the always-on eBay collector on a fresh Ubuntu 24.04 machine. Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/BrettS600/biotech-catelog/main/setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/driftcodedev/biotech-catelog/main/setup.sh | bash
 # Safe to run again: it keeps the secrets file and the deploy key if they already exist.
 set -euo pipefail
 
-REPO_URL="https://github.com/BrettS600/biotech-catelog.git"
+REPO_URL="https://github.com/driftcodedev/biotech-catelog.git"
 BASE=/opt/pokemon-collector
 ENV_FILE=/etc/pokemon-collector.env
 SVC=pokemon-collector
@@ -87,7 +87,7 @@ systemctl restart $SVC
 echo
 echo "=================================================================="
 echo "Installed. Add this deploy key to the repo, WITH write access:"
-echo "  https://github.com/BrettS600/biotech-catelog/settings/keys/new"
+echo "  https://github.com/driftcodedev/biotech-catelog/settings/keys/new"
 echo "  Title: pokemon-collector    Tick: Allow write access"
 echo
 cat "$BASE/.ssh/id_ed25519.pub"
@@ -95,7 +95,7 @@ echo
 echo "Until the key is added the collector runs but cannot publish (it will say 'Publish failed')."
 echo
 echo "And this one to card-data, also WITH write access (the phone app's scans.csv):"
-echo "  https://github.com/BrettS600/card-data/settings/keys/new"
+echo "  https://github.com/driftcodedev/card-data/settings/keys/new"
 echo "  Title: pokemon-collector (scans)    Tick: Allow write access"
 echo
 cat "$BASE/.ssh/card_data_ed25519.pub"

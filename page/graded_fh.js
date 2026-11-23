@@ -611,7 +611,7 @@ function fhsKeyPaint() {                                  // the collector's key
   const k = (SCAN.file || {}).key || {};
   if (!SCAN.file || k.ok || !k.pub) { box.hidden = true; return; }
   box.hidden = false;
-  box.innerHTML = '<b>The collector can’t read scan-results yet</b>' + (k.err ? ' <span class="dim">(' + esc(k.err) + ')</span>' : '') + '. On GitHub open <b>BrettS600/scan-results › Settings › Deploy keys › Add deploy key</b>, give it any title, paste this key, leave “Allow write access” unticked and add it. The reads start within a minute.' +
+  box.innerHTML = '<b>The collector can’t read scan-results yet</b>' + (k.err ? ' <span class="dim">(' + esc(k.err) + ')</span>' : '') + '. On GitHub open <b>driftcodedev/scan-results › Settings › Deploy keys › Add deploy key</b>, give it any title, paste this key, leave “Allow write access” unticked and add it. The reads start within a minute.' +
     '<div class="fhs-keyrow"><code id="fhs-keytext">' + esc(k.pub) + '</code><button type="button" class="fhr-del" id="fhs-keycopy">Copy</button></div>';
 }
 document.addEventListener('click', e => {

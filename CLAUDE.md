@@ -1,10 +1,23 @@
-# CLAUDE.md — Pokémon card catalog (repo: BrettS600/biotech-catelog)
+# CLAUDE.md — Pokémon card catalog (repo: driftcodedev/biotech-catelog)
 
 Read this first. It is the whole context; the owner (Brett) would rather not re-explain.
 
 ## What this is
 A private, password-protected website for buying and reselling **raw (ungraded) Pokémon singles on eBay**.
-Live at https://bretts600.github.io/biotech-catelog/ (GitHub Pages, encrypted with staticrypt).
+Live at https://driftcodedev.github.io/biotech-catelog/ (GitHub Pages, encrypted with staticrypt).
+
+THE ACCOUNT IS driftcodedev SINCE 2026-11-23 (Brett renamed BrettS600 -> driftcodedev; "i am not longer bretts600. i am
+instead driftcodedev"). GitHub forwards the old owner name for git (clone / fetch / push), the API (301, 307 - also from a
+browser with a CORS preflight, tested 2026-11-23) and raw.githubusercontent.com, until somebody takes the name BrettS600;
+it does NOT forward GitHub Pages: https://bretts600.github.io/... is a 404. Secrets, deploy keys and tokens moved with the
+repos (they belong to the repos / the account, not the name). Switched to driftcodedev the same day (g52): the iPhone
+app's address (WebApp.swift - a reinstall from Xcode was needed), the collector's forecast.bin / scanidx.bin / hit.html
+downloads and its push remote, scans.py's remotes and the scrap start signal, the phone app's SCAN_LIVE, the texts; the
+four workflows' "repository: driftcodedev/card-data" through the Chrome editor. Still on the old name and working by the
+forwarding: the droplet's own git remote (set on the droplet), and the Card Ladder tab's scripts (CLX.INBOX in card-data
+tools/clingest/browser/common.js - switch it with the next script deploy). The bundle id io.github.bretts600.slabscanner
+stays (changing it would make a new app). The website's saved browser settings are per address: the new address started
+empty (unlock again, Your plan boxes, sync).
 Everything runs on GitHub Actions; nothing runs on Brett's laptop. Never commit secrets or data.
 
 The tabs (PriceCharting Catalog, eBay Catalog, eBay Raw Data, Forecast, Notification Settings, Transaction Report):
@@ -1727,13 +1740,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   also strips a trailing "[eBay]" (18% of the titles), and keep_graded() mends a filed row without a grader when a re-read
   names one and queues it again (data_archive keeps the later copy: drop_duplicates keep="last"); the v1 cards are
   re-read during the pass. First chunk after the fix: 12 of 8,856 rows without a grader.
-- THE DATA FOLDER MOVED TO THE PRIVATE REPO BrettS600/card-data (2026-10-27). biotech-catelog is PUBLIC (verified signed
+- THE DATA FOLDER MOVED TO THE PRIVATE REPO driftcodedev/card-data (2026-10-27). biotech-catelog is PUBLIC (verified signed
   out; it has to be: the page loads its live files from raw.githubusercontent.com), so data/ - PriceCharting's prices,
   graded sales, pop, PokeViews' feeds, the eBay figures, the research - was readable by anyone, against PriceCharting's
   terms ("not for external display or redistribution"; internal business use needs a current Legendary subscription).
   Brett created card-data (private, made in his Chrome) and a fine-grained token on card-data only (Contents read and
   write), stored as the Actions secret DATA_REPO_TOKEN in biotech-catelog. data_archive.yml checks card-data out at
-  ./card-data (actions/checkout, repository: BrettS600/card-data, token: DATA_REPO_TOKEN), runs data_archive.py --out
+  ./card-data (actions/checkout, repository: driftcodedev/card-data, token: DATA_REPO_TOKEN), runs data_archive.py --out
   card-data/data and pushes there; its first run copied the old data/ over, then git rm'd data/ here. research.yml runs
   in card-data/data/research/scripts and pushes the results there. Same layout (data/...), so every path in
   data/README.md and the research scripts holds. The old files are still in this repo's git HISTORY (scrubbing them
@@ -2030,7 +2043,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
   the page with its own answer, GMARKS[cid|card].p) - Charizard #4 Celebrations' CGC cert led to cgc-634819, not the
   rejected Ultra-Premium page, so it may come back as a new match for Brett to answer.
   THE HAND-OFF SINCE 2026-10-30 EVENING (Brett weighed a paid ntfy plan, then chose the free GitHub inbox): the Card
-  Ladder tab PUTs each encrypted batch into the private repo BrettS600/card-inbox (batches/<id>.bin) with a fine-grained
+  Ladder tab PUTs each encrypted batch into the private repo driftcodedev/card-inbox (batches/<id>.bin) with a fine-grained
   key that can write only there (Contents read/write; Brett made it and pasted it into the tab's key box, localStorage
   clr-inbox-key; the same key is card-data's Actions secret INBOX_TOKEN); ntfy only when that fails. card-data's ingest
   reads card-inbox, writes, pushes, and only then empties card-inbox (one fresh empty commit, so the blobs drop out of
@@ -2766,7 +2779,7 @@ Chrome extension (the connector has no Actions tools). Verify a push by comparin
 (`sha1("blob <size>\0" + bytes)`) with the directory listing. Claude Code (desktop) is the faster route
 for larger changes; Brett has not adopted it yet.
 Files too big to type through the connector (`collector.py` 165 KB, `ebay_sweep.py`, `page/app.js`, `CLAUDE.md`: one
-tool call cannot carry them) go through Claude in Chrome: open github.com/BrettS600/biotech-catelog/edit/main/<path>
+tool call cannot carry them) go through Claude in Chrome: open github.com/driftcodedev/biotech-catelog/edit/main/<path>
 (the CodeMirror editor), inject two helpers with the JavaScript tool - `__sha()` (git blob SHA of the editor text) and
 `__applySeq(ops, want)` (each op {a: a unique anchor string, b: its replacement}, applied with `view.dispatch`, returning
 OK <sha> / MISMATCH / ANCHOR PROBLEM) - generate the ops from the tested local copy (`mkedits.py old new ops.json`
@@ -2804,7 +2817,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
 - Where: page/app/ (index.html, app.css, app.js, scan-worker.js, finder.js (g13: the barcode finder and the grey-line
   Code 128 reader), sw.js, manifest.webmanifest, icons, zxing/ = zxing-wasm 3.1.6 reader
   build, vendored so a show hall without signal still scans). build_catalog.py copies page/app to public/app as it is
-  (NOT staticrypted: it holds no data and no key). URL: https://bretts600.github.io/biotech-catelog/app/ - Safari's
+  (NOT staticrypted: it holds no data and no key). URL: https://driftcodedev.github.io/biotech-catelog/app/ - Safari's
   Share > Add to Home Screen. sw.js keeps the app on the phone (cached first, refreshed behind) and data.bin (network
   first, the cached copy after 6 s).
 - Data: graded_site.py app_doc() -> public/app/data.bin (HKEY, written right after graded.bin): cards {pc id: [PC name,
@@ -3038,7 +3051,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   HOW g11l WAS PUBLISHED - THE ROUTE FOR A BIG PATCH: its diff was 54 KB, too long to type into the GitHub connector's
   push_files without a slip (every byte passes through the model; an added line with a typo still applies). The two
   files, written as /home/claude/g11l.diff and g11l.msg, were UPLOADED BYTE FOR BYTE through Brett's signed-in Chrome:
-  a new tab at github.com/BrettS600/biotech-catelog/upload/main/patches, the Claude-in-Chrome file_upload tool on the
+  a new tab at github.com/driftcodedev/biotech-catelog/upload/main/patches, the Claude-in-Chrome file_upload tool on the
   page's file input (it takes files under the session's working directory /home/claude; /mnt/user-data/outputs was
   refused), the commit summary "patches: <name> (apply)", "Commit directly to the main branch", Commit changes. The
   apply workflow ran as for any push, and the uploaded blobs' hashes equalled git hash-object of the local files. Tell
@@ -3369,7 +3382,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
   second lock or watcher when the file is pasted again) and both run tabs' cached clr-src-common were renewed to it
   (sha checked in the tab; the old copy kept as clr-src-common-prev). The night of Nov 10: 900 pages, 110-119 an
   hour at every check, no freeze logged; restarts at 02:11, 03:47, 05:24, 07:02, 08:32 UTC.
-- SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
+- SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): driftcodedev/card-data
   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
     Cert ID
@@ -3401,8 +3414,8 @@ no Apple account, no Xcode), "everything now", the sample show kept.
 Brett, 2026-11-13/14: a Record scans button under Record purchases sends the show to History > Pre-Sales Spotcheck,
 named "Show N" by default (editable; every tap a new set with everything scanned so far; "have it be unlimited"); Start a
 new show asks "are you sure" and erases scans.csv at once (the last show's waiting slabs go first); the cert pages he
-opens from scans.csv land in the private repo BrettS600/scan-results, folder scans/ ("only want you to have access to
-this file" - never card-inbox/scans, never BrettS600/scrap; scan-results keeps ONE commit, replaced on every save: never
+opens from scans.csv land in the private repo driftcodedev/scan-results, folder scans/ ("only want you to have access to
+this file" - never card-inbox/scans, never driftcodedev/scrap; scan-results keeps ONE commit, replaced on every save: never
 pull, fetch + reset) and must show on the website and in the app "immediately" (a minute is fine, faster better);
 "Sync from phone" on the website and "Sync from website" in the app, the synced boxes reset at midnight ("only sync
 values reset"); unmatched certs (not $50+ cards of ours) left out and listed behind a button; CGC half grades: Card
@@ -3696,7 +3709,7 @@ still optimizing it", and on a slab's sheet "remove that part [Review: is it the
 review button that we have on the site". Asked, he chose: the website's OWN Review (not a copy in the app; it needs signal
 and the site password once), and the old screen's two other jobs kept as small buttons beside it.
 - THE NATIVE APP NOW SHOWS THE WEBSITE'S APP ITSELF (ios/SlabScanner/SlabScanner/WebApp.swift): a WKWebView on
-  https://bretts600.github.io/biotech-catelog/app/, live - identical by construction, and page/app changes reach the
+  https://driftcodedev.github.io/biotech-catelog/app/, live - identical by construction, and page/app changes reach the
   phone without a reinstall. Its storage is the app's own: the site password typed once on the Show tab, the PSA token
   pasted once (the home-screen web app's tables do not carry over). No service worker in a WKWebView without App-Bound
   Domains (not used: they would switch off script messages on our reader's slab:// pages), so the app needs signal to
@@ -3712,7 +3725,7 @@ and the site password once), and the old screen's two other jobs kept as small b
   the right card?": the website's blue Review button (button.rvb, its same / not-the-same colours from the app's marks)
   posts 'review' (card, grade) and, beside it, "Yes, this card / No - find it" when PSA's label was only a best guess
   (look 'check') and "Wrong card? Find the right one" (the app's own search). Sample slabs keep the old button.
-- THE WEBSITE'S REVIEW IN THE APP: a sheet with a second web view on https://bretts600.github.io/biotech-catelog/#review/
+- THE WEBSITE'S REVIEW IN THE APP: a sheet with a second web view on https://driftcodedev.github.io/biotech-catelog/#review/
   <card>/<grader>/<grade>; kept for the next time (then grReviewOpen(key) straight away). page/app.js keeps START_HASH
   before showTab rewrites the address; page/graded.js grReviewOpen loads the graded data and opens grOpenReview(key) -
   or says the graded view has no such row / its data did not load; a MutationObserver on #bov tells the app (sscReview
@@ -3746,7 +3759,7 @@ and the site password once), and the old screen's two other jobs kept as small b
   running loop; any restart before 01:00 UTC must set it again after evaluating common.js). PIECES: (1) card-data
   tools/clingest/make_refresh.py, run by the hourly ingest (cl_ingest.py calls make_refresh.maybe(): the first run from
   13:00 UTC makes the coming night's lists once - GitHub runs the "hourly" ingest only every 6-9 hours at times, so a
-  check can start it by hand: gh api -X POST repos/BrettS600/card-data/actions/workflows/cl_ingest.yml/dispatches -f
+  check can start it by hand: gh api -X POST repos/driftcodedev/card-data/actions/workflows/cl_ingest.yml/dispatches -f
   ref=main; no workflow of its own - workflow files are edited only through Chrome):
   the Card Ladder list (at most 1,000; the tab still stops at 900 a UTC day) = matched cards with no read on file (49 at
   the start: the first 100 summarised in the browser) and the cards of recorded / Spotcheck slabs (watch.csv) first

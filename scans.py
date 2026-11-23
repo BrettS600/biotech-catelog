@@ -6,7 +6,7 @@ Brett, 2026-11-09: "I want to have one called scans. And when I scan a barcode, 
 collector.py, and put it into a new py ... and have the code perform the same functions".
 
 WHERE THE FILE IS
-  repo BrettS600/card-data (private), branch main, data/scans/scans.csv - in links.csv's format: a "Cert ID" header,
+  repo driftcodedev/card-data (private), branch main, data/scans/scans.csv - in links.csv's format: a "Cert ID" header,
   then one CSV-quoted cell a slab that opens the cert's page and shows the cert number, each slab once:
     Cert ID
     "=HYPERLINK(""https://www.psacard.com/cert/46790116/psa"",""46790116"")"
@@ -33,7 +33,7 @@ of the queue when it settles.
 THE READS OF THE SCANS (2026-11-14, Brett: "as soon as read results are made available from the scans results file,
 then I want those results to be immediately updated to the website ... those readings should also be uploaded to reflect
 in the app itself"): Brett opens the scanned slabs' cert pages himself; his reader leaves each page, as read, in the
-private repo BrettS600/scan-results, folder scans/ (one JSON per read: grader_cert_time.json - the same shape as the cert
+private repo driftcodedev/scan-results, folder scans/ (one JSON per read: grader_cert_time.json - the same shape as the cert
 pages of card-data data/certs). reads_tick() (every SR_EVERY_S, from collector.py's fast tick) fetches that folder with
 this machine's own read-only key (SR_KEY - made here on the first run; Brett adds its public half to scan-results as a
 deploy key, read only; the website shows it while the key is not let in), reads the new files (the newest read of a
@@ -65,16 +65,16 @@ BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")       # the sa
 DATA = os.path.join(BASE, "data")
 KNOWN_HOSTS = os.path.join(BASE, ".ssh", "known_hosts")                # github.com's key, written by setup.sh
 KEY = os.path.join(BASE, ".ssh", "card_data_ed25519")                  # card-data's deploy key (write access)
-RUN_KEY = os.path.join(BASE, ".ssh", "scrap_run_token")                # a GitHub key that can only start runs in BrettS600/scrap
-RUN_URL = "https://api.github.com/repos/BrettS600/scrap/actions/workflows/15.yml/dispatches"
-REMOTE = os.environ.get("CARD_DATA_REMOTE", "git@github.com:BrettS600/card-data.git")
+RUN_KEY = os.path.join(BASE, ".ssh", "scrap_run_token")                # a GitHub key that can only start runs in driftcodedev/scrap
+RUN_URL = "https://api.github.com/repos/driftcodedev/scrap/actions/workflows/15.yml/dispatches"
+REMOTE = os.environ.get("CARD_DATA_REMOTE", "git@github.com:driftcodedev/card-data.git")
 CHECKOUT = os.path.join(DATA, "card-data-scans")                       # the sparse checkout: data/scans only
 FILE = "data/scans/scans.csv"
 HEADER = "Cert ID"
 MAX_WAITING = 20000              # links held while card-data can't be reached
 RETRY_S = 600                    # after a failed try (card-data unreachable, a key problem)
-# the reads of the scans: the private repo BrettS600/scan-results, folder scans/ only, read with this machine's own key
-SR_REMOTE = os.environ.get("SCAN_RESULTS_REMOTE", "git@github.com:BrettS600/scan-results.git")
+# the reads of the scans: the private repo driftcodedev/scan-results, folder scans/ only, read with this machine's own key
+SR_REMOTE = os.environ.get("SCAN_RESULTS_REMOTE", "git@github.com:driftcodedev/scan-results.git")
 SR_KEY = os.path.join(BASE, ".ssh", "scan_results_ed25519")            # made here on the first run; its .pub goes to the repo's deploy keys
 SR_CHECKOUT = os.path.join(DATA, "scan-results")                       # a bare, tree-less clone: scans/ is all it ever fetches
 SR_DIR = "scans"
@@ -366,7 +366,7 @@ def sr_pub(v):
             return None
         try:
             os.makedirs(os.path.dirname(SR_KEY), exist_ok=True)
-            r = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "pokemon-collector, read only: BrettS600/scan-results",
+            r = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "pokemon-collector, read only: driftcodedev/scan-results",
                                 "-f", SR_KEY], capture_output=True, text=True, timeout=60)
             if r.returncode != 0:
                 raise RuntimeError(r.stderr.strip()[:200])
@@ -519,7 +519,7 @@ def reads_tick(v, idx=None):
         if time.time() - _sr["err_logged"] > 3600:
             _sr["err_logged"] = time.time()
             log(f"Scans: scan-results could not be read ({err[:200]}) - "
-                + ("add this machine's public key to BrettS600/scan-results as a read-only deploy key" if v["sr_err"].startswith("the key") else "next try in a while"))
+                + ("add this machine's public key to driftcodedev/scan-results as a read-only deploy key" if v["sr_err"].startswith("the key") else "next try in a while"))
     stamp = (idx or {}).get("t") if idx else None
     if stamp is not None and stamp != v.get("sr_idx_t"):
         v["sr_idx_t"] = stamp
@@ -546,7 +546,7 @@ def git(*args, cwd=None, check=True, timeout=120):
     return r
 
 def start_scan_run(n):
-    """Tells BrettS600/scrap to open the new scans now. Only "start" is sent - scrap reads scans.csv itself.
+    """Tells driftcodedev/scrap to open the new scans now. Only "start" is sent - scrap reads scans.csv itself.
     A failure is only logged: the push already worked, and scrap also checks scans.csv on its own."""
     try:
         if not os.path.exists(RUN_KEY):

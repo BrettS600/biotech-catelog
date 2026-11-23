@@ -66,7 +66,7 @@ ARCHIVE_DIR = os.path.join(DATA, "archive")           # checkout of the "archive
 STATE_PATH = os.path.join(DATA, es.STATE_NAME)
 LOG_PATH = os.path.join(DATA, "collector.log")
 CATALOG_CACHE = os.path.join(DATA, "catalog.csv.gz")
-GITHUB_REPO = os.environ.get("GITHUB_REPO", "BrettS600/biotech-catelog")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "driftcodedev/biotech-catelog")   # the account was BrettS600 until 2026-11-23
 # release assets by direct link: the REST API allows only 60 unsigned requests an hour per machine (a restart
 # loop burned through that on day one); the download links have no such limit
 RELEASE_DL = f"https://github.com/{GITHUB_REPO}/releases/download/{es.RELEASE_TAG}/"
@@ -138,7 +138,7 @@ TRIAL_CLAIMS = [("Finish", "Reverse Holo", "reverse"), ("Features", "1st Edition
 # hit.html on the site, with everything about the hit packed into the link itself (nothing is stored anywhere).
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
 NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
-CHECK_PAGE = "https://bretts600.github.io/biotech-catelog/hit.html"
+CHECK_PAGE = "https://driftcodedev.github.io/biotech-catelog/hit.html"
 ALERTS_PER_HOUR = 20             # a ceiling, so a bug can never flood the phone
 
 # ---------------- trial: do auctions end under max buy? (log only; Brett approved it on 2026-10-04) ----------------
@@ -1650,7 +1650,7 @@ def read_requests(state, cat=None, cards=None):
 
 # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
 FORECAST_KEEP = 100              # records kept (newest), each with its picks and, once mature, the realized result
-FC_URL = "https://bretts600.github.io/biotech-catelog/forecast.bin"   # the model file the site workflow builds daily
+FC_URL = "https://driftcodedev.github.io/biotech-catelog/forecast.bin"   # the model file the site workflow builds daily
 FC_FETCH_S = 3600                # re-read this often (the page does the same)
 FC_RETRY_S = 300                 # after a failed read
 FC_AUTO_KEEP_MONTHS = 24         # the monthly archive of the standard plans: this many months x 30 plans
@@ -1685,7 +1685,7 @@ def forecast_doc():
     return _fc["doc"]
 
 
-SCANIDX_URL = "https://bretts600.github.io/biotech-catelog/scanidx.bin"   # the scan-match index the site build writes (graded_site.py)
+SCANIDX_URL = "https://driftcodedev.github.io/biotech-catelog/scanidx.bin"   # the scan-match index the site build writes (graded_site.py)
 _sidx = {"doc": None, "t": 0.0}
 
 

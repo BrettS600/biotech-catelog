@@ -24,8 +24,8 @@ struct ReviewTarget: Identifiable {
 }
 
 final class WebApp: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
-    static let appURL = URL(string: "https://bretts600.github.io/biotech-catelog/app/")!
-    static let siteBase = "https://bretts600.github.io/biotech-catelog/"
+    static let appURL = URL(string: "https://driftcodedev.github.io/biotech-catelog/app/")!
+    static let siteBase = "https://driftcodedev.github.io/biotech-catelog/"
 
     let engine = Engine()
     let container = UIView()
@@ -184,7 +184,7 @@ final class WebApp: NSObject, ObservableObject, WKScriptMessageHandler, WKNaviga
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let u = navigationAction.request.url else { return decisionHandler(.cancel) }
-        let mine = u.host == "bretts600.github.io" && u.path.hasPrefix("/biotech-catelog")
+        let mine = u.host == "driftcodedev.github.io" && u.path.hasPrefix("/biotech-catelog")
         if !(navigationAction.targetFrame?.isMainFrame ?? false) && navigationAction.targetFrame != nil { return decisionHandler(.allow) }   // (frames inside a page)
         if mine || u.scheme == "about" || u.scheme == "blob" || u.scheme == "data" { return decisionHandler(.allow) }
         if u.scheme == "http" || u.scheme == "https" || u.scheme == "mailto" || u.scheme == "tel" { UIApplication.shared.open(u) }

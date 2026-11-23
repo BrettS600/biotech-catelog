@@ -294,7 +294,7 @@ async function main() {
   const fetchPic = async job => {               // -> ArrayBuffer, or throws
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), 25000);
     try {
-      const r = await fetch(picUrl(job.pic), {signal: ac.signal, headers: {'User-Agent': 'biotech-catelog cl_certs.js (github.com/BrettS600/biotech-catelog)', Accept: 'image/jpeg,image/*;q=0.8'}});
+      const r = await fetch(picUrl(job.pic), {signal: ac.signal, headers: {'User-Agent': 'biotech-catelog cl_certs.js (github.com/driftcodedev/biotech-catelog)', Accept: 'image/jpeg,image/*;q=0.8'}});
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.arrayBuffer();
     } finally { clearTimeout(t); }

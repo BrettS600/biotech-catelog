@@ -1,6 +1,7 @@
 """
 clcerts.py  -  the CL Cert columns' lookups: Brett's reads of the Card Ladder certs, into card-data once a day.
 
+(The account is driftcodedev since 2026-11-23: the repo is driftcodedev/scan-results.)
 Brett, 2026-11-17: "results for the card ladders certs will be stored here: https://github.com/BrettS600/scan-results/
 tree/main/cardladder ... only retrieve results from this file. please update the card ladder columns with all of the
 results in the files once per day. furthermore, this will enable us to match the PC cards with CL cards because if the

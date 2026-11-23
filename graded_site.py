@@ -5,7 +5,7 @@ Run by the site workflow after build_catalog.py (which leaves pricecharting.csv 
 
     python graded_site.py --card-data card-data/data --out public
 
-Reads (card-data is the private repo BrettS600/card-data, checked out by the workflow with DATA_REPO_TOKEN):
+Reads (card-data is the private repo driftcodedev/card-data, checked out by the workflow with DATA_REPO_TOKEN):
   ids/card_ids.csv                         which Card Ladder profile each PriceCharting card is (cardmatch / the barcode
                                            chain): pricecharting_id, cl_profile_id, psa_spec, cgc_id, psa_cert, cgc_cert,
                                            status (confirmed / likely / review / no_match), note

@@ -377,7 +377,7 @@ async function recordPurchases(name) {
    always the grader's grade - with no PSA lookup (none of PSA's 100 a day) and for CGC slabs too - so it gets its price,
    its chance and its place in your buys. A slab the read could not place says why on its table. A card you picked or
    confirmed yourself stays yours. Read every 15 s while the app is open, unlocked and holds real slabs. */
-const SCAN_LIVE = 'https://raw.githubusercontent.com/BrettS600/biotech-catelog/live/';
+const SCAN_LIVE = 'https://raw.githubusercontent.com/driftcodedev/biotech-catelog/live/';
 const READ_WHY = {'no card': 'Read: not a card in our data (under $50, or one we don’t follow)', several: 'Read: the grader’s name fits more than one of our cards - find it by name',
   'no grade data': 'Read: our card, but no figures for this grade', 'no grade': 'Read: the cert page shows no grade', 'not pokemon': 'Read: not a Pokémon card', wait: 'Read - waiting for the site’s match index'};
 const READS = {map: new Map(Object.entries(LS.get(READS_STORE, {}) || {})), since: '12h', fileB: -1, sync: {}, clearDone: 0, busy: false, ch: null};

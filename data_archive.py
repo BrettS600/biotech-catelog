@@ -429,7 +429,7 @@ def read_live(live_dir, password):
     return json.loads(raw.decode("utf-8"))
 
 
-LIVE_RAW = "https://raw.githubusercontent.com/" + os.environ.get("GITHUB_REPOSITORY", "BrettS600/biotech-catelog") + "/live/"
+LIVE_RAW = "https://raw.githubusercontent.com/" + os.environ.get("GITHUB_REPOSITORY", "driftcodedev/biotech-catelog") + "/live/"
 
 
 def watch(out, live_dir, password):

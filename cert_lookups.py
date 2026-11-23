@@ -53,7 +53,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
-UA = "biotech-catelog cert_lookups.py (github.com/BrettS600/biotech-catelog)"
+UA = "biotech-catelog cert_lookups.py (github.com/driftcodedev/biotech-catelog)"
 PSA_URL = "https://api.psacard.com/publicapi/cert/GetByCertNumber/"
 CH_URL = "https://api.cardhedger.com/v1/cards/details-by-certs"
 CH_BATCH = 10
