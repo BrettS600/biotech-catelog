@@ -3513,6 +3513,13 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
   BACKGROUND - not full control, which would hide Chrome and its Card Ladder tab). Finder would not take background
   clicks while his screen was a full-screen app.
 - first time on the phone: "Untrusted Developer" until Settings > General > VPN & Device Management > Trust.
+- THE APP ICON (2026-11-23; Brett asked for Deoxys - a Pokemon character, which is not drawn - and chose "A" of three
+  original space designs: a graded slab with a gold 10 label and a scan beam in a nebula): SlabScanner/Assets.xcassets/
+  AppIcon.appiconset/icon-1024.png (one 1024 px RGB picture, no transparency; Xcode makes the sizes) and
+  ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon in both configurations. On the Mac the line went into project.pbxproj in
+  place (sed; the team stays) and Xcode asked "Read From Disk / Keep Xcode Version" - Read From Disk. The source is
+  ios/SlabScanner/AppIcon.svg (outside the synchronized folder, so not in the app); the web app's icon-180 / 192 /
+  512.png are the same picture (sw.js ssc-v24; a home-screen web app keeps its old icon until it is added again).
 - THE 7-DAY RENEWAL WORKS OVER WI-FI: reinstalled 2026-11-18 00:59 UTC with no cable (phone unlocked, on the same Wi-Fi;
   a LOCKED phone gives "iPhone is not available because the Developer Disk Image is not mounted" and Xcode waits, then
   goes on by itself once it is unlocked). Run, then Stop. Runs to about Nov 25.
