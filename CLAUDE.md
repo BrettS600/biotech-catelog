@@ -3520,6 +3520,11 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
   place (sed; the team stays) and Xcode asked "Read From Disk / Keep Xcode Version" - Read From Disk. The source is
   ios/SlabScanner/AppIcon.svg (outside the synchronized folder, so not in the app); the web app's icon-180 / 192 /
   512.png are the same picture (sw.js ssc-v24; a home-screen web app keeps its old icon until it is added again).
+- FOR A BORROWED PHONE (2026-11-23; Brett will run the tests on a friend's iPhone 18 Pro Max, whose owner asked about his
+  storage and his iCloud): Documents/tests (Engine.testsFolder) is marked isExcludedFromBackup - nothing of the tests goes
+  into the owner's iCloud or computer backup - and the test screen shows "On this phone: N test files, X MB" with a
+  "Delete all test files" button (a confirmation first; refreshTests / deleteTests in EngineFiles.swift). A test file is
+  51-128 MB (the video, HEVC 24 Mbit/s); prune() already keeps the ten newest. Normal scanning writes nothing.
 - THE 7-DAY RENEWAL WORKS OVER WI-FI: reinstalled 2026-11-18 00:59 UTC with no cable (phone unlocked, on the same Wi-Fi;
   a LOCKED phone gives "iPhone is not available because the Developer Disk Image is not mounted" and Xcode waits, then
   goes on by itself once it is unlocked). Run, then Stop. Runs to about Nov 25.

@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var engine: Engine
     var close: () -> Void = {}
+    @State private var askDelete = false
 
     var body: some View {
         GeometryReader { geo in
@@ -48,9 +49,11 @@ struct ContentView: View {
                         buttons
                         resultBlock
                         switches
+                        testFiles
                         codeList
                     }
                     .padding(12)
+                    .onAppear { engine.refreshTests() }
                 }
                 .scrollDismissesKeyboard(.immediately)
             }
@@ -225,6 +228,32 @@ struct ContentView: View {
         .onChange(of: engine.depthOn) { engine.apply() }
         .onChange(of: engine.light) { engine.apply() }
         .onChange(of: engine.live) { engine.setLive(engine.live) }
+    }
+
+    // the test files on this phone: their size, and one button that deletes them all (2026-11-23, for a borrowed phone)
+    private var testFiles: some View {
+        let size = ByteCountFormatter.string(fromByteCount: engine.testsBytes, countStyle: .file)
+        let n = engine.testsCount
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(n == 0 ? "No test files on this phone." : "On this phone: \(n) test file\(n == 1 ? "" : "s"), \(size). The ten newest are kept; none go into iCloud backups.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(role: .destructive) {
+                askDelete = true
+            } label: {
+                Label("Delete all test files", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(n == 0 || engine.recording || engine.saving)
+        }
+        .confirmationDialog("Delete all \(n) test file\(n == 1 ? "" : "s") (\(size)) from this phone?", isPresented: $askDelete, titleVisibility: .visible) {
+            Button("Delete all", role: .destructive) { engine.deleteTests() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Save any you still need to the Mac first (Save test data). This cannot be undone.")
+        }
     }
 
     private var codeList: some View {

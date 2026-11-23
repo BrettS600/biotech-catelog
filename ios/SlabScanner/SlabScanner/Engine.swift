@@ -76,6 +76,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     @Published var problem = ""
     @Published var snapNote = ""
     @Published var hint = ""
+    @Published var testsCount = 0           // the test files on the phone (Documents/tests) and their size
+    @Published var testsBytes: Int64 = 0
 
     // the switches
     @Published var lens: Lens = .wide

@@ -23,7 +23,7 @@ extension Engine {
         if recording || saving { return }
         let plan = TestPlan.steps[step]
         let fm = FileManager.default
-        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tests", isDirectory: true)
+        let docs = Engine.testsFolder()
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyyMMdd-HHmmss"
@@ -129,6 +129,7 @@ extension Engine {
                     self.shareSize = out.2
                     self.result = out.1
                     if out.0 == nil { self.problem = "The test's file could not be zipped; its folder is in Files > On My iPhone > Slab Scanner > tests." }
+                    self.refreshTests()
                     if self.step < TestPlan.steps.count - 1 { self.step += 1 }
                     self.note = ""
                     self.loadPlan()
@@ -137,6 +138,47 @@ extension Engine {
                 }
             }
         }
+    }
+
+    // MARK: - the test files on the phone (2026-11-23, for a borrowed phone: never in its owner's iCloud backup, and one
+    // button deletes them all)
+
+    static func testsFolder() -> URL {      // Documents/tests, made if missing and kept out of iCloud / computer backups
+        let fm = FileManager.default
+        var u = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tests", isDirectory: true)
+        try? fm.createDirectory(at: u, withIntermediateDirectories: true)
+        var v = URLResourceValues()
+        v.isExcludedFromBackup = true       // a folder left out of the backup takes everything in it along
+        try? u.setResourceValues(v)
+        return u
+    }
+
+    func refreshTests() {                   // main thread: how many test files are on the phone, and how big
+        let fm = FileManager.default
+        let docs = Engine.testsFolder()
+        let top = ((try? fm.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? []).filter { !$0.lastPathComponent.hasPrefix(".") }
+        var bytes: Int64 = 0
+        if let e = fm.enumerator(at: docs, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]) {
+            for case let u as URL in e {
+                if let v = try? u.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]), v.isRegularFile == true {
+                    bytes += Int64(v.fileSize ?? 0)
+                }
+            }
+        }
+        testsCount = top.count
+        testsBytes = bytes
+    }
+
+    func deleteTests() {                    // main thread: every test file on the phone, for good
+        if recording || saving { return }
+        let fm = FileManager.default
+        let docs = Engine.testsFolder()
+        for u in (try? fm.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? [] {
+            try? fm.removeItem(at: u)
+        }
+        shareURL = nil
+        shareSize = ""
+        refreshTests()
     }
 
     func prune(_ docs: URL) {       // the ten newest files stay on the phone
