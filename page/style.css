@@ -820,3 +820,38 @@ input.fcr-px:focus, input.fcr-d:focus { border-color:var(--link); outline:none; 
   #app-frame { width:100%; height:auto; flex:1; border-radius:0; box-shadow:none; }
   .appnote { display:none; }
 }
+/* History on one pattern (2026-11-23): one hold at a time (Your plan's Hold for), the same five figures in the three windows,
+   an opened row's cards with the same columns, and a card's months in a pop-up */
+#fhg .fhg-holdbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin:2px 0 8px; font-size:13px; }
+.fh-hold { display:inline-flex; align-items:center; gap:8px; }
+.fh-seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.fh-seg button { font:inherit; font-size:13px; padding:5px 12px; border:0; border-right:1px solid var(--line); background:var(--bg); color:var(--fg); cursor:pointer; }
+.fh-seg button:last-child { border-right:0; }
+.fh-seg button.on { background:var(--link); color:#fff; font-weight:600; }
+#fhg .fh-sub { font-size:12px; font-weight:400; }
+#fhg .fh-tw::before { content:'\25B8'; display:inline-block; width:14px; color:var(--muted); }
+#fhg tr.open .fh-tw::before { content:'\25BE'; color:var(--link); }
+#fhg tr.open > td .fh-sub { font-weight:400; }
+.fh-mark { font-size:11px; font-weight:400; }
+#fhg table.fhd, #fhc-pop table.fhd { border-collapse:collapse; font-size:13px; margin:4px 0 8px; width:auto; }
+.fhd th, .fhd td { padding:5px 10px; border-bottom:1px solid var(--line); white-space:nowrap; text-align:left; }
+.fhd th.num, .fhd td.num { text-align:right; }
+.fhd thead th { background:var(--head); font-weight:600; position:static; cursor:default; }
+.fhd tr.grp th.band { text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); background:var(--band); }
+.fhd td.fh-cardc { white-space:normal; min-width:260px; max-width:440px; }
+#fhg tr.fhx .fhd td { font-weight:400; }
+.fhc-open { font:inherit; font-weight:600; padding:0; border:0; background:none; color:var(--link); cursor:pointer; text-align:left; }
+.fhc-open:hover { text-decoration:underline; }
+#fhg .fh-dnote { margin:4px 0 6px; font-weight:400; }
+#fhg .fh-stats { margin:6px 0 6px; }
+#fhc-pop { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; }
+#fhc-pop .fhc-box { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:12px; max-width:1000px; width:100%; padding:16px 20px; position:relative; box-shadow:0 12px 40px rgba(0,0,0,.35); }
+#fhc-pop .fhs-popx { position:absolute; top:10px; right:12px; font:inherit; border:none; background:none; font-size:18px; cursor:pointer; color:var(--muted); }
+#fhc-pop h3 { margin:0 30px 2px 0; font-size:18px; }
+#fhc-pop .fhc-grade { display:inline-block; margin-left:6px; padding:1px 9px; border-radius:6px; background:var(--band); font-size:14px; }
+#fhc-pop .fhc-bar { margin:8px 0; }
+#fhc-pop .fhc-wrap { overflow-x:auto; }
+#fhc-pop .fhc-foot { font-size:12px; margin:6px 0 0; }
+#fhc-pop .fc-stats { grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); }
+#fhg table.fhgt { min-width:860px; width:100%; }        /* seven columns now: no need for the wide tables' 1,240px */
+#fhg .fhx-in .fh-dnote, #fhg .fhx-in > p { white-space:normal; max-width:min(1000px, calc(100vw - 160px)); }

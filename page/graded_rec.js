@@ -89,7 +89,7 @@ function fcrAllocate(view) {
   let left = I.cap - spent;
   all.forEach(r => { r.fcQ = r.rec.pur === 1 ? 1 : 0; });
   bought.forEach(r => { const k = r[0] + '|' + r[50]; used.set(k, (used.get(k) || 0) + 1); });
-  const elig = view.filter(r => r.rec.pur == null && r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0).sort(fcgOrder);
+  const elig = view.filter(r => r.rec.pur == null && r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0 && fcgRowMinOk(r, I)).sort(fcgOrder);   // the minimum ROI / net: the row stays, without money
   if (!gated) for (const r of elig) {
     const k = r[0] + '|' + r[50];
     if ((used.get(k) || 0) >= I.copies || r.fcB > I.cap * I.share || r.fcB > left) continue;
@@ -123,7 +123,7 @@ function fcrSummary(A) {
   if (!recs.length) s = '<p><b>No slabs recorded yet.</b> At a show, the slabs you scan come here (the scanning comes next); the star on Forecasting marks the cards you are after.</p>';
   else if (A.gated) s = '<p><b>Nothing to buy: the graded market is red</b> (below its 12-month average) and “Buy only when the market is green or amber” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
   else s = '<p>' + (A.bought.length ? 'Bought <b>' + A.bought.length + ' slab' + (A.bought.length > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(A.spent) + '</b> (Yes); ' : '') + '<b>' + fmtMoneyPlain(Math.max(0, I.cap - A.spent)) + '</b> of ' + fmtMoneyPlain(I.cap) + ' left. ' +
-    (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best to buy first among the open rows on view, each at its own price. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance, ' + I.h + '-month hold). ') +
+    (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best to buy first among the open rows on view, each at its own price. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance' + (fcgMinOn(I) ? ', ' + fcgMinWord(I) : '') + ', ' + I.h + '-month hold). ') +
     'Type the vendor’s price (or their % under) in a row and its chance and place follow. A No (the vendor wants more) sends the row to the bottom and frees its money for the next.' +
     (A.boughtV.length < A.bought.length ? ' <span class="dim">The figures below count the ' + A.boughtV.length + ' bought slab' + (A.boughtV.length === 1 ? '' : 's') + ' the filters leave on view, and the green ones.</span>' : '') + '</p>';
   s += fcrStats(A.mc, A.spentV + cost, I, 'the bought and the green slabs on view', [I.cap - A.spent, fmtMoneyPlain(A.spent) + ' spent on the slabs marked Yes' + (A.green.length ? '; the green ones take ' + fmtMoneyPlain(cost) + ' of it' : '')]);

@@ -4099,8 +4099,35 @@ and the site password once), and the old screen's two other jobs kept as small b
   mid 2026 came in at -7% to 0% against a stated 72-85%. The model before this one (the dip rank: _pairs, rq, HIST_K
   per group) is out of graded_forecast.py; _prep still makes Pn / buy / dev12 / pct for the trend files' older
   arrays. STILL OPEN FOR BRETT:
-  whether Net / ROI should become a middle outcome with a range; whether the tie-breaker may use PriceCharting's raw
-  price (the third term). All of it rests on one fall and one rise: the help says to read the figures as upper bounds.
+  whether Net / ROI should become a middle outcome with a range. (The raw-card term in the tie-breaker: settled - it
+  would add nothing, card-data research E144 / E145.) All of it rests on one fall and one rise: the help says to read
+  the figures as upper bounds.
+- **THE MINIMUM ROI AND NET PER SLAB, AND HISTORY ON ONE PATTERN (2026-11-23, later the same day).** Brett: "for the
+  minimum net and ROI, that wouldn't be for the plan ... it would be card specific. So if I say 10% that I would only want
+  to see cards, that would give me 10% ROI. And if I have it set to 1 month hold, maybe there's nothing. But then if I
+  change it to 3 month hold, then maybe some of them will pop up"; on both the website and the phone. Your plan has two
+  boxes under the chance bar, Min predicted ROI per slab (%) and Min predicted net per slab ($), 0 = none (FCG_IN minroi /
+  minnet; fcgInputs gives minroi as a fraction): a slab's Net and ROI % at the pane's hold against them (fcgMinOk /
+  fcgRowMinOk; a slab with no prediction clears no minimum). Forecasting LISTS only the slabs that clear them (tables.fcg
+  extra); Recording keeps every row but gives money only to those (like the bar); the History replay's plans buy only
+  those (fhgPlan). The phone app (Show tab: Min expected ROI / net per slab, settings minRoi / minNet, SET_LIM, plan().low)
+  keeps such a slab on its table, dimmed, out of the buys, with the reason on its sheet; Sync from phone / website carry
+  both (FCG_SYNC_MAP minRoi / minNet, PLAN_KEYS); sw.js ssc-v22 - the phone's part went out in its own patch after the
+  website's (Brett was away from Wi-Fi). HISTORY (Brett: "the only things that I really care about
+  is the predicted ROI as a column, the predicted net as a column, and then the actual ROI, and then the actual net"; "I
+  want them to be kind of similar in terms of format, similar columns"; "maybe when I click on a card and I see it by
+  month, I see a pop up of it"; he approved pictures first): the three windows show ONE hold at a time - History's Hold
+  buttons (#fhg-hold) set Your plan's Hold for (fhSetHold) - with the same columns, Predicted Net / ROI / Range and Actual
+  Net / ROI (fhCells; "in range" / "outside" beside the actual), four boxes above each table (fhStats: how many with a
+  result, the predicted and actual on average, how often inside the range), a row opened lists its cards with the same
+  columns (fhCardTable), and a card's name opens a pop-up (#fhc-pop, fhcPaint) with its months: fhLook = the old
+  fhsSlab without the bar and gate, plus each month's net and 10% / 90% range from its kind's grid (grid[2] / grid[18]).
+  The replay runs only the shown hold (fhgRun; picks carry lo / hi); Recorded Purchases' rows are rec.holds[h - 1] and
+  fhrActual, a slab's prediction is its recorded net for the recorded hold, else its kind's odds of rec.month from the
+  replay file; Pre-Sales Spotcheck buys the whole set in EVERY month it had a price (no bar, no gate - Brett wants the
+  model's accuracy), each month's basket through fcgMonteCarlo, the row = the average month with a result (fhsSet). The
+  Holds… picker, the hold eyes (FHH) and the slab lists' Columns… / flags / Review in History are gone (still on the other
+  pages). Also fixed: fhrBasis read a v3 record as PriceCharting's (its model name no longer says Card Ladder).
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

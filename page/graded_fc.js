@@ -44,7 +44,7 @@ const FCG_SEL_DEFAULT = ['psa|g10', 'psa|g9', 'psa|g8_5', 'psa|g8', 'psa|g7', 'p
   'cgc|g4_5', 'cgc|g4', 'cgc|g3_5', 'cgc|g3', 'cgc|g2_5', 'cgc|g2', 'cgc|g1_5', 'cgc|g1'];
 { const old = ['psa|g10', 'psa|g9', 'psa|g8', 'psa|g7', 'cgc|g9_5', 'cgc|g9', 'cgc|g8', 'cgc|g7'], sv = grLS('fcg-pcg-grades', null);
   if (Array.isArray(sv) && sv.length === old.length && old.every(k => sv.includes(k))) { try { localStorage.removeItem('fcg-pcg-grades'); } catch (e) {} } }
-const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, copies: 1, gate: true, fold: false};   // rdisc: Recording's % under for new rows
+const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, minroi: 0, minnet: 0, copies: 1, gate: true, fold: false};   // rdisc: Recording's % under for new rows; minroi (%) / minnet ($): the minimum per slab, 0 = none
 // what a refresh keeps (2026-11-04, Brett: "Capital to spend" and "Hold" "should hold the modification ... even at the expense
 // of a page refresh"; every other box of the pane returns to its default on a refresh). Within a visit every box stays
 // shared by Forecasting, Recording, Planning and History. The fold (Hide) is not a box: it is kept too.
@@ -57,7 +57,7 @@ const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, fcgKept());
 // the bar, the gate); those boxes keep the phone's values through a refresh until midnight, then go back to what they
 // were. A synced box you change by hand is yours again at once. The phone's plan comes off the channel (scanPoll, at once)
 // or the collector's copy (scan.bin); every change here goes the other way ({type: 'gset', src: 'web'}).
-const FCG_SYNC_MAP = {capital: 'cap', hold: 'h', under: 'disc', ship: 'ship', bar: 'minp', share: 'share', gate: 'gate'};
+const FCG_SYNC_MAP = {capital: 'cap', hold: 'h', under: 'disc', ship: 'ship', bar: 'minp', share: 'share', gate: 'gate', minRoi: 'minroi', minNet: 'minnet'};
 const fcgToday = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 let FCG_SYNC = (() => { const x = grLS('fcg-sync', null); return x && x.day === fcgToday() && x.vals ? x : null; })();
 if (FCG_SYNC) Object.assign(FCG_IN, FCG_SYNC.vals); else { try { localStorage.removeItem('fcg-sync'); } catch (e) {} }
@@ -122,8 +122,19 @@ function fcgInputs() {
   const n = (id, dflt) => { const v = parseFloat($(id).value); return isNaN(v) ? dflt : v; };
   return {cap: Math.max(0, n('fcg-cap', 1000)), h: Math.min(6, Math.max(1, +$('fcg-h').value || 3)), disc: Math.min(0.6, Math.max(0, (+FCG_IN.disc || 0) / 100)),
           ship: Math.max(0, n('fcg-ship', 5.2)), pmin: Math.max(0, n('fcg-pmin', 50)), pmax: Math.max(0, n('fcg-pmax', 5000)), share: Math.min(1, Math.max(0.05, n('fcg-share', 20) / 100)),
-          minp: Math.min(0.85, Math.max(0, n('fcg-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fcg-copies', 1)))), gate: $('fcg-gate').checked};
+          minp: Math.min(0.85, Math.max(0, n('fcg-minp', 50) / 100)), minroi: Math.max(0, n('fcg-minroi', 0)) / 100, minnet: Math.max(0, n('fcg-minnet', 0)),
+          copies: Math.min(5, Math.max(1, Math.round(n('fcg-copies', 1)))), gate: $('fcg-gate').checked};
 }
+// THE MINIMUM ROI AND NET PER SLAB (2026-11-23, Brett: "for the minimum net and ROI, that wouldn't be for the plan ... it would be card
+// specific. So if I say 10% that I would only want to see cards, that would give me 10% ROI. And if I have it set to 1 month hold,
+// maybe there's nothing. But then if I change it to 3 month hold, then maybe some of them will pop up"): a slab's predicted ROI
+// (Net on its buy price) and Net, at the pane's hold, against the two boxes; 0 = no minimum. Forecasting lists only the slabs
+// that clear both; Recording keeps every row (the slabs you scanned) but gives money only to those, like the bar; the History
+// replay buys only those. A slab with no prediction (no chance, beyond history) clears no minimum.
+const fcgMinOn = I => I.minroi > 0 || I.minnet > 0;
+const fcgMinOk = (net, roi, I) => (!(I.minroi > 0) || (roi != null && roi >= I.minroi - 1e-9)) && (!(I.minnet > 0) || (net != null && net >= I.minnet - 1e-9));
+const fcgRowMinOk = (r, I) => fcgMinOk(r.fcN, r.fcR == null ? null : r.fcR / 100, I);
+const fcgMinWord = I => [I.minroi > 0 ? 'a predicted ROI of at least ' + (Math.round(I.minroi * 1000) / 10) + '%' : '', I.minnet > 0 ? 'a predicted net of at least ' + fmtMoneyPlain(I.minnet) : ''].filter(Boolean).join(' and ');
 // a row's prices: [the standard price - Card Ladder's (r[79]), only when Card Ladder has read the card and the grade has
 // 3+ sales in its last 90 days; PriceCharting's price of the grade today (else last month's) - reference only]
 const fcgStd = r => [r[75] === 'read' && r[79] != null ? r[79] : null, r[67] != null ? r[67] : r[6]];
@@ -176,7 +187,7 @@ function fcgAllocate(view) {
   FCG.rows.forEach(r => { r.fcQ = 0; });
   FCG.gated = !!(D && I.gate && fcgLevel(D) === 'red');
   let left = I.cap;
-  const elig = view.filter(r => r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0).sort(fcgOrder);
+  const elig = view.filter(r => r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0 && fcgRowMinOk(r, I)).sort(fcgOrder);
   if (!FCG.gated) elig.forEach(r => {
     let q = Math.min(Math.floor(I.cap * I.share / r.fcB), I.copies, Math.floor(left / r.fcB));
     if (q > 0) { r.fcQ = q; left -= q * r.fcB; }
@@ -206,13 +217,14 @@ function fcgSummary() {
   const n = FCG.picks.length, copies = FCG.picks.reduce((s, r) => s + r.fcQ, 0);
   let s = '';
   if (FCG.gated) s = '<p><b>Nothing to buy: the graded market is red</b> (its index is ' + fcgPct(D.level.vs12) + ' against the average of its 12 months before) and “Buy only when the market is green or amber” is on. ' + (FCG.elig ? FCG.elig + ' slab' + (FCG.elig > 1 ? 's' : '') + ' would clear your bar anyway - the list is in buy order; switch it off to see the plan.' : '') + '</p>';
-  else if (!n) s = '<p><b>No slab clears your bar</b> (' + Math.round(I.minp * 100) + '% chance of a profit, ' + fcgDiscWord(I.disc) + ' under, a ' + unit + ' hold) among the rows on view. Lower the bar, buy deeper under, or hold longer.</p>';
+  else if (!n) s = '<p><b>No slab clears your bar</b> (' + Math.round(I.minp * 100) + '% chance of a profit' + (fcgMinOn(I) ? ', ' + fcgMinWord(I) : '') + ', ' + fcgDiscWord(I.disc) + ' under, a ' + I.h + '-month hold) among the rows on view. Lower the bar' + (fcgMinOn(I) ? ' or your minimum' : '') + ', buy deeper under, or hold longer.</p>';
   else s = '<p>Spend <b>' + fmtMoneyPlain(FCG.spent) + '</b> of ' + fmtMoneyPlain(I.cap) + ' on <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> (' + copies + (copies === 1 ? ' copy' : ' copies') + '), each bought ' + fcgDiscWord(I.disc) + ' under its standard price (Card Ladder’s) less the shipping, hold ' + unit + ', sell on eBay at Card Ladder’s price then. Every listed slab is assumed for sale; the green rows are the buys.</p>';
   s += '<div class="stats fc-stats">' +
     '<div class="stat"><div class="k">Expected net profit</div><div class="v">' + (mc ? fcMoney(mc.mean) + (FCG.spent > 0 ? ' <span class="fc-roi ' + (mc.mean < 0 ? 'down' : 'up') + '">' + fcgPct(mc.mean / FCG.spent) + '</span>' : '') : '-') + '</div><div class="d">average of the basket, after fees and shipping</div></div>' +
     '<div class="stat"><div class="k">Likely range</div><div class="v">' + (mc ? fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) : '-') + '</div><div class="d">10th to 90th percentile' + (mc ? '; median ' + fcMoney(mc.med) : '') + '</div></div>' +
     '<div class="stat"><div class="k">Chance the plan profits<button class="help" data-h="fcg_mc">?</button></div><div class="v">' + (mc ? (mc.p * 100).toFixed(0) + '%' : '-') + '</div><div class="d">the green slabs together, bought ' + fcgDiscWord(I.disc) + ' under</div></div>' +
     '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (FCG.fee * 100).toFixed(1) + '% + ' + fmtMoneyPlain(I.ship) + '</div><div class="d">eBay’s fee and your eBay Shipping Fee (in the buy price)</div></div></div>';
+  if (fcgMinOn(I)) s += '<p class="dim fcg-minnote">Listed: only the slabs with ' + esc(fcgMinWord(I)) + ' over ' + unit + ' (the minimums in Your plan; 0 = none). A longer hold or buying deeper under lets more through.</p>';
   box.innerHTML = s;
 }
 const fcgLevelWhy = L => L.now === 'red' ? 'the graded index is at or below the average of its 12 months before' : L.now === 'green' ? 'above its 12-month average, not overheated, enough clean lines'
@@ -422,7 +434,7 @@ const FCG_LABELS = {fcS: 'Standard CL $', fcSc: 'PC price $ (reference)', fcB: '
 fcgAddPcHeads('#fcg-main', 'fcg');
 tables.fcg = makeTable('fcg', {rows: () => fcgRows(), noun: 'graded rows', ranges: FCG_RANGES, labels: FCG_LABELS, defaults: {}, root: '#fcg-main', name: 'Forecast · graded', onCols: h => fcgColsTake('fcg', h), inserted: [{v: 'noplus', at: 2, n: -1}, {v: 'best', at: 10, n: 2}],   // the + column went, Best to Buy / Best Chance came after Chance (2026-11-05): saved order / widths / highlights move with them
   fav: {s: 'pc', k: r => r[0], c: r => r[0]}, key: r => r[0] + '|' + r[50],
-  extra: r => grPass(r, GF.fc),
+  extra: r => grPass(r, GF.fc) && (!FCG.I || fcgRowMinOk(r, FCG.I)),   // the minimum ROI / net per slab: Forecasting lists only the slabs that clear it
   rowClass: r => r.fcQ ? 'fcg-buy' : grWrong(r) ? 'grwrong' : grUnsure(r) ? 'grunsure' : '',
   hay: r => [r[1], r[2], r[3], r[25], r[29], r[30], r[53], r[54]].filter(Boolean).join(' '),
   row: fcgRow,
@@ -447,12 +459,13 @@ function fcgInputsPaint() {
   const I = FCG_IN;
   $('fcg-cap').value = I.cap; $('fcg-h').value = String(I.h); fcgDiscPaint(); $('fcg-ship').value = I.ship;
   $('fcg-pmin').value = I.pmin; $('fcg-pmax').value = I.pmax; $('fcg-share').value = I.share; $('fcg-minp').value = I.minp;
+  $('fcg-minroi').value = I.minroi; $('fcg-minnet').value = I.minnet;
   $('fcg-copies').value = I.copies; $('fcg-gate').checked = !!I.gate;
   $('fcg').classList.toggle('folded', !!I.fold); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !I.fold; });
 }
 function fcgChanged() {
   const I = fcgInputs(), dv = parseFloat($('fcg-disc').value), m = fcgMode();
-  Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), copies: I.copies, gate: I.gate});
+  Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), minroi: Math.round(I.minroi * 1000) / 10, minnet: I.minnet, copies: I.copies, gate: I.gate});
   if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
   if (FCG_SYNC) {                                          // a synced box changed by hand is yours again
     for (const k of Object.keys(FCG_SYNC.vals)) if (FCG_IN[k] !== FCG_SYNC.vals[k]) delete FCG_SYNC.vals[k];
@@ -467,7 +480,7 @@ function fcgChanged() {
 $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
 $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
 function fcgPlanOut() {                                  // this pane's plan as the phone's Sync from website takes it
-  return {capital: FCG_IN.cap, hold: FCG_IN.h, under: FCG_IN.disc, ship: FCG_IN.ship, bar: FCG_IN.minp, share: FCG_IN.share, gate: !!FCG_IN.gate};
+  return {capital: FCG_IN.cap, hold: FCG_IN.h, under: FCG_IN.disc, ship: FCG_IN.ship, bar: FCG_IN.minp, share: FCG_IN.share, gate: !!FCG_IN.gate, minRoi: FCG_IN.minroi, minNet: FCG_IN.minnet};
 }
 function fcgGsetSoon(now) {                               // the website's plan to the collector, a moment after the last change
   clearTimeout(FCG.gsT);
@@ -653,11 +666,27 @@ Object.assign(HELP, {
     now: () => { const m = fcgMode(), A = m === 'rc' ? FCR.res.rc : m === 'pl' ? FCR.res.pl : null, mc = A ? A.mc : FCG.mc, n = m === 'fc' ? (FCG.picks || []).length : A ? (m === 'rc' ? A.boughtV.length + A.green.length : A.view.length) : 0;
       if (!mc) return 'no slabs to count on this page at these settings';
       return n + ' slab' + (n === 1 ? '' : 's') + ': chance <b>' + Math.round(mc.p * 100) + '%</b> · expected ' + fcMoney(mc.mean) + ' · likely ' + fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi); }},
+  fcg_min: {t: 'Min predicted ROI and net per slab', md: 1, m: [
+    '> Per slab, not for the plan: only slabs predicted to make at least this ROI, and at least this net, over your hold. 0 = no minimum (the default).',
+    '## What each box looks at',
+    '- **ROI:** the slab’s predicted Net ÷ its buy price - the ROI % column.',
+    '- **Net:** the slab’s predicted Net for one copy, after eBay’s fee and the shipping - the Net column.',
+    '- Both are for the hold in Hold for and the % under you buy at, so a longer hold or a deeper discount lets more slabs through. Set one, or both (then a slab has to clear both).',
+    '## Where it acts',
+    '- **Forecasting:** lists only the slabs that clear it; the plan buys among them.',
+    '- **Recording:** keeps every row you scanned, but gives money only to the ones that clear it, like the chance bar.',
+    '- **History › Forecasting Replay:** each past month’s plan buys only the slabs that cleared it that month.',
+    '- **The phone app** has the same two boxes (Show tab); Sync from phone / Sync from website copy them.',
+    '## Keep in mind',
+    '- The predicted Net is the average of past cases like the slab, so about half of such slabs did worse. The range on History shows how wide that was.',
+    '- A slab with no chance (beyond history, no Card Ladder price) has no prediction and clears no minimum.'].join('\n'),
+    e: 'Hold 1 month, minimum ROI 10%: maybe nothing is listed. Hold 3 months: the slabs predicted to make 10% or more over 3 months appear.',
+    now: () => { const I = fcgInputs(); return fcgMinOn(I) ? 'now: ' + esc(fcgMinWord(I)) + ' over ' + I.h + ' month' + (I.h > 1 ? 's' : '') : 'now: no minimum'; }},
   fcg_conf: {t: 'Buy only slabs with a chance of at least …', md: 1, m: [
     '> The bar: a slab gets money only when its Chance (this slab) is at least this. Slabs under it stay listed, in order, but aren’t green.',
     '## How the plan spends',
     '1. **Order the slabs on view** best to buy first: Chance (to the whole percent), then the tie-breaker, then the higher price. That order is the Best to Buy column.',
-    '2. **Skip what doesn’t qualify:** a Chance under the bar, or no buy price.',
+    '2. **Skip what doesn’t qualify:** a Chance under the bar, a predicted ROI or net under your minimum, or no buy price.',
     '3. **Decide the copies** of each one that does: the smallest of',
     '   `(capital × per-card share) ÷ buy price`',
     '   `copies per card`',
