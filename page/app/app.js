@@ -46,7 +46,7 @@ const capOf = fc => (fc && fc.cap) || FC_P_CAP;
 const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
 const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
 const READS_STORE = 'ssc-reads', SHOW_N = 'ssc-show-n', SYNC_STORE = 'ssc-sync', GSET_DAY = 'ssc-gset-day';   // the reads of the scans; shows recorded; Sync from website; the plan sent today (2026-11-14)
-const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, gate: true, beep: true, lens: 'main', lookup: false};
+const DEFAULTS = {show: 'Saturday Card Show', capital: 10000, hold: 3, under: 14.1, ship: 5.2, bar: 50, share: 20, minSales: 5, minRoi: 0, minNet: 0, gate: true, beep: true, lens: 'main', lookup: false};
 
 /* ---------------- small helpers ---------------- */
 function money(v) { if (v == null || !isFinite(v)) return '-'; const a = Math.abs(v); const s = a >= 100 ? Math.round(a).toLocaleString('en-US') : a.toFixed(2); return (v < 0 ? '-$' : '$') + s; }
@@ -72,9 +72,9 @@ const gkShort = gk => !gk ? '?' : gk.endsWith('pristine') ? '10P' : gk.endsWith(
 const titleCase = s => String(s || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
 // numbers typed in Show's boxes are kept as typed ("10,000") and read as numbers where used
 // the four stepped-or-typed boxes of Show: their limits [low, high, decimals], how they read, how a typed number is kept
-const SET_LIM = {under: [0, 60, 1], bar: [5, 85, 1], share: [5, 100, 1], minSales: [0, 999, 0]};   // the bar stops at the chance's cap (85%)
+const SET_LIM = {under: [0, 60, 1], bar: [5, 85, 1], share: [5, 100, 1], minSales: [0, 999, 0], minRoi: [0, 500, 1], minNet: [0, 100000, 0]};   // the bar stops at the chance's cap (85%); minRoi (%) / minNet ($): the minimum per slab, 0 = none
 const setClamp = (k, n) => { const L = SET_LIM[k], f = Math.pow(10, L[2]); return Math.max(L[0], Math.min(L[1], Math.round(n * f) / f)); };
-const setTxt = k => { const v = +S.settings[k] || 0; return k === 'minSales' ? String(Math.round(v)) : (k === 'under' ? v.toFixed(1) : String(Math.round(v * 10) / 10)) + '%'; };
+const setTxt = k => { const v = +S.settings[k] || 0; return k === 'minSales' ? String(Math.round(v)) : k === 'minNet' ? '$' + Math.round(v) : (k === 'under' ? v.toFixed(1) : String(Math.round(v * 10) / 10)) + '%'; };
 const numSet = k => { const n = parseFloat(String(S.settings[k]).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; };
 let TOAST_T = 0;
 function toast(msg) { const el = $('toast'); el.innerHTML = '<div class="toast">' + esc(msg) + '</div>'; clearTimeout(TOAST_T); TOAST_T = setTimeout(() => { el.innerHTML = ''; }, 3200); }
@@ -292,16 +292,22 @@ function plan() {
   const all = slabsArr().map(sl => ({sl, x: calc(sl)}));
   let spent = 0; all.forEach(o => { if (o.sl.st === 'bought' && o.x.pay > 0) spent += o.x.pay; });
   let left = cap - spent;
-  const picks = {}, chosen = [], missed = [], few = {}, blocked = [];
+  // THE MINIMUM ROI AND NET PER SLAB (2026-11-23, Brett: "it would be card specific. So if I say 10% that I would only want to see cards,
+  // that would give me 10% ROI"): a slab's expected ROI and net over your hold, at its price, against Show's two boxes (0 = none);
+  // under either it stays on its table, dimmed, and out of your buys - as the website's Recording does
+  const minR = Math.max(0, +s.minRoi || 0) / 100, minN = Math.max(0, +s.minNet || 0);
+  const lowOf = x => (minR > 0 && !(x.roi != null && x.roi >= minR - 1e-9)) || (minN > 0 && !(x.net != null && x.net >= minN - 1e-9));
+  const picks = {}, chosen = [], missed = [], few = {}, low = {}, blocked = [];
   const order = (a, b) => (Math.round(b.x.chance * 100) - Math.round(a.x.chance * 100)) || ((b.x.pct || 0) - (a.x.pct || 0)) || ((b.x.std || 0) - (a.x.std || 0));
   all.filter(o => o.sl.st !== 'bought' && o.sl.st !== 'declined' && o.x.pay > 0 && o.x.chance != null && o.x.chance >= bar && confirmed(o.sl))
     .sort(order).forEach(o => {
       if ((o.x.sold || 0) < minS) { few[o.sl.id] = 1; return; }
+      if (lowOf(o.x)) { low[o.sl.id] = 1; return; }
       if (gated && !o.sl.demo) { blocked.push(o); return; }
       if (o.x.pay <= per && o.x.pay <= left) { picks[o.sl.id] = 1; left -= o.x.pay; chosen.push(o); } else missed.push(o);
     });
-  all.forEach(o => { if ((o.x.sold || 0) < minS && o.x.std != null) few[o.sl.id] = 1; });
-  return {all, picks, chosen, missed, few, blocked, gated, spent, left, cap, per, minS};
+  all.forEach(o => { if ((o.x.sold || 0) < minS && o.x.std != null) few[o.sl.id] = 1; if (o.x.chance != null && lowOf(o.x)) low[o.sl.id] = 1; });
+  return {all, picks, chosen, missed, few, low, blocked, gated, spent, left, cap, per, minS, minR, minN};
 }
 
 /* ---------------- the collector's channel (app.js alChannel / alSend: ntfy, HMAC-signed with the key) ---------------- */
@@ -502,10 +508,10 @@ async function recordScans(name) {
    Every change to Your Plan here goes to the collector ({type: 'gset', src: 'ph'}) for the website's Sync from phone; Sync
    from website copies the website's capital, hold, % under, shipping, bar, share and gate here. Those boxes keep the
    website's values until midnight, then go back to what they were; one you change by hand is yours again at once. */
-const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate'];
+const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate', 'minRoi', 'minNet'];
 const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 let GSET_T = 0;
-function planOut() { const s = S.settings; return {capital: numSet('capital'), hold: s.hold, under: s.under, ship: numSet('ship'), bar: s.bar, share: s.share, gate: !!s.gate, minSales: +s.minSales || 0}; }
+function planOut() { const s = S.settings; return {capital: numSet('capital'), hold: s.hold, under: s.under, ship: numSet('ship'), bar: s.bar, share: s.share, gate: !!s.gate, minSales: +s.minSales || 0, minRoi: +s.minRoi || 0, minNet: +s.minNet || 0}; }
 function gsetSoon(now) {
   clearTimeout(GSET_T);
   GSET_T = setTimeout(() => { if (!KEY) return; alSend({type: 'gset', t: nextT(), src: 'ph', v: planOut()}).then(() => LS.set(GSET_DAY, todayStr())).catch(() => {}); }, now ? 50 : 2000);
@@ -1625,7 +1631,7 @@ const ICON = {
 const pillCls = x => x.chance == null ? 'pill lo' : x.chance >= 0.6 ? 'pill hi' : x.chance >= S.settings.bar / 100 ? 'pill mid' : 'pill lo';
 const badge = x => '<span class="badge ' + (x.grader === 'PSA' ? 'psa' : x.grader === 'CGC' ? 'cgc' : 'unk') + '"><small>' + esc(x.grader || '?') + '</small>' + esc(x.gk ? gkShort(x.gk) : '?') + '</span>';
 function rowHtml(o, P, withTable) {
-  const sl = o.sl, x = o.x, inPlan = !!P.picks[sl.id], few = !!P.few[sl.id];
+  const sl = o.sl, x = o.x, inPlan = !!P.picks[sl.id], few = !!P.few[sl.id] || !!(P.low && P.low[sl.id]);
   const tagMap = {new: 'Not asked', asked: 'Asked', declined: 'No deal', agreed: 'Agreed', bought: 'Bought'};
   let tag = tagMap[sl.st], tc = 't-' + sl.st;
   if (sl.st === 'new' && inPlan) { tag = 'Buy'; tc = 't-buy'; }
@@ -1855,15 +1861,15 @@ function planHtml() {
   }).join('');
   const bought = P.all.filter(o => o.sl.st === 'bought'), avg = P.chosen.length ? P.chosen.reduce((a, o) => a + o.x.chance, 0) / P.chosen.length : 0;
   const net = P.chosen.reduce((a, o) => a + (o.x.net || 0), 0), toRec = bought.filter(o => !o.sl.demo && !o.sl.rec && identified(o.sl)).length;
-  const nfew = Object.keys(P.few).length, nreal = slabsArr().filter(sl => !sl.demo && sl.cert).length;
+  const nfew = Object.keys(P.few).length, nlow = Object.keys(P.low || {}).filter(id => !P.few[id]).length, nreal = slabsArr().filter(sl => !sl.demo && sl.cert).length;
   return '<div class="stack" style="gap:14px"><h1 class="h1">Your buys</h1>' +
     '<div class="card stack" style="gap:10px"><div class="spread"><span class="label">Spend</span><span class="small muted">of ' + money(P.cap) + (P.spent ? ' · ' + money(P.spent) + ' already bought' : '') + '</span></div>' +
     '<div style="font:700 30px \'Space Grotesk\',Inter,sans-serif;font-variant-numeric:tabular-nums">' + money(total) + '</div>' +
     '<div class="progress"><span style="width:' + (P.cap > 0 ? Math.min(100, Math.round((total + P.spent) / P.cap * 100)) : 0) + '%"></span></div>' +
     '<div class="stats"><span class="stat"><b>' + P.chosen.length + '</b> slabs</span><span class="stat"><b>' + new Set(P.chosen.map(o => o.sl.t)).size + '</b> tables</span><span class="stat">expected <b>' + signed(net) + '</b></span><span class="stat">avg chance <b>' + (P.chosen.length ? pctS(avg) : '-') + '</b></span></div>' +
-    '<p class="note" style="margin:0">Best chance first, each slab at the vendor’s price or at your ' + s.under.toFixed(1) + '% ask if not asked yet; at most ' + money(P.per) + ' a slab; chance at least ' + s.bar + '%, ' + s.minSales + '+ Card Ladder sales last month, ' + s.hold + '-month hold.</p></div>' +
+    '<p class="note" style="margin:0">Best chance first, each slab at the vendor’s price or at your ' + s.under.toFixed(1) + '% ask if not asked yet; at most ' + money(P.per) + ' a slab; chance at least ' + s.bar + '%, ' + s.minSales + '+ Card Ladder sales last month' + (P.minR > 0 ? ', expected ROI at least ' + (Math.round(P.minR * 1000) / 10) + '%' : '') + (P.minN > 0 ? ', expected net at least ' + money(P.minN) : '') + ', ' + s.hold + '-month hold.</p></div>' +
     (P.gated && P.blocked.length ? '<div class="warnbox"><b>The graded market is red</b> (below its 12-month average) and “Buy only when the market is green or amber” is on (Show tab), so ' + P.blocked.length + ' real slab' + (P.blocked.length > 1 ? 's that clear' : ' that clears') + ' your bar ' + (P.blocked.length > 1 ? 'are' : 'is') + ' left out - as on the website.</div>' : '') +
-    (groups || '<div class="empty">Nothing clears your bar yet. Scan a table, or lower the chance bar or the min sales on Show.</div>') +
+    (groups || '<div class="empty">Nothing clears your bar yet. Scan a table, or lower the chance bar, the min sales or your minimum ROI / net on Show (a longer hold lets more through).</div>') +
     '<div class="card stack" style="gap:10px"><span class="label">Record purchases</span><p class="note" style="margin:0">Sends the slabs you marked Bought to the website, History › Recorded Purchases - with what you paid, your settings and the odds of the day.</p>' +
     '<button class="btn green" data-a="record"' + (UI.sending ? ' disabled' : '') + '>Record purchases' + (toRec ? ' (' + toRec + ')' : '') + '</button>' +
     (UI.recMsg ? '<div class="' + (UI.recMsg[0] === 'ok' ? 'okbox' : UI.recMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.recMsg[1]) + '</div>' : '') + '</div>' +
@@ -1872,12 +1878,13 @@ function planHtml() {
     (UI.scanRecMsg ? '<div class="' + (UI.scanRecMsg[0] === 'ok' ? 'okbox' : UI.scanRecMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.scanRecMsg[1]) + '</div>' : '') + '</div>' +
     (bought.length ? '<div class="group"><div class="ghead"><span class="h2">Bought</span><span class="small muted">' + bought.length + ' · ' + money(P.spent) + '</span></div>' + bought.map(o => rowHtml(o, P, true)).join('') + '</div>' : '') +
     (P.missed.length ? '<div class="group"><div class="ghead"><span class="h2">Just missed</span><span class="small muted">over budget or per-slab cap</span></div>' + P.missed.slice(0, 4).map(o => rowHtml(o, P, true)).join('') + '</div>' : '') +
-    (nfew ? '<p class="note">' + nfew + ' slab' + (nfew > 1 ? 's have' : ' has') + ' fewer than ' + s.minSales + ' Card Ladder sales last month and stay' + (nfew > 1 ? '' : 's') + ' out of your buys (dimmed on their table).</p>' : '') + '</div>';
+    (nfew ? '<p class="note">' + nfew + ' slab' + (nfew > 1 ? 's have' : ' has') + ' fewer than ' + s.minSales + ' Card Ladder sales last month and stay' + (nfew > 1 ? '' : 's') + ' out of your buys (dimmed on their table).</p>' : '') +
+    (nlow ? '<p class="note">' + nlow + ' slab' + (nlow > 1 ? 's are' : ' is') + ' expected to make less than your minimum (' + [P.minR > 0 ? (Math.round(P.minR * 1000) / 10) + '% ROI' : '', P.minN > 0 ? money(P.minN) + ' net' : ''].filter(Boolean).join(', ') + ') over ' + s.hold + ' month' + (s.hold > 1 ? 's' : '') + ' and stay' + (nlow > 1 ? '' : 's') + ' out of your buys (dimmed on their table). A longer hold lets more through.</p>' : '') + '</div>';
 }
 function syncNote() {
   const sy = LS.get(SYNC_STORE, null);
   return sy && sy.day === todayStr() && Object.keys(sy.vals || {}).length ? '<p class="note" style="margin:0">' + Object.keys(sy.vals).length + ' box' + (Object.keys(sy.vals).length > 1 ? 'es have' : ' has') + ' the website’s values until midnight.</p>'
-    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
+    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, minimum ROI and net, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
 }
 function showHtml() {
   // TYPED OR STEPPED (2026-11-18, Brett: "I want to be able to press it into the box and then like type the number ... You can
@@ -1893,7 +1900,7 @@ function showHtml() {
     '<div class="frow" style="margin-top:8px"><span>Capital</span><input class="input" style="width:140px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.capital) + '" data-in="set:capital" aria-label="Capital"></div>' +
     '<div class="field" style="padding:12px 0;border-bottom:1px solid #222A35"><span>Hold before selling</span><div class="seg" role="group" aria-label="Hold in months">' +
     [1, 2, 3, 4, 5, 6].map(h => '<button class="' + (s.hold === h ? 'on' : '') + '" data-a="hold" data-v="' + h + '">' + h + ' mo</button>').join('') + '</div></div>' +
-    mini('under', 'Your ask (% under)') + mini('bar', 'Buy only at a chance of at least') + mini('share', 'At most per slab') +
+    mini('under', 'Your ask (% under)') + mini('bar', 'Buy only at a chance of at least') + mini('minRoi', 'Min expected ROI per slab') + mini('minNet', 'Min expected net per slab') + mini('share', 'At most per slab') +
     mini('minSales', 'Min sales last mo (Card Ladder)') +
     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
     '<div class="frow"><span>Buy only when the market is green or amber</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
@@ -1902,7 +1909,7 @@ function showHtml() {
     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
     '<div class="frow"><span>Look slabs up (PSA, card, prices)</span><button class="btn" style="min-width:76px" data-a="lookup">' + (s.lookup ? 'On' : 'Off') + '</button></div>' +
     (s.lookup ? '' : '<p class="note" style="margin:0">Off: a slab read is only listed as its cert link and sent to scans.csv.</p>') +
-    '<p class="note">Chance = how often slabs like it made money over your hold, bought at that % under, after eBay’s fee (14.11%) and shipping - the website’s Recording math. The plan spends best chance first, up to your capital. Min sales last mo keeps slabs that sold fewer times on Card Ladder last month out of your buys.</p>' +
+    '<p class="note">Chance = how often slabs like it made money over your hold, bought at that % under, after eBay’s fee (14.11%) and shipping - the website’s Recording math. The plan spends best chance first, up to your capital. Min sales last mo keeps slabs that sold fewer times on Card Ladder last month out of your buys. Min expected ROI / net per slab keep out the slabs expected to make less over your hold (0 = no minimum; a longer hold lets more through) - the website’s two boxes of the same name.</p>' +
     '<h2 class="h2" style="margin-top:14px">Card data</h2>' +
     '<div class="' + (DSTATE === 'ok' ? 'okbox' : DSTATE === 'err' ? 'warnbox' : 'note') + '">' + dataLine + '</div>' +
     (DSTATE === 'ok' ? '<button class="btn" data-a="reload">Refresh the card data</button>' : '<button class="btn primary" data-a="unlock">Unlock with your site password</button>') +
@@ -1965,6 +1972,7 @@ function planLine(sl, x) {
   if (!sl.demo && (x.flags || 0) & 256) return 'No chance given: its era has run beyond anything in the history';
   if (!sl.demo && x.chance == null) return 'No chance for this slab - not in your buys';
   if (x.chance != null && x.chance < s.bar / 100) return 'Below your ' + s.bar + '% bar';
+  if (P.low && P.low[sl.id]) return 'Expected ' + (x.roi == null ? 'ROI -' : pctS(x.roi, 1) + ' ROI') + ', ' + signed(x.net) + ' net over ' + s.hold + ' mo - under your minimum (' + [P.minR > 0 ? (Math.round(P.minR * 1000) / 10) + '%' : '', P.minN > 0 ? money(P.minN) : ''].filter(Boolean).join(', ') + ')';
   if (P.gated && !sl.demo) return 'Left out: the market is red and the gate is on';
   return 'Not in your buys (budget or per-slab cap)';
 }
@@ -2161,7 +2169,7 @@ async function act(a, ds, el) {
     case 'gate': s.gate = !s.gate; save(); planChanged('gate'); break;
     case 'lookup': s.lookup = !s.lookup; save(); if (s.lookup) pumpLookups(); break;
     case 'bump': {
-      const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1}[k];
+      const k = ds.k, d = +ds.d, step = {under: 0.5, bar: 5, share: 5, minSales: 1, minRoi: 5, minNet: 5}[k];
       if (!step) break;
       s[k] = setClamp(k, (+s[k] || 0) + d * step); save(); planChanged(k); break;
     }
@@ -2202,7 +2210,7 @@ document.addEventListener('input', e => {
   else if (k === 'psaTok') { /* read on Save */ }
   else if (k === 'q') { UI.q = v; const r = $('results'); if (r) r.innerHTML = resultsHtml(v, UI.pickGk || (sl && sl.gk)); }
   else if (k.startsWith('set:')) { const f = k.slice(4); S.settings[f] = f === 'show' ? v : v; save(); renderTop(); renderTabs(); if (f !== 'show') planChanged(f); }
-  else if (k.startsWith('num:')) { const f = k.slice(4), n = parseFloat(String(v).replace(/[%\s]/g, '').replace(',', '.')); if (SET_LIM[f] && isFinite(n)) { S.settings[f] = setClamp(f, n); save(); renderTop(); renderTabs(); planChanged(f); } }
+  else if (k.startsWith('num:')) { const f = k.slice(4), n = parseFloat(String(v).replace(/[%$\s]/g, '').replace(',', '.')); if (SET_LIM[f] && isFinite(n)) { S.settings[f] = setClamp(f, n); save(); renderTop(); renderTabs(); planChanged(f); } }
   else if (k === 'recname') { if (UI.modal) UI.modal.name = v; }
   else if (k === 'pct' && sl) { const n = parseFloat(v.replace(',', '.')); if (isFinite(n)) { sl.vd = Math.max(0, Math.min(60, n)); sl.vp = null; sl.vpTxt = null; if (sl.st === 'new') sl.st = 'asked'; save(); paintSheetNumbers(); } }
   else if (k === 'usd' && sl) { const n = parseFloat(v.replace(/[$,\s]/g, '')); sl.vpTxt = v; sl.vp = isFinite(n) && n > 0 ? n : null; if (sl.vp != null) { sl.vd = null; if (sl.st === 'new') sl.st = 'asked'; } save(); paintSheetNumbers(); }
