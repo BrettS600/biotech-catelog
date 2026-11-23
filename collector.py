@@ -66,7 +66,7 @@ ARCHIVE_DIR = os.path.join(DATA, "archive")           # checkout of the "archive
 STATE_PATH = os.path.join(DATA, es.STATE_NAME)
 LOG_PATH = os.path.join(DATA, "collector.log")
 CATALOG_CACHE = os.path.join(DATA, "catalog.csv.gz")
-GITHUB_REPO = os.environ.get("GITHUB_REPO", "driftcodedev/biotech-catelog")   # the account was driftcodedev until 2026-11-23
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "driftcodedev/biotech-catelog")   # the account was BrettS600 until 2026-11-23
 # release assets by direct link: the REST API allows only 60 unsigned requests an hour per machine (a restart
 # loop burned through that on day one); the download links have no such limit
 RELEASE_DL = f"https://github.com/{GITHUB_REPO}/releases/download/{es.RELEASE_TAG}/"
@@ -3955,6 +3955,25 @@ def archive_tick(state, cards):
         log(f"Archive failed ({str(e)[:160]}); trying again in an hour")
 
 
+def move_origins():
+    """The account is driftcodedev since 2026-11-23 (it was BrettS600). GitHub forwards the old name only until somebody
+    takes it, so each clone the collector keeps (its own code, the live and archive branches) is pointed at the new name
+    at every start; quiet when there is nothing to move. (scans.py does the same for card-data and scan-results.)"""
+    if DRY_RUN:
+        return
+    for d in (REPO, LIVE_DIR, ARCHIVE_DIR):
+        try:
+            if not os.path.isdir(os.path.join(d, ".git")):
+                continue
+            url = git("config", "--get", "remote.origin.url", cwd=d, check=False).strip()   # as stored (no insteadOf)
+            if re.search(r"(?i)[:/]bretts600/", url):
+                new = re.sub(r"(?i)([:/])bretts600/", r"\1driftcodedev/", url)
+                git("remote", "set-url", "origin", new, cwd=d)
+                log(f"Git: {os.path.basename(d)}'s origin moved to {new}")
+        except Exception as e:
+            log(f"Git: could not move {os.path.basename(d)}'s origin ({str(e)[:160]})")
+
+
 def code_update():
     """Pull main; if the collector's code changed, ask for a restart (systemd brings it back on the new code)."""
     if DRY_RUN:
@@ -4465,6 +4484,7 @@ def main():
             raise RuntimeError(str(e))
     es.get_token = guarded_token
     log(f"Collector starting ({'dry run' if DRY_RUN else BASE}); pid {os.getpid()}; buying tax {es.TAX * 100:.2f}%")
+    move_origins()                                           # the account is driftcodedev since 2026-11-23
     while True:
         try:
             free = disk_check()                              # a full disk (2026-10-10) must not stop the start: the

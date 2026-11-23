@@ -461,6 +461,11 @@ def sr_repo(repo, fresh=False):
         os.makedirs(os.path.dirname(repo), exist_ok=True)
         sr_run(["clone", "-q", "--bare", "--depth", "1", "--filter=tree:0", "--single-branch", SR_REMOTE, repo], os.path.dirname(repo))
         return "HEAD"
+    try:
+        if sr_run(["config", "--get", "remote.origin.url"], repo).decode().strip() != SR_REMOTE:   # a clone from before the rename
+            sr_run(["remote", "set-url", "origin", SR_REMOTE], repo)                        # BrettS600 -> driftcodedev
+    except Exception:
+        pass
     sr_run(["fetch", "-q", "--depth", "1", "--filter=tree:0", "origin", "main"], repo, timeout=120)
     return "FETCH_HEAD"
 
@@ -577,6 +582,8 @@ def push(snap, check=False, clr=0):
             git("sparse-checkout", "set", "data/scans")
             git("config", "user.name", "pokemon-collector")
             git("config", "user.email", "collector@users.noreply.github.com")
+        if git("config", "--get", "remote.origin.url", check=False).stdout.strip() != REMOTE:   # a clone made before the account was
+            git("remote", "set-url", "origin", REMOTE)       # renamed BrettS600 -> driftcodedev (2026-11-23)
         path = os.path.join(CHECKOUT, FILE)
         for _ in range(3):
             git("fetch", "-q", "--depth", "1", "origin", "main", timeout=300)

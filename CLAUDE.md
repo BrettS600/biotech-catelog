@@ -13,9 +13,13 @@ it does NOT forward GitHub Pages: https://bretts600.github.io/... is a 404. Secr
 repos (they belong to the repos / the account, not the name). Switched to driftcodedev the same day (g52): the iPhone
 app's address (WebApp.swift - a reinstall from Xcode was needed), the collector's forecast.bin / scanidx.bin / hit.html
 downloads and its push remote, scans.py's remotes and the scrap start signal, the phone app's SCAN_LIVE, the texts; the
-four workflows' "repository: driftcodedev/card-data" through the Chrome editor. Still on the old name and working by the
-forwarding: the droplet's own git remote (set on the droplet), and the Card Ladder tab's scripts (CLX.INBOX in card-data
-tools/clingest/browser/common.js - switch it with the next script deploy). The bundle id io.github.bretts600.slabscanner
+four workflows' "repository: driftcodedev/card-data" through the Chrome editor. The droplet's clones (g53): at every
+start collector.move_origins() points the code repo, the live and the archive checkouts' origin at driftcodedev (keeping
+https / ssh as stored - read with `git config --get remote.origin.url`, which ignores insteadOf), and scans.py does the
+same for its card-data checkout and the scan-results bare clone before each push / fetch. The scrap start signal had
+been failing since the rename: urllib does not follow GitHub's 307 for a POST to the old name. The Card Ladder tab's
+scripts: CLX.INBOX = 'driftcodedev/card-inbox' in card-data tools/clingest/browser/common.js, renewed in both run tabs'
+clr-src-common the same evening (old kept as clr-src-common-prev). The bundle id io.github.bretts600.slabscanner
 stays (changing it would make a new app). The website's saved browser settings are per address: the new address started
 empty (unlock again, Your plan boxes, sync).
 Everything runs on GitHub Actions; nothing runs on Brett's laptop. Never commit secrets or data.
