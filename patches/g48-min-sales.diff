@@ -1,0 +1,198 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index f3ea0798..9cebfa69 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -4128,6 +4128,15 @@ and the site password once), and the old screen's two other jobs kept as small b
+   model's accuracy), each month's basket through fcgMonteCarlo, the row = the average month with a result (fhsSet). The
+   Holds… picker, the hold eyes (FHH) and the slab lists' Columns… / flags / Review in History are gone (still on the other
+   pages). Also fixed: fhrBasis read a v3 record as PriceCharting's (its model name no longer says Card Ladder).
++  MIN CARD LADDER SALES LAST MONTH (the same evening, Brett: "on the mobile app ... we have the min sales per month. I would
++  like to also include this feature on the website ... if I ... type in 10, then it will only show me cards that have had ten
++  sales within the past month. Though for the forecasting replay ... it would be month specific"): Your plan's third box
++  (FCG_IN minsales, 5 by default as on the phone; 0 = none) against the row's r[37] (Card Ladder's sales of the grade last
++  calendar month - the phone's "sold"), inside fcgRowMinOk, so it acts where the two minimums do (Forecasting lists only,
++  Recording no money, the replay); the replay checks each candidate's sales in ITS month (cands[month][k][10], fhgPlan).
++  The phone's Sync from website carries it (PLAN_KEYS minSales; ssc-v23). On the first build: 5 hides 16,802 of 25,195
++  Forecasting rows; in the replay (3 months, $1,000) the plans' predicted vs actual mean ROI read +41.6 / +33.9% at 0,
++  +39.4 / +34.2% at 5, +30.2 / +29.7% at 10, +27.5 / +26.8% at 20 - the busier the lines, the closer the prediction.
+ 
+ ## Testing before pushing
+ - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
+diff --git a/page/app/app.js b/page/app/app.js
+index 63a561f1..c74d6323 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -508,7 +508,7 @@ async function recordScans(name) {
+    Every change to Your Plan here goes to the collector ({type: 'gset', src: 'ph'}) for the website's Sync from phone; Sync
+    from website copies the website's capital, hold, % under, shipping, bar, share and gate here. Those boxes keep the
+    website's values until midnight, then go back to what they were; one you change by hand is yours again at once. */
+-const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate', 'minRoi', 'minNet'];
++const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate', 'minRoi', 'minNet', 'minSales'];   // minSales: the website has the box too since 2026-11-23
+ const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+ let GSET_T = 0;
+ function planOut() { const s = S.settings; return {capital: numSet('capital'), hold: s.hold, under: s.under, ship: numSet('ship'), bar: s.bar, share: s.share, gate: !!s.gate, minSales: +s.minSales || 0, minRoi: +s.minRoi || 0, minNet: +s.minNet || 0}; }
+@@ -1884,7 +1884,7 @@ function planHtml() {
+ function syncNote() {
+   const sy = LS.get(SYNC_STORE, null);
+   return sy && sy.day === todayStr() && Object.keys(sy.vals || {}).length ? '<p class="note" style="margin:0">' + Object.keys(sy.vals).length + ' box' + (Object.keys(sy.vals).length > 1 ? 'es have' : ' has') + ' the website’s values until midnight.</p>'
+-    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, minimum ROI and net, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
++    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, minimum ROI and net, min sales, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
+ }
+ function showHtml() {
+   // TYPED OR STEPPED (2026-11-18, Brett: "I want to be able to press it into the box and then like type the number ... You can
+diff --git a/page/app/sw.js b/page/app/sw.js
+index 2d9460f4..c7b4472a 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v22';
++const CACHE = 'ssc-v23';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+diff --git a/page/body.html b/page/body.html
+index cc8b86d1..0506e8a7 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -706,6 +706,7 @@
+     <div class="al-row"><span class="lab" style="flex:1 1 auto">Buy only slabs with a chance of at least<button class="help" data-h="fcg_conf">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="fcg-minp" min="0" max="85" step="5" value="50"><span class="unit">%</span></span></div>
+     <div class="al-row"><span class="lab" style="flex:1 1 auto">Min predicted ROI per slab<button class="help" data-h="fcg_min">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="fcg-minroi" min="0" step="5" value="0"><span class="unit">%</span></span></div>
+     <div class="al-row"><span class="lab" style="flex:1 1 auto">Min predicted net per slab<button class="help" data-h="fcg_min">?</button></span><span style="flex-wrap:nowrap"><span class="unit">$</span><input type="number" id="fcg-minnet" min="0" step="5" value="0"></span></div>
++    <div class="al-row"><span class="lab" style="flex:1 1 auto">Min Card Ladder sales last month<button class="help" data-h="fcg_minsales">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="fcg-minsales" min="0" step="1" value="5"></span></div>
+     <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fcg_copies">?</button></span><span><input type="number" id="fcg-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
+     <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is green or amber<button class="help" data-h="fcg_gate">?</button></label>
+     <div class="al-actions fcg-syncrow"><button class="al-save" id="fcg-sync" title="Copy the phone app's Your Plan into these boxes (capital, hold, % under, shipping, the share, the bar, the gate) - until midnight">Sync from phone</button><button class="help" data-h="fcg_sync">?</button></div>
+diff --git a/page/graded_fc.js b/page/graded_fc.js
+index fbe05018..8e40e2e3 100644
+--- a/page/graded_fc.js
++++ b/page/graded_fc.js
+@@ -44,7 +44,7 @@ const FCG_SEL_DEFAULT = ['psa|g10', 'psa|g9', 'psa|g8_5', 'psa|g8', 'psa|g7', 'p
+   'cgc|g4_5', 'cgc|g4', 'cgc|g3_5', 'cgc|g3', 'cgc|g2_5', 'cgc|g2', 'cgc|g1_5', 'cgc|g1'];
+ { const old = ['psa|g10', 'psa|g9', 'psa|g8', 'psa|g7', 'cgc|g9_5', 'cgc|g9', 'cgc|g8', 'cgc|g7'], sv = grLS('fcg-pcg-grades', null);
+   if (Array.isArray(sv) && sv.length === old.length && old.every(k => sv.includes(k))) { try { localStorage.removeItem('fcg-pcg-grades'); } catch (e) {} } }
+-const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, minroi: 0, minnet: 0, copies: 1, gate: true, fold: false};   // rdisc: Recording's % under for new rows; minroi (%) / minnet ($): the minimum per slab, 0 = none
++const FCG_IN_DEFAULT = {cap: 1000, h: 3, disc: 14.1, rdisc: 14.1, ship: 5.2, pmin: 50, pmax: 5000, share: 20, minp: 50, minroi: 0, minnet: 0, minsales: 5, copies: 1, gate: true, fold: false};   // rdisc: Recording's % under for new rows; minroi (%) / minnet ($): the minimum per slab, 0 = none; minsales: Card Ladder sales last month (the phone's default, 5)
+ // what a refresh keeps (2026-11-04, Brett: "Capital to spend" and "Hold" "should hold the modification ... even at the expense
+ // of a page refresh"; every other box of the pane returns to its default on a refresh). Within a visit every box stays
+ // shared by Forecasting, Recording, Planning and History. The fold (Hide) is not a box: it is kept too.
+@@ -57,7 +57,7 @@ const FCG_IN = Object.assign({}, FCG_IN_DEFAULT, fcgKept());
+ // the bar, the gate); those boxes keep the phone's values through a refresh until midnight, then go back to what they
+ // were. A synced box you change by hand is yours again at once. The phone's plan comes off the channel (scanPoll, at once)
+ // or the collector's copy (scan.bin); every change here goes the other way ({type: 'gset', src: 'web'}).
+-const FCG_SYNC_MAP = {capital: 'cap', hold: 'h', under: 'disc', ship: 'ship', bar: 'minp', share: 'share', gate: 'gate', minRoi: 'minroi', minNet: 'minnet'};
++const FCG_SYNC_MAP = {capital: 'cap', hold: 'h', under: 'disc', ship: 'ship', bar: 'minp', share: 'share', gate: 'gate', minRoi: 'minroi', minNet: 'minnet', minSales: 'minsales'};
+ const fcgToday = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+ let FCG_SYNC = (() => { const x = grLS('fcg-sync', null); return x && x.day === fcgToday() && x.vals ? x : null; })();
+ if (FCG_SYNC) Object.assign(FCG_IN, FCG_SYNC.vals); else { try { localStorage.removeItem('fcg-sync'); } catch (e) {} }
+@@ -122,7 +122,7 @@ function fcgInputs() {
+   const n = (id, dflt) => { const v = parseFloat($(id).value); return isNaN(v) ? dflt : v; };
+   return {cap: Math.max(0, n('fcg-cap', 1000)), h: Math.min(6, Math.max(1, +$('fcg-h').value || 3)), disc: Math.min(0.6, Math.max(0, (+FCG_IN.disc || 0) / 100)),
+           ship: Math.max(0, n('fcg-ship', 5.2)), pmin: Math.max(0, n('fcg-pmin', 50)), pmax: Math.max(0, n('fcg-pmax', 5000)), share: Math.min(1, Math.max(0.05, n('fcg-share', 20) / 100)),
+-          minp: Math.min(0.85, Math.max(0, n('fcg-minp', 50) / 100)), minroi: Math.max(0, n('fcg-minroi', 0)) / 100, minnet: Math.max(0, n('fcg-minnet', 0)),
++          minp: Math.min(0.85, Math.max(0, n('fcg-minp', 50) / 100)), minroi: Math.max(0, n('fcg-minroi', 0)) / 100, minnet: Math.max(0, n('fcg-minnet', 0)), minsales: Math.max(0, Math.round(n('fcg-minsales', 5))),
+           copies: Math.min(5, Math.max(1, Math.round(n('fcg-copies', 1)))), gate: $('fcg-gate').checked};
+ }
+ // THE MINIMUM ROI AND NET PER SLAB (2026-11-23, Brett: "for the minimum net and ROI, that wouldn't be for the plan ... it would be card
+@@ -131,10 +131,17 @@ function fcgInputs() {
+ // (Net on its buy price) and Net, at the pane's hold, against the two boxes; 0 = no minimum. Forecasting lists only the slabs
+ // that clear both; Recording keeps every row (the slabs you scanned) but gives money only to those, like the bar; the History
+ // replay buys only those. A slab with no prediction (no chance, beyond history) clears no minimum.
+-const fcgMinOn = I => I.minroi > 0 || I.minnet > 0;
++// THE MIN CARD LADDER SALES LAST MONTH (the same day, Brett: "on the mobile app ... we have the min sales per month. I would like to
++// also include this feature on the website ... if I, for instance, type in 10, then it will only show me cards that have had ten
++// sales within the past month. Though for the forecasting replay ... it would be month specific"): the row's Card Ladder sales of
++// last (calendar) month (r[37], the phone's "sold") against the box - 5 by default, as on the phone; the replay counts each line's
++// sales in the month it was picked in (its candidates' last figure). Acts where the two minimums do.
++const fcgMinOn = I => I.minroi > 0 || I.minnet > 0 || I.minsales > 0;
+ const fcgMinOk = (net, roi, I) => (!(I.minroi > 0) || (roi != null && roi >= I.minroi - 1e-9)) && (!(I.minnet > 0) || (net != null && net >= I.minnet - 1e-9));
+-const fcgRowMinOk = (r, I) => fcgMinOk(r.fcN, r.fcR == null ? null : r.fcR / 100, I);
+-const fcgMinWord = I => [I.minroi > 0 ? 'a predicted ROI of at least ' + (Math.round(I.minroi * 1000) / 10) + '%' : '', I.minnet > 0 ? 'a predicted net of at least ' + fmtMoneyPlain(I.minnet) : ''].filter(Boolean).join(' and ');
++const fcgSalesOk = (n, I) => !(I.minsales > 0) || (n != null && n >= I.minsales);
++const fcgRowMinOk = (r, I) => fcgMinOk(r.fcN, r.fcR == null ? null : r.fcR / 100, I) && fcgSalesOk(r[37], I);
++const fcgMinWord = I => [I.minroi > 0 ? 'a predicted ROI of at least ' + (Math.round(I.minroi * 1000) / 10) + '%' : '', I.minnet > 0 ? 'a predicted net of at least ' + fmtMoneyPlain(I.minnet) : '',
++  I.minsales > 0 ? I.minsales + '+ Card Ladder sale' + (I.minsales === 1 ? '' : 's') + ' last month' : ''].filter(Boolean).join(' and ');
+ // a row's prices: [the standard price - Card Ladder's (r[79]), only when Card Ladder has read the card and the grade has
+ // 3+ sales in its last 90 days; PriceCharting's price of the grade today (else last month's) - reference only]
+ const fcgStd = r => [r[75] === 'read' && r[79] != null ? r[79] : null, r[67] != null ? r[67] : r[6]];
+@@ -224,7 +231,7 @@ function fcgSummary() {
+     '<div class="stat"><div class="k">Likely range</div><div class="v">' + (mc ? fcMoney(mc.lo) + ' to ' + fcMoney(mc.hi) : '-') + '</div><div class="d">10th to 90th percentile' + (mc ? '; median ' + fcMoney(mc.med) : '') + '</div></div>' +
+     '<div class="stat"><div class="k">Chance the plan profits<button class="help" data-h="fcg_mc">?</button></div><div class="v">' + (mc ? (mc.p * 100).toFixed(0) + '%' : '-') + '</div><div class="d">the green slabs together, bought ' + fcgDiscWord(I.disc) + ' under</div></div>' +
+     '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (FCG.fee * 100).toFixed(1) + '% + ' + fmtMoneyPlain(I.ship) + '</div><div class="d">eBay’s fee and your eBay Shipping Fee (in the buy price)</div></div></div>';
+-  if (fcgMinOn(I)) s += '<p class="dim fcg-minnote">Listed: only the slabs with ' + esc(fcgMinWord(I)) + ' over ' + unit + ' (the minimums in Your plan; 0 = none). A longer hold or buying deeper under lets more through.</p>';
++  if (fcgMinOn(I)) s += '<p class="dim fcg-minnote">Listed: only the slabs with ' + esc(fcgMinWord(I)) + (I.minroi > 0 || I.minnet > 0 ? ' (ROI and net over ' + unit + ')' : '') + ' - the minimums in Your plan; 0 = none.' + (I.minroi > 0 || I.minnet > 0 ? ' A longer hold or buying deeper under lets more through.' : '') + '</p>';
+   box.innerHTML = s;
+ }
+ const fcgLevelWhy = L => L.now === 'red' ? 'the graded index is at or below the average of its 12 months before' : L.now === 'green' ? 'above its 12-month average, not overheated, enough clean lines'
+@@ -459,13 +466,13 @@ function fcgInputsPaint() {
+   const I = FCG_IN;
+   $('fcg-cap').value = I.cap; $('fcg-h').value = String(I.h); fcgDiscPaint(); $('fcg-ship').value = I.ship;
+   $('fcg-pmin').value = I.pmin; $('fcg-pmax').value = I.pmax; $('fcg-share').value = I.share; $('fcg-minp').value = I.minp;
+-  $('fcg-minroi').value = I.minroi; $('fcg-minnet').value = I.minnet;
++  $('fcg-minroi').value = I.minroi; $('fcg-minnet').value = I.minnet; $('fcg-minsales').value = I.minsales;
+   $('fcg-copies').value = I.copies; $('fcg-gate').checked = !!I.gate;
+   $('fcg').classList.toggle('folded', !!I.fold); document.querySelectorAll('#fcg .fcg-unfold').forEach(b => { b.hidden = !I.fold; });
+ }
+ function fcgChanged() {
+   const I = fcgInputs(), dv = parseFloat($('fcg-disc').value), m = fcgMode();
+-  Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), minroi: Math.round(I.minroi * 1000) / 10, minnet: I.minnet, copies: I.copies, gate: I.gate});
++  Object.assign(FCG_IN, {cap: I.cap, h: I.h, ship: I.ship, pmin: I.pmin, pmax: I.pmax, share: Math.round(I.share * 100), minp: Math.round(I.minp * 100), minroi: Math.round(I.minroi * 1000) / 10, minnet: I.minnet, minsales: I.minsales, copies: I.copies, gate: I.gate});
+   if (!isNaN(dv) && m !== 'pl') FCG_IN[m === 'rc' ? 'rdisc' : 'disc'] = Math.round(Math.min(60, Math.max(0, dv)) * 10) / 10;
+   if (FCG_SYNC) {                                          // a synced box changed by hand is yours again
+     for (const k of Object.keys(FCG_SYNC.vals)) if (FCG_IN[k] !== FCG_SYNC.vals[k]) delete FCG_SYNC.vals[k];
+@@ -480,7 +487,7 @@ function fcgChanged() {
+ $('fcg-side').addEventListener('change', e => { if (e.target.closest('input, select')) fcgChanged(); });
+ $('fcg-side').addEventListener('input', e => { if (e.target.type === 'number') { clearTimeout(FCG.tm); FCG.tm = setTimeout(fcgChanged, 400); } });
+ function fcgPlanOut() {                                  // this pane's plan as the phone's Sync from website takes it
+-  return {capital: FCG_IN.cap, hold: FCG_IN.h, under: FCG_IN.disc, ship: FCG_IN.ship, bar: FCG_IN.minp, share: FCG_IN.share, gate: !!FCG_IN.gate, minRoi: FCG_IN.minroi, minNet: FCG_IN.minnet};
++  return {capital: FCG_IN.cap, hold: FCG_IN.h, under: FCG_IN.disc, ship: FCG_IN.ship, bar: FCG_IN.minp, share: FCG_IN.share, gate: !!FCG_IN.gate, minRoi: FCG_IN.minroi, minNet: FCG_IN.minnet, minSales: FCG_IN.minsales};
+ }
+ function fcgGsetSoon(now) {                               // the website's plan to the collector, a moment after the last change
+   clearTimeout(FCG.gsT);
+@@ -682,11 +689,22 @@ Object.assign(HELP, {
+     '- A slab with no chance (beyond history, no Card Ladder price) has no prediction and clears no minimum.'].join('\n'),
+     e: 'Hold 1 month, minimum ROI 10%: maybe nothing is listed. Hold 3 months: the slabs predicted to make 10% or more over 3 months appear.',
+     now: () => { const I = fcgInputs(); return fcgMinOn(I) ? 'now: ' + esc(fcgMinWord(I)) + ' over ' + I.h + ' month' + (I.h > 1 ? 's' : '') : 'now: no minimum'; }},
++  fcg_minsales: {t: 'Min Card Ladder sales last month', md: 1, m: [
++    '> Only slabs whose grade sold at least this many times on Card Ladder last month. 5 by default, as on the phone; 0 = no minimum.',
++    '## Where it acts',
++    '- **Forecasting:** lists only the slabs that clear it; the plan buys among them.',
++    '- **Recording:** keeps every row you scanned, but gives money only to the ones that clear it.',
++    '- **History › Forecasting Replay:** month by month - a slab counts in a past month only if it sold that many times in that month. A Charizard with 10 sales in January can be bought in January’s plan and left out in November’s, with 9.',
++    '- **The phone app** has the same box (Show tab: Min sales last mo); Sync from phone / Sync from website copy it.',
++    '## Why use it',
++    '- A line with few sales has a noisy monthly price, so its reading (extended, still falling) means less, and a slab of it may take longer to sell.',
++    '- The replay only ever picks lines with 3+ sales in the month (it needs their price), so 1 to 3 changes nothing there.'].join('\n'),
++    now: () => { const I = fcgInputs(); return I.minsales > 0 ? 'now: ' + I.minsales + '+ sales last month' : 'now: no minimum'; }},
+   fcg_conf: {t: 'Buy only slabs with a chance of at least …', md: 1, m: [
+     '> The bar: a slab gets money only when its Chance (this slab) is at least this. Slabs under it stay listed, in order, but aren’t green.',
+     '## How the plan spends',
+     '1. **Order the slabs on view** best to buy first: Chance (to the whole percent), then the tie-breaker, then the higher price. That order is the Best to Buy column.',
+-    '2. **Skip what doesn’t qualify:** a Chance under the bar, a predicted ROI or net under your minimum, or no buy price.',
++    '2. **Skip what doesn’t qualify:** a Chance under the bar, a predicted ROI or net under your minimum, fewer Card Ladder sales last month than your minimum, or no buy price.',
+     '3. **Decide the copies** of each one that does: the smallest of',
+     '   `(capital × per-card share) ÷ buy price`',
+     '   `copies per card`',
+diff --git a/page/graded_fh.js b/page/graded_fh.js
+index d8839675..7f618434 100644
+--- a/page/graded_fh.js
++++ b/page/graded_fh.js
+@@ -84,6 +84,7 @@ function fhgPlan(mi, h, S) {
+     const li = c[1], std = c[2];
+     if (!S.lines.has(li) || std < S.pmin || std > S.pmax) continue;
+     const buy = std * (1 - S.disc) - S.ship; if (!(buy > 0)) continue;
++    if (!fcgSalesOk(c[10], S)) continue;                              // fewer Card Ladder sales THAT month than your minimum
+     const sg = fcgSigOf(c[3]); if (sg.f & FCG_F.beyond) continue;      // beyond the history as it read that month: no Chance, no money
+     const g = sg.g, grid = tabs[g]; if (!grid) continue;
+     const t = ts[g] || (ts[g] = {mean: grid[0], q: grid.slice(1)});
+@@ -753,7 +754,7 @@ Object.assign(HELP, {
+     '## Each month',
+     '1. **The market’s level then** (green / amber / red) and every Card Ladder line’s kind that month (the kinds behind Chance: the three rules, the era, busy or thin, new card, CGC).',
+     '2. **The odds of each kind** at that level, from the outcomes already over by then. A month marked * had too few yet, so the whole period’s odds stand in - that is hindsight.',
+-    '3. **Your plan** with Your plan’s boxes and Graded Forecasting’s Grading ticks: capital, % under, shipping, the price band, the share, the chance bar, the minimum ROI / net per slab, the copies, the gate (red = nothing bought).',
++    '3. **Your plan** with Your plan’s boxes and Graded Forecasting’s Grading ticks: capital, % under, shipping, the price band, the share, the chance bar, the minimum ROI / net per slab, the minimum Card Ladder sales (in THAT month: a slab with 10 sales in January but 9 in November can be bought in January and not in November), the copies, the gate (red = nothing bought).',
+     '4. **Bought the month after** the decision, at that month’s price, and sold at the price your hold later, after eBay’s fee and the shipping.',
+     'Today’s Best to Buy list is never used for a past month: every month has its own cards.',
+     '## The columns',
