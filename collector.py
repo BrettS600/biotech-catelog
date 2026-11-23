@@ -66,7 +66,7 @@ ARCHIVE_DIR = os.path.join(DATA, "archive")           # checkout of the "archive
 STATE_PATH = os.path.join(DATA, es.STATE_NAME)
 LOG_PATH = os.path.join(DATA, "collector.log")
 CATALOG_CACHE = os.path.join(DATA, "catalog.csv.gz")
-GITHUB_REPO = os.environ.get("GITHUB_REPO", "driftcodedev/biotech-catelog")   # the account was BrettS600 until 2026-11-23
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "driftcodedev/biotech-catelog")   # the account was driftcodedev until 2026-11-23
 # release assets by direct link: the REST API allows only 60 unsigned requests an hour per machine (a restart
 # loop burned through that on day one); the download links have no such limit
 RELEASE_DL = f"https://github.com/{GITHUB_REPO}/releases/download/{es.RELEASE_TAG}/"
