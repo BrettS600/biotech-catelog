@@ -88,7 +88,7 @@ jobs:
         continue-on-error: true      # no access or a hiccup: the graded view then says no data was built; the raw view is untouched
         uses: actions/checkout@v4
         with:
-          repository: BrettS600/card-data
+          repository: driftcodedev/card-data
           token: ${{ secrets.DATA_REPO_TOKEN }}
           path: card-data
           sparse-checkout: |
