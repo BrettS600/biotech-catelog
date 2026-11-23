@@ -1,0 +1,402 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index e3e5ff75..8b912a27 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1,10 +1,23 @@
+-# CLAUDE.md — Pokémon card catalog (repo: BrettS600/biotech-catelog)
++# CLAUDE.md — Pokémon card catalog (repo: driftcodedev/biotech-catelog)
+ 
+ Read this first. It is the whole context; the owner (Brett) would rather not re-explain.
+ 
+ ## What this is
+ A private, password-protected website for buying and reselling **raw (ungraded) Pokémon singles on eBay**.
+-Live at https://bretts600.github.io/biotech-catelog/ (GitHub Pages, encrypted with staticrypt).
++Live at https://driftcodedev.github.io/biotech-catelog/ (GitHub Pages, encrypted with staticrypt).
++
++THE ACCOUNT IS driftcodedev SINCE 2026-11-23 (Brett renamed BrettS600 -> driftcodedev; "i am not longer bretts600. i am
++instead driftcodedev"). GitHub forwards the old owner name for git (clone / fetch / push), the API (301, 307 - also from a
++browser with a CORS preflight, tested 2026-11-23) and raw.githubusercontent.com, until somebody takes the name BrettS600;
++it does NOT forward GitHub Pages: https://bretts600.github.io/... is a 404. Secrets, deploy keys and tokens moved with the
++repos (they belong to the repos / the account, not the name). Switched to driftcodedev the same day (g52): the iPhone
++app's address (WebApp.swift - a reinstall from Xcode was needed), the collector's forecast.bin / scanidx.bin / hit.html
++downloads and its push remote, scans.py's remotes and the scrap start signal, the phone app's SCAN_LIVE, the texts; the
++four workflows' "repository: driftcodedev/card-data" through the Chrome editor. Still on the old name and working by the
++forwarding: the droplet's own git remote (set on the droplet), and the Card Ladder tab's scripts (CLX.INBOX in card-data
++tools/clingest/browser/common.js - switch it with the next script deploy). The bundle id io.github.bretts600.slabscanner
++stays (changing it would make a new app). The website's saved browser settings are per address: the new address started
++empty (unlock again, Your plan boxes, sync).
+ Everything runs on GitHub Actions; nothing runs on Brett's laptop. Never commit secrets or data.
+ 
+ The tabs (PriceCharting Catalog, eBay Catalog, eBay Raw Data, Forecast, Notification Settings, Transaction Report):
+@@ -1727,13 +1740,13 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   also strips a trailing "[eBay]" (18% of the titles), and keep_graded() mends a filed row without a grader when a re-read
+   names one and queues it again (data_archive keeps the later copy: drop_duplicates keep="last"); the v1 cards are
+   re-read during the pass. First chunk after the fix: 12 of 8,856 rows without a grader.
+-- THE DATA FOLDER MOVED TO THE PRIVATE REPO BrettS600/card-data (2026-10-27). biotech-catelog is PUBLIC (verified signed
++- THE DATA FOLDER MOVED TO THE PRIVATE REPO driftcodedev/card-data (2026-10-27). biotech-catelog is PUBLIC (verified signed
+   out; it has to be: the page loads its live files from raw.githubusercontent.com), so data/ - PriceCharting's prices,
+   graded sales, pop, PokeViews' feeds, the eBay figures, the research - was readable by anyone, against PriceCharting's
+   terms ("not for external display or redistribution"; internal business use needs a current Legendary subscription).
+   Brett created card-data (private, made in his Chrome) and a fine-grained token on card-data only (Contents read and
+   write), stored as the Actions secret DATA_REPO_TOKEN in biotech-catelog. data_archive.yml checks card-data out at
+-  ./card-data (actions/checkout, repository: BrettS600/card-data, token: DATA_REPO_TOKEN), runs data_archive.py --out
++  ./card-data (actions/checkout, repository: driftcodedev/card-data, token: DATA_REPO_TOKEN), runs data_archive.py --out
+   card-data/data and pushes there; its first run copied the old data/ over, then git rm'd data/ here. research.yml runs
+   in card-data/data/research/scripts and pushes the results there. Same layout (data/...), so every path in
+   data/README.md and the research scripts holds. The old files are still in this repo's git HISTORY (scrubbing them
+@@ -2030,7 +2043,7 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+   the page with its own answer, GMARKS[cid|card].p) - Charizard #4 Celebrations' CGC cert led to cgc-634819, not the
+   rejected Ultra-Premium page, so it may come back as a new match for Brett to answer.
+   THE HAND-OFF SINCE 2026-10-30 EVENING (Brett weighed a paid ntfy plan, then chose the free GitHub inbox): the Card
+-  Ladder tab PUTs each encrypted batch into the private repo BrettS600/card-inbox (batches/<id>.bin) with a fine-grained
++  Ladder tab PUTs each encrypted batch into the private repo driftcodedev/card-inbox (batches/<id>.bin) with a fine-grained
+   key that can write only there (Contents read/write; Brett made it and pasted it into the tab's key box, localStorage
+   clr-inbox-key; the same key is card-data's Actions secret INBOX_TOKEN); ntfy only when that fails. card-data's ingest
+   reads card-inbox, writes, pushes, and only then empties card-inbox (one fresh empty commit, so the blobs drop out of
+@@ -2766,7 +2779,7 @@ Chrome extension (the connector has no Actions tools). Verify a push by comparin
+ (`sha1("blob <size>\0" + bytes)`) with the directory listing. Claude Code (desktop) is the faster route
+ for larger changes; Brett has not adopted it yet.
+ Files too big to type through the connector (`collector.py` 165 KB, `ebay_sweep.py`, `page/app.js`, `CLAUDE.md`: one
+-tool call cannot carry them) go through Claude in Chrome: open github.com/BrettS600/biotech-catelog/edit/main/<path>
++tool call cannot carry them) go through Claude in Chrome: open github.com/driftcodedev/biotech-catelog/edit/main/<path>
+ (the CodeMirror editor), inject two helpers with the JavaScript tool - `__sha()` (git blob SHA of the editor text) and
+ `__applySeq(ops, want)` (each op {a: a unique anchor string, b: its replacement}, applied with `view.dispatch`, returning
+ OK <sha> / MISMATCH / ANCHOR PROBLEM) - generate the ops from the tested local copy (`mkedits.py old new ops.json`
+@@ -2804,7 +2817,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+ - Where: page/app/ (index.html, app.css, app.js, scan-worker.js, finder.js (g13: the barcode finder and the grey-line
+   Code 128 reader), sw.js, manifest.webmanifest, icons, zxing/ = zxing-wasm 3.1.6 reader
+   build, vendored so a show hall without signal still scans). build_catalog.py copies page/app to public/app as it is
+-  (NOT staticrypted: it holds no data and no key). URL: https://bretts600.github.io/biotech-catelog/app/ - Safari's
++  (NOT staticrypted: it holds no data and no key). URL: https://driftcodedev.github.io/biotech-catelog/app/ - Safari's
+   Share > Add to Home Screen. sw.js keeps the app on the phone (cached first, refreshed behind) and data.bin (network
+   first, the cached copy after 6 s).
+ - Data: graded_site.py app_doc() -> public/app/data.bin (HKEY, written right after graded.bin): cards {pc id: [PC name,
+@@ -3038,7 +3051,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   HOW g11l WAS PUBLISHED - THE ROUTE FOR A BIG PATCH: its diff was 54 KB, too long to type into the GitHub connector's
+   push_files without a slip (every byte passes through the model; an added line with a typo still applies). The two
+   files, written as /home/claude/g11l.diff and g11l.msg, were UPLOADED BYTE FOR BYTE through Brett's signed-in Chrome:
+-  a new tab at github.com/BrettS600/biotech-catelog/upload/main/patches, the Claude-in-Chrome file_upload tool on the
++  a new tab at github.com/driftcodedev/biotech-catelog/upload/main/patches, the Claude-in-Chrome file_upload tool on the
+   page's file input (it takes files under the session's working directory /home/claude; /mnt/user-data/outputs was
+   refused), the commit summary "patches: <name> (apply)", "Commit directly to the main branch", Commit changes. The
+   apply workflow ran as for any push, and the uploaded blobs' hashes equalled git hash-object of the local files. Tell
+@@ -3369,7 +3382,7 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+   second lock or watcher when the file is pasted again) and both run tabs' cached clr-src-common were renewed to it
+   (sha checked in the tab; the old copy kept as clr-src-common-prev). The night of Nov 10: 900 pages, 110-119 an
+   hour at every check, no freeze logged; restarts at 02:11, 03:47, 05:24, 07:02, 08:32 UTC.
+-- SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): BrettS600/card-data
++- SCANS.CSV (2026-11-09, Brett: "when I scan a barcode, the link will appear in the CSV file"): driftcodedev/card-data
+   (private), data/scans/scans.csv - each slab once, IN LINKS.CSV'S FORMAT (Brett's screenshot of it, 2026-11-09: "the links
+   should populate in the format like this csv"): a "Cert ID" header, then one CSV-quoted HYPERLINK cell a slab -
+     Cert ID
+@@ -3401,8 +3414,8 @@ no Apple account, no Xcode), "everything now", the sample show kept.
+ Brett, 2026-11-13/14: a Record scans button under Record purchases sends the show to History > Pre-Sales Spotcheck,
+ named "Show N" by default (editable; every tap a new set with everything scanned so far; "have it be unlimited"); Start a
+ new show asks "are you sure" and erases scans.csv at once (the last show's waiting slabs go first); the cert pages he
+-opens from scans.csv land in the private repo BrettS600/scan-results, folder scans/ ("only want you to have access to
+-this file" - never card-inbox/scans, never BrettS600/scrap; scan-results keeps ONE commit, replaced on every save: never
++opens from scans.csv land in the private repo driftcodedev/scan-results, folder scans/ ("only want you to have access to
++this file" - never card-inbox/scans, never driftcodedev/scrap; scan-results keeps ONE commit, replaced on every save: never
+ pull, fetch + reset) and must show on the website and in the app "immediately" (a minute is fine, faster better);
+ "Sync from phone" on the website and "Sync from website" in the app, the synced boxes reset at midnight ("only sync
+ values reset"); unmatched certs (not $50+ cards of ours) left out and listed behind a button; CGC half grades: Card
+@@ -3696,7 +3709,7 @@ still optimizing it", and on a slab's sheet "remove that part [Review: is it the
+ review button that we have on the site". Asked, he chose: the website's OWN Review (not a copy in the app; it needs signal
+ and the site password once), and the old screen's two other jobs kept as small buttons beside it.
+ - THE NATIVE APP NOW SHOWS THE WEBSITE'S APP ITSELF (ios/SlabScanner/SlabScanner/WebApp.swift): a WKWebView on
+-  https://bretts600.github.io/biotech-catelog/app/, live - identical by construction, and page/app changes reach the
++  https://driftcodedev.github.io/biotech-catelog/app/, live - identical by construction, and page/app changes reach the
+   phone without a reinstall. Its storage is the app's own: the site password typed once on the Show tab, the PSA token
+   pasted once (the home-screen web app's tables do not carry over). No service worker in a WKWebView without App-Bound
+   Domains (not used: they would switch off script messages on our reader's slab:// pages), so the app needs signal to
+@@ -3712,7 +3725,7 @@ and the site password once), and the old screen's two other jobs kept as small b
+   the right card?": the website's blue Review button (button.rvb, its same / not-the-same colours from the app's marks)
+   posts 'review' (card, grade) and, beside it, "Yes, this card / No - find it" when PSA's label was only a best guess
+   (look 'check') and "Wrong card? Find the right one" (the app's own search). Sample slabs keep the old button.
+-- THE WEBSITE'S REVIEW IN THE APP: a sheet with a second web view on https://bretts600.github.io/biotech-catelog/#review/
++- THE WEBSITE'S REVIEW IN THE APP: a sheet with a second web view on https://driftcodedev.github.io/biotech-catelog/#review/
+   <card>/<grader>/<grade>; kept for the next time (then grReviewOpen(key) straight away). page/app.js keeps START_HASH
+   before showTab rewrites the address; page/graded.js grReviewOpen loads the graded data and opens grOpenReview(key) -
+   or says the graded view has no such row / its data did not load; a MutationObserver on #bov tells the app (sscReview
+@@ -3746,7 +3759,7 @@ and the site password once), and the old screen's two other jobs kept as small b
+   running loop; any restart before 01:00 UTC must set it again after evaluating common.js). PIECES: (1) card-data
+   tools/clingest/make_refresh.py, run by the hourly ingest (cl_ingest.py calls make_refresh.maybe(): the first run from
+   13:00 UTC makes the coming night's lists once - GitHub runs the "hourly" ingest only every 6-9 hours at times, so a
+-  check can start it by hand: gh api -X POST repos/BrettS600/card-data/actions/workflows/cl_ingest.yml/dispatches -f
++  check can start it by hand: gh api -X POST repos/driftcodedev/card-data/actions/workflows/cl_ingest.yml/dispatches -f
+   ref=main; no workflow of its own - workflow files are edited only through Chrome):
+   the Card Ladder list (at most 1,000; the tab still stops at 900 a UTC day) = matched cards with no read on file (49 at
+   the start: the first 100 summarised in the browser) and the cards of recorded / Spotcheck slabs (watch.csv) first
+diff --git a/cert_lookups.py b/cert_lookups.py
+index daa4b805..1ada6bd8 100644
+--- a/cert_lookups.py
++++ b/cert_lookups.py
+@@ -53,7 +53,7 @@ import urllib.error
+ import urllib.request
+ from datetime import datetime, timezone, timedelta
+ 
+-UA = "biotech-catelog cert_lookups.py (github.com/BrettS600/biotech-catelog)"
++UA = "biotech-catelog cert_lookups.py (github.com/driftcodedev/biotech-catelog)"
+ PSA_URL = "https://api.psacard.com/publicapi/cert/GetByCertNumber/"
+ CH_URL = "https://api.cardhedger.com/v1/cards/details-by-certs"
+ CH_BATCH = 10
+diff --git a/cl_certs.js b/cl_certs.js
+index d1db3b26..b9b53a4d 100644
+--- a/cl_certs.js
++++ b/cl_certs.js
+@@ -294,7 +294,7 @@ async function main() {
+   const fetchPic = async job => {               // -> ArrayBuffer, or throws
+     const ac = new AbortController(), t = setTimeout(() => ac.abort(), 25000);
+     try {
+-      const r = await fetch(picUrl(job.pic), {signal: ac.signal, headers: {'User-Agent': 'biotech-catelog cl_certs.js (github.com/BrettS600/biotech-catelog)', Accept: 'image/jpeg,image/*;q=0.8'}});
++      const r = await fetch(picUrl(job.pic), {signal: ac.signal, headers: {'User-Agent': 'biotech-catelog cl_certs.js (github.com/driftcodedev/biotech-catelog)', Accept: 'image/jpeg,image/*;q=0.8'}});
+       if (!r.ok) throw new Error('HTTP ' + r.status);
+       return await r.arrayBuffer();
+     } finally { clearTimeout(t); }
+diff --git a/clcerts.py b/clcerts.py
+index c5a13eff..32d6a77c 100644
+--- a/clcerts.py
++++ b/clcerts.py
+@@ -1,6 +1,7 @@
+ """
+ clcerts.py  -  the CL Cert columns' lookups: Brett's reads of the Card Ladder certs, into card-data once a day.
+ 
++(The account is driftcodedev since 2026-11-23: the repo is driftcodedev/scan-results.)
+ Brett, 2026-11-17: "results for the card ladders certs will be stored here: https://github.com/BrettS600/scan-results/
+ tree/main/cardladder ... only retrieve results from this file. please update the card ladder columns with all of the
+ results in the files once per day. furthermore, this will enable us to match the PC cards with CL cards because if the
+diff --git a/collector.py b/collector.py
+index 16c54920..158d3b1d 100644
+--- a/collector.py
++++ b/collector.py
+@@ -66,7 +66,7 @@ ARCHIVE_DIR = os.path.join(DATA, "archive")           # checkout of the "archive
+ STATE_PATH = os.path.join(DATA, es.STATE_NAME)
+ LOG_PATH = os.path.join(DATA, "collector.log")
+ CATALOG_CACHE = os.path.join(DATA, "catalog.csv.gz")
+-GITHUB_REPO = os.environ.get("GITHUB_REPO", "BrettS600/biotech-catelog")
++GITHUB_REPO = os.environ.get("GITHUB_REPO", "driftcodedev/biotech-catelog")   # the account was BrettS600 until 2026-11-23
+ # release assets by direct link: the REST API allows only 60 unsigned requests an hour per machine (a restart
+ # loop burned through that on day one); the download links have no such limit
+ RELEASE_DL = f"https://github.com/{GITHUB_REPO}/releases/download/{es.RELEASE_TAG}/"
+@@ -138,7 +138,7 @@ TRIAL_CLAIMS = [("Finish", "Reverse Holo", "reverse"), ("Features", "1st Edition
+ # hit.html on the site, with everything about the hit packed into the link itself (nothing is stored anywhere).
+ NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
+ NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
+-CHECK_PAGE = "https://bretts600.github.io/biotech-catelog/hit.html"
++CHECK_PAGE = "https://driftcodedev.github.io/biotech-catelog/hit.html"
+ ALERTS_PER_HOUR = 20             # a ceiling, so a bug can never flood the phone
+ 
+ # ---------------- trial: do auctions end under max buy? (log only; Brett approved it on 2026-10-04) ----------------
+@@ -1650,7 +1650,7 @@ def read_requests(state, cat=None, cards=None):
+ 
+ # ---------------- Forecast records (Brett, 2026-10-17): the Forecast tab's recorded picks, scored at maturity ----------------
+ FORECAST_KEEP = 100              # records kept (newest), each with its picks and, once mature, the realized result
+-FC_URL = "https://bretts600.github.io/biotech-catelog/forecast.bin"   # the model file the site workflow builds daily
++FC_URL = "https://driftcodedev.github.io/biotech-catelog/forecast.bin"   # the model file the site workflow builds daily
+ FC_FETCH_S = 3600                # re-read this often (the page does the same)
+ FC_RETRY_S = 300                 # after a failed read
+ FC_AUTO_KEEP_MONTHS = 24         # the monthly archive of the standard plans: this many months x 30 plans
+@@ -1685,7 +1685,7 @@ def forecast_doc():
+     return _fc["doc"]
+ 
+ 
+-SCANIDX_URL = "https://bretts600.github.io/biotech-catelog/scanidx.bin"   # the scan-match index the site build writes (graded_site.py)
++SCANIDX_URL = "https://driftcodedev.github.io/biotech-catelog/scanidx.bin"   # the scan-match index the site build writes (graded_site.py)
+ _sidx = {"doc": None, "t": 0.0}
+ 
+ 
+diff --git a/data_archive.py b/data_archive.py
+index 8058af38..1d8566f5 100644
+--- a/data_archive.py
++++ b/data_archive.py
+@@ -429,7 +429,7 @@ def read_live(live_dir, password):
+     return json.loads(raw.decode("utf-8"))
+ 
+ 
+-LIVE_RAW = "https://raw.githubusercontent.com/" + os.environ.get("GITHUB_REPOSITORY", "BrettS600/biotech-catelog") + "/live/"
++LIVE_RAW = "https://raw.githubusercontent.com/" + os.environ.get("GITHUB_REPOSITORY", "driftcodedev/biotech-catelog") + "/live/"
+ 
+ 
+ def watch(out, live_dir, password):
+diff --git a/graded_site.py b/graded_site.py
+index 4fbbfd85..6c69c404 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -5,7 +5,7 @@ Run by the site workflow after build_catalog.py (which leaves pricecharting.csv
+ 
+     python graded_site.py --card-data card-data/data --out public
+ 
+-Reads (card-data is the private repo BrettS600/card-data, checked out by the workflow with DATA_REPO_TOKEN):
++Reads (card-data is the private repo driftcodedev/card-data, checked out by the workflow with DATA_REPO_TOKEN):
+   ids/card_ids.csv                         which Card Ladder profile each PriceCharting card is (cardmatch / the barcode
+                                            chain): pricecharting_id, cl_profile_id, psa_spec, cgc_id, psa_cert, cgc_cert,
+                                            status (confirmed / likely / review / no_match), note
+diff --git a/ios/SlabScanner/SlabScanner/WebApp.swift b/ios/SlabScanner/SlabScanner/WebApp.swift
+index 9dcf358a..12d6da20 100644
+--- a/ios/SlabScanner/SlabScanner/WebApp.swift
++++ b/ios/SlabScanner/SlabScanner/WebApp.swift
+@@ -24,8 +24,8 @@ struct ReviewTarget: Identifiable {
+ }
+ 
+ final class WebApp: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+-    static let appURL = URL(string: "https://bretts600.github.io/biotech-catelog/app/")!
+-    static let siteBase = "https://bretts600.github.io/biotech-catelog/"
++    static let appURL = URL(string: "https://driftcodedev.github.io/biotech-catelog/app/")!
++    static let siteBase = "https://driftcodedev.github.io/biotech-catelog/"
+ 
+     let engine = Engine()
+     let container = UIView()
+@@ -184,7 +184,7 @@ final class WebApp: NSObject, ObservableObject, WKScriptMessageHandler, WKNaviga
+ 
+     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+         guard let u = navigationAction.request.url else { return decisionHandler(.cancel) }
+-        let mine = u.host == "bretts600.github.io" && u.path.hasPrefix("/biotech-catelog")
++        let mine = u.host == "driftcodedev.github.io" && u.path.hasPrefix("/biotech-catelog")
+         if !(navigationAction.targetFrame?.isMainFrame ?? false) && navigationAction.targetFrame != nil { return decisionHandler(.allow) }   // (frames inside a page)
+         if mine || u.scheme == "about" || u.scheme == "blob" || u.scheme == "data" { return decisionHandler(.allow) }
+         if u.scheme == "http" || u.scheme == "https" || u.scheme == "mailto" || u.scheme == "tel" { UIApplication.shared.open(u) }
+diff --git a/page/app/app.js b/page/app/app.js
+index c74d6323..0dc3b5a7 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -377,7 +377,7 @@ async function recordPurchases(name) {
+    always the grader's grade - with no PSA lookup (none of PSA's 100 a day) and for CGC slabs too - so it gets its price,
+    its chance and its place in your buys. A slab the read could not place says why on its table. A card you picked or
+    confirmed yourself stays yours. Read every 15 s while the app is open, unlocked and holds real slabs. */
+-const SCAN_LIVE = 'https://raw.githubusercontent.com/BrettS600/biotech-catelog/live/';
++const SCAN_LIVE = 'https://raw.githubusercontent.com/driftcodedev/biotech-catelog/live/';
+ const READ_WHY = {'no card': 'Read: not a card in our data (under $50, or one we don’t follow)', several: 'Read: the grader’s name fits more than one of our cards - find it by name',
+   'no grade data': 'Read: our card, but no figures for this grade', 'no grade': 'Read: the cert page shows no grade', 'not pokemon': 'Read: not a Pokémon card', wait: 'Read - waiting for the site’s match index'};
+ const READS = {map: new Map(Object.entries(LS.get(READS_STORE, {}) || {})), since: '12h', fileB: -1, sync: {}, clearDone: 0, busy: false, ch: null};
+diff --git a/page/app/sw.js b/page/app/sw.js
+index 865eedda..6944957f 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v24';
++const CACHE = 'ssc-v25';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+diff --git a/page/graded_fh.js b/page/graded_fh.js
+index 45dd162d..edfcc8dd 100644
+--- a/page/graded_fh.js
++++ b/page/graded_fh.js
+@@ -611,7 +611,7 @@ function fhsKeyPaint() {                                  // the collector's key
+   const k = (SCAN.file || {}).key || {};
+   if (!SCAN.file || k.ok || !k.pub) { box.hidden = true; return; }
+   box.hidden = false;
+-  box.innerHTML = '<b>The collector can’t read scan-results yet</b>' + (k.err ? ' <span class="dim">(' + esc(k.err) + ')</span>' : '') + '. On GitHub open <b>BrettS600/scan-results › Settings › Deploy keys › Add deploy key</b>, give it any title, paste this key, leave “Allow write access” unticked and add it. The reads start within a minute.' +
++  box.innerHTML = '<b>The collector can’t read scan-results yet</b>' + (k.err ? ' <span class="dim">(' + esc(k.err) + ')</span>' : '') + '. On GitHub open <b>driftcodedev/scan-results › Settings › Deploy keys › Add deploy key</b>, give it any title, paste this key, leave “Allow write access” unticked and add it. The reads start within a minute.' +
+     '<div class="fhs-keyrow"><code id="fhs-keytext">' + esc(k.pub) + '</code><button type="button" class="fhr-del" id="fhs-keycopy">Copy</button></div>';
+ }
+ document.addEventListener('click', e => {
+diff --git a/scans.py b/scans.py
+index 5d2c2e8c..42be47d2 100644
+--- a/scans.py
++++ b/scans.py
+@@ -6,7 +6,7 @@ Brett, 2026-11-09: "I want to have one called scans. And when I scan a barcode,
+ collector.py, and put it into a new py ... and have the code perform the same functions".
+ 
+ WHERE THE FILE IS
+-  repo BrettS600/card-data (private), branch main, data/scans/scans.csv - in links.csv's format: a "Cert ID" header,
++  repo driftcodedev/card-data (private), branch main, data/scans/scans.csv - in links.csv's format: a "Cert ID" header,
+   then one CSV-quoted cell a slab that opens the cert's page and shows the cert number, each slab once:
+     Cert ID
+     "=HYPERLINK(""https://www.psacard.com/cert/46790116/psa"",""46790116"")"
+@@ -33,7 +33,7 @@ of the queue when it settles.
+ THE READS OF THE SCANS (2026-11-14, Brett: "as soon as read results are made available from the scans results file,
+ then I want those results to be immediately updated to the website ... those readings should also be uploaded to reflect
+ in the app itself"): Brett opens the scanned slabs' cert pages himself; his reader leaves each page, as read, in the
+-private repo BrettS600/scan-results, folder scans/ (one JSON per read: grader_cert_time.json - the same shape as the cert
++private repo driftcodedev/scan-results, folder scans/ (one JSON per read: grader_cert_time.json - the same shape as the cert
+ pages of card-data data/certs). reads_tick() (every SR_EVERY_S, from collector.py's fast tick) fetches that folder with
+ this machine's own read-only key (SR_KEY - made here on the first run; Brett adds its public half to scan-results as a
+ deploy key, read only; the website shows it while the key is not let in), reads the new files (the newest read of a
+@@ -65,16 +65,16 @@ BASE = os.environ.get("COLLECTOR_HOME", "/opt/pokemon-collector")       # the sa
+ DATA = os.path.join(BASE, "data")
+ KNOWN_HOSTS = os.path.join(BASE, ".ssh", "known_hosts")                # github.com's key, written by setup.sh
+ KEY = os.path.join(BASE, ".ssh", "card_data_ed25519")                  # card-data's deploy key (write access)
+-RUN_KEY = os.path.join(BASE, ".ssh", "scrap_run_token")                # a GitHub key that can only start runs in BrettS600/scrap
+-RUN_URL = "https://api.github.com/repos/BrettS600/scrap/actions/workflows/15.yml/dispatches"
+-REMOTE = os.environ.get("CARD_DATA_REMOTE", "git@github.com:BrettS600/card-data.git")
++RUN_KEY = os.path.join(BASE, ".ssh", "scrap_run_token")                # a GitHub key that can only start runs in driftcodedev/scrap
++RUN_URL = "https://api.github.com/repos/driftcodedev/scrap/actions/workflows/15.yml/dispatches"
++REMOTE = os.environ.get("CARD_DATA_REMOTE", "git@github.com:driftcodedev/card-data.git")
+ CHECKOUT = os.path.join(DATA, "card-data-scans")                       # the sparse checkout: data/scans only
+ FILE = "data/scans/scans.csv"
+ HEADER = "Cert ID"
+ MAX_WAITING = 20000              # links held while card-data can't be reached
+ RETRY_S = 600                    # after a failed try (card-data unreachable, a key problem)
+-# the reads of the scans: the private repo BrettS600/scan-results, folder scans/ only, read with this machine's own key
+-SR_REMOTE = os.environ.get("SCAN_RESULTS_REMOTE", "git@github.com:BrettS600/scan-results.git")
++# the reads of the scans: the private repo driftcodedev/scan-results, folder scans/ only, read with this machine's own key
++SR_REMOTE = os.environ.get("SCAN_RESULTS_REMOTE", "git@github.com:driftcodedev/scan-results.git")
+ SR_KEY = os.path.join(BASE, ".ssh", "scan_results_ed25519")            # made here on the first run; its .pub goes to the repo's deploy keys
+ SR_CHECKOUT = os.path.join(DATA, "scan-results")                       # a bare, tree-less clone: scans/ is all it ever fetches
+ SR_DIR = "scans"
+@@ -366,7 +366,7 @@ def sr_pub(v):
+             return None
+         try:
+             os.makedirs(os.path.dirname(SR_KEY), exist_ok=True)
+-            r = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "pokemon-collector, read only: BrettS600/scan-results",
++            r = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "pokemon-collector, read only: driftcodedev/scan-results",
+                                 "-f", SR_KEY], capture_output=True, text=True, timeout=60)
+             if r.returncode != 0:
+                 raise RuntimeError(r.stderr.strip()[:200])
+@@ -519,7 +519,7 @@ def reads_tick(v, idx=None):
+         if time.time() - _sr["err_logged"] > 3600:
+             _sr["err_logged"] = time.time()
+             log(f"Scans: scan-results could not be read ({err[:200]}) - "
+-                + ("add this machine's public key to BrettS600/scan-results as a read-only deploy key" if v["sr_err"].startswith("the key") else "next try in a while"))
++                + ("add this machine's public key to driftcodedev/scan-results as a read-only deploy key" if v["sr_err"].startswith("the key") else "next try in a while"))
+     stamp = (idx or {}).get("t") if idx else None
+     if stamp is not None and stamp != v.get("sr_idx_t"):
+         v["sr_idx_t"] = stamp
+@@ -546,7 +546,7 @@ def git(*args, cwd=None, check=True, timeout=120):
+     return r
+ 
+ def start_scan_run(n):
+-    """Tells BrettS600/scrap to open the new scans now. Only "start" is sent - scrap reads scans.csv itself.
++    """Tells driftcodedev/scrap to open the new scans now. Only "start" is sent - scrap reads scans.csv itself.
+     A failure is only logged: the push already worked, and scrap also checks scans.csv on its own."""
+     try:
+         if not os.path.exists(RUN_KEY):
+diff --git a/setup.sh b/setup.sh
+index 4d07fb92..1f918a45 100644
+--- a/setup.sh
++++ b/setup.sh
+@@ -1,10 +1,10 @@
+ #!/usr/bin/env bash
+ # Installs the always-on eBay collector on a fresh Ubuntu 24.04 machine. Run as root:
+-#   curl -fsSL https://raw.githubusercontent.com/BrettS600/biotech-catelog/main/setup.sh | bash
++#   curl -fsSL https://raw.githubusercontent.com/driftcodedev/biotech-catelog/main/setup.sh | bash
+ # Safe to run again: it keeps the secrets file and the deploy key if they already exist.
+ set -euo pipefail
+ 
+-REPO_URL="https://github.com/BrettS600/biotech-catelog.git"
++REPO_URL="https://github.com/driftcodedev/biotech-catelog.git"
+ BASE=/opt/pokemon-collector
+ ENV_FILE=/etc/pokemon-collector.env
+ SVC=pokemon-collector
+@@ -87,7 +87,7 @@ systemctl restart $SVC
+ echo
+ echo "=================================================================="
+ echo "Installed. Add this deploy key to the repo, WITH write access:"
+-echo "  https://github.com/BrettS600/biotech-catelog/settings/keys/new"
++echo "  https://github.com/driftcodedev/biotech-catelog/settings/keys/new"
+ echo "  Title: pokemon-collector    Tick: Allow write access"
+ echo
+ cat "$BASE/.ssh/id_ed25519.pub"
+@@ -95,7 +95,7 @@ echo
+ echo "Until the key is added the collector runs but cannot publish (it will say 'Publish failed')."
+ echo
+ echo "And this one to card-data, also WITH write access (the phone app's scans.csv):"
+-echo "  https://github.com/BrettS600/card-data/settings/keys/new"
++echo "  https://github.com/driftcodedev/card-data/settings/keys/new"
+ echo "  Title: pokemon-collector (scans)    Tick: Allow write access"
+ echo
+ cat "$BASE/.ssh/card_data_ed25519.pub"
