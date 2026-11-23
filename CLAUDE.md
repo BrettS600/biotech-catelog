@@ -4047,8 +4047,9 @@ and the site password once), and the old screen's two other jobs kept as small b
   month x segment (era x grader x 10 / below) of "the card's other grades rose more than this one over 3 months"
   minus the rank of the month's own spread - TWO of the research's three terms; the third (slab cheap against the
   raw card) needs PriceCharting's raw price and Brett keeps PriceCharting out of the forecast's calculations, so it
-  is left out (measured on the site's lines: top over bottom fifth 4.8 points on gated lines, 43 of 55 months; 1.8
-  on thin lines). doc.fc.regime ({up: level != red ...}) and an empty doc.fc.pct stay only so a page or phone app
+  is left out (measured with the site's own ranking: top over bottom fifth 3.9 points on gated lines, 43 of 54
+  months, against 5.8 with all three terms; 2.0 on thin lines - card-data data/graded/research E137; that folder's
+  notes/08 and E134-E139 hold everything measured while this was built, scripts/site_model_checks.py reruns it). doc.fc.regime ({up: level != red ...}) and an empty doc.fc.pct stay only so a page or phone app
   from before the change shows "no score" instead of failing; tiers / tier_levels are gone (never used by the page).
   THE PAGE (graded_fc.js): fcgDoc() wants level + sig; fcgTab keys on fcgReg(D) = the level (the raw model: up /
   down - raw_fc.js runs fcgTab, fcgCdf, fcgOrder, fcgPlaces, fcgMonteCarlo unchanged); fcgSig / fcgSigOf decode a
@@ -4069,11 +4070,30 @@ and the site password once), and the old screen's two other jobs kept as small b
   research - trust the Chance and its range more). PHONE APP (page/app/app.js, sw.js cache ssc-v21): same data
   (app/data.bin fc: level, cells, cap, sig, tables as [mean, q, lo, hi, n, nm]), same chance / cap / gate / order;
   the slab card's "Rank" is "Line" (lineCard); the bar's limit is 85. An app still cached from before shows no
-  score for one start, then fetches the new one. NOT DONE YET, SAID ON THE PAGE: History's Forecasting Replay and
-  Pre-Sales Spotcheck (graded_forecast.build_hist, graded_hist.bin, VERSION_HIST) still run the model before this
-  one - the dip rank and the 3-month rising / falling market; _prep keeps its old fields for them. Next: rebuild
-  both on the cells (per month: the level known then, the cell tables of the holds over by then, candidates by
-  tie-breaker; add each line's cell by month to trends cf so the Spotcheck can place a slab). STILL OPEN FOR BRETT:
+  score for one start, then fetches the new one. HISTORY ON THE SAME MODEL (the same day, a second patch): graded_forecast.build_hist
+  -> graded_hist.bin v3 = {v: 3, months, lv (each month's level as it read then), up (1 unless red), vs12, first
+  (1: the 3-month hold ran on the whole period's odds - too few outcomes at that level were over yet; 18 of 58
+  months, among them most green ones: hindsight, starred on the page), tab[month][hold - 1][cell] = [mean, 5% ..
+  95% grid] from the decisions of that level whose hold was over by then (30 cases over 4 months and half of the
+  level's months so far, else the level's pooled seasoned PSA lines known then, else the whole period's), cands[month]
+  = the month's lines $50+ with a price that month AND the next, one per page and grade, the HIST_K = 16 best by
+  tie-breaker of each cell and grade: [card id, line index, the price bought at - the NEXT month's median; the
+  month's own for the newest month -, code as doc.fc.sig (F_BEYOND as it read then), the return 1..6 months after
+  the buy x 1000, sales that month], cap}. A hold decided in month m is over at month m + 1 + h (fhgDone). "Beyond
+  the history" then (beyond_then): the era's run is a run at all (0.20+) and larger than any run an era of its side
+  had had up to two months before - so the first big run of a side is beyond by definition (Contemporary 2024-05,
+  Modern 2025-02 / 03, Vintage 2025-09 ...); beyond() for today carries the same 0.20 floor. THE TREND FILES: cf[gk]
+  has a sixth array, the line's reading month by month (graded_forecast.month_codes: cell + 16 x (1 extended, 2 still
+  falling, 4 segment ran, 8 beyond then), -1 none); Pre-Sales Spotcheck (fhsSlab) places a slab in each past month
+  from it - no rank, no cut points (rq is gone) -, reads the odds of that cell at that month's level from tab, buys
+  the month after at that month's median (3+ sales) and sells at the median the hold later; a month counts when the
+  line had a price in it and in the next. graded_fh.js needs doc.v === 3 (an older file: "arrives with the next site
+  build"). On the first build, default boxes, gate on: buys in the 29 green / amber months only; mean ROI of the
+  months' plans +9% (1 month), +34% (3), +55% (6) with a mean stated chance of 83-85% - in-sample by construction
+  (levels and rules chosen on these months, whole-period odds in 18 of them): upper bounds, and the 1-month holds of
+  mid 2026 came in at -7% to 0% against a stated 72-85%. The model before this one (the dip rank: _pairs, rq, HIST_K
+  per group) is out of graded_forecast.py; _prep still makes Pn / buy / dev12 / pct for the trend files' older
+  arrays. STILL OPEN FOR BRETT:
   whether Net / ROI should become a middle outcome with a range; whether the tie-breaker may use PriceCharting's raw
   price (the third term). All of it rests on one fall and one rise: the help says to read the figures as upper bounds.
 

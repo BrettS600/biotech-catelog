@@ -685,7 +685,7 @@ Object.assign(HELP, {
     '- It does depend on the Hold and the % under, because the Chance does. On Recording a vendor’s price can move a row up or down.',
     '- The number ignores the filters, so a slab keeps its place while you search.',
     '## The tie-breaker',
-    'Two readings of the line, each ranked inside its month and its segment (era × grader × 10 / below 10) and added: the card’s other grades rose more than this one over the last 3 months (it tends to catch up), and a clean month (its sales close together). On busy lines the top fifth beat the bottom fifth by about 5 points over 3 months, in 43 of 55 months; on thin lines by about 2. Small next to the market’s level: it orders slabs with the same Chance, it does not move the Chance.',
+    'Two readings of the line, each ranked inside its month and its segment (era × grader × 10 / below 10) and added: the card’s other grades rose more than this one over the last 3 months (it tends to catch up), and a clean month (its sales close together). On busy lines the top fifth beat the bottom fifth by about 4 points over 3 months (ahead in 43 of 54 months); on thin lines by about 2. Small next to the market’s level: it orders slabs with the same Chance, it does not move the Chance.',
     '- The research’s third term (the slab cheap against the raw card) needs PriceCharting’s raw price and is left out: the forecast runs on Card Ladder alone.',
     '- Until 2026-11-23 the order inside a Chance was the deeper dip first; that did not hold up from a price one could really pay.'].join('\n'),
     now: () => { const r = (FCG.rows || []).find(x => x.fcBB === 1); return r ? 'number 1 on Forecasting: <b>' + esc(r[1]) + '</b> ' + esc(r[25]) + ' at ' + Math.round(r.fcP) + '%' : ''; }},

@@ -63,8 +63,9 @@ the deepest dips did worse than the rest); the Chance is read from three things 
   page shows no Chance for it and says why (end of October 2026: Classic and Mid Era, +123% and +136% against a largest
   past run of +66%).
   PriceCharting plays no part (the research's third tie-breaker term, the slab's price against the raw card's, is left
-  out for that reason). The replay (build_hist, graded_hist.bin) still runs the model before this one (the dip rank,
-  below) until it is rebuilt on the new one."""
+  out for that reason). The replay (build_hist, graded_hist.bin) runs this model too: each month as it read then.
+  (The paragraphs above this one describe the model before it - the dip rank -, which nothing runs any more; _prep
+  still makes its Pn / buy / dev12 / pct, and the trend files keep the first two.)"""
 import os
 from datetime import datetime, timezone
 
@@ -74,7 +75,6 @@ import pandas as pd
 import cl_sales
 
 VERSION = "graded v3 (market level and line rules) 2026-11-23"
-VERSION_HIST = "graded v2 (Card Ladder's own sales, the dip rank) 2026-11-05"   # the replay's model, until it is rebuilt
 LINES = (["psa|g10", "psa|g9", "psa|g8_5", "psa|g8", "psa|g7", "psa|g6", "psa|g5", "psa|g4", "psa|g3", "psa|g2",
           "psa|g1_5", "psa|g1"] +
          ["cgc|g10perfect", "cgc|g10pristine", "cgc|g10", "cgc|g9_5", "cgc|g9", "cgc|g8_5", "cgc|g8", "cgc|g7_5",
@@ -305,24 +305,6 @@ def _prep(cd, keep_ids=None, today=None, pages=None, link=None, meta=None):
                 std_now=std_now, n12_now=n12_now, dev_now=dev_now, pct_now=pct_now,
                 SD=np.vstack(rows_sd), H=np.vstack(rows_h), page=np.array(pgs, dtype=object), first_m=np.array(firsts, dtype=np.float64),
                 era=np.array(era, dtype=object), relm=np.array(relm, dtype=np.float64))
-
-
-def _pairs(P, h, tier=FLOOR):
-    """Every (decision month, group, market, realized return) of the ranked lines with tier+ sales in their last 12
-    months, for a hold of h months."""
-    Pn, buy, pct, grp, reg3, n12 = P["Pn"], P["buy"], P["pct"], P["grp"], P["reg3"], P["n12"]
-    Ms, Ys, Gs, Rs = [], [], [], []
-    for j in range(P["j_start"], P["j_last"] - h + 1):
-        with np.errstate(invalid="ignore", divide="ignore"):
-            y = Pn[:, j + h] / buy[:, j] - 1
-        sel = np.isfinite(y) & np.isfinite(pct[:, j]) & (n12[:, j] >= tier)
-        if not sel.any() or not np.isfinite(reg3[j]):
-            continue
-        n = int(sel.sum())
-        Ms.append(np.full(n, j)); Ys.append(np.clip(y[sel], *CLIP)); Gs.append(grp[sel, j]); Rs.append(np.full(n, reg3[j] > 0))
-    if not Ys:
-        return None
-    return np.concatenate(Ms), np.concatenate(Gs), np.concatenate(Rs), np.concatenate(Ys)
 
 
 # ---------------- the model since 2026-11-23 (v3): the market's level, the line's cell, the hold ----------------
@@ -619,6 +601,11 @@ def beyond(M):
     return out_max, out_now
 
 
+def _is_beyond(run_now, run_max):
+    """A run at all (the segment rule's 0.20) and larger than the largest in the history."""
+    return bool(run_now is not None and run_now >= SEG_RUN and (run_max is None or run_now > run_max))
+
+
 def _today(P, M):
     """{card id: {line index: code}} for the lines with a standard price today. code = tie-breaker x 1000 (1023: none)
     + 1024 x cell + 16384 x flags. The line's own reading (extended, still falling, busy or thin, the tie-breaker) is of
@@ -645,7 +632,7 @@ def _today(P, M):
     cell = np.where(~seas, C_NEW, np.where(~psa, C_CGC, np.where(ne, np.where(ok, 0, 2) + np.where(busy, 0, 1), np.where(oe, np.where(vin, 4, 6) + np.where(busy, 0, 1), C_UNK))))
     run_max, run_now = beyond(M)
     ex = M["era_ix"]
-    bey = seas & (ex >= 0) & np.array([bool(run_now[k] is not None and run_max[k] is not None and run_now[k] > run_max[k]) if k >= 0 else False for k in ex])
+    bey = seas & (ex >= 0) & np.array([_is_beyond(run_now[k], run_max[k]) if k >= 0 else False for k in ex])
     flags = (e * F_EXT + f * F_FALL + sr * F_SEG + (~seas) * F_NEW + (~busy) * F_THIN + (~has) * F_NOPRICE
              + (M["proxy"]) * F_PROXY + (at == jl - 1) * F_PREV + bey * F_BEYOND).astype(int)
     li = {l: i for i, l in enumerate(LINES)}
@@ -681,7 +668,7 @@ def build(cd, keep_ids=None, today=None, pages=None, link=None, P=None, meta=Non
           "months": {k: int((level[a:jl + 1] == k).sum()) for k in LEVELS},
           "last": [[_ym(m0 + j), str(level[j])] for j in range(max(a, jl - 11), jl + 1)],
           "segs": [[nm, pc(M["segm3"][i, jl])] for i, nm in enumerate(M["seg_names"])],
-          "beyond": [[e, pc(rn), pc(rx)] for e, rx, rn in zip(ERA_OLD + ERA_NEW, *beyond(M)) if rn is not None and rx is not None and rn > rx],
+          "beyond": [[e, pc(rn), pc(rx)] for e, rx, rn in zip(ERA_OLD + ERA_NEW, *beyond(M)) if _is_beyond(rn, rx)],
           "th": {"heat": HEAT_HOT, "share": SHARE_FEW, "seg": round(float(np.exp(SEG_RUN) - 1), 3), "ext1": round(float(np.exp(EXT_MOM1) - 1), 3),
                  "ext6": round(float(np.exp(EXT_DEV6) - 1), 3), "fall": round(float(1 - np.exp(FALL_MOM1)), 3), "busy": BUSY_N, "seasoned": SEASONED}}
     # (regime, pct: what a page still open from before the change reads - it shows "no score" until it is refreshed)
@@ -695,88 +682,128 @@ def build(cd, keep_ids=None, today=None, pages=None, link=None, P=None, meta=Non
 
 
 # ---------------- the replay (2026-11-04, Brett: the graded Forecast History - "known-at-the-time", all six holds) ----------------
+# ON THE MODEL OF 2026-11-23 SINCE THAT DAY'S SECOND CHANGE: each month's level as it read then, the odds of each cell
+# from the decisions whose hold was over by then, the month's lines by cell in tie-breaker order.
 HIST_QS = [round(i / 20, 2) for i in range(1, 20)]    # the replay's odds grids: 5% .. 95% (smaller file)
-HIST_K = (8, 24)                                      # candidates kept per month per group and line, deepest first: groups 1-5 / 6-10 of the rank
-HIST_BAND = (50.0, 5000.0)                            # the replay's candidates: buy price inside the page's default band
-HIST_MIN = 30                                         # an odds cell needs this many realized cases, else the whole-period cell
-RQ = [round(i / 100, 2) for i in range(1, 100)]       # the rank's cut points kept per month (Pre-Sales Spotcheck, 2026-11-05)
+HIST_K = 16                                           # candidates kept per month, cell and grade, best tie-breaker first
+HIST_BAND = (50.0, 5000.0)                            # the replay's candidates: bought inside the page's default band
+HIST_MIN = 30                                         # an odds cell needs this many realized cases over MIN_MONTHS months ...
+
+
+def beyond_then(M):
+    """eras x months: the era's run that month was a run at all (0.20+, the segment rule's line) and larger than any run
+    an era of its side had had up to two months before - "beyond the history" as it would have read then (the replay;
+    beyond() is the same for today). The first big run of a side is beyond by definition: nothing like it had been seen."""
+    run, a = M["era_run"], M["a"]
+    n_old, T = len(ERA_OLD), run.shape[1]
+    out = np.zeros(run.shape, dtype=bool)
+    for k in range(run.shape[0]):
+        side = run[:n_old] if k < n_old else run[n_old:]
+        for j in range(a, T):
+            past = side[:, a:max(a, j - 1)]
+            if np.isfinite(run[k, j]) and run[k, j] >= SEG_RUN:      # a run at all (the segment rule's 0.20) ...
+                out[k, j] = not np.isfinite(past).any() or run[k, j] > np.nanmax(past)   # ... and larger than any before it
+    return out
+
+
+def month_codes(P, M):
+    """lines x months, a small code of each line's reading as it stood that month (-1: none): the cell + 16 x (1
+    extended, 2 still falling, 4 its segment ran, 8 beyond the history then). For the trend files (graded_site.add_cf):
+    Pre-Sales Spotcheck places a slab in each past month with it."""
+    if M.get("codes") is None:
+        bt, ex, cell = beyond_then(M), M["era_ix"], M["cell"]
+        bey = np.where(ex[:, None] >= 0, bt[np.maximum(ex, 0)], False) & (cell != C_NEW) & (cell >= 0)
+        f = M["ext"] * 1 + M["fall"] * 2 + M["seg_run"] * 4 + bey * 8
+        M["codes"] = np.where(cell >= 0, cell.astype(np.int16) + 16 * f.astype(np.int16), -1).astype(np.int16)
+    return M["codes"]
 
 
 def build_hist(cd, keep_ids=None, today=None, pages=None, link=None, P=None):
-    """graded_hist.bin: for every month from 2022-01 to the last complete month, the odds each group would have shown
-    THAT month (the realized returns of the decision months whose hold was over by then - in 2022, too few, so the whole
-    period's tables are used, marked first) for holds 1-6 in that month's market, and the month's best-ranked lines of
-    each group and line in the $50 - $5,000 band with what they went on to do: [card id, line (index into lines), standard
-    price, rank x 1000, return after 1..6 months x 1000 (null while not over or not known), sales in its last 12
-    months]; and each month's rank cut points (rq: the 1st .. 99th percentile of -dev12, x 10000, over the rqn lines
-    ranked), so the page can rank any slab from its own line. Card Ladder's sales only (the floor's lines)."""
+    """graded_hist.bin: for every month from 2022-01 to the last complete month, what the model of 2026-11-23 would have
+    read at that month's end. lv: the market's level then (up: 1 unless red; vs12: the index against the average of its 12
+    months before, a fraction). tab[month][hold - 1][cell]: the odds of that cell at that level from the decisions whose
+    hold was over by then - [mean, the 5% .. 95% grid] - when there were HIST_MIN cases over MIN_MONTHS months and half
+    of that level's months so far; else that level's seasoned PSA lines together, known then; else (first[month] = 1
+    when the 3-month hold needed it) the whole period's cell, which is hindsight and marked so. cands[month]: the month's lines $50+ with a price that month AND the
+    next (one per Card Ladder page and grade), by cell and grade the HIST_K best by tie-breaker: [card id, line index,
+    the price bought at - the NEXT month's median; the month's own for the last month -, code (as doc.fc.sig: tie-breaker
+    x 1000 + 1024 x cell + 16384 x flags; F_BEYOND as it read then), the return 1..6 months after the buy x 1000 (null
+    while not over or no price), sales that month]. Card Ladder's sales only."""
     P = P or _prep(cd, keep_ids, today, pages, link)
     if P is None:
         return {"err": "no Card Ladder sales for the listed cards yet (card-data data/cardladder/lines)"}
-    kd, Pn, m0, buy, pct, grp, reg3, n12 = P["keys"], P["Pn"], P["m0"], P["buy"], P["pct"], P["grp"], P["reg3"], P["n12"]
-    j_start, j_last, dev12 = P["j_start"], P["j_last"], P["dev12"]
+    M = _model(P)
+    kd, m0 = P["keys"], P["m0"]
+    Pm, Nz, cell, level, uniq = M["Pm"], M["Nz"], M["cell"], M["level"], M["uniq"]
+    a, jl = M["a"], M["j_last"]
     cid = kd["card_id"].astype(int).values
     lix = kd["line"].map({l: i for i, l in enumerate(LINES)}).values
-    first_honest = max(j_start, _mi("2023-01") - m0)
-    cells, whole = {}, {}
-    for h in HORIZONS:
-        got = _pairs(P, h)
+    nC = len(CELLS)
+    codes = month_codes(P, M)
+    grid = lambda y: [round(float(np.clip(y, *RET_CLIP).mean()), 4)] + [round(float(v), 4) for v in np.quantile(y, HIST_QS)]
+    enough = lambda J_, need=MIN_MONTHS: len(J_) >= HIST_MIN and len(np.unique(J_)) >= need
+    half = lambda J_: max(MIN_MONTHS, (len(np.unique(J_)) + 1) // 2)        # a cell needs half of its level's months (as _tables3)
+    pairs = {h: _pairs3(P, M, h) for h in HORIZONS}
+    whole = {}                                               # (hold, level, cell or "all") -> the whole period's grid
+    for h, got in pairs.items():
         if got is None:
             continue
-        M, G, R, Y = got
-        for reg in (True, False):
-            for g in range(GROUPS):
-                sel = (R == reg) & (G == g)
-                o = np.argsort(M[sel], kind="stable")
-                cells[(h, reg, g)] = (M[sel][o], Y[sel][o])
-                if sel.sum() >= HIST_MIN:
-                    whole[(h, reg, g)] = Y[sel]
-
-    def grid(y):
-        return [round(float(y.mean()), 4)] + [round(float(v), 4) for v in np.quantile(y, HIST_QS)]
-    months, ups, regs, firsts, tabs, cands, rqs, rqn = [], [], [], [], [], [], [], []
-    for j in range(j_start, j_last + 1):
-        if not np.isfinite(reg3[j]):
-            continue
-        up = bool(reg3[j] > 0)
-        with np.errstate(invalid="ignore"):
-            okr = (Pn[:, j] >= RANK_MIN_PRICE) & np.isfinite(dev12[:, j]) & (n12[:, j] >= FLOOR)
-        v = -dev12[okr, j]
-        rqs.append([int(round(float(x) * 10000)) for x in np.quantile(v, RQ)] if v.size else None); rqn.append(int(v.size))
-        tab = []
+        J, C, Y = got
+        for name in LEVELS:
+            at = level[J] == name
+            need = half(J[at])
+            for c in range(nC):
+                s_ = at & (C == c)
+                if enough(J[s_], need):
+                    whole[(h, name, c)] = grid(Y[s_])
+            s_ = at & (C != C_NEW) & (C != C_CGC)
+            if enough(J[s_]):
+                whole[(h, name, "all")] = grid(Y[s_])
+    months, lvs, ups, vs, firsts, tabs, cands = [], [], [], [], [], [], []
+    for j in range(a, jl + 1):
+        name = str(level[j])
+        tab, first = [], 0
         for h in HORIZONS:
-            row = []
-            for g in range(GROUPS):
-                c = cells.get((h, up, g))
-                y = None
-                if j >= first_honest and c is not None:
-                    k = int(np.searchsorted(c[0], j - h, side="right"))   # decided at least h months before j: over by j
-                    if k >= HIST_MIN:
-                        y = c[1][:k]
-                if y is None and (h, up, g) in whole:
-                    y = whole[(h, up, g)]
-                row.append(grid(y) if y is not None else None)
+            got = pairs.get(h)
+            row = [None] * nC
+            if got is not None:
+                J, C, Y = got
+                then = (level[J] == name) & (J + 1 + h <= j)        # decided, bought and sold by the end of month j
+                sp = then & (C != C_NEW) & (C != C_CGC)
+                pooled = grid(Y[sp]) if enough(J[sp]) else None
+                if pooled is None and h == 3:
+                    first = 1
+                need = half(J[then])
+                for c in range(nC):
+                    s_ = then & (C == c)
+                    row[c] = (grid(Y[s_]) if enough(J[s_], need) else pooled if pooled is not None else whole.get((h, name, c)) or whole.get((h, name, "all")))
             tab.append(row)
+        last = j == jl
+        entry = Pm[:, j] if last else Pm[:, j + 1]                  # bought the month after the decision (the last month: not known yet)
+        tb = _tb(P, M, j)
         with np.errstate(invalid="ignore"):
-            ok = np.isfinite(pct[:, j]) & (buy[:, j] >= HIST_BAND[0]) & (buy[:, j] <= HIST_BAND[1])
+            ok = uniq & (Pm[:, j] >= UNI_PRICE) & (entry >= HIST_BAND[0]) & (entry <= HIST_BAND[1]) & (cell[:, j] >= 0)
+        key = np.where(np.isfinite(tb), tb, -1.0)
         out = []
-        for g in range(GROUPS):
+        for c in range(nC):
             for li in range(len(LINES)):
-                idx = np.where(ok & (grp[:, j] == g) & (lix == li))[0]
-                idx = idx[np.argsort(-pct[idx, j])][:HIST_K[1] if g >= GROUPS // 2 else HIST_K[0]]
-                for i in idx:
+                idx = np.where(ok & (cell[:, j] == c) & (lix == li))[0]
+                for i in idx[np.argsort(-key[idx], kind="stable")][:HIST_K]:
                     ys = []
                     for h in HORIZONS:
-                        if j + h > j_last or not np.isfinite(Pn[i, j + h]):
+                        if last or j + 1 + h > jl or not np.isfinite(Pm[i, j + 1 + h]):
                             ys.append(None)
                         else:
-                            ys.append(int(round(float(np.clip(Pn[i, j + h] / buy[i, j] - 1, *CLIP)) * 1000)))
-                    out.append([int(cid[i]), li, round(float(buy[i, j]), 2), int(round(float(pct[i, j]) * 1000))] + ys + [int(n12[i, j])])
-        months.append(_ym(m0 + j)); ups.append(1 if up else 0); regs.append(round(float(reg3[j]), 4)); firsts.append(1 if j < first_honest else 0); tabs.append(tab); cands.append(out)
-    return {"model": VERSION_HIST, "src": "cl", "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "qs": HIST_QS, "lines": LINES,
-            "groups": GROUPS, "horizons": list(HORIZONS), "band": list(HIST_BAND), "k": list(HIST_K), "yscale": 1000, "last": _ym(m0 + j_last),
-            "months": months, "up": ups, "reg3": regs, "first": firsts, "tab": tabs, "cands": cands,
-            "rqs": RQ, "rq": rqs, "rqn": rqn, "rank_min": RANK_MIN_PRICE, "floor": FLOOR}
+                            ys.append(int(round(float(np.clip(Pm[i, j + 1 + h] / entry[i] - 1, *CLIP)) * 1000)))
+                    k = int(codes[i, j])
+                    fl = (k >> 4 & 1) * F_EXT + (k >> 5 & 1) * F_FALL + (k >> 6 & 1) * F_SEG + (k >> 7 & 1) * F_BEYOND + (0 if Nz[i, j] >= BUSY_N else F_THIN)
+                    out.append([int(cid[i]), li, round(float(entry[i]), 2), (1023 if not np.isfinite(tb[i]) else int(round(float(tb[i]) * 1000))) + 1024 * c + 16384 * fl] + ys + [int(Nz[i, j])])
+        months.append(_ym(m0 + j)); lvs.append(name); ups.append(0 if name == "red" else 1)
+        vs.append(None if not np.isfinite(M["vs12"][j]) else round(float(np.exp(M["vs12"][j]) - 1), 4))
+        firsts.append(first); tabs.append(tab); cands.append(out)
+    return {"model": VERSION, "v": 3, "src": "cl", "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "qs": HIST_QS, "lines": LINES,
+            "cells": list(CELLS), "groups": nC, "horizons": list(HORIZONS), "band": list(HIST_BAND), "k": HIST_K, "yscale": 1000, "last": _ym(m0 + jl),
+            "months": months, "lv": lvs, "up": ups, "vs12": vs, "first": firsts, "tab": tabs, "cands": cands, "cap": P_CAP, "floor": PRICE_MIN_N}
 
 
 if __name__ == "__main__":

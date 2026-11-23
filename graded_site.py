@@ -1448,7 +1448,8 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
             print("graded replay:", gh["err"])
         else:
             nh = write_enc(os.path.join(out_dir, "graded_hist.bin"), gh, key)
-            print(f"graded replay: {len(gh['months'])} months ({gh['months'][0]} to {gh['months'][-1]}), {sum(len(c) for c in gh['cands']):,} candidate lines -> graded_hist.bin ({nh / 1e3:.0f} KB gzip)")
+            print(f"graded replay: {len(gh['months'])} months ({gh['months'][0]} to {gh['months'][-1]}), {sum(len(c) for c in gh['cands']):,} candidate lines, "
+                  f"levels {dict(collections.Counter(gh.get('lv') or []))}, {sum(gh.get('first') or [])} months on the whole period's odds -> graded_hist.bin ({nh / 1e3:.0f} KB gzip)")
     except Exception as e:                                   # noqa: BLE001
         print("graded replay failed:", f"{type(e).__name__}: {e}")
     shards = {}
@@ -1556,11 +1557,13 @@ def fc_meta(cd, cards, pc):
 
 
 def add_cf(trends, P, F):
-    """trends[cid]["cf"][gk] = [first YYYY-MM, price then, buy, the month's median, sales that month] month by month (the
-    model's own figures, graded_forecast._prep; None where none / not known) - Pre-Sales Spotcheck ranks a slab from them
-    and Recorded Purchases prices a hold from them, exactly as the replay does."""
+    """trends[cid]["cf"][gk] = [first YYYY-MM, price then, buy, the month's median, sales that month, the line's reading
+    that month] month by month (the model's own figures, graded_forecast._prep; None where none / not known; the reading:
+    graded_forecast.month_codes - the cell + 16 x flags, -1 none) - Pre-Sales Spotcheck places a slab in each past month
+    from them and Recorded Purchases prices a hold from them, exactly as the replay does."""
     kd = P["keys"]
     rnd = lambda a: [None if not np.isfinite(v) else round(float(v), 2) for v in a]
+    codes = F.month_codes(P, F._model(P)) if hasattr(F, "month_codes") else None    # each line's reading month by month (the model of 2026-11-23)
     for i, (cid, gk) in enumerate(kd[["card_id", "line"]].itertuples(index=False, name=None)):
         tr = trends.get(int(cid))
         if tr is None:
@@ -1571,7 +1574,7 @@ def add_cf(trends, P, F):
             continue
         a, b = int(has[0]), int(np.flatnonzero(np.isfinite(N))[-1]) + 1
         tr.setdefault("cf", {})[gk] = [F._ym(P["m0"] + a), rnd(P["Pn"][i, a:b]), rnd(P["buy"][i, a:b]), rnd(P["W"][i, a:b]),
-                                       [None if not np.isfinite(v) else int(v) for v in N[a:b]]]
+                                       [None if not np.isfinite(v) else int(v) for v in N[a:b]]] + ([[int(v) for v in codes[i, a:b]]] if codes is not None else [])
 
 
 def write_card_data(cd, tally, checks, today, cards=None):
