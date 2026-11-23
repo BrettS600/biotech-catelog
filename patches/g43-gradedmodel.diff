@@ -1,0 +1,1705 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 804920c5..fd650ffd 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2163,7 +2163,9 @@ sellers. The sales tracker had also been missing most sales since Oct 1 (see the
+ - GRADED CARDS > FORECASTING (2026-11-04, Brett: "i plan to go to card vendor, scan graded card links, then sell them on
+   ebay ... we assume all cards are available for purchase"; "lets just use the same predictive model but on the graded
+   cards ... its okay if its flawed"; "shipping is factored into buy price"; "i will only buy cards that are least 14.1%
+-  under"). MODEL graded_forecast.py (called by graded_site.py -> graded.bin doc.fc; ~10 s, ~1 GB): the raw v2 method on
++  under"). (THE MODEL WAS REPLACED ON 2026-11-23 - see "THE GRADED FORECAST'S MODEL SINCE 2026-11-23" near the end of
++  these notes; what follows describes the dip-rank model, which only History's replay still runs.)
++  MODEL graded_forecast.py (called by graded_site.py -> graded.bin doc.fc; ~10 s, ~1 GB): the raw v2 method on
+   card-data pricecharting/pc_graded_monthly_*.csv.gz (PSA 10, Grade 9.5 / 9 / 8 / 7 lines, monthly since 2021): rank =
+   percentile of -dev12 among lines $25+ with 12 months of prices, TEN groups (raw: 4); odds tables h = 1..6 x regime x
+   group, quantile grid 1..99%, mean, p_up, buying at max(price, 3-mo avg); pct per (listed card, line) as 0..1000. ONE
+@@ -3998,6 +4000,82 @@ and the site password once), and the old screen's two other jobs kept as small b
+   only the passing lines dependable, +12%); green: above, not hot, 40%+ pass (+34%, never a losing month). The order
+   survived past-only thresholds, a threshold grid and a placebo; built from that round's own filters on four or five
+   waves, so forward-test it first. Amber is not "stay out": it is "only what passes". 2026-10 read amber on both counts.
++- **THE GRADED FORECAST'S MODEL SINCE 2026-11-23 (v3: the market's level, the kind of line, the hold).** Brett, after
++  the research round, asked whether the dip rank and the Chance should come off the site; the answer given (rank off
++  as a buy ranking, its far-above end kept as an "extended" warning; Chance kept but rebuilt on the level / the rules /
++  the era / the hold, shown with a range, capped well under 95%; Best to Buy reworked; the raw tab untouched) he took
++  with "first we make those changes". WHAT IS BUILT (graded_forecast.py, VERSION "graded v3 ..."): _prep also returns
++  SD (the spread of the month's sales), H (second half of the month over the first), page, first_m, era, relm (the
++  card's Card Ladder era and its release month: graded_site.fc_meta - cards[id].era[1], PriceCharting's release date
++  of the card, else dictionary/sets.csv by the set's name; a date only, no PriceCharting price). _model(P) follows
++  the research's definitions on the site's own lines (checked: the levels of 54 of 55 months equal the research's
++  E112 - 2026-03 sits on the 0.70 heat line -, and the extended / still-falling / segment flags of all 2,273 gated
++  lines of 2026-10 equal its forward-test file): the index (median monthly log move of lines 12+ months past
++  release, 5+ sales both months, $50+, one line per Card Ladder page and grade, chained from 2021-01); red = at or
++  below the average of its 12 months before; amber = above, but heat score 0.70+ (four gauges ranked against the
++  months up to then: scatter of the moves, share at a 12-month high, sales against their 12-month average, the
++  index's own move) or under 40% of the busy seasoned PSA lines ($100+, 10+ sales) pass the three rules; green
++  otherwise. THE CELLS (CELLS, doc.fc.cells): np_b / np_t = Modern / Contemporary PSA that passes (not extended: up
++  over 0.15 log in the month or 0.25 over its 6-month average; not still falling: down over 0.07 or H under -0.07;
++  its segment - era x PSA 10 / below 10 - not up 0.20+ in 3 months), busy (10+ sales in the month) / thin; nf_b /
++  nf_t = fails one; vin_b / vin_t = Vintage PSA, cm_b / cm_t = Classic / Mid Era PSA (in the older eras the rules
++  did not separate anything; the two are apart because Classic and Mid Era moved about twice as far as Vintage in
++  the rise - amber, 3 months, thin lines: Vintage median +14%, Classic / Mid Era +30-35% - so one pooled "older"
++  cell overstated a Vintage slab's Net; the page and the phone app name the cells by CELLS' order);
++  new = under 12 months since release (any grader; with no release date: an era that ended years ago counts as
++  seasoned, else 12+ months of sales on file); cgc; unk = PSA with no era (read from the level's pooled table).
++  Busy and thin are apart because the "fails" cell differs a lot by it (amber, 3 months: busy 44%, thin 61%).
++  THE ODDS (doc.fc.tables["hold|level|cell"], "hold|level|all" = the level's seasoned PSA lines pooled, "hold|all|all"):
++  decision month j, bought at month j+1's median (3+ sales; NEVER month j's own - that is what flattered the dip),
++  sold at the median h months later, lines $50+ with a price in month j; n, nm (decision months), mean (returns
++  clipped to -80% .. +170%), p_up, q (1..99%), lo / hi (the 5% / 95% of each grid point over 200 resamples of the
++  cell's months, seed fixed: the Chance's range). A cell needs 30 cases over 4 months AND half of its level's
++  months, else the pooled table is read (CGC's red months are all from the last year of the fall: on its own it read
++  59-66% in a red market). doc.fc.level = {now, month, above, vs12, mom1, mom3 (fractions), heat, hot, share, few,
++  n_gated, n_pass, n_index, months (count per level since 2022), last (12 months), segs (each segment's 3-month
++  move), beyond ([era, its run, the largest past run] for eras beyond the history), th}; doc.fc.sig = {card id: {line index:
++  code}} for lines with a standard price, code = tie-breaker x 1000 (1023 none) + 1024 x cell + 16384 x flags
++  (F_EXT 1, F_FALL 2, F_SEG 4, F_NEW 8, F_THIN 16, F_NOPRICE 32, F_PROXY 64, F_PREV 128, F_BEYOND 256); the line's own reading is
++  of the last complete month, else the month before (F_PREV), else none (F_NOPRICE: in the newer eras counted with
++  the failing lines - never "passes" without a reading). doc.fc.cap = 0.85. NO CHANCE BEYOND THE HISTORY (F_BEYOND,
++  added while testing, NOT in the answer Brett took - told to him): an era's run = the larger 3-month move of its
++  two PSA segments; when it is larger than the largest run any era of its side (older / newer) had in the decision
++  months behind the odds, every line of that era (PSA and CGC, not "new") shows "beyond history" and gets no Chance,
++  no place and no money. On the first build: Classic +122% and Mid Era +136% against +66% - about 10,800 of 39,600
++  lines; the older cell would have shown them 80% and put them at the top of Best to Buy, in a state the history
++  has never seen and that the research's first look at November saw coming back. It lifts by itself. THE TIE-BREAKER (_tb): rank inside
++  month x segment (era x grader x 10 / below) of "the card's other grades rose more than this one over 3 months"
++  minus the rank of the month's own spread - TWO of the research's three terms; the third (slab cheap against the
++  raw card) needs PriceCharting's raw price and Brett keeps PriceCharting out of the forecast's calculations, so it
++  is left out (measured on the site's lines: top over bottom fifth 4.8 points on gated lines, 43 of 55 months; 1.8
++  on thin lines). doc.fc.regime ({up: level != red ...}) and an empty doc.fc.pct stay only so a page or phone app
++  from before the change shows "no score" instead of failing; tiers / tier_levels are gone (never used by the page).
++  THE PAGE (graded_fc.js): fcgDoc() wants level + sig; fcgTab keys on fcgReg(D) = the level (the raw model: up /
++  down - raw_fc.js runs fcgTab, fcgCdf, fcgOrder, fcgPlaces, fcgMonteCarlo unchanged); fcgSig / fcgSigOf decode a
++  code; fcgChance3 -> [chance, low, high] capped; r.fcPct is now the tie-breaker (so fcgOrder and Best to Buy are:
++  Chance to the whole percent, tie-breaker, price), r.fcG the cell, r.fcF the flags, r.fcV the code, r.fcPl / fcPh
++  the range. The Chance cell: the percent, its range under it (.fcg-rng; "the most shown" when even the low end is
++  at the cap; "beyond history" instead of a percent for F_BEYOND), "extended" (.fcg-warn) on a flagged
++  line of any era (it enters the Chance only in the newer eras); the tooltip names the kind of line, its flags, the
++  cases and months. The market box: the level and why, the index against its 12-month average, the heat score, the
++  share passing, the newer segments' 3-month moves, and a table of every kind of line at the pane's hold (middle
++  move; Chance at the % under with its range). The gate is "Buy only when the market is green or amber" (closes on
++  red; same box, id fcg-gate, same phone sync key). The bar stops at 85 (body.html max, fcgInputs clamp).
++  Recording / Purchases: the Rank column is Line (same header key fcPct, so saved layouts hold; it sorts by the
++  tie-breaker): fcgLineCell - the kind in words, busy / thin, "tie NN", the warning. A recorded plan or a Spotcheck
++  set files the code in the slab's 9th figure (the collector keeps 9 figures, an int there) and the level in reg;
++  History tells a v3 record from an older one (the dip rank x 1000) by /\bv3\b/ in the record's model. Net / ROI
++  are still the cell's mean return (now said in the help: an average, off by ~22 points on a single trade in the
++  research - trust the Chance and its range more). PHONE APP (page/app/app.js, sw.js cache ssc-v21): same data
++  (app/data.bin fc: level, cells, cap, sig, tables as [mean, q, lo, hi, n, nm]), same chance / cap / gate / order;
++  the slab card's "Rank" is "Line" (lineCard); the bar's limit is 85. An app still cached from before shows no
++  score for one start, then fetches the new one. NOT DONE YET, SAID ON THE PAGE: History's Forecasting Replay and
++  Pre-Sales Spotcheck (graded_forecast.build_hist, graded_hist.bin, VERSION_HIST) still run the model before this
++  one - the dip rank and the 3-month rising / falling market; _prep keeps its old fields for them. Next: rebuild
++  both on the cells (per month: the level known then, the cell tables of the holds over by then, candidates by
++  tie-breaker; add each line's cell by month to trends cf so the Spotcheck can place a slab). STILL OPEN FOR BRETT:
++  whether Net / ROI should become a middle outcome with a range; whether the tie-breaker may use PriceCharting's raw
++  price (the third term). All of it rests on one fall and one rise: the help says to read the figures as upper bounds.
+ 
+ ## Testing before pushing
+ - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
+diff --git a/graded_forecast.py b/graded_forecast.py
+index 47e9a001..cf55c57e 100644
+--- a/graded_forecast.py
++++ b/graded_forecast.py
+@@ -29,7 +29,42 @@ CGC 10 are separate lines). Month by month, from its sales (no qualifier / autog
+     days) against its 12-month level then, among the lines read.
+ 
+ Called by graded_site.py (build), which puts the result in graded.bin as doc["fc"] and the replay in graded_hist.bin;
+-the page reads them in page/graded_fc.js and page/graded_fh.js."""
++the page reads them in page/graded_fc.js and page/graded_fh.js.
++
++THE MODEL SINCE 2026-11-23 (v3; Brett, after the research round of 2026-11-22 in card-data data/graded/research: "first
++we make those changes"). The dip rank is no longer what a slab is scored by (measured from a price one could really pay,
++the deepest dips did worse than the rest); the Chance is read from three things instead, in this order:
++  - THE MARKET'S LEVEL at the last complete month. The index: the median monthly log move of the lines 12+ months past
++    their release with 5+ sales in both months ($50+), chained from 2021-01. red = the index is at or below the average
++    of its 12 months before; amber = above it, but the month is hot (heat score 0.70+) or under 40% of the busy seasoned
++    PSA lines ($100+, 10+ sales) pass the line rules; green = above, not hot, 40%+ pass. The heat score: the average
++    of four gauges, each ranked against the months up to then only (2022-01 on, 12 earlier months needed) - how scattered
++    the month's moves were, the share of lines at a 12-month high, sales against their 12-month average, the index's
++    own move in the month.
++  - THE LINE'S CELL. A card under 12 months since its release: "new" (any grader). A CGC line: "cgc". A PSA line of
++    Modern / Contemporary: passes or fails the three rules - not extended (up over 0.15 in the month, or over 0.25
++    above its own 6-month average), not still falling (down over 0.07 in the month, or its second half of the month
++    0.07 under its first), its segment (era x PSA 10 / below 10) not up 0.20+ in 3 months; all log changes. A PSA line
++    of the older eras: Vintage, or Classic / Mid Era (there the rules did not separate anything; the level does - and
++    the two are apart because Classic and Mid Era moved about twice as far as Vintage in the rise). Era not known: the
++    level's pooled table. The PSA cells are measured apart for busy lines (10+ sales in the decision month) and thin
++    ones (3 to 9), because a rule read off a thin month's price says less.
++  - THE HOLD, 1 .. 6 months.
++  The odds: decision month j (everything above known at its end), bought at the NEXT month's price (the month's median,
++  3+ sales - never the decision month's own), sold at the median h months after that; every line $50+ with a price in
++  month j, one line per Card Ladder page and grade; by level x cell x hold: the 1 .. 99% grid, the mean (returns
++  clipped to -80% .. +170%), how often up, and the 5% and 95% grids of 200 resamples of the cell's decision months
++  (the Chance's range). A cell needs 30 cases over 4 decision months and half of its level's months, else the level's
++  pooled seasoned PSA lines are read. Today's cell of each listed line, its flags (extended, still falling, segment ran, new card,
++  thin, beyond the history ...) and its tie-breaker (the card's other grades rose more than this one over 3 months + a clean month of
++  sales, ranked inside the month and segment: the order among slabs with the same Chance) are in doc.fc.sig.
++  NO CHANCE BEYOND THE HISTORY (F_BEYOND): a line whose era has risen more in 3 months (the larger of its two PSA
++  segments' moves) than any era of its side - older / newer - did in the months behind the odds has no past like it; the
++  page shows no Chance for it and says why (end of October 2026: Classic and Mid Era, +123% and +136% against a largest
++  past run of +66%).
++  PriceCharting plays no part (the research's third tie-breaker term, the slab's price against the raw card's, is left
++  out for that reason). The replay (build_hist, graded_hist.bin) still runs the model before this one (the dip rank,
++  below) until it is rebuilt on the new one."""
+ import os
+ from datetime import datetime, timezone
+ 
+@@ -38,7 +73,8 @@ import pandas as pd
+ 
+ import cl_sales
+ 
+-VERSION = "graded v2 (Card Ladder's own sales) 2026-11-05"
++VERSION = "graded v3 (market level and line rules) 2026-11-23"
++VERSION_HIST = "graded v2 (Card Ladder's own sales, the dip rank) 2026-11-05"   # the replay's model, until it is rebuilt
+ LINES = (["psa|g10", "psa|g9", "psa|g8_5", "psa|g8", "psa|g7", "psa|g6", "psa|g5", "psa|g4", "psa|g3", "psa|g2",
+           "psa|g1_5", "psa|g1"] +
+          ["cgc|g10perfect", "cgc|g10pristine", "cgc|g10", "cgc|g9_5", "cgc|g9", "cgc|g8_5", "cgc|g8", "cgc|g7_5",
+@@ -55,8 +91,30 @@ QS = [round(i / 100, 2) for i in range(1, 100)]
+ GROUPS = 10
+ MIN_CELL = 30
+ FLOOR = 3                                             # sales in the last 12 months for a line to be ranked at all
+-TIERS = (3, 6, 12, 24)                                # the sales levels the odds are measured at (TIERS[0] = FLOOR)
++TIERS = (3, 6, 12, 24)                                # (the model before v3: the sales levels its odds were measured at)
+ PRICE_MIN_N = 3                                       # sales behind a price (cl_sales.STD_MIN)
++# ---- the model since 2026-11-23 (v3): the market's level, the line's cell, the hold ----
++MODEL_START = "2021-01"                               # the index is chained from here (the research's first month)
++LEVELS = ("green", "amber", "red")
++ERA_NEW, ERA_OLD = ("Modern", "Contemporary"), ("Vintage", "Classic", "Mid Era")
++CELLS = ("np_b", "np_t", "nf_b", "nf_t", "vin_b", "vin_t", "cm_b", "cm_t", "new", "cgc", "unk")   # (the page and the phone app
++C_NEW, C_CGC, C_UNK = 8, 9, 10                                                                  # name them by this order)
++CELL_NAMES = ["Modern / Contemporary PSA, passes the rules, busy line", "Modern / Contemporary PSA, passes the rules, thin line",
++              "Modern / Contemporary PSA, fails a rule, busy line", "Modern / Contemporary PSA, fails a rule, thin line",
++              "Vintage PSA, busy line", "Vintage PSA, thin line", "Classic / Mid Era PSA, busy line", "Classic / Mid Era PSA, thin line",
++              "card under 12 months since its release", "CGC", "PSA, era not known"]
++F_EXT, F_FALL, F_SEG, F_NEW, F_THIN, F_NOPRICE, F_PROXY, F_PREV, F_BEYOND = 1, 2, 4, 8, 16, 32, 64, 128, 256   # doc.fc.sig's flags
++SEASONED = 12                                         # months since release
++BUSY_N = 10                                           # sales in the decision month: a busy line
++UNI_PRICE, GATE_PRICE = 50.0, 100.0                   # the odds' lines / the lines behind "share that pass"
++EXT_MOM1, EXT_DEV6, FALL_MOM1, FALL_HALF, SEG_RUN = 0.15, 0.25, -0.07, -0.07, 0.20   # log changes
++HEAT_HOT, SHARE_FEW = 0.70, 0.40
++RET_CLIP = (-0.8, 1.7)                                # the mean's clip (the research's)
++MIN_MONTHS = 4                                        # decision months behind an odds cell, else the level's pooled cell
++BOOT = 200                                            # resamples of a cell's decision months behind the Chance's range
++P_CAP = 0.85                                          # no Chance above this (it was 95%): the best past cells were measured
++                                                      # on few months of one boom, and cells that claimed 70-80% in earlier
++                                                      # tests delivered under 60% on years they had not seen
+ 
+ 
+ def _mi(ym):
+@@ -112,37 +170,67 @@ def _pages_by_key(pages):
+     return {_page(pid): P for pid, P in pages.items()}
+ 
+ 
+-def _prep(cd, keep_ids=None, today=None, pages=None, link=None):
++def kit_meta(cd):
++    """{PriceCharting card id: (Card Ladder era, release date)} from the data kit's snapshot (card-data
++    data/graded/cards.csv.gz) - only for a run of this file on its own; the site build hands over its own (graded_site)."""
++    p = os.path.join(cd, "graded", "cards.csv.gz")
++    if not os.path.exists(p):
++        return {}
++    c = pd.read_csv(p, dtype=str).fillna("")
++    c = c[c["pricecharting_id"].str.isdigit()].drop_duplicates("pricecharting_id")
++    rel = c["release_date"].where(c["release_date"].str.match(r"^(19|20)\d\d-"), c["set_release"])
++    return {int(k): (e, r) for k, e, r in zip(c["pricecharting_id"], c["era"], rel)}
++
++
++def _prep(cd, keep_ids=None, today=None, pages=None, link=None, meta=None):
+     """The matrices both builds use, one row per line (card x grade): Pn (the price then), buy (max of it and the 3-month
+-    price), W (the month's median), n12, L12, dev12, the rank pct and group, the market; plus today's live rank."""
++    price), W (the month's median), n12, L12, dev12, the rank pct and group, the market; plus today's live rank. For the
++    model since 2026-11-23: SD (the spread of the month's sales, log), H (the month's second half over its first, log),
++    page (the Card Ladder page), first_m (the month of the page's first sale on file), era and relm (the card's Card
++    Ladder era and release month - meta: {card id: (era, release date)})."""
+     today = today or datetime.now(timezone.utc).date()
+     link = links(cd, keep_ids) if link is None else link
+     if pages is None:
+         pages = cl_sales.load(os.path.join(cd, "cardladder", "lines"))
++    if meta is None:
++        meta = kit_meta(cd)
+     byk = _pages_by_key(pages)
+     cur = today.year * 12 + today.month - 1
+     m0 = _mi(CALIB_START) - 14
+     T = cur - m0 + 1
+     keys, rows_pn, rows_buy, rows_w, rows_n, rows_known, live = [], [], [], [], [], [], []
++    rows_sd, rows_h, pgs, firsts = [], [], [], []
+     for cid, pid in sorted(link.items()):
+         P = byk.get(_page(pid))
+         if not P or not P["read"]:
+             continue
+         read_day = cl_sales.day_no(P["read"])
+         read_m = int(cl_sales.month_index(np.array([read_day]))[0])
++        first_day = min((int(d[0]) for d, _ in P["s"].values() if len(d)), default=read_day)
++        first_m = int(cl_sales.month_index(np.array([first_day]))[0])
+         for gk, (days, prices) in P["s"].items():
+             if gk not in LINES or len(days) < PRICE_MIN_N:
+                 continue
+             mi = cl_sales.month_index(days)
+             sel = (mi >= m0) & (mi <= min(cur, read_m))
+             mi_, pr = mi[sel] - m0, prices[sel]
++            d64 = np.datetime64("2000-01-01") + days[sel].astype("timedelta64[D]")
++            dom = (d64 - d64.astype("datetime64[M]")).astype(np.int64) + 1          # day of the month
++            lpr = np.log(pr)
+             last_j = min(cur, read_m) - m0
+             N = np.bincount(mi_, minlength=T).astype(np.float64)[:T]
+             starts = np.searchsorted(mi_, np.arange(T + 1))
+             Pn = np.full(T, np.nan); B3 = np.full(T, np.nan); Wm = np.full(T, np.nan)
++            Sd = np.full(T, np.nan, dtype=np.float32); Hf = np.full(T, np.nan, dtype=np.float32)
+             c3 = np.convolve(N, np.ones(3))[:T]                       # sales in months j-2 .. j
+             for j in np.flatnonzero(N > 0):
+-                Wm[j] = float(np.median(pr[starts[j]:starts[j + 1]]))
++                a, b = starts[j], starts[j + 1]
++                Wm[j] = float(np.median(pr[a:b]))
++                if b - a >= 2:
++                    Sd[j] = lpr[a:b].std(ddof=1)
++                    h1, h2 = pr[a:b][dom[a:b] <= 15], pr[a:b][dom[a:b] > 15]
++                    if len(h1) >= 2 and len(h2) >= 2:
++                        Hf[j] = np.log(np.median(h2) / np.median(h1))
+             for j in np.flatnonzero(c3 >= PRICE_MIN_N):
+                 if j > last_j:
+                     break
+@@ -158,6 +246,7 @@ def _prep(cd, keep_ids=None, today=None, pages=None, link=None):
+             keys.append((cid, gk, read_m - m0))
+             rows_pn.append(Pn); rows_buy.append(np.fmax(Pn, np.where(np.isfinite(Pn), B3, np.nan)))
+             rows_w.append(Wm); rows_n.append(N); rows_known.append(known)
++            rows_sd.append(Sd); rows_h.append(Hf); pgs.append(_page(pid)); firsts.append(first_m)
+             std, span, nstd = cl_sales.standard(days, prices, read_day)
+             live.append((std, cl_sales.count(days, read_day, 365)))
+     if not keys:
+@@ -204,9 +293,18 @@ def _prep(cd, keep_ids=None, today=None, pages=None, link=None):
+         dev_now = std_now / L_now - 1
+     ok_now = (std_now >= RANK_MIN_PRICE) & np.isfinite(dev_now) & (n12_now >= FLOOR)
+     pct_now = pd.Series(np.where(ok_now, -dev_now, np.nan)).rank(pct=True).values
++    era, relm = [], []
++    for cid in kd["card_id"].values:
++        e, r = meta.get(int(cid), ("", ""))
++        e = str(e or "").replace("?", "").strip()
++        era.append(e if e in ERA_NEW + ERA_OLD else "")
++        r = str(r or "")
++        relm.append(int(r[:4]) * 12 + int(r[5:7]) - 1 if len(r) >= 7 and r[:4].isdigit() and r[5:7].isdigit() and r[:2] in ("19", "20") else np.nan)
+     return dict(keys=kd, Pn=Pn, buy=buy, W=W, N=N, n12=n12, L12=L12, dev12=dev12, pct=pct, grp=grp, reg1=reg1, reg3=reg3,
+                 breadth3=breadth3, fwd3=fwd3, nreg=nreg, m0=m0, T=T, j_last=j_last, j_start=j_start,
+-                std_now=std_now, n12_now=n12_now, dev_now=dev_now, pct_now=pct_now)
++                std_now=std_now, n12_now=n12_now, dev_now=dev_now, pct_now=pct_now,
++                SD=np.vstack(rows_sd), H=np.vstack(rows_h), page=np.array(pgs, dtype=object), first_m=np.array(firsts, dtype=np.float64),
++                era=np.array(era, dtype=object), relm=np.array(relm, dtype=np.float64))
+ 
+ 
+ def _pairs(P, h, tier=FLOOR):
+@@ -227,53 +325,373 @@ def _pairs(P, h, tier=FLOOR):
+     return np.concatenate(Ms), np.concatenate(Gs), np.concatenate(Rs), np.concatenate(Ys)
+ 
+ 
+-def _cell(y):
+-    return {"n": int(len(y)), "mean": round(float(y.mean()), 4), "p_up": round(float((y > 0).mean()), 3),
+-            "q": [round(float(v), 4) for v in np.quantile(y, QS)]}
++# ---------------- the model since 2026-11-23 (v3): the market's level, the line's cell, the hold ----------------
++def _lag(A, k):
++    out = np.full(A.shape, np.nan, dtype=A.dtype if A.dtype.kind == "f" else np.float64)
++    out[:, k:] = A[:, :-k]
++    return out
++
++
++def _ffill(A, limit):
++    """The last value carried forward up to `limit` months."""
++    out = A.copy()
++    for k in range(1, limit + 1):
++        out = np.where(np.isfinite(out), out, _lag(A, k))
++    return out
+ 
+ 
+-def _tables(P, tier):
++def _roll_mean(A, w, minp):
++    """The mean of the w months BEFORE t (t-w .. t-1), needing minp of them."""
++    s, n = np.zeros(A.shape), np.zeros(A.shape)
++    for k in range(1, w + 1):
++        x = _lag(A, k)
++        ok = np.isfinite(x)
++        s += np.where(ok, x, 0)
++        n += ok
++    return np.where(n >= minp, s / np.maximum(n, 1), np.nan)
++
++
++def _chain(lp, Nz, Pm, mask, a0, min_n=5):
++    """The median monthly log move of the lines of mask with min_n sales in both months, $50+ the month before, chained
++    from month a0 -> (index level, move, lines used)."""
++    T = lp.shape[1]
++    mv, cnt = np.full(T, np.nan), np.zeros(T, dtype=int)
++    with np.errstate(invalid="ignore"):
++        for t in range(a0 + 1, T):
++            ok = mask[:, t] & (Nz[:, t] >= min_n) & (Nz[:, t - 1] >= min_n) & (Pm[:, t - 1] >= UNI_PRICE) & np.isfinite(lp[:, t]) & np.isfinite(lp[:, t - 1])
++            cnt[t] = int(ok.sum())
++            if cnt[t] >= 30:
++                mv[t] = float(np.median(lp[ok, t] - lp[ok, t - 1]))
++    lvl = np.exp(np.nancumsum(np.nan_to_num(mv)))
++    lvl[np.cumsum(np.isfinite(mv)) == 0] = np.nan
++    return lvl, mv, cnt
++
++
++def _chg(x, k):
++    out = np.full(len(x), np.nan)
++    with np.errstate(invalid="ignore", divide="ignore"):
++        out[k:] = np.log(x[k:] / x[:-k])
++    return out
++
++
++def _past_rank(v):
++    """Each month's share of the months up to and including it that were at or below it (12 earlier months needed)."""
++    out = np.full(len(v), np.nan)
++    for i in range(12, len(v)):
++        w = v[: i + 1]
++        w = w[np.isfinite(w)]
++        if np.isfinite(v[i]) and len(w) >= 12:
++            out[i] = float((w <= v[i]).mean())
++    return out
++
++
++def _model(P):
++    """Month by month, known at each month's end: the index, the level (green / amber / red) and its two gauges, each
++    line's flags and cell. One line per Card Ladder page and grade behind every market figure (uniq): two PriceCharting
++    cards on one page are one line."""
++    if P.get("model") is not None:
++        return P["model"]
++    kd, N, W, m0, T = P["keys"], P["N"], P["W"], P["m0"], P["T"]
++    L = len(kd)
++    a0 = _mi(MODEL_START) - m0
++    Nz = np.nan_to_num(N, nan=0.0)
++    Nz[:, :a0] = 0
++    Pm = np.where(Nz >= PRICE_MIN_N, W, np.nan)             # the month's price: its median on 3+ sales
++    with np.errstate(invalid="ignore", divide="ignore"):
++        lp = np.log(Pm)
++    gk = kd["line"].values
++    psa = np.array([str(g).startswith("psa|") for g in gk])
++    ten = np.array([str(g).split("|")[1].startswith("g10") for g in gk])
++    uniq = ~pd.DataFrame({"p": P["page"], "g": gk}).duplicated().values
++    era = P["era"]
++    new_era, old_era = np.isin(era, ERA_NEW), np.isin(era, ERA_OLD)
++    mnum = (m0 + np.arange(T)).astype(np.float64)
++    age = mnum[None, :] - P["relm"][:, None]
++    age[age < 0] = np.nan
++    with np.errstate(invalid="ignore"):
++        strict = age >= SEASONED                             # the release date says so: behind the index and the gauges
++        # the cells' "seasoned": the release date; with none, any era that ended years ago, else 12+ months of sales on file
++        seas = np.where(np.isfinite(age), strict, (old_era | (era == "Modern"))[:, None] | (mnum[None, :] - P["first_m"][:, None] >= SEASONED))
++    proxy = ~np.isfinite(P["relm"])
++    del age
++    idx, mv, cnt = _chain(lp, Nz, Pm, strict & uniq[:, None], a0)
++    vs12 = np.full(T, np.nan)                                # the index against the average of its 12 months before (log)
++    for t in range(a0 + 12, T):
++        if np.isfinite(idx[t]) and np.isfinite(idx[t - 12:t]).any():
++            vs12[t] = float(np.log(idx[t] / np.nanmean(idx[t - 12:t])))
++    up = np.nan_to_num(vs12, nan=-1.0) > 0
++    lpf = _ffill(lp, 2)                                      # a reference price may be up to 2 months old
++    mom1 = lp - _lag(lpf, 1)
++    mom3 = (lp - _lag(lpf, 3)).astype(np.float32)
++    dev6 = lp - _roll_mean(lp, 6, 2)
++    with np.errstate(invalid="ignore"):
++        ext = (mom1 > EXT_MOM1) | (dev6 > EXT_DEV6)
++        fall = (mom1 < FALL_MOM1) | (P["H"] < FALL_HALF)
++    del lpf, dev6
++    # the segments: era x PSA 10 / below 10 - each its own index, its 3-month move
++    seg = np.full(L, -1, dtype=int)
++    segm3, names = [], []
++    for e in ERA_OLD + ERA_NEW:
++        for gs, nm in ((ten, " PSA 10"), (~ten, " PSA below 10")):
++            ls = (era == e) & psa & gs
++            seg[ls] = len(names)
++            names.append(e + nm)
++            m3 = np.full(T, np.nan)
++            if int((ls & uniq).sum()) >= 50:
++                lv, _, c = _chain(lp, Nz, Pm, (ls & uniq)[:, None] & strict, a0)
++                m3 = _chg(lv, 3)
++                m3[c < 30] = np.nan
++            segm3.append(m3)
++    segm3 = np.vstack(segm3)
++    # each era's run: the larger 3-month move of its two PSA segments (a segment with too few lines has none); and the
++    # largest run any era of the same side (older / newer) had in the months behind the odds - a line whose era has
++    # run further than that today has no past like it, and gets no Chance (F_BEYOND)
++    era_run = np.vstack([np.fmax(segm3[2 * i], segm3[2 * i + 1]) for i in range(len(ERA_OLD + ERA_NEW))])
++    era_ix = np.array([(ERA_OLD + ERA_NEW).index(e) if e in ERA_OLD + ERA_NEW else -1 for e in era])
++    sm = np.where(seg[:, None] >= 0, segm3[np.maximum(seg, 0)], np.nan)     # each line's segment's 3-month move
++    with np.errstate(invalid="ignore"):
++        seg_run = sm >= SEG_RUN
++        passes = ~ext & ~fall & (sm < SEG_RUN)
++        gated = uniq[:, None] & psa[:, None] & strict & (Nz >= BUSY_N) & (Pm >= GATE_PRICE)
++    n_gated = gated.sum(0)
++    n_pass = (gated & passes).sum(0)
++    share = np.where(n_gated >= 30, n_pass / np.maximum(n_gated, 1), np.nan)
++    # the heat score: four gauges, each ranked against the months up to then (2022-01 on)
++    disp, hi12 = np.full(T, np.nan), np.full(T, np.nan)
++    su = strict & uniq[:, None]
++    for t in range(a0 + 12, T):
++        ok = su[:, t] & (Nz[:, t] >= 5) & (Nz[:, t - 1] >= 5) & np.isfinite(lp[:, t]) & np.isfinite(lp[:, t - 1])
++        if ok.sum() >= 30:
++            m = lp[ok, t] - lp[ok, t - 1]
++            disp[t] = float(np.percentile(m, 75) - np.percentile(m, 25))
++        blk = lp[:, t - 12:t]
++        has = np.isfinite(blk).any(axis=1)
++        past = np.full(L, np.nan)
++        past[has] = np.nanmax(blk[has], axis=1)
++        ok2 = su[:, t] & (Nz[:, t] >= 5) & np.isfinite(lp[:, t]) & np.isfinite(past)
++        if ok2.sum() >= 30:
++            hi12[t] = float((lp[ok2, t] >= past[ok2]).mean())
++    vol = pd.Series(np.where(su, Nz, 0.0).sum(0))
++    volv = (vol / vol.shift(1).rolling(12, min_periods=6).mean() - 1).to_numpy(copy=True)
++    a = _mi(CALIB_START) - m0
++    heat = np.full(T, np.nan)
++    heat[a:] = np.vstack([_past_rank(g[a:]) for g in (disp, hi12, volv, _chg(idx, 1))]).mean(0)   # NaN while a gauge has no rank
++    hot = np.nan_to_num(heat, nan=0.0) >= HEAT_HOT
++    few = np.nan_to_num(share, nan=1.0) < SHARE_FEW
++    level = np.where(~up, "red", np.where(hot | few, "amber", "green")).astype(object)
++    # the cells
++    busy = Nz >= BUSY_N
++    cell = np.full((L, T), -1, dtype=np.int8)
++    ps = seas & psa[:, None]
++    x = ps & new_era[:, None]
++    cell[x & passes & busy] = 0; cell[x & passes & ~busy] = 1; cell[x & ~passes & busy] = 2; cell[x & ~passes & ~busy] = 3
++    x = ps & (era == "Vintage")[:, None]
++    cell[x & busy] = 4; cell[x & ~busy] = 5
++    x = ps & old_era[:, None] & (era != "Vintage")[:, None]
++    cell[x & busy] = 6; cell[x & ~busy] = 7
++    cell[ps & ~new_era[:, None] & ~old_era[:, None]] = C_UNK
++    cell[seas & ~psa[:, None]] = C_CGC
++    cell[~seas] = C_NEW
++    j_last = T - 2                                           # the last complete calendar month
++    while j_last > a and not np.isfinite(vs12[j_last]):
++        j_last -= 1
++    P["model"] = dict(Nz=Nz, Pm=Pm, uniq=uniq, psa=psa, ten=ten, seg=seg, seg_names=names, segm3=segm3, seas=seas, proxy=proxy,
++                      idx=idx, mv=mv, cnt=cnt, vs12=vs12, up=up, heat=heat, hot=hot, share=share, few=few, n_gated=n_gated,
++                      n_pass=n_pass, level=level, ext=ext, fall=fall, seg_run=seg_run, passes=passes, busy=busy, cell=cell,
++                      mom3=mom3, j_last=j_last, a0=a0, a=a, new_era=new_era, old_era=old_era, era_run=era_run, era_ix=era_ix)
++    return P["model"]
++
++
++def _tb(P, M, t):
++    """The tie-breaker at month t, 0 .. 1 (NaN: no price that month): inside the month and the line's segment (era x
++    grader x 10 / below 10), the rank of "the card's other grades rose more than this one over 3 months" less the rank
++    of the spread of the month's own sales - the two terms of the research's tie-breaker that are Card Ladder's alone."""
++    kd, uniq, mom3, Pm = P["keys"], M["uniq"], M["mom3"], M["Pm"]
++    L = len(kd)
++    codes, _ = pd.factorize(P["page"])
++    G = int(codes.max()) + 1
++    m = mom3[:, t].astype(np.float64)
++    o = np.isfinite(m) & uniq
++    c = np.clip(np.nan_to_num(m, nan=0.0), -1.5, 1.5)
++    s = np.bincount(codes[o], weights=c[o], minlength=G)
++    n = np.bincount(codes[o], minlength=G)
++    nn = n[codes] - o
++    lead = np.where(np.isfinite(m) & (nn >= 1), (s[codes] - np.where(o, c, 0.0)) / np.maximum(nn, 1) - m, np.nan)
++    sd = np.where(M["Nz"][:, t] >= PRICE_MIN_N, P["SD"][:, t].astype(np.float64), np.nan)
++    sel = uniq & np.isfinite(Pm[:, t])
++    out = np.full(L, np.nan)
++    if sel.sum() < 30:
++        return out
++    d = pd.DataFrame({"seg": pd.Series(P["era"][sel]).astype(str).values + np.where(M["psa"][sel], "|psa|", "|cgc|") + np.where(M["ten"][sel], "10", "lo"),
++                      "lead": lead[sel], "sd": sd[sel]})
++    g = d.groupby("seg")
++    d["tb"] = (g["lead"].rank(pct=True) - 0.5).fillna(0.0) - (g["sd"].rank(pct=True) - 0.5).fillna(0.0)
++    out[sel] = d.groupby("seg")["tb"].rank(pct=True).values
++    # a second PriceCharting card on the same page takes its line's figure
++    first = pd.DataFrame({"p": P["page"], "g": kd["line"].values}).groupby(["p", "g"], sort=False).ngroup().values
++    rep = np.full(int(first.max()) + 1, np.nan)
++    rep[first[uniq]] = out[uniq]
++    return np.where(uniq, out, rep[first])
++
++
++def _bands(y, mc, rng):
++    """The 5% and 95% of each point of the 1 .. 99% grid over BOOT resamples of the cell's decision months (mc: each
++    trade's month, 0 .. K-1): the range the Chance is shown with."""
++    K = int(mc.max()) + 1
++    o = np.argsort(y, kind="stable")
++    ys, ms = y[o], mc[o]
++    w = rng.multinomial(K, np.full(K, 1.0 / K), size=BOOT).astype(np.float32)      # how often each month is drawn
++    qb = np.empty((BOOT, len(QS)))
++    qs = np.asarray(QS)
++    for b in range(BOOT):
++        cw = np.cumsum(w[b][ms])
++        if cw[-1] <= 0:
++            qb[b] = np.nan
++            continue
++        qb[b] = ys[np.minimum(len(ys) - 1, np.searchsorted(cw, qs * cw[-1], side="left"))]
++    return np.nanpercentile(qb, 5, axis=0), np.nanpercentile(qb, 95, axis=0)
++
++
++def _cell3(y, mj, rng):
++    mc = pd.factorize(mj)[0]
++    lo, hi = _bands(y, mc, rng)
++    r4 = lambda a: [round(float(v), 4) for v in a]
++    return {"n": int(len(y)), "nm": int(mc.max()) + 1, "mean": round(float(np.clip(y, *RET_CLIP).mean()), 4), "p_up": round(float((y > 0).mean()), 3),
++            "q": r4(np.quantile(y, QS)), "lo": r4(lo), "hi": r4(hi)}
++
++
++def _pairs3(P, M, h):
++    """Every (decision month, cell, realized return) for a hold of h months: decided at the end of month j, bought at
++    month j+1's price, sold at month j+1+h's - the lines $50+ with a price in month j, one per page and grade."""
++    Pm, cell, uniq = M["Pm"], M["cell"], M["uniq"]
++    Js, Cs, Ys = [], [], []
++    for j in range(M["a"], M["j_last"] - h):
++        with np.errstate(invalid="ignore", divide="ignore"):
++            y = Pm[:, j + 1 + h] / Pm[:, j + 1] - 1
++            sel = uniq & np.isfinite(y) & (Pm[:, j] >= UNI_PRICE) & (cell[:, j] >= 0)
++        if not sel.any():
++            continue
++        n = int(sel.sum())
++        Js.append(np.full(n, j)); Cs.append(cell[sel, j].astype(int)); Ys.append(np.clip(y[sel], *CLIP))
++    if not Ys:
++        return None
++    return np.concatenate(Js), np.concatenate(Cs), np.concatenate(Ys)
++
++
++def _tables3(P, M):
++    """{"h|level|cell": odds} (a cell with MIN_CELL cases over MIN_MONTHS decision months and at least half of the level's
++    months), "h|level|all" (the level's
++    seasoned PSA lines pooled: what a cell without enough cases, or a line of no known era, is read from), "h|all|all"."""
++    rng = np.random.default_rng(20261123)
++    level = M["level"]
+     tables = {}
+     for h in HORIZONS:
+-        got = _pairs(P, h, tier)
++        got = _pairs3(P, M, h)
+         if got is None:
+             continue
+-        _, G, R, Y = got
+-        for reg, rv in (("up", True), ("down", False)):
+-            for g in range(GROUPS):
+-                s = Y[(R == rv) & (G == g)]
+-                if len(s) >= MIN_CELL:
+-                    tables[f"{h}|{reg}|{g}"] = _cell(s)
+-        tables[f"{h}|all|all"] = _cell(Y)
++        J, C, Y = got
++        lv = level[J]
++        for name in LEVELS:
++            at = lv == name
++            need = max(MIN_MONTHS, (len(np.unique(J[at])) + 1) // 2)      # ... and half of the level's months: a cell seen in
++            for c in range(len(CELLS)):                                    # few of them is those months' story, not the cell's
++                s = at & (C == c)                                          # (CGC's red months are all from the last year of the fall)
++                if s.sum() >= MIN_CELL and len(np.unique(J[s])) >= need:
++                    tables[f"{h}|{name}|{c}"] = _cell3(Y[s], J[s], rng)
++            s = at & (C != C_NEW) & (C != C_CGC)
++            if s.sum() >= MIN_CELL:
++                tables[f"{h}|{name}|all"] = _cell3(Y[s], J[s], rng)
++        tables[f"{h}|all|all"] = _cell3(Y, J, rng)
+     return tables
+ 
+ 
+-def build(cd, keep_ids=None, today=None, pages=None, link=None, P=None):
++def beyond(M):
++    """Per era (ERA_OLD + ERA_NEW): (the largest 3-month run - log - any era of its side had in the months behind the
++    odds, decision months up to two before the last complete one; its own run at the last complete month); None where
++    there is none."""
++    run, a, jl = M["era_run"], M["a"], M["j_last"]
++    n_old = len(ERA_OLD)
++    out_max, out_now = [], []
++    for k in range(run.shape[0]):
++        side = run[:n_old, a:jl - 1] if k < n_old else run[n_old:, a:jl - 1]
++        out_max.append(float(np.nanmax(side)) if np.isfinite(side).any() else None)
++        out_now.append(float(run[k, jl]) if np.isfinite(run[k, jl]) else None)
++    return out_max, out_now
++
++
++def _today(P, M):
++    """{card id: {line index: code}} for the lines with a standard price today. code = tie-breaker x 1000 (1023: none)
++    + 1024 x cell + 16384 x flags. The line's own reading (extended, still falling, busy or thin, the tie-breaker) is of
++    the last complete month, else of the month before it (F_PREV), else not known (F_NOPRICE: a thin line whose rules
++    cannot be read - in the newer eras it is counted with the lines that fail one); its segment's reading and the card's
++    age are of today. F_BEYOND: the line's era has run further in 3 months than any era of its side did in the months
++    behind the odds - the page gives such a line no Chance."""
++    kd, T, jl = P["keys"], P["T"], M["j_last"]
++    Pm, Nz, ext, fall = M["Pm"], M["Nz"], M["ext"], M["fall"]
++    L = len(kd)
++    at = np.where(np.isfinite(Pm[:, jl]), jl, np.where(np.isfinite(Pm[:, jl - 1]), jl - 1, -1))
++    rows = np.arange(L)
++    has = at >= 0
++    ja = np.maximum(at, 0)
++    e = has & ext[rows, ja]
++    f = has & fall[rows, ja]
++    busy = has & (Nz[rows, ja] >= BUSY_N)
++    tb = np.where(at == jl, _tb(P, M, jl), np.where(at == jl - 1, _tb(P, M, jl - 1), np.nan))
++    sr = M["seg_run"][:, jl]
++    seg_ok = np.where(M["seg"] >= 0, np.nan_to_num(M["segm3"][np.maximum(M["seg"], 0), jl], nan=9.0) < SEG_RUN, False)
++    seas = M["seas"][:, T - 1]
++    psa, ne, oe, vin = M["psa"], M["new_era"], M["old_era"], P["era"] == "Vintage"
++    ok = has & ~e & ~f & seg_ok                              # a line with no reading is not counted as passing
++    cell = np.where(~seas, C_NEW, np.where(~psa, C_CGC, np.where(ne, np.where(ok, 0, 2) + np.where(busy, 0, 1), np.where(oe, np.where(vin, 4, 6) + np.where(busy, 0, 1), C_UNK))))
++    run_max, run_now = beyond(M)
++    ex = M["era_ix"]
++    bey = seas & (ex >= 0) & np.array([bool(run_now[k] is not None and run_max[k] is not None and run_now[k] > run_max[k]) if k >= 0 else False for k in ex])
++    flags = (e * F_EXT + f * F_FALL + sr * F_SEG + (~seas) * F_NEW + (~busy) * F_THIN + (~has) * F_NOPRICE
++             + (M["proxy"]) * F_PROXY + (at == jl - 1) * F_PREV + bey * F_BEYOND).astype(int)
++    li = {l: i for i, l in enumerate(LINES)}
++    out, n, nb = {}, np.zeros(len(CELLS), dtype=int), 0
++    std = P["std_now"]
++    for i, (cid, line) in enumerate(kd[["card_id", "line"]].itertuples(index=False, name=None)):
++        if not np.isfinite(std[i]):
++            continue
++        t = 1023 if not np.isfinite(tb[i]) else int(round(float(tb[i]) * 1000))
++        out.setdefault(str(int(cid)), {})[str(li[line])] = t + 1024 * int(cell[i]) + 16384 * int(flags[i])
++        n[int(cell[i])] += 1
++        nb += int(bool(bey[i]))
++    return out, [int(v) for v in n], nb
++
++
++def build(cd, keep_ids=None, today=None, pages=None, link=None, P=None, meta=None):
+     t0 = datetime.now(timezone.utc)
+-    P = P or _prep(cd, keep_ids, today, pages, link)
++    P = P or _prep(cd, keep_ids, today, pages, link, meta)
+     if P is None:
+         return {"err": "no Card Ladder sales for the listed cards yet (card-data data/cardladder/lines)"}
+-    kd, m0, T, j_last, j_start = P["keys"], P["m0"], P["T"], P["j_last"], P["j_start"]
+-    reg1, reg3, breadth3, fwd3, nreg = P["reg1"], P["reg3"], P["breadth3"], P["fwd3"], P["nreg"]
+-    tables = _tables(P, TIERS[0])
+-    tiers = {str(t): _tables(P, t) for t in TIERS[1:]}
+-    li = {l: i for i, l in enumerate(LINES)}
+-    out = {}
+-    for (cid, line), p in zip(kd[["card_id", "line"]].itertuples(index=False, name=None), P["pct_now"]):
+-        if np.isfinite(p):
+-            out.setdefault(str(int(cid)), {})[str(li[line])] = int(round(float(p) * 1000))
++    kd, m0 = P["keys"], P["m0"]
++    M = _model(P)
++    jl, a, level = M["j_last"], M["a"], M["level"]
++    tables = _tables3(P, M)
++    sig, n_cells, n_beyond = _today(P, M)
+     f = lambda v, nd=4: None if v is None or not np.isfinite(v) else round(float(v), nd)
+-    hist = [(reg3[j] > 0, fwd3[j] > 0) for j in range(j_start, T) if np.isfinite(reg3[j]) and np.isfinite(fwd3[j])]
+-    nu = [b for a, b in hist if a]; ndn = [b for a, b in hist if not a]
+-    R = {"reg1": f(reg1[j_last]), "reg3": f(reg3[j_last]), "breadth3": f(breadth3[j_last], 3), "n": int(nreg[j_last]),
+-         "up": bool(np.isfinite(reg3[j_last]) and reg3[j_last] > 0), "confirm": bool(np.isfinite(reg1[j_last]) and reg1[j_last] > 0),
+-         "p_next": [round(float(np.mean(nu)), 2) if nu else None, round(float(np.mean(ndn)), 2) if ndn else None, len(nu), len(ndn)],
+-         "month": _ym(m0 + j_last)}
+-    return {"model": VERSION, "src": "cl", "t": t0.strftime("%Y-%m-%dT%H:%M:%SZ"), "month": _ym(m0 + j_last), "last": _ym(m0 + j_last),
+-            "start": CALIB_START, "qs": QS, "lines": LINES, "groups": GROUPS, "horizons": list(HORIZONS), "regime": R,
+-            "tables": tables, "tiers": tiers, "tier_levels": list(TIERS), "floor": FLOOR, "pct": out,
+-            "n_lines": int(len(kd)), "n_ranked": int(np.isfinite(P["pct_now"]).sum()), "n_cards": int(kd["card_id"].nunique()),
+-            "rank_min": RANK_MIN_PRICE}
++    pc = lambda v: None if v is None or not np.isfinite(v) else round(float(np.exp(v) - 1), 4)      # a log change as a fraction
++    now = str(level[jl])
++    m3 = _chg(M["idx"], 3)
++    lv = {"now": now, "month": _ym(m0 + jl), "above": bool(M["up"][jl]), "vs12": pc(M["vs12"][jl]), "mom1": pc(M["mv"][jl]), "mom3": pc(m3[jl]),
++          "heat": f(M["heat"][jl], 3), "hot": bool(M["hot"][jl]), "share": f(M["share"][jl], 3), "few": bool(M["few"][jl]),
++          "n_gated": int(M["n_gated"][jl]), "n_pass": int(M["n_pass"][jl]), "n_index": int(M["cnt"][jl]),
++          "months": {k: int((level[a:jl + 1] == k).sum()) for k in LEVELS},
++          "last": [[_ym(m0 + j), str(level[j])] for j in range(max(a, jl - 11), jl + 1)],
++          "segs": [[nm, pc(M["segm3"][i, jl])] for i, nm in enumerate(M["seg_names"])],
++          "beyond": [[e, pc(rn), pc(rx)] for e, rx, rn in zip(ERA_OLD + ERA_NEW, *beyond(M)) if rn is not None and rx is not None and rn > rx],
++          "th": {"heat": HEAT_HOT, "share": SHARE_FEW, "seg": round(float(np.exp(SEG_RUN) - 1), 3), "ext1": round(float(np.exp(EXT_MOM1) - 1), 3),
++                 "ext6": round(float(np.exp(EXT_DEV6) - 1), 3), "fall": round(float(1 - np.exp(FALL_MOM1)), 3), "busy": BUSY_N, "seasoned": SEASONED}}
++    # (regime, pct: what a page still open from before the change reads - it shows "no score" until it is refreshed)
++    R = {"reg1": pc(M["mv"][jl]), "reg3": None if lv["mom3"] is None else round(lv["mom3"] / 3, 4), "breadth3": None, "n": int(M["cnt"][jl]),
++         "up": now != "red", "confirm": now == "green", "p_next": [None, None, 0, 0], "month": _ym(m0 + jl)}
++    return {"model": VERSION, "v": 3, "src": "cl", "t": t0.strftime("%Y-%m-%dT%H:%M:%SZ"), "month": _ym(m0 + jl), "last": _ym(m0 + jl),
++            "start": CALIB_START, "qs": QS, "lines": LINES, "cells": list(CELLS), "cell_names": CELL_NAMES, "groups": len(CELLS),
++            "horizons": list(HORIZONS), "level": lv, "regime": R, "tables": tables, "sig": sig, "pct": {}, "cap": P_CAP,
++            "n_cells": n_cells, "n_beyond": n_beyond, "n_lines": int(len(kd)), "n_ranked": int(sum(n_cells)), "n_cards": int(kd["card_id"].nunique()),
++            "uni_price": UNI_PRICE, "busy": BUSY_N, "floor": PRICE_MIN_N}
+ 
+ 
+ # ---------------- the replay (2026-11-04, Brett: the graded Forecast History - "known-at-the-time", all six holds) ----------------
+@@ -355,7 +773,7 @@ def build_hist(cd, keep_ids=None, today=None, pages=None, link=None, P=None):
+                             ys.append(int(round(float(np.clip(Pn[i, j + h] / buy[i, j] - 1, *CLIP)) * 1000)))
+                     out.append([int(cid[i]), li, round(float(buy[i, j]), 2), int(round(float(pct[i, j]) * 1000))] + ys + [int(n12[i, j])])
+         months.append(_ym(m0 + j)); ups.append(1 if up else 0); regs.append(round(float(reg3[j]), 4)); firsts.append(1 if j < first_honest else 0); tabs.append(tab); cands.append(out)
+-    return {"model": VERSION, "src": "cl", "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "qs": HIST_QS, "lines": LINES,
++    return {"model": VERSION_HIST, "src": "cl", "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "qs": HIST_QS, "lines": LINES,
+             "groups": GROUPS, "horizons": list(HORIZONS), "band": list(HIST_BAND), "k": list(HIST_K), "yscale": 1000, "last": _ym(m0 + j_last),
+             "months": months, "up": ups, "reg3": regs, "first": firsts, "tab": tabs, "cands": cands,
+             "rqs": RQ, "rq": rqs, "rqn": rqn, "rank_min": RANK_MIN_PRICE, "floor": FLOOR}
+@@ -365,10 +783,12 @@ if __name__ == "__main__":
+     import json, sys, time
+     t = time.time()
+     doc = build(sys.argv[1] if len(sys.argv) > 1 else "card-data/data")
+-    print(f"{time.time() - t:.0f}s", doc.get("month"), doc.get("regime"), doc.get("n_lines"), doc.get("n_ranked"), len(doc.get("tables", {})))
++    print(f"{time.time() - t:.0f}s", doc.get("month"), doc.get("level"), doc.get("n_lines"), doc.get("n_ranked"), len(doc.get("tables", {})))
++    print("lines with a standard price by cell:", dict(zip(CELLS, doc.get("n_cells") or [])))
++    lv = (doc.get("level") or {}).get("now")
+     for h in (1, 3, 6):
+-        for reg in ("up", "down"):
+-            c = doc["tables"].get(f"{h}|{reg}|9")
+-            if c:
+-                print(h, reg, "deepest 10%: n", c["n"], "median", c["q"][49], "up", c["p_up"], "mean", c["mean"])
++        for c in list(range(len(CELLS))) + ["all"]:
++            x = doc["tables"].get(f"{h}|{lv}|{c}")
++            if x:
++                print(h, lv, CELLS[c] if c != "all" else "all", "n", x["n"], "months", x["nm"], "median", x["q"][49], "up", x["p_up"], "mean", x["mean"])
+     print(len(json.dumps(doc, separators=(",", ":"))) / 1e6, "MB json")
+diff --git a/graded_site.py b/graded_site.py
+index ec10ddfc..f08f538d 100644
+--- a/graded_site.py
++++ b/graded_site.py
+@@ -1402,10 +1402,14 @@ def build(cd, pc_csv, snap_dir, out_dir, pw, today=None, tcg_path="tcg_facts.jso
+     FP = None
+     try:
+         import graded_forecast
+-        FP = graded_forecast._prep(cd, keep, today, pages=clp, link=link)
++        FP = graded_forecast._prep(cd, keep, today, pages=clp, link=link, meta=fc_meta(cd, cards, pc))
+         doc["fc"] = graded_forecast.build(cd, keep, today, P=FP) if FP is not None else {"err": "no Card Ladder sales for the listed cards yet"}
+-        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} of {doc['fc'].get('n_lines', 0):,} Card Ladder lines ranked "
+-              f"({doc['fc'].get('n_cards', 0):,} cards), month {doc['fc'].get('month')}, market {'up' if (doc['fc'].get('regime') or {}).get('up') else 'down'}")
++        lvl = doc["fc"].get("level") or {}
++        print(f"graded forecast: {doc['fc'].get('n_ranked', 0):,} of {doc['fc'].get('n_lines', 0):,} Card Ladder lines have a standard price and are read "
++              f"({doc['fc'].get('n_cards', 0):,} cards), month {doc['fc'].get('month')}, market level {lvl.get('now')} "
++              f"(heat {lvl.get('heat')}, {lvl.get('n_pass')} of {lvl.get('n_gated')} busy seasoned PSA lines pass the rules), "
++              f"{len(doc['fc'].get('tables') or {})} odds tables, lines by cell {dict(zip(doc['fc'].get('cells') or [], doc['fc'].get('n_cells') or []))}, "
++              f"{doc['fc'].get('n_beyond', 0):,} beyond history (no Chance): {lvl.get('beyond')}")
+         if FP is not None:                                   # each line's month-by-month figures for Pre-Sales Spotcheck and the
+             add_cf(trends, FP, graded_forecast)              # Recorded Purchases' actuals (the model's own numbers)
+     except Exception as e:                                   # noqa: BLE001
+@@ -1491,10 +1495,12 @@ def app_doc(doc, pc):
+     cards {pc id: [PC name, PC set, PC card number, PSA spec, CGC id, CL page, CL label, CL image, CL status, answer]}
+     (answer: 1 Same card / 0 Not the same card / null), rows [[pc id, grade index, CL standard, its window days, its
+     sales, CL sales in 12 months, CL value confidence, CL sales last month, PC price, PC sales last month, CL value]],
+-    fc: the Forecast's odds tables ({key: [mean, q]}), lines, regime, month, model and today's ranks (pct) - the same
+-    figures the website's Recording page uses."""
++    fc: the Forecast's odds tables ({"hold|level|cell": [mean, q, the range's low grid, its high grid, cases, months]}),
++    lines, the market's level, month, model, the Chance's cap and each line's cell, flags and tie-breaker today (sig) -
++    the same figures the website's Recording page uses (regime and an empty pct stay for an app still on the phone from
++    before 2026-11-23: it shows no score until it has fetched the new app)."""
+     fc = doc.get("fc") or {}
+-    tabs = {k: [v.get("mean"), v.get("q")] for k, v in (fc.get("tables") or {}).items() if isinstance(v, dict) and v.get("q")}
++    tabs = {k: [v.get("mean"), v.get("q"), v.get("lo"), v.get("hi"), v.get("n"), v.get("nm")] for k, v in (fc.get("tables") or {}).items() if isinstance(v, dict) and v.get("q")}
+     names = {}
+     if pc is not None and len(pc) and "product-name" in pc.columns:
+         sets = pc["console-name"] if "console-name" in pc.columns else None
+@@ -1518,8 +1524,35 @@ def app_doc(doc, pc):
+                                c.get("pid") or "", cl[0] or "", cl[6] or "", "nomatch" if ns else c.get("cls") or "",
+                                (c.get("ma") or {}).get("v")]
+     return {"v": 1, "built": doc.get("built"), "lastm": doc.get("lastm"), "gk": doc.get("gk"), "cards": cards, "rows": rows,
+-            "fc": {"model": fc.get("model"), "month": fc.get("month"), "qs": fc.get("qs"), "lines": fc.get("lines"),
+-                   "regime": fc.get("regime"), "tables": tabs, "pct": fc.get("pct") or {}} if tabs else None}
++            "fc": {"model": fc.get("model"), "v": fc.get("v"), "month": fc.get("month"), "qs": fc.get("qs"), "lines": fc.get("lines"),
++                   "regime": fc.get("regime"), "level": fc.get("level"), "cells": fc.get("cells"), "cap": fc.get("cap"),
++                   "tables": tabs, "sig": fc.get("sig") or {}, "pct": fc.get("pct") or {}} if tabs else None}
++
++
++def fc_meta(cd, cards, pc):
++    """{card id: (Card Ladder era, release date)} for the graded forecast (graded_forecast._prep, the model of
++    2026-11-23): the era shown on the Card Ladder side (cards[id].era[1]), PriceCharting's release date of the card, else
++    the dictionary's release of its set (dictionary/sets.csv by the PriceCharting set's name) - as the research's data
++    kit put them together (card-data tools/graded/build_dataset.py). A date is only a date here: the card's age in
++    months; no price of PriceCharting's enters the forecast."""
++    sets = {}
++    sp = os.path.join(cd, "dictionary", "sets.csv")
++    if os.path.exists(sp):
++        try:
++            for r in pd.read_csv(sp, dtype=str).fillna("").to_dict("records"):
++                sets[str(r.get("set", "")).strip().lower()] = str(r.get("release", ""))
++        except Exception:                                    # noqa: BLE001
++            sets = {}
++    rels = pc["release-date"].to_dict() if pc is not None and "release-date" in getattr(pc, "columns", []) else {}
++    psets = pc["console-name"].to_dict() if pc is not None and "console-name" in getattr(pc, "columns", []) else {}
++    out = {}
++    for k, c in cards.items():
++        cid = int(k)
++        rel, st = str(rels.get(cid, "") or ""), str(psets.get(cid, "") or "")
++        if not re.match(r"^(19|20)\d\d-\d\d", rel):
++            rel = sets.get(re.sub(r"^pokemon\s+", "", st.strip().lower()), "")
++        out[cid] = (str((c.get("era") or ["", "", ""])[1] or ""), rel)
++    return out
+ 
+ 
+ def add_cf(trends, P, F):
+diff --git a/page/app/app.js b/page/app/app.js
+index 088de5dd..27cab8d0 100644
+--- a/page/app/app.js
++++ b/page/app/app.js
+@@ -9,7 +9,7 @@
+ 
+    Data: data.bin next to this page (graded_site.py app_doc, the website's key = PBKDF2 of the site password, entered here
+    once and kept on this phone). The money math is the website's Recording page's: Card Ladder's standard price, the
+-   Forecast's odds tables at the hold and today's rank, eBay's fee 13.25% with the 6.5% buyer tax, the shipping in the price.
++   Forecast's odds tables at the hold, the market's level and the line's reading today, eBay's fee 13.25% with the 6.5% buyer tax, the shipping in the price.
+    Scanning: the camera's frames read with zxing (zxing/reader.js + .wasm). A PSA slab is looked up with PSA's own API (the
+    token Brett pastes on the Show tab, kept on this phone only; 100 a day); its spec leads to the catalog card. A CGC slab
+    is found by name until the Card Hedge step. Record Purchases sends a 'gplan' to the collector, as the website's button.
+@@ -41,7 +41,8 @@ const LS = {
+ const NATIVE = (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sscNative) || null;   // inside the iPhone app
+ function nativePost(o) { try { NATIVE.postMessage(o); } catch (e) {} }
+ const FEE = 0.1325 * 1.065;                 // eBay's final value fee with the buyer tax on it (the website's 14.11%)
+-const FC_RHO = 0.5, FC_P_CAP = 0.95;        // the website's basket: the market's share of a pick's swings; no chance above 95%
++const FC_RHO = 0.5, FC_P_CAP = 0.85;        // the website's basket: the market's share of a pick's swings; no chance above 85% (95% until the model of 2026-11-23)
++const capOf = fc => (fc && fc.cap) || FC_P_CAP;
+ const KEY_STORE = 'ssc-key', STATE_STORE = 'ssc-state-1', PSA_TOKEN = 'ssc-psa-token', PSA_DAY = 'ssc-psa-day', PSA_MAX = 100;
+ const SCANQ = 'ssc-scan-q', SCANN = 'ssc-scan-n';   // cert links waiting for the collector / sent so far (scans.csv)
+ const READS_STORE = 'ssc-reads', SHOW_N = 'ssc-show-n', SYNC_STORE = 'ssc-sync', GSET_DAY = 'ssc-gset-day';   // the reads of the scans; shows recorded; Sync from website; the plan sent today (2026-11-14)
+@@ -71,7 +72,7 @@ const gkShort = gk => !gk ? '?' : gk.endsWith('pristine') ? '10P' : gk.endsWith(
+ const titleCase = s => String(s || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+ // numbers typed in Show's boxes are kept as typed ("10,000") and read as numbers where used
+ // the four stepped-or-typed boxes of Show: their limits [low, high, decimals], how they read, how a typed number is kept
+-const SET_LIM = {under: [0, 60, 1], bar: [5, 95, 1], share: [5, 100, 1], minSales: [0, 999, 0]};
++const SET_LIM = {under: [0, 60, 1], bar: [5, 85, 1], share: [5, 100, 1], minSales: [0, 999, 0]};   // the bar stops at the chance's cap (85%)
+ const setClamp = (k, n) => { const L = SET_LIM[k], f = Math.pow(10, L[2]); return Math.max(L[0], Math.min(L[1], Math.round(n * f) / f)); };
+ const setTxt = k => { const v = +S.settings[k] || 0; return k === 'minSales' ? String(Math.round(v)) : (k === 'under' ? v.toFixed(1) : String(Math.round(v * 10) / 10)) + '%'; };
+ const numSet = k => { const n = parseFloat(String(S.settings[k]).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; };
+@@ -190,8 +191,34 @@ async function loadData(keyHex) {
+ }
+ 
+ /* ---------------- the money (the website's Recording math) ---------------- */
+-const regOf = fc => fc.regime && fc.regime.up ? 'up' : 'down';
+-const tabFor = (fc, h, g) => g == null ? null : fc.tables[h + '|' + regOf(fc) + '|' + g] || fc.tables[h + '|all|all'] || null;
++/* THE MODEL SINCE 2026-11-23 (the website's graded_fc.js, graded_forecast.py): the dip rank no longer scores a slab. Its
++   chance is read from the market's level (fc.level.now: green / amber / red), its line's cell (fc.sig: a card under 12
++   months old, CGC, a Modern / Contemporary PSA line that passes or fails the three rules, a Vintage PSA line, a Classic /
++   Mid Era PSA line; busy and thin lines apart) and the hold - fc.tables["hold|level|cell"] = [mean, grid, the range's low grid,
++   its high grid, cases, months], else the level's pooled "hold|level|all" - and is never above fc.cap. The gate closes
++   on red. x.pct is the tie-breaker now (the order among slabs with the same chance). */
++const levelOf = fc => (fc && fc.level && fc.level.now) || null;
++const regOf = fc => levelOf(fc) || (fc.regime && fc.regime.up ? 'up' : 'down');
++const tabFor = (fc, h, g) => g == null ? null : fc.tables[h + '|' + regOf(fc) + '|' + g] || fc.tables[h + '|' + regOf(fc) + '|all'] || fc.tables[h + '|all|all'] || null;
++// (by graded_forecast.CELLS' order: 0-3 Modern / Contemporary PSA, 4-5 Vintage PSA, 6-7 Classic / Mid Era PSA, 8 new card, 9 CGC, 10 era not known)
++const CELL_WORD = ['Passes the rules', 'Passes the rules', 'Fails a rule', 'Fails a rule', 'Vintage', 'Vintage', 'Classic / Mid Era', 'Classic / Mid Era', 'New card', 'CGC', 'Era not known'];
++const CELL_NOTE = ['A Modern / Contemporary PSA line: not extended, not still falling, its segment has not run. A busy line (10+ sales last month).',
++  'A Modern / Contemporary PSA line: not extended, not still falling, its segment has not run. A thin line (under 10 sales last month).',
++  'A Modern / Contemporary PSA line that fails one of the three rules. A busy line (10+ sales last month).',
++  'A Modern / Contemporary PSA line that fails one of the three rules, or has too few sales to read them. A thin line (under 10 sales last month).',
++  'A Vintage PSA line, busy (10+ sales last month): in the older eras the three rules did not matter, the market’s level does.',
++  'A Vintage PSA line, thin (under 10 sales last month): in the older eras the three rules did not matter, the market’s level does.',
++  'A Classic / Mid Era PSA line, busy (10+ sales last month): in the older eras the three rules did not matter, the market’s level does.',
++  'A Classic / Mid Era PSA line, thin (under 10 sales last month): in the older eras the three rules did not matter, the market’s level does.',
++  'A card under 12 months since its release: these lost money in amber and red months.', 'A CGC line: measured apart from PSA.', 'A PSA line with no era on file: the market level’s pooled history.'];
++function flagWords(f) {                      // a line's flags in words (graded_forecast.F_*)
++  const o = [];
++  if (f & 1) o.push('extended (up 16%+ last month, or 28%+ above its 6-month average)');
++  if (f & 2) o.push('still falling (down 7%+ last month)');
++  if (f & 4) o.push('its segment is up 22%+ in 3 months');
++  if (f & 32) o.push('under 3 sales in each of the last two months: its rules cannot be read');
++  return o;
++}
+ function cdf(fc, t, x) {                     // P(return <= x) off the 1..99% grid (graded_fc.js fcgCdf)
+   const qs = fc.qs, q = t[1], n = q.length;
+   if (x < q[0]) return Math.max(0, qs[0] * (1 - (q[0] - x) / Math.max(1e-6, q[1] - q[0])));
+@@ -229,8 +256,9 @@ function calc(sl) {
+         : sl.look === 'queued' || sl.look === 'looking' ? 'Looking it up with PSA…' : 'Tap to find the card',
+       std: r ? r[2] : null, win: r && r[3] ? r[3] + ' days' : null, n: r ? r[4] : null, n12: r ? r[5] : null, conf: r ? r[6] : null,
+       sold: r ? r[7] : null, pc: r ? r[8] : null, soldPC: r ? r[9] : null, clv: r ? r[10] : null, card: c, row: r, img: c ? c[7] : null, down: pgk !== sl.gk ? pgk : null});
+-    const fc = D && D.fc, li = fc && pgk ? IDX.lines.indexOf(pgk) : -1, pv = li >= 0 ? (fc.pct[String(sl.cid)] || {})[li] : null;
+-    x.pct = pv == null ? null : pv / 1000;
++    const fc = D && D.fc, li = fc && fc.sig && pgk ? IDX.lines.indexOf(pgk) : -1, sv = li >= 0 ? (fc.sig[String(sl.cid)] || {})[li] : null;
++    x.sig = sv == null ? null : sv; x.cell = sv == null ? null : (sv >> 10) & 15; x.flags = sv == null ? 0 : sv >> 14;   // the line's code: tie-breaker x 1000 (1023: none) + 1024 x cell + 16384 x flags
++    x.pct = sv == null || (sv & 1023) === 1023 ? null : (sv & 1023) / 1000;
+   }
+   const std = x.std;
+   if (std != null && sl.vp != null && sl.vp > 0) { x.pay = sl.vp; x.d = 1 - (sl.vp + ship) / std; }
+@@ -239,12 +267,14 @@ function calc(sl) {
+   if (std == null) { x.chance = x.net = x.roi = null; return x; }
+   if (sl.demo) {
+     const c = POOL[sl.c], mu = c.mu3 * h / 3, sd = c.sd3 * Math.sqrt(h / 3), be = (1 - x.d) / (1 - FEE) - 1;
+-    x.chance = Math.min(0.95, Math.max(0.02, 1 - phi((be - mu) / sd)));
++    x.chance = Math.min(FC_P_CAP, Math.max(0.02, 1 - phi((be - mu) / sd)));
+     x.net = std * ((1 + mu) * (1 - FEE) - (1 - x.d));
+   } else {
+-    const fc = D && D.fc, g = x.pct == null ? null : Math.min(9, Math.floor(x.pct * 10)), t = fc ? tabFor(fc, h, g) : null;
++    const fc = D && D.fc, g = x.cell == null ? null : x.cell, t = fc && !(x.flags & 256) ? tabFor(fc, h, g) : null;   // 256: beyond the history - no odds
++    const be = (1 - x.d) / (1 - FEE) - 1, cap = capOf(fc), one = q => Math.min(cap, Math.max(0, 1 - cdf(fc, [0, q], be)));
+     x.g = g; x.t = t;
+-    x.chance = t ? Math.round(Math.min(0.95, 1 - cdf(fc, t, (1 - x.d) / (1 - FEE) - 1)) * 1000) / 1000 : null;
++    x.chance = t ? Math.round(one(t[1]) * 1000) / 1000 : null;
++    x.lo = t && t[2] ? Math.min(x.chance, one(t[2])) : x.chance; x.hi = t && t[3] ? Math.max(x.chance, one(t[3])) : x.chance;   // the chance's range
+     x.net = t ? netOf(std, t[0], x.d) : null;
+   }
+   x.roi = x.net != null && x.pay > 0 ? x.net / x.pay : null;
+@@ -253,11 +283,11 @@ function calc(sl) {
+ const lowerGk = gk => { if (!gk) return null; const [g, k] = String(gk).split('|'); if (k === 'g10pristine' || k === 'g10perfect') return g + '|g10'; return /_5$/.test(k) ? g + '|' + k.slice(0, -2) : null; };
+ const identified = sl => sl.demo || (sl.look === 'ok' || sl.look === 'check') && sl.cid != null && !!sl.gk;
+ const confirmed = sl => sl.demo || sl.look === 'ok';
+-const marketDown = () => !!(D && D.fc && D.fc.regime && !D.fc.regime.up);
+-// the plan: what you already bought first, then best chance (to the whole percent), deeper rank, dearer slab; at most the
++const marketDown = () => !!(D && D.fc && (levelOf(D.fc) ? levelOf(D.fc) === 'red' : D.fc.regime && !D.fc.regime.up));   // red: the index at or below its 12-month average
++// the plan: what you already bought first, then best chance (to the whole percent), the tie-breaker, dearer slab; at most the
+ // per-slab share each, up to the capital; the chance bar, the min sales last month, and the market gate as the website's
+ function plan() {
+-  const s = S.settings, cap = numSet('capital'), per = cap * (s.share / 100), bar = s.bar / 100, minS = Math.max(0, +s.minSales || 0);
++  const s = S.settings, cap = numSet('capital'), per = cap * (s.share / 100), bar = Math.min(capOf(D && D.fc), s.bar / 100), minS = Math.max(0, +s.minSales || 0);   // a bar above the cap (set before 2026-11-23) counts as the cap
+   const gated = !!(s.gate && marketDown());
+   const all = slabsArr().map(sl => ({sl, x: calc(sl)}));
+   let spent = 0; all.forEach(o => { if (o.sl.st === 'bought' && o.x.pay > 0) spent += o.x.pay; });
+@@ -301,7 +331,7 @@ function basket(rows, h, n = 2000) {
+   if (!P.length) return null;
+   for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; for (const [std, t, d] of P) { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += netOf(std, draw(fc, t, u), d); } tot[k] = s; }
+   const a = Array.from(tot).sort((x, y) => x - y), at = p => a[Math.min(n - 1, Math.floor(p * n))];
+-  return {lo: at(0.1), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(FC_P_CAP, a.filter(v => v > 0).length / n)};
++  return {lo: at(0.1), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(capOf(fc), a.filter(v => v > 0).length / n)};
+ }
+ // Record Purchases: the slabs marked Bought, to History > Recorded Purchases (the website's Purchases button, type 'gplan')
+ // RECORD WITH A NAME (2026-11-18, Brett: "When I go and hit either the record scans button or the record purchases button, I
+@@ -320,7 +350,7 @@ function purchasesReady() {                               // the slabs' figures
+ async function recordPurchases(name) {
+   const xs = purchasesReady(); if (!xs) return render();
+   const s = S.settings, fc = D.fc;
+-  const slabs = xs.map(x => [x.sl.cid, x.sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000)]);
++  const slabs = xs.map(x => [x.sl.cid, x.sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.sig == null ? null : x.sig]);   // the 9th: the line's code (the dip rank x 1000 before the model of 2026-11-23; the record's model tells them apart)
+   const holds = [1, 2, 3, 4, 5, 6].map(h => { const mc = basket(xs.map(x => Object.assign({}, x, {g: x.g})), h); return mc ? [r2(mc.mean), r2(mc.lo), r2(mc.hi), Math.round(mc.p * 1000) / 1000] : null; });
+   const spent = r2(xs.reduce((a, x) => a + x.pay, 0)), id = nextT(), PART = 20, n = Math.max(1, Math.ceil(slabs.length / PART));
+   const head = {h: s.hold, cap: numSet('capital'), disc: Math.round((s.under / 100) * 10000) / 10000, ship: numSet('ship'), fee: Math.round(FEE * 10000) / 10000,
+@@ -450,7 +480,7 @@ async function recordScans(name) {
+   const s = S.settings, fc = D && D.fc;
+   const slabs = real.map(sl => {
+     const x = identified(sl) ? calc(sl) : null;
+-    return x && x.std != null ? [sl.cid, sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.pct == null ? null : Math.round(x.pct * 1000), sl.grader, sl.cert]
++    return x && x.std != null ? [sl.cid, sl.gk, Math.round(x.d * 1000), r2(x.std), r2(x.pc), r2(x.pay), x.chance == null ? null : Math.round(x.chance * 1000), r2(x.net), x.sig == null ? null : x.sig, sl.grader, sl.cert]
+       : [identified(sl) ? sl.cid : null, identified(sl) ? sl.gk : null, Math.round((sl.vd != null ? sl.vd : s.under) * 10), null, null, null, null, null, null, sl.grader, sl.cert];
+   });
+   const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+@@ -1832,7 +1862,7 @@ function planHtml() {
+     '<div class="progress"><span style="width:' + (P.cap > 0 ? Math.min(100, Math.round((total + P.spent) / P.cap * 100)) : 0) + '%"></span></div>' +
+     '<div class="stats"><span class="stat"><b>' + P.chosen.length + '</b> slabs</span><span class="stat"><b>' + new Set(P.chosen.map(o => o.sl.t)).size + '</b> tables</span><span class="stat">expected <b>' + signed(net) + '</b></span><span class="stat">avg chance <b>' + (P.chosen.length ? pctS(avg) : '-') + '</b></span></div>' +
+     '<p class="note" style="margin:0">Best chance first, each slab at the vendor’s price or at your ' + s.under.toFixed(1) + '% ask if not asked yet; at most ' + money(P.per) + ' a slab; chance at least ' + s.bar + '%, ' + s.minSales + '+ Card Ladder sales last month, ' + s.hold + '-month hold.</p></div>' +
+-    (P.gated && P.blocked.length ? '<div class="warnbox"><b>The graded market is falling</b> and “Buy only when the market is rising” is on (Show tab), so ' + P.blocked.length + ' real slab' + (P.blocked.length > 1 ? 's that clear' : ' that clears') + ' your bar ' + (P.blocked.length > 1 ? 'are' : 'is') + ' left out - as on the website.</div>' : '') +
++    (P.gated && P.blocked.length ? '<div class="warnbox"><b>The graded market is red</b> (below its 12-month average) and “Buy only when the market is green or amber” is on (Show tab), so ' + P.blocked.length + ' real slab' + (P.blocked.length > 1 ? 's that clear' : ' that clears') + ' your bar ' + (P.blocked.length > 1 ? 'are' : 'is') + ' left out - as on the website.</div>' : '') +
+     (groups || '<div class="empty">Nothing clears your bar yet. Scan a table, or lower the chance bar or the min sales on Show.</div>') +
+     '<div class="card stack" style="gap:10px"><span class="label">Record purchases</span><p class="note" style="margin:0">Sends the slabs you marked Bought to the website, History › Recorded Purchases - with what you paid, your settings and the odds of the day.</p>' +
+     '<button class="btn green" data-a="record"' + (UI.sending ? ' disabled' : '') + '>Record purchases' + (toRec ? ' (' + toRec + ')' : '') + '</button>' +
+@@ -1856,7 +1886,7 @@ function showHtml() {
+   const s = S.settings, mini = (k, lab) => '<div class="frow"><span>' + lab + '</span><span class="minis"><button class="minibtn" data-a="bump" data-k="' + k + '" data-d="-1" aria-label="Less">−</button>' +
+     '<input class="input minin" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="' + esc(setTxt(k)) + '" data-in="num:' + k + '" aria-label="' + esc(lab) + '">' +
+     '<button class="minibtn" data-a="bump" data-k="' + k + '" data-d="1" aria-label="More">+</button></span></div>';
+-  const dataLine = DSTATE === 'ok' ? 'Card data from ' + esc(D.built) + ': ' + Object.keys(D.cards).length.toLocaleString() + ' cards' + (D.fc ? ', odds of ' + esc(D.fc.month) + ', market ' + (D.fc.regime && D.fc.regime.up ? 'rising' : 'falling') : ', no odds in this build') + '.'
++  const dataLine = DSTATE === 'ok' ? 'Card data from ' + esc(D.built) + ': ' + Object.keys(D.cards).length.toLocaleString() + ' cards' + (D.fc ? ', odds of ' + esc(D.fc.month) + ', market ' + (levelOf(D.fc) || (D.fc.regime && D.fc.regime.up ? 'rising' : 'falling')) : ', no odds in this build') + '.'
+     : DSTATE === 'loading' ? 'Loading the card data…' : DSTATE === 'err' ? 'Could not load the card data: ' + esc(DERR) : 'Locked: sample show only.';
+   return '<div class="stack" style="gap:6px"><h1 class="h1" style="margin-bottom:8px">Show</h1>' +
+     '<label class="field"><span class="label">Show name</span><input class="input" type="text" value="' + esc(s.show) + '" data-in="set:show"></label>' +
+@@ -1866,7 +1896,7 @@ function showHtml() {
+     mini('under', 'Your ask (% under)') + mini('bar', 'Buy only at a chance of at least') + mini('share', 'At most per slab') +
+     mini('minSales', 'Min sales last mo (Card Ladder)') +
+     '<div class="frow"><span>eBay shipping</span><input class="input" style="width:110px;text-align:right" type="text" inputmode="decimal" value="' + esc(s.ship) + '" data-in="set:ship" aria-label="eBay shipping"></div>' +
+-    '<div class="frow"><span>Buy only when the market is rising</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
++    '<div class="frow"><span>Buy only when the market is green or amber</span><button class="btn" style="min-width:76px" data-a="gate">' + (s.gate ? 'On' : 'Off') + '</button></div>' +
+     '<div style="display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid #222A35"><button class="btn" data-a="syncweb">Sync from website</button>' +
+     (UI.syncMsg ? '<div class="' + (UI.syncMsg[0] === 'ok' ? 'okbox' : UI.syncMsg[0] === 'warn' ? 'warnbox' : 'note') + '">' + esc(UI.syncMsg[1]) + '</div>' : syncNote()) + '</div>' +
+     '<div class="frow"><span>Beep for each new slab read</span><button class="btn" style="min-width:76px" data-a="beep">' + (s.beep ? 'On' : 'Off') + '</button></div>' +
+@@ -1932,8 +1962,10 @@ function planLine(sl, x) {
+   if (x.std == null) return 'No Card Ladder price - not in your buys';
+   if (P.picks[sl.id]) return 'In your buys';
+   if (P.few[sl.id]) return 'Only ' + (x.sold || 0) + ' Card Ladder sale' + (x.sold === 1 ? '' : 's') + ' last month (your min is ' + s.minSales + ')';
++  if (!sl.demo && (x.flags || 0) & 256) return 'No chance given: its era has run beyond anything in the history';
++  if (!sl.demo && x.chance == null) return 'No chance for this slab - not in your buys';
+   if (x.chance != null && x.chance < s.bar / 100) return 'Below your ' + s.bar + '% bar';
+-  if (P.gated && !sl.demo) return 'Left out: the market is falling and the gate is on';
++  if (P.gated && !sl.demo) return 'Left out: the market is red and the gate is on';
+   return 'Not in your buys (budget or per-slab cap)';
+ }
+ function chipsHtml(x) {
+@@ -1965,10 +1997,23 @@ function slabHtml(sl, x) {
+     (x.n12 != null ? '<div class="kv"><span class="k">Card Ladder sales a year</span><span class="v">' + x.n12 + '</span></div>' : '') + '</div>' +
+     (NATIVE && !sl.demo && identified(sl) ? nativeReviewHtml(sl, x)
+       : identified(sl) || sl.demo ? '<button class="btn" data-a="review">Review: is it the right card?' + (!sl.demo && sl.look === 'check' ? ' <span class="tag t-check">Check it</span>' : '') + '</button>' : '') +
+-    '<div class="card stack" style="gap:6px"><span class="label">Rank</span><span style="font-weight:600">' + (x.pct == null ? 'Not ranked' : ord(Math.round(x.pct * 100)) + ' percentile · group ' + Math.min(10, Math.floor(x.pct * 10) + 1) + ' of 10') + '</span>' +
+-    '<span class="small muted">' + (x.pct == null ? 'Card Ladder has too few sales of this grade (or a price under $25) to rank it.' : x.pct >= 0.5 ? 'Its price sits below its own 12-month level - the deeper, the higher the percentile.' : 'Its price sits near or above its own 12-month level.') + '</span></div>' +
++    lineCard(sl, x) +
+     '<button class="linkbtn" style="color:var(--rdt);align-self:flex-start" data-a="remove">Remove this slab from the table</button>';
+ }
++// the slab's line as the model reads it (it was the dip rank until the model of 2026-11-23): the kind of line, its warnings,
++// the chance's range and the market's level
++function lineCard(sl, x) {
++  if (sl.demo) return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">Sample slab</span><span class="small muted">A sample has no Card Ladder line: its chance is made up for the demo.</span></div>';
++  const fc = D && D.fc, lv = levelOf(fc);
++  if (x.cell == null) return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">Not read</span><span class="small muted">' + (fc && !fc.sig ? 'The card data on this phone is from before the new model: it updates the next time the app is online.' : 'Card Ladder has too few sales of this grade to price it, so the model has nothing to read.') + '</span></div>';
++  if ((x.flags || 0) & 256) { const b = (fc.level && fc.level.beyond) || [], pc0 = v => (v > 0 ? '+' : '') + Math.round(v * 100) + '%';
++    return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">' + esc(CELL_WORD[x.cell] || '-') + ' <span class="flag">beyond history</span></span><span class="small muted">No chance is given: this slab’s era has risen more in 3 months than any era did in the months the odds were measured on' +
++      (b.length ? ' (' + esc(b.map(y => y[0] + ' ' + pc0(y[1])).join(', ')) + ', against ' + pc0(Math.max(...b.map(y => y[2]))) + ' for the largest past run)' : '') + '. The past has no case like it. It comes back by itself once the run cools.</span></div>'; }
++  const fw = flagWords(x.flags || 0), ext = (x.flags || 0) & 1;
++  return '<div class="card stack" style="gap:6px"><span class="label">Line</span><span style="font-weight:600">' + esc(CELL_WORD[x.cell] || '-') + (ext ? ' <span class="flag">extended</span>' : '') + '</span>' +
++    '<span class="small muted">' + esc(CELL_NOTE[x.cell] || '') + (fw.length ? ' Now: ' + esc(fw.join('; ')) + '.' : '') + '</span>' +
++    (x.chance != null ? '<span class="small muted">Chance ' + pctS(x.chance) + (x.lo != null && x.hi != null ? ', range ' + Math.round(x.lo * 100) + '–' + Math.round(x.hi * 100) + '%' : '') + (lv ? ': how often such lines made money after ' + (lv === 'amber' ? 'an' : 'a') + ' ' + lv + ' month, 2022 on' : '') + '. No chance is shown above ' + Math.round(capOf(fc) * 100) + '%.</span>' : '') + '</div>';
++}
+ // inside the iPhone app: the website's own Review button (its look, its same / not-the-same colours), and beside it the two
+ // jobs the old Review screen did that the website's cannot - confirming PSA's best guess, and picking another card
+ function nativeReviewHtml(sl, x) {
+diff --git a/page/app/sw.js b/page/app/sw.js
+index c8022256..361aa2bf 100644
+--- a/page/app/sw.js
++++ b/page/app/sw.js
+@@ -1,7 +1,7 @@
+ /* Slab Show Scanner's offline copy: the app and the barcode reader stay on the phone, so a show hall with weak signal still
+    opens it at once. The app's own files: the copy on the phone first, a newer one fetched behind it for the next start.
+    The card data: the network when it answers within 6 seconds, else the copy on the phone. */
+-const CACHE = 'ssc-v20';
++const CACHE = 'ssc-v21';
+ const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'scan-worker.js', 'finder.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'zxing/reader.js', 'zxing/zxing_reader.wasm'];
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+diff --git a/page/body.html b/page/body.html
+index d2e6605a..4bada7bf 100644
+--- a/page/body.html
++++ b/page/body.html
+@@ -703,9 +703,9 @@
+     <div class="al-row"><span class="lab">eBay Shipping Fee<button class="help" data-h="fcg_ship">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-ship" min="0" step="0.1" value="5.2"></span></div>
+     <div class="al-row"><span class="lab">Card price between<button class="help" data-h="fcg_price">?</button></span><span><span class="unit">$</span><input type="number" id="fcg-pmin" min="0" step="5" value="50"> <span class="dim">and</span> <span class="unit">$</span><input type="number" id="fcg-pmax" min="0" step="50" value="5000"></span></div>
+     <div class="al-row"><span class="lab">At most per card<button class="help" data-h="fcg_share">?</button></span><span><input type="number" id="fcg-share" min="5" max="100" step="5" value="20"><span class="unit">%</span><span class="dim"> of the capital</span></span></div>
+-    <div class="al-row"><span class="lab" style="flex:1 1 auto">Buy only slabs with a chance of at least<button class="help" data-h="fcg_conf">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="fcg-minp" min="0" max="95" step="5" value="50"><span class="unit">%</span></span></div>
++    <div class="al-row"><span class="lab" style="flex:1 1 auto">Buy only slabs with a chance of at least<button class="help" data-h="fcg_conf">?</button></span><span style="flex-wrap:nowrap"><input type="number" id="fcg-minp" min="0" max="85" step="5" value="50"><span class="unit">%</span></span></div>
+     <div class="al-row"><span class="lab">Copies per card<button class="help" data-h="fcg_copies">?</button></span><span><input type="number" id="fcg-copies" min="1" max="5" step="1" value="1"><span class="dim"> at most</span></span></div>
+-    <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is rising<button class="help" data-h="fcg_gate">?</button></label>
++    <label class="al-check"><input type="checkbox" id="fcg-gate" checked> Buy only when the market is green or amber<button class="help" data-h="fcg_gate">?</button></label>
+     <div class="al-actions fcg-syncrow"><button class="al-save" id="fcg-sync" title="Copy the phone app's Your Plan into these boxes (capital, hold, % under, shipping, the share, the bar, the gate) - until midnight">Sync from phone</button><button class="help" data-h="fcg_sync">?</button></div>
+     <div class="al-status" id="fcg-sync-note"></div>
+     <div class="al-actions fcg-only-pl"><button class="al-save" id="fcp-record" title="Save these purchased slabs, with the settings of the moment, to History › Recorded Purchases">Record Purchases</button><button class="help" data-h="fcp_record">?</button></div>
+@@ -771,7 +771,7 @@
+     <th>Review<button class="help" data-h="g_review">?</button></th>
+     <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="fcg_name">?</button></th>
+     <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="fcg_grade">?</button></th>
+-    <th data-k="fcPct" class="num">Rank<span class="s">⇅</span><button class="help" data-h="fcr_rank">?</button></th>
++    <th data-k="fcPct" class="num">Line<span class="s">⇅</span><button class="help" data-h="fcr_rank">?</button></th>
+     <th data-k="fcS" class="num">Standard Price<span class="s">⇅</span><button class="help" data-h="fcg_std">?</button></th>
+     <th data-k="fcD" class="num">% Under (CL)<span class="s">⇅</span><button class="help" data-h="fcr_disc">?</button></th>
+     <th data-k="fcPx" class="num">Buy Price<span class="s">⇅</span><button class="help" data-h="fcr_buy">?</button></th>
+@@ -810,7 +810,7 @@
+     <th>Review<button class="help" data-h="g_review">?</button></th>
+     <th data-k="1">PC Card Name<span class="s">⇅</span><button class="help" data-h="fcg_name">?</button></th>
+     <th data-k="24">Grade<span class="s">⇅</span><button class="help" data-h="fcg_grade">?</button></th>
+-    <th data-k="fcPct" class="num">Rank<span class="s">⇅</span><button class="help" data-h="fcr_rank">?</button></th>
++    <th data-k="fcPct" class="num">Line<span class="s">⇅</span><button class="help" data-h="fcr_rank">?</button></th>
+     <th data-k="fcS" class="num">Standard Price<span class="s">⇅</span><button class="help" data-h="fcg_std">?</button></th>
+     <th data-k="fcD" class="num">% Under Paid (CL)<span class="s">⇅</span><button class="help" data-h="fcp_disc">?</button></th>
+     <th data-k="fcPx" class="num">Price Paid<span class="s">⇅</span><button class="help" data-h="fcp_paid">?</button></th>
+diff --git a/page/graded_fc.js b/page/graded_fc.js
+index 0ee16a69..bb0ed449 100644
+--- a/page/graded_fc.js
++++ b/page/graded_fc.js
+@@ -21,7 +21,21 @@
+    net = standard x ((1 + return) x (1 - fee) - (1 - % under)): the shipping comes off what you pay and goes out as the
+    label, and at 14.1% under a slab whose price does not move nets $0. Standard price: PriceCharting's price of the grade
+    today (else last month's), and Card Ladder's value today (else last month's average) beside it; the chance is the
+-   same for both, the money is each side's. Lives in its own file, stitched after graded.js. */
++   same for both, the money is each side's. Lives in its own file, stitched after graded.js.
++   THE MODEL SINCE 2026-11-23 (Brett, after the graded research round of 2026-11-22: "first we make those changes"). The
++   dip rank is no longer what a slab is scored or ordered by. A row's Chance is read from the market's level
++   (doc.fc.level.now: green / amber / red), the line's cell (doc.fc.sig: a card under 12 months old, CGC, a Modern /
++   Contemporary PSA line that passes or fails the three rules, a Vintage PSA line, a Classic / Mid Era PSA line - the
++   PSA cells apart for busy and thin lines) and the hold: doc.fc.tables["hold|level|cell"], else the level's pooled
++   "hold|level|all". It is shown with its range (the table's lo / hi grids: resamples of the cell's decision months) and
++   never above doc.fc.cap (85%; it was 95%). Rows with the same Chance are ordered by the tie-breaker (r.fcPct, 0..1: the
++   card's other grades rose more than this one + a clean month of sales), then the price. An extended line carries a
++   warning. r.fcG is the cell, r.fcF the flags (graded_forecast.F_*: 1 extended, 2 still falling, 4 its segment ran,
++   8 card under 12 months, 16 thin, 32 no price last month, 64 age taken from the first sale on file, 128 read from the
++   month before, 256 beyond the history: its era has run further in 3 months than any era of its side did in the months
++   behind the odds - such a row gets NO Chance, and says why). The gate ("Buy only when the market is green or amber")
++   closes on red. raw_fc.js runs fcgTab, fcgCdf,
++   fcgOrder, fcgPlaces and fcgMonteCarlo on the raw model (no level, no cap, no sig): they read it as before. */
+ const FCG = {rows: [], src: null, key: '', picks: [], spent: 0, mc: null, gated: false};
+ // every PSA and CGC grade (2026-11-05: Card Ladder scores each grade on its own; Brett will add a Card Ladder min-sales
+ // filter later). A browser still holding the old default (the grades PriceCharting had lines for) gets the new one.
+@@ -57,10 +71,33 @@ $('fcg-gm-grades').addEventListener('click', () => grOpenGrades(GF.fc));
+ // a row's line in the model (graded_forecast.LINES): on Card Ladder every PSA and CGC grade is its own line, named by its
+ // grade key
+ const FCG_LINE = gk => /^(psa|cgc)\|/.test(String(gk || '')) ? String(gk) : null;
+-const fcgDoc = () => (GR.doc && GR.doc.fc && !GR.doc.fc.err && GR.doc.fc.tables) ? GR.doc.fc : null;
++const fcgDoc = () => (GR.doc && GR.doc.fc && !GR.doc.fc.err && GR.doc.fc.tables && GR.doc.fc.level && GR.doc.fc.sig) ? GR.doc.fc : null;   // the model of 2026-11-23 (an older file: not in this build yet)
+ const fcgFee = () => settings().fee;                       // eBay's final value fee with the tax on it (14.1%), the raw tab's
+-const fcgReg = D => D.regime && D.regime.up ? 'up' : 'down';
+-const fcgTab = (D, h, g) => g == null ? null : D.tables[h + '|' + fcgReg(D) + '|' + g] || D.tables[h + '|all|all'] || null;
++const fcgLevel = D => (D && D.level && D.level.now) || 'red';   // the graded market's level: green / amber / red
++const fcgCap = D => (D && D.cap) || 0.85;                  // no graded Chance above this
++const fcgReg = D => D.level ? D.level.now : D.regime && D.regime.up ? 'up' : 'down';   // the odds tables' market key (the raw model: up / down)
++const fcgTab = (D, h, g) => g == null ? null : D.tables[h + '|' + fcgReg(D) + '|' + g] || (D.level && D.tables[h + '|' + fcgReg(D) + '|all']) || D.tables[h + '|all|all'] || null;
++const FCG_F = {ext: 1, fall: 2, seg: 4, young: 8, thin: 16, noprice: 32, proxy: 64, prev: 128, beyond: 256};   // doc.fc.sig's flags
++// beyond the history: the line's era has risen more in 3 months than any era of its side did in the months behind the odds - no Chance is given
++const fcgBeyondWord = D => { const b = (D && D.level && D.level.beyond) || []; return b.length ? b.map(x => x[0] + ' ' + fcgPct(x[1], 0)).join(', ') + ' in 3 months, against ' + fcgPct(Math.max(...b.map(x => x[2])), 0) + ' for the largest run in the months behind the odds' : ''; };
++// the cells, by graded_forecast.CELLS' order: 0-3 Modern / Contemporary PSA (passes busy / thin, fails busy / thin), 4-5 Vintage PSA, 6-7 Classic / Mid Era PSA, 8 new card, 9 CGC, 10 era not known
++const FCG_CELL_WORD = ['passes the rules', 'passes the rules', 'fails a rule', 'fails a rule', 'Vintage', 'Vintage', 'Classic / Mid Era', 'Classic / Mid Era', 'new card', 'CGC', 'era not known'];
++const fcgBusy = g => g != null && g <= 7 ? (g % 2 ? 'thin' : 'busy') : '';   // the PSA cells come in pairs: busy (10+ sales in the month), thin
++const FCG_CELL_LONG = ['a Modern / Contemporary PSA line that passes the three rules, busy (10+ sales in the month)', 'a Modern / Contemporary PSA line that passes the three rules, thin (under 10 sales in the month)',
++  'a Modern / Contemporary PSA line that fails a rule, busy (10+ sales in the month)', 'a Modern / Contemporary PSA line that fails a rule (or has too few sales to read them), thin (under 10 sales in the month)',
++  'a Vintage PSA line, busy (10+ sales in the month)', 'a Vintage PSA line, thin (under 10 sales in the month)',
++  'a Classic / Mid Era PSA line, busy (10+ sales in the month)', 'a Classic / Mid Era PSA line, thin (under 10 sales in the month)',
++  'a card under 12 months since its release', 'a CGC line', 'a PSA line of a card whose era is not known (the level’s pooled history)'];
++function fcgSig(D, r) {                                     // a row's cell, tie-breaker and flags today (doc.fc.sig), or null
++  const line = FCG_LINE(r[50]), li = D && D.sig && line ? D.lines.indexOf(line) : -1, v = li >= 0 ? ((D.sig[String(r[0])] || {})[li]) : null;
++  return v == null ? null : fcgSigOf(v);
++}
++const fcgSigOf = v => ({v, tb: (v & 1023) === 1023 ? null : (v & 1023) / 1000, g: (v >> 10) & 15, f: v >> 14});   // a filed code: tie-breaker x 1000 (1023: none) + 1024 x cell + 16384 x flags
++function fcgChance3(D, t, be) {                             // [Chance, the range's low end, its high end] as fractions: the share of the cell's cases over the break-even, at most the cap
++  const cap = fcgCap(D), one = q => Math.min(cap, Math.max(0, 1 - fcgCdf(D, {q}, be)));
++  const p = one(t.q);
++  return [p, t.lo ? Math.min(p, one(t.lo)) : p, t.hi ? Math.max(p, one(t.hi)) : p];
++}
+ function fcgCdf(D, t, x) {                                 // P(return <= x) off the 1..99% grid; a run of equal values (a flat price) counts whole
+   const qs = D.qs, q = t.q, n = q.length;
+   if (x < q[0]) return Math.max(0, qs[0] * (1 - (q[0] - x) / Math.max(1e-6, q[1] - q[0])));
+@@ -85,7 +122,7 @@ function fcgInputs() {
+   const n = (id, dflt) => { const v = parseFloat($(id).value); return isNaN(v) ? dflt : v; };
+   return {cap: Math.max(0, n('fcg-cap', 1000)), h: Math.min(6, Math.max(1, +$('fcg-h').value || 3)), disc: Math.min(0.6, Math.max(0, (+FCG_IN.disc || 0) / 100)),
+           ship: Math.max(0, n('fcg-ship', 5.2)), pmin: Math.max(0, n('fcg-pmin', 50)), pmax: Math.max(0, n('fcg-pmax', 5000)), share: Math.min(1, Math.max(0.05, n('fcg-share', 20) / 100)),
+-          minp: Math.min(0.95, Math.max(0, n('fcg-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fcg-copies', 1)))), gate: $('fcg-gate').checked};
++          minp: Math.min(0.85, Math.max(0, n('fcg-minp', 50) / 100)), copies: Math.min(5, Math.max(1, Math.round(n('fcg-copies', 1)))), gate: $('fcg-gate').checked};
+ }
+ // a row's prices: [the standard price - Card Ladder's (r[79]), only when Card Ladder has read the card and the grade has
+ // 3+ sales in its last 90 days; PriceCharting's price of the grade today (else last month's) - reference only]
+@@ -93,17 +130,16 @@ const fcgStd = r => [r[75] === 'read' && r[79] != null ? r[79] : null, r[67] !=
+ // a row's rank and odds, and its money at standard prices pc / cl bought d under less the shipping (Forecasting: the pane's
+ // % under; Recording and Planning: the row's own)
+ function fcgCalc(r, std, pcRef, d, ship, D, I, fee) {
+-  const line = FCG_LINE(r[50]), li = D && line ? D.lines.indexOf(line) : -1, pv = li >= 0 ? ((D.pct[String(r[0])] || {})[li]) : null;
+-  const pct = pv == null ? null : pv / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10));
+-  const t = D && std != null ? fcgTab(D, I.h, g) : null;
++  const sg = D ? fcgSig(D, r) : null, g = sg ? sg.g : null;
++  const t = D && std != null && !(sg && sg.f & FCG_F.beyond) ? fcgTab(D, I.h, g) : null, ch = t ? fcgChance3(D, t, fcgBreak(d, fee)) : null;   // beyond the history: no odds
+   r.fcS = std; r.fcSc = pcRef; r.fcD = d; r.fcB = fcgBuy(std, d, ship);
+-  r.fcPct = pct; r.fcG = g; r.fcT = t; r.fcQ = 0;
+-  r.fcP = t ? Math.round(Math.min(0.95, 1 - fcgCdf(D, t, fcgBreak(d, fee))) * 1000) / 10 : null;
++  r.fcPct = sg ? sg.tb : null; r.fcG = g; r.fcF = sg ? sg.f : 0; r.fcV = sg ? sg.v : null; r.fcT = t; r.fcQ = 0;   // fcPct: the tie-breaker (it was the dip rank); fcV: the line's code as filed
++  r.fcP = ch ? Math.round(ch[0] * 1000) / 10 : null; r.fcPl = ch ? Math.round(ch[1] * 100) : null; r.fcPh = ch ? Math.round(ch[2] * 100) : null;
+   r.fcN = t ? fcgNet(std, t.mean, d, fee) : null;
+   r.fcR = r.fcN != null && r.fcB > 0 ? Math.round(r.fcN / r.fcB * 1000) / 10 : null;
+   return r;
+ }
+-const fcgOrder = (a, b) => (b.fcP == null ? -1 : Math.round(b.fcP)) - (a.fcP == null ? -1 : Math.round(a.fcP)) || (b.fcPct || 0) - (a.fcPct || 0) || (b.fcS || 0) - (a.fcS || 0);   // buy order: chance to the whole percent, then rank, then price
++const fcgOrder = (a, b) => (b.fcP == null ? -1 : Math.round(b.fcP)) - (a.fcP == null ? -1 : Math.round(a.fcP)) || (b.fcPct || 0) - (a.fcPct || 0) || (b.fcS || 0) - (a.fcS || 0);   // buy order: chance to the whole percent, then fcPct (graded: the tie-breaker; raw: its rank), then price
+ // every row's figures, worked out again when the data, the rows or the plan's boxes change
+ function fcgRows() {
+   const D = fcgDoc(), I = fcgInputs(), fee = fcgFee();
+@@ -122,8 +158,8 @@ function fcgRows() {
+   return out;
+ }
+ /* Best to Buy and Best Chance (2026-11-05, Brett: "a best chance, and best to buy togglable and sortable column in recording
+-   and forcasting"): rows in buy order -> fcBB, the place in that order (Chance to the whole percent, then the deeper dip,
+-   then the higher price: the order the money goes in); fcBC, the place by Chance alone, ties sharing it (fcBCn = how many
++   and forcasting"): rows in buy order -> fcBB, the place in that order (Chance to the whole percent, then the tie-breaker
++   - it was the deeper dip until 2026-11-23 -, then the higher price: the order the money goes in); fcBC, the place by Chance alone, ties sharing it (fcBCn = how many
+    share that chance). Over every row of the page (not the filters), so a slab keeps its number while you filter; only
+    slabs with a chance get one. Neither depends on the capital, the share, the copies, the bar or the gate. */
+ function fcgPlaces(rows) {
+@@ -138,7 +174,7 @@ function fcgPlaces(rows) {
+ function fcgAllocate(view) {
+   const I = FCG.I, D = fcgDoc();
+   FCG.rows.forEach(r => { r.fcQ = 0; });
+-  FCG.gated = !!(D && I.gate && !(D.regime && D.regime.up));
++  FCG.gated = !!(D && I.gate && fcgLevel(D) === 'red');
+   let left = I.cap;
+   const elig = view.filter(r => r.fcP != null && r.fcP / 100 >= I.minp && r.fcB > 0).sort(fcgOrder);
+   if (!FCG.gated) elig.forEach(r => {
+@@ -158,7 +194,7 @@ function fcgMonteCarlo(D, picks, I, fee, n = 2000, tab) {
+   const T = tab || (r => r.fcT), P = picks.map(r => [r.fcQ, r.fcS, T(r), r.fcD != null ? r.fcD : I.disc]).filter(x => x[2] && x[1] != null);
+   for (let k = 0; k < n; k++) { const zm = gauss(); let s = 0; for (const [q, std, t, d] of P) { const u = Math.min(0.9995, Math.max(0.0005, Phi(wm * zm + wo * gauss()))); s += q * fcgNet(std, fcgDraw(D, t, u), d, fee); } tot[k] = s; }
+   const a = Array.from(tot).sort((x, y) => x - y), at = p => a[Math.min(n - 1, Math.floor(p * n))];
+-  return {lo: at(0.1), med: at(0.5), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(FC_P_CAP, a.filter(v => v > 0).length / n)};
++  return {lo: at(0.1), med: at(0.5), hi: at(0.9), mean: a.reduce((s, v) => s + v, 0) / n, p: Math.min(D.cap || FC_P_CAP, a.filter(v => v > 0).length / n)};
+ }
+ const fcgPct = (v, nd = 1) => v == null ? '' : (v > 0 ? '+' : '') + (v * 100).toFixed(nd) + '%';
+ const fcgDiscWord = d => (Math.round(d * 1000) / 10).toString() + '%';
+@@ -169,7 +205,7 @@ function fcgSummary() {
+   if (!D) { box.innerHTML = '<p>The graded model is not in this build of the graded data yet' + (GR.doc.fc && GR.doc.fc.err ? ' (' + esc(GR.doc.fc.err) + ')' : '') + ' - it is made with the site build each morning. The rows below have their prices; Chance, Net and ROI fill in with it.</p>'; return; }
+   const n = FCG.picks.length, copies = FCG.picks.reduce((s, r) => s + r.fcQ, 0);
+   let s = '';
+-  if (FCG.gated) s = '<p><b>Nothing to buy: the graded market is falling</b> (the average graded line ' + fcgPct(D.regime.reg3) + ' a month over the last three months) and “Buy only when the market is rising” is on. ' + (FCG.elig ? FCG.elig + ' slab' + (FCG.elig > 1 ? 's' : '') + ' would clear your bar anyway - the list is in buy order; switch it off to see the plan.' : '') + '</p>';
++  if (FCG.gated) s = '<p><b>Nothing to buy: the graded market is red</b> (its index is ' + fcgPct(D.level.vs12) + ' against the average of its 12 months before) and “Buy only when the market is green or amber” is on. ' + (FCG.elig ? FCG.elig + ' slab' + (FCG.elig > 1 ? 's' : '') + ' would clear your bar anyway - the list is in buy order; switch it off to see the plan.' : '') + '</p>';
+   else if (!n) s = '<p><b>No slab clears your bar</b> (' + Math.round(I.minp * 100) + '% chance of a profit, ' + fcgDiscWord(I.disc) + ' under, a ' + unit + ' hold) among the rows on view. Lower the bar, buy deeper under, or hold longer.</p>';
+   else s = '<p>Spend <b>' + fmtMoneyPlain(FCG.spent) + '</b> of ' + fmtMoneyPlain(I.cap) + ' on <b>' + n + ' slab' + (n > 1 ? 's' : '') + '</b> (' + copies + (copies === 1 ? ' copy' : ' copies') + '), each bought ' + fcgDiscWord(I.disc) + ' under its standard price (Card Ladder’s) less the shipping, hold ' + unit + ', sell on eBay at Card Ladder’s price then. Every listed slab is assumed for sale; the green rows are the buys.</p>';
+   s += '<div class="stats fc-stats">' +
+@@ -179,23 +215,32 @@ function fcgSummary() {
+     '<div class="stat"><div class="k">Fees assumed</div><div class="v">' + (FCG.fee * 100).toFixed(1) + '% + ' + fmtMoneyPlain(I.ship) + '</div><div class="d">eBay’s fee and your eBay Shipping Fee (in the buy price)</div></div></div>';
+   box.innerHTML = s;
+ }
++const fcgLevelWhy = L => L.now === 'red' ? 'the graded index is at or below the average of its 12 months before' : L.now === 'green' ? 'above its 12-month average, not overheated, enough clean lines'
++  : 'above its 12-month average, but ' + (L.hot && L.few ? 'overheated and few clean lines' : L.hot ? 'overheated' : 'few clean lines');
++const FCG_KINDS = [[0, 'Newer, passes · 10+'], [1, 'Newer, passes · 3–9'], [2, 'Newer, fails · 10+'], [3, 'Newer, fails · 3–9'], [4, 'Vintage · 10+'], [5, 'Vintage · 3–9'], [6, 'Classic / Mid · 10+'], [7, 'Classic / Mid · 3–9'], [8, 'New card'], [9, 'CGC']];
+ function fcgRegime() {
+   const box = $('fcg-regime'); if (!box) return;
+   const D = fcgDoc(), I = fcgInputs(), fee = fcgFee();
+   if (!D) { box.textContent = GR.doc ? 'The graded model is not in this build yet.' : 'Waiting for the graded data…'; return; }
+-  const R = D.regime || {}, up = !!R.up, confirm = !!R.confirm, light = !up ? 'red' : confirm ? 'green' : 'amber';
+-  const head = !up ? 'Falling graded market — the gate is red.' : confirm ? 'Rising graded market — the gate is green.' : 'Rising graded market, but last month turned down — amber.';
++  const L = D.level, lv = L.now, th = L.th || {}, mo = L.months || {}, num = v => Number(v || 0).toLocaleString('en-US');
+   const dsc = NAV.gm === 'rc' ? (+FCG_IN.rdisc || 0) / 100 : I.disc;   // the % under the pane shows: Recording's own there
+-  const pn = R.p_next || [], be = fcgBreak(dsc, fee), dw = fcgDiscWord(dsc);
+-  const line = h => { const t = D.tables[h + '|' + fcgReg(D) + '|9']; if (!t) return '<tr><td>' + h + '&nbsp;mo</td><td class="num" colspan="3"><span class="dim">too few cases</span></td></tr>';
+-    return '<tr><td>' + h + '&nbsp;mo</td><td class="num">' + fcgPct(t.q[D.qs.indexOf(0.5)]) + '</td><td class="num">' + (t.p_up * 100).toFixed(0) + '%</td><td class="num">' + (Math.min(0.95, 1 - fcgCdf(D, t, be)) * 100).toFixed(0) + '%</td></tr>'; };
+-  box.innerHTML = '<p><b class="fc-light fc-light-' + light + '">' + head + '</b> The average graded line moved <b>' + fcgPct(R.reg3) + ' a month</b> over the last three months (' + fcgPct(R.reg1) + ' last month' + (R.breadth3 != null ? '; ' + (R.breadth3 * 100).toFixed(0) + '% of lines up' : '') + '). ' +
+-    (pn[0] != null ? 'Since 2022, when this three-month figure was positive the next quarter was up ' + Math.round(pn[0] * 100) + '% of the time (' + pn[2] + ' months); when negative, ' + Math.round(pn[1] * 100) + '% (' + pn[3] + ' months)' : '') +
+-    ' — so ' + (up ? 'the plan may buy' : 'the plan buys nothing while “Buy only when the market is rising” is on') + '.</p>' +
+-    '<p class="dim">What the deepest-dip slabs (the top 10% of the rank: furthest below their own 12-month Card Ladder level) did in ' + (up ? 'rising' : 'falling') + ' markets, 2022 on, lines $' + (D.rank_min || 25) + '+ with ' + (D.floor || 3) + '+ sales a year: the median move, how often the price was up, and how often one bought ' + dw + ' under (the shipping in the buy price) netted a profit.</p>' +
+-    '<div class="pctbox fc-box"><table><thead><tr><th>Hold</th><th class="num">Move</th><th class="num">Up</th><th class="num" title="a slab bought ' + dw + ' under its standard price, less the shipping">' + dw + ' under</th></tr></thead><tbody>' +
+-    [1, 2, 3, 4, 5, 6].map(line).join('') + '</tbody></table></div>' +
+-    '<p class="dim">Model ' + esc(D.model || '') + ', data month ' + esc(D.month || '') + ', built ' + esc((D.t || '').replace('T', ' ').replace('Z', ' UTC')) + ', ' + Number(D.n_ranked || 0).toLocaleString('en-US') + ' of ' + Number(D.n_lines || 0).toLocaleString('en-US') + ' Card Ladder lines (card × grade) ranked, from the ' + Number(D.n_cards || 0).toLocaleString('en-US') + ' cards Card Ladder has read. Every PSA and CGC grade is its own line; the cards read so far are the busiest ones, so the odds may run a little high until the quieter cards are in.</p>';
++  const be = fcgBreak(dsc, fee), dw = fcgDiscWord(dsc), unit = I.h + ' month' + (I.h > 1 ? 's' : ''), mid = D.qs.indexOf(0.5);
++  const line = ([g, name]) => { const t = D.tables[I.h + '|' + lv + '|' + g];
++    if (!t) return '<tr><td>' + name + '</td><td class="num" colspan="2"><span class="dim">too few cases</span></td></tr>';
++    const c = fcgChance3(D, t, be);
++    return '<tr title="' + esc(num(t.n) + ' cases in ' + t.nm + ' ' + lv + ' months') + '"><td>' + name + '</td><td class="num">' + fcgPct(t.q[mid], 0) + '</td><td class="num">' + (c[0] * 100).toFixed(0) + '% <span class="dim">' + Math.round(c[1] * 100) + '–' + Math.round(c[2] * 100) + '</span></td></tr>'; };
++  const segs = (L.segs || []).filter(x => /^(Modern|Contemporary)/.test(x[0]) && x[1] != null).map(x => esc(x[0].replace('PSA below 10', 'below 10')) + ' ' + fcgPct(x[1], 0)).join(' · ');
++  const why = fcgLevelWhy(L);
++  box.innerHTML = '<p><b class="fc-light fc-light-' + lv + '">' + lv.charAt(0).toUpperCase() + lv.slice(1) + '</b> <b>' + why.charAt(0).toUpperCase() + why.slice(1) + '.</b> The graded index stands <b>' + fcgPct(L.vs12) + '</b> against the average of its 12 months before (' + fcgPct(L.mom1) + ' last month). ' +
++    'Heat score <b>' + (L.heat == null ? '-' : L.heat.toFixed(2)) + '</b> (' + (th.heat || 0.7).toFixed(2) + ' or more is hot). <b>' + num(L.n_pass) + ' of ' + num(L.n_gated) + '</b> busy seasoned PSA lines pass the line rules (' + (L.share == null ? '-' : Math.round(L.share * 100) + '%') + '; under ' + Math.round((th.share || 0.4) * 100) + '% is few). ' +
++    'Since 2022: green in ' + (mo.green || 0) + ' months, amber in ' + (mo.amber || 0) + ', red in ' + (mo.red || 0) + ' — so ' + (lv !== 'red' ? 'the plan may buy, with ' + lv + ' months’ odds' : 'the plan buys nothing while “Buy only when the market is green or amber” is on') + '.</p>' +
++    ((L.beyond || []).length ? '<p><b>No Chance for ' + esc(L.beyond.map(x => x[0]).join(' and ')) + ' lines:</b> ' + esc(fcgBeyondWord(D)) + '. The past has no case like that, so those slabs show “beyond history” and get no money.</p>' : '') +
++    (segs ? '<p class="dim">The newer segments over 3 months (a line fails while its segment is up ' + Math.round((th.seg || 0.221) * 100) + '%+): ' + segs + '.</p>' : '') +
++    '<p class="dim">What each kind of line did after ' + (lv === 'amber' ? 'an' : 'a') + ' ' + lv + ' month, 2022 on, bought the month after and held ' + unit + ': the middle move, and how often one bought ' + dw + ' under (the shipping in the buy price) netted a profit, with its range.</p>' +
++    '<div class="pctbox fc-box"><table><thead><tr><th>Line</th><th class="num">Move</th><th class="num" title="a slab bought ' + dw + ' under its standard price, less the shipping: how often it netted a profit, and the range of that share over resamples of the months">' + dw + ' under</th></tr></thead><tbody>' +
++    FCG_KINDS.map(line).join('') + '</tbody></table></div>' +
++    '<p class="dim">Newer = Modern / Contemporary PSA; Vintage and Classic / Mid = those eras’ PSA lines; 10+ and 3–9 = sales in the month. One fall (2022-23) and one rise (2024-26) are behind every figure: read them as upper bounds.</p>' +
++    '<p class="dim">Model ' + esc(D.model || '') + ', data month ' + esc(D.month || '') + ', built ' + esc((D.t || '').replace('T', ' ').replace('Z', ' UTC')) + ', ' + num(D.n_ranked) + ' Card Ladder lines (card × grade) with a standard price read' + (D.n_beyond ? ' (' + num(D.n_beyond) + ' of them beyond history: no Chance)' : '') + ', from the ' + num(D.n_cards) + ' cards Card Ladder has read. Every PSA and CGC grade is its own line.</p>';
+ }
+ function fcgMeta() {
+   const m = $('meta-fcg'); if (!m) return;
+@@ -204,7 +249,7 @@ function fcgMeta() {
+   m.textContent = md === 'rc' ? 'Forecast · graded cards (PSA and CGC) · Recording: the slabs you recorded at a card show, best to buy first - green: buy it with the capital left; Yes: you bought it at your price; No: the vendor wanted more (it goes to the bottom)'
+     : md === 'pl' ? 'Forecast · graded cards (PSA and CGC) · Purchases: the slabs you bought (marked Yes on Recording), what you paid and what they are expected to make; Record Purchases keeps them on History'
+     : md === 'hi' ? 'Forecast · graded cards (PSA and CGC) · History: Forecasting Replay (the plan run on every month since 2022 with only what was known then), Recorded Purchases, and Pre-Sales Spotcheck (the green rows you sent, looked back)'
+-    : 'Forecast · graded cards (PSA and CGC) · which slabs to buy at a vendor and sell on eBay, every slab Card Ladder prices assumed for sale, ranked like the raw tab: how far each grade’s Card Ladder price sits below its own 12-month level' + (D ? ' · ' + D.model : '');
++    : 'Forecast · graded cards (PSA and CGC) · which slabs to buy at a vendor and sell on eBay, every slab Card Ladder prices assumed for sale; the Chance follows the market’s level (green / amber / red), the kind of line and the hold' + (D ? ' · ' + D.model : '');
+ }
+ // the cells
+ const fcgM = v => v == null ? '<span class="dim">-</span>' : fmtMoney(v);
+@@ -241,21 +286,47 @@ function fcgCells(r, I) {
+     sold: fcg2(r[37] == null ? '<span class="dim">-</span>' : fmtInt(r[37]), pcSold, 'Card Ladder’s sales of this grade last month' + (r[81] != null ? ' (' + fmtInt(r[81]) + ' in the 12 months to its read)' : ''), 'PriceCharting’s recorded sales of this grade and grader last month' + (r[76] ? ' (an estimate: its list of sales does not reach back to the start of the month)' : '') + ' - reference', r),
+     chance: fcgChanceCell(r, I),
+     bb: r.fcBB == null ? '<td class="num"><span class="dim" title="No chance, so no place in the buy order">-</span></td>'
+-      : '<td class="num" title="' + esc('Best to Buy: number ' + r.fcBB + ' in the buy order - Chance first (to the whole percent), then the deeper dip, then the higher price. The order the plan spends in; the green rows are the ones the money reaches.') + '"><b>' + r.fcBB + '</b></td>',
++      : '<td class="num" title="' + esc('Best to Buy: number ' + r.fcBB + ' in the buy order - Chance first (to the whole percent), then the tie-breaker (the card’s other grades rose more than this one, a clean month of sales), then the higher price. The order the plan spends in; the green rows are the ones the money reaches.') + '"><b>' + r.fcBB + '</b></td>',
+     bc: r.fcBC == null ? '<td class="num"><span class="dim" title="No chance, so no place">-</span></td>'
+       : '<td class="num" title="' + esc('Best Chance: place ' + r.fcBC + ' by Chance alone' + (r.fcBCn > 1 ? ', shared by ' + r.fcBCn + ' slabs at ' + Math.round(r.fcP) + '% (the model sees them as equally good)' : '')) + '">' + r.fcBC + (r.fcBCn > 1 ? '<span class="dim">=</span>' : '') + '</td>',
+     qty: '<td class="num">' + (r.fcQ ? '<b>' + r.fcQ + '</b>' : '<span class="dim">—</span>') + '</td>',
+-    net: fcg1(r.fcN == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcN), 'Expected net per copy: Card Ladder’s standard x ((1 + the group’s average return) x (1 - eBay’s fee) - (1 - ' + fcgDiscWord(d) + ')), after eBay’s fee and the shipping', r),
++    net: fcg1(r.fcN == null ? '<span class="dim">-</span>' : fcgMoneyS(r.fcN), 'Expected net per copy: Card Ladder’s standard x ((1 + the average return of lines like it at this market level) x (1 - eBay’s fee) - (1 - ' + fcgDiscWord(d) + ')), after eBay’s fee and the shipping. An average: one slab’s result is mostly the market’s next months and its own luck.', r),
+     roi: fcg1(r.fcR == null ? '<span class="dim">-</span>' : fcgPct(r.fcR / 100), 'Net / buy price, over the hold', r)};
+ }
+ function fcgRow(r) {
+   const x = fcgCells(r, FCG.I);
+   return x.flag + x.review + x.name + x.grade + x.std + x.buy + x.sold + x.chance + x.bb + x.bc + x.qty + x.net + x.roi + fcgPcx(r).join('');
+ }
++function fcgFlagWords(f) {                                 // a row's flags in words (doc.fc.sig)
++  const F = FCG_F, o = [];
++  if (f & F.ext) o.push('extended (up 16%+ last month, or 28%+ above its own 6-month average)');
++  if (f & F.fall) o.push('still falling (down 7%+ last month, or the month’s second half 7% under its first)');
++  if (f & F.seg) o.push('its segment (era × PSA 10 / below 10) is up 22%+ in 3 months');
++  if (f & F.noprice) o.push('under 3 sales in each of the last two months, so its rules cannot be read');
++  else if (f & F.prev) o.push('read from the month before last (under 3 sales last month)');
++  if (f & F.proxy) o.push('no release date on file: its age is taken from its era or its first sale');
++  if (f & F.beyond) o.push('beyond the history: its era has risen more in 3 months than any era did in the months behind the odds');
++  return o;
++}
++const fcgExtTip = g => 'Extended: its price is up 16%+ on last month, or 28%+ above its own 6-month average. ' +
++  (g != null && g <= 3 ? 'In Modern and Contemporary such lines made clearly less over the next 3 months; it is one of the three rules, so it is already in the Chance.' : g >= 4 && g <= 7 ? 'In the older eras this has not separated good buys from bad, so it does not change the Chance; shown as a warning.' : 'Shown as a warning; it does not change this line’s Chance.') +
++  ' “Extended” means not now, not never: the effect was gone three months after the flag.';
+ function fcgChanceCell(r, I) {
+-  const grp = r.fcG == null ? '' : r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10 (1 = deepest)', d = r.fcD != null ? r.fcD : I.disc;
+-  return r.fcP == null ? '<td class="num"><span class="dim" title="' + esc(r.fcS == null ? 'No Card Ladder standard price for this grade: fewer than 3 sales in the 90 days to the card’s read' : 'No rank for this line today: the model ranks a grade at $' + ((fcgDoc() || {}).rank_min || 25) + '+ with ' + ((fcgDoc() || {}).floor || 3) + '+ Card Ladder sales in its last 12 months and a 12-month level to compare with') + '">no score</span></td>'
+-    : '<td class="num" title="' + esc('Rank: ' + grp + ' (' + fcOrd(Math.round(r.fcPct * 100)) + ' percentile, furthest below its own 12-month Card Ladder level = 100th). How often slabs of that group made money over ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' in this kind of market, 2022 on (' + Number(r.fcT.n).toLocaleString('en-US') + ' cases on Card Ladder), bought ' + fcgDiscWord(d) + ' under') + '">' + r.fcP.toFixed(0) + '%</td>';
++  const D = fcgDoc(), d = r.fcD != null ? r.fcD : I.disc;
++  if (D && r.fcS != null && (r.fcF || 0) & FCG_F.beyond) return '<td class="num"><span class="fcg-warn" title="' + esc('No Chance: this line’s era has risen more in 3 months than any era did in the months the odds were measured on (' + fcgBeyondWord(D) + '). The past has no case like it, so the model gives no figure. It comes back by itself once the run cools.') + '">beyond history</span></td>';
++  if (r.fcP == null || !D) return '<td class="num"><span class="dim" title="' + esc(r.fcS == null ? 'No Card Ladder standard price for this grade: fewer than 3 sales in the 90 days to the card’s read' : 'No score for this line in this build of the graded data') + '">no score</span></td>';
++  const lv = fcgLevel(D), t = r.fcT, own = D.tables[I.h + '|' + lv + '|' + r.fcG] === t, fw = fcgFlagWords(r.fcF || 0), cap = Math.round(fcgCap(D) * 100);
++  const tip = 'This line: ' + (FCG_CELL_LONG[r.fcG] || 'not placed') + (fw.length ? ' - ' + fw.join('; ') : '') + '. How often such lines made money over ' + I.h + ' month' + (I.h > 1 ? 's' : '') + ' after ' + (lv === 'amber' ? 'an' : 'a') + ' ' + lv + ' month, 2022 on (' +
++    Number(t.n).toLocaleString('en-US') + ' cases in ' + t.nm + ' months' + (own ? '' : ': too few of its own kind, so this level’s seasoned PSA lines together') + '), bought the month after ' + fcgDiscWord(d) + ' under: ' + r.fcP.toFixed(0) + '%' + (Math.round(r.fcP) >= cap ? ' (the most shown)' : '') +
++    '; with those months drawn again it ran from ' + r.fcPl + '% to ' + r.fcPh + '%.';
++  return '<td class="num fcg-ch" title="' + esc(tip) + '">' + r.fcP.toFixed(0) + '%<span class="fcg-rng">' + (r.fcPl >= cap ? 'the most shown' : r.fcPl + '–' + r.fcPh) + '</span>' + ((r.fcF || 0) & FCG_F.ext ? '<span class="fcg-warn" title="' + esc(fcgExtTip(r.fcG)) + '">extended</span>' : '') + '</td>';
++}
++// a row's line in a few words (Recording and Purchases: the Line column; it was Rank until 2026-11-23)
++function fcgLineCell(g, f, tb) {
++  if (g == null) return '<td class="num"><span class="dim" title="No reading for this line in this build of the graded data">-</span></td>';
++  const fw = fcgFlagWords(f || 0), F = FCG_F;
++  const tip = 'This line is ' + (FCG_CELL_LONG[g] || 'not placed') + (fw.length ? ' - ' + fw.join('; ') : '') + '.' + (tb != null ? ' Tie-breaker ' + Math.round(tb * 100) + ' of 100 inside its month and segment (the card’s other grades rose more than this one, a clean month of sales): the order among slabs with the same Chance.' : ' No tie-breaker: no price last month.');
++  return '<td class="num fcg-ln" title="' + esc(tip) + '">' + esc(FCG_CELL_WORD[g] || '-') + ((f || 0) & F.beyond ? '<span class="fcg-warn">beyond history</span>' : '') + '<span class="fcg-rng">' + fcgBusy(g) + (tb != null ? (fcgBusy(g) ? ' · ' : '') + 'tie ' + Math.round(tb * 100) : '') + '</span>' + ((f || 0) & F.ext ? '<span class="fcg-warn" title="' + esc(fcgExtTip(g)) + '">extended</span>' : '') + '</td>';
+ }
+ const fcgMoneyS = v => '<span class="' + (v < 0 ? 'down' : v > 0 ? 'up' : '') + '">' + (v < 0 ? '−' : v > 0 ? '+' : '') + fmtMoneyPlain(Math.abs(v)) + '</span>';
+ // Only Hits (2026-11-04, Brett: "under forcasting graded and record graded maybe have a "Only Hits" button to only show
+@@ -469,23 +540,23 @@ fcgShow();
+ 
+ /* ---- the help behind the page's ? buttons ---- */
+ Object.assign(HELP, {
+-  fcg_cap: {t: 'Capital to spend', f: 'the dollars the plan may spend at the vendor: the sum of the Buy prices of the slabs it buys', m: 'The plan buys the best-chance slabs first, at most the per-card share of this each and at most the copies per card, until the money runs out. Every listed slab is assumed for sale (a vendor\'s stock is not known in advance).', e: '$1,000 and 20% per card: at most $200 on any one slab.'},
+-  fcg_hold: {t: 'Hold for', f: '1 to 6 months: how long you keep a slab before selling it on eBay', m: 'The odds are specific to the hold: how slabs of the same rank group did over exactly that many months, in this kind of market, 2022 on. The market box shows all six side by side.', e: 'Hold 6 months: the chances use what each group did over six months.'},
++  fcg_cap: {t: 'Capital to spend', f: 'the dollars the plan may spend at the vendor: the sum of the Buy prices of the slabs it buys', m: 'The plan buys in Best to Buy order (highest Chance first), at most the per-card share of this each and at most the copies per card, until the money runs out. Every listed slab is assumed for sale (a vendor\'s stock is not known in advance).', e: '$1,000 and 20% per card: at most $200 on any one slab.'},
++  fcg_hold: {t: 'Hold for', f: '1 to 6 months: how long you keep a slab before selling it on eBay', m: 'The odds are specific to the hold: how lines of the same kind did over exactly that many months after a month at today\'s market level, 2022 on. In the research a 3-month hold was the one that held up under harder prices; a 1-month flip did not. The market box shows every kind of line at this hold.', e: 'Hold 6 months: the chances use what each kind of line did over six months.'},
+   fcg_disc: {t: '% Under The Standard Grade Price', f: 'Buy price = standard price x (1 - this) - the eBay Shipping Fee', m: 'How far under the standard price (Card Ladder\'s: the middle of the grade\'s sales in the 30 days to the card\'s read, else 60 or 90) you pay the vendor. 14.1% by default: eBay\'s fee, so a slab bought 14.1% under whose price does not move nets $0 - the profit is the move over the hold, and anything you buy deeper under. The market box\'s last column follows this box.', e: 'Standard $200, 14.1% under, $5.20 shipping: pay at most $166.60.'},
+   fcg_ship: {t: 'eBay Shipping Fee', f: 'what one sale costs to ship (label and supplies); $5.20 by default', m: 'Taken off the Buy price (what to pay the vendor) and paid again as the label when the slab sells, so it cancels out in Net: Net and Chance depend on the % under, the Buy price and ROI on the shipping too. The "Fees assumed" figure shows it.', e: 'Shipping $6 instead of $5.20: every Buy price drops 80 cents.'},
+   fcg_price: {t: 'Card price between', f: 'only slabs whose standard price (Card Ladder\'s) is inside this range are listed', m: 'The band narrows the listing and the plan, on Forecasting, Recording and Purchases alike (a bought slab by the price it was bought at; its money stays spent). $50 to $5,000 by default.', e: '$100 to $1,000: the cheaper and the dearer slabs leave the list.'},
+   fcg_share: {t: 'At most per card', f: 'copies of one slab x buy price stays under this share of the capital', m: 'Spreads the money over many slabs, as the raw tab does: picks are nearly independent, so twenty slabs are far safer than two.', e: '20% of $1,000: no single slab gets more than $200.'},
+   fcg_copies: {t: 'Copies per card', f: 'the most copies of one slab the plan buys (1-5)', m: 'One by default, as the raw tab.', e: '2: the plan may buy two PSA 10s of the same card.'},
+-  fcg_gate: {t: 'Buy only when the market is rising', f: 'on (the default): nothing is bought while the graded market is falling', m: 'The graded market (the box below): the average monthly move of Card Ladder\'s lines over the last three months. On Card Ladder\'s history this has told little about the next quarter (it rose most quarters either way: the box gives the counts). Off: the plan buys in a falling market too, with the falling-market odds.', e: 'Falling market, switch on: every Buy is 0 and the summary says why.'},
+-  fcg_picks: {t: 'What to buy (graded)', f: 'every slab Card Ladder prices in your price band (each card at each PSA and CGC grade), assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, PC Cert read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Purchases (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs; Columns… also lists every PriceCharting graded column but the eBay ones (off until you tick them), and which columns show is one choice for Forecasting, Recording, Purchases and the slab lists on History. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from its group).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
++  fcg_gate: {t: 'Buy only when the market is green or amber', f: 'on (the default): nothing is bought while the graded market is red', m: 'Red = the graded index (the box below) is at or below the average of its 12 months before. Since 2022 slabs bought in red months lost money on average at every hold, whatever the line; in amber months the lines that pass the rules and the older eras were the dependable ones; green months were the best. Off: the plan buys in a red market too, with the red months\' odds.', e: 'Red market, switch on: every Buy is 0 and the summary says why.'},
++  fcg_picks: {t: 'What to buy (graded)', f: 'every slab Card Ladder prices in your price band (each card at each PSA and CGC grade), assumed for sale, best chance first; the light green rows are the buys', m: 'The buttons above the table are the PriceCharting tab\'s (Grading, the word buttons, Flags, Unsure, PC Cert read, CL read, CL To PC Match), with settings of their own shared by Forecasting, Recording and Purchases (graded) - the search and the filter chips too; Filters… and Columns… and the headers work as on the other tabs; Columns… also lists every PriceCharting graded column but the eBay ones (off until you tick them), and which columns show is one choice for Forecasting, Recording, Purchases and the slab lists on History. The plan follows the rows on view: filter the list and the money goes to what is left. The summary\'s range and chance are for the whole basket (a simulation that draws each slab\'s outcome from the history of its kind of line).', e: 'Grading: PSA 10 only - the plan buys only PSA 10s.'},
+   fcg_name: {t: 'PC Card Name', f: 'PriceCharting\'s name of the card, with its set and number under it', m: 'Not a link (Brett). Review compares it with Card Ladder\'s card; the prices are Card Ladder\'s page for it.', e: 'Umbreon VMAX #215 · Evolving Skies.'},
+-  fcg_grade: {t: 'Grade', f: 'the grader and grade of the row: one row per card per grade', m: 'Every PSA and CGC grade is its own line in the model, priced from Card Ladder\'s sales of that grade (CGC 10 Pristine and CGC 10 apart). A grade with fewer than 3 sales in the 90 days to the card\'s read has no standard price and is not listed.', e: 'PSA 9 and CGC 9 are two lines with their own prices and ranks.'},
++  fcg_grade: {t: 'Grade', f: 'the grader and grade of the row: one row per card per grade', m: 'Every PSA and CGC grade is its own line in the model, priced from Card Ladder\'s sales of that grade (CGC 10 Pristine and CGC 10 apart). A grade with fewer than 3 sales in the 90 days to the card\'s read has no standard price and is not listed.', e: 'PSA 9 and CGC 9 are two lines with their own prices and readings.'},
+   fcg_std: {t: 'Standard Price', f: 'CL: the middle (Hodges-Lehmann) of Card Ladder\'s sales of the grade in the 30 days to the card\'s read (60 or 90 days when there are fewer than 3); PC: PriceCharting\'s price of the grade - reference only', m: 'The price a slab is bought under and sold at, and the one the chance, Net and ROI use (decision 1, 2026-11-05: the same comps a vendor sees on Card Ladder). ≠CLV marks a slab whose Card Ladder value is 25% or more away from it (hover for the value): at its top confidence the value is just the last sale, so check the recent sales. Sorting and the filter chip use the CL figure.', e: 'CL $185.00 / PC $200.00.'},
+   fcg_buy: {t: 'Buy Price', f: 'Card Ladder\'s standard price x (1 - % under) - eBay Shipping Fee', m: 'The most to pay the vendor for the slab.', e: 'CL $200, 14.1% under, $5.20: $166.60.'},
+   fcg_sold: {t: 'Sold (last month)', f: 'CL: Card Ladder\'s sales of the grade last month (hover: the 12 months to its read); PC: PriceCharting\'s recorded sales of the grade and grader last month - reference', m: 'How liquid the slab is - what you would sell against. A ~ marks PriceCharting\'s estimate (its list of sales does not reach back to the start of the month).', e: 'CL 12 / PC 9.'},
+   fcg_hits: {t: 'Only Hits', f: 'on = only the green rows: the slabs the plan buys', m: 'One switch for Graded Forecasting and Recording (not on Purchases, where every row is bought). The plan is still worked out on every row the other filters and the boxes leave, best chance first; Only Hits then lists just its buys, and the count beside the search box says how many. The number on the button is the green rows at these settings.', e: '$1,000 at 14.1% under: Only Hits lists the 15 slabs the plan buys.'},
+-  fcg_qty: {t: 'QTY', f: 'how many copies the plan buys', m: 'Best chance first among the rows on view, only at or above your bar, never more than the copies per card or the per-card share, until the capital runs out; nothing while the gate is red.', e: '1 on the first ten rows of a $1,000 plan.'},
+-  fcg_net: {t: 'Net', f: 'expected net per copy: Card Ladder\'s standard x ((1 + the group\'s average return) x (1 - eBay\'s fee) - (1 - % under))', m: 'The average outcome of the group over the hold, after eBay\'s fee, the shipping and what you paid. An average: the typical slab moves less, a few move a lot - the summary\'s range shows the spread.', e: 'CL $200, average return +12% over 3 months, 14.1% under: +$20.61.'},
++  fcg_qty: {t: 'QTY', f: 'how many copies the plan buys', m: 'Best to Buy order among the rows on view, only at or above your bar, never more than the copies per card or the per-card share, until the capital runs out; nothing while the market is red and the gate is on.', e: '1 on the first ten rows of a $1,000 plan.'},
++  fcg_net: {t: 'Net', f: 'expected net per copy: Card Ladder\'s standard x ((1 + the average return of lines like it) x (1 - eBay\'s fee) - (1 - % under))', m: 'The average outcome of lines of the same kind over the hold after a month at today\'s market level (each return counted between -80% and +170%), after eBay\'s fee, the shipping and what you paid. An average: one slab\'s result is mostly the market\'s next months and the card\'s own luck - in the research an expected figure per slab was off by about 22 points on a single trade. Trust the Chance and its range more than this number; the summary\'s range shows the spread of the basket.', e: 'CL $200, average return +12% over 3 months, 14.1% under: +$20.61.'},
+   fcg_roi: {t: 'ROI %', f: 'Net / Buy price, over the hold', m: 'What the money spent on the slab earns over the hold.', e: '+$20.61 on $166.60: +12.4%.'}
+ });
+ /* ---- the laid-out ? popups (2026-11-05, Brett: "the question mark explanations for these should be more descriptive and
+@@ -495,46 +566,51 @@ const fcgNowPct = v => v == null ? '-' : '<b class="' + (v > 0 ? 'up' : v < 0 ?
+ const fcgHoldWord = h => h + '-month hold';
+ Object.assign(HELP, {
+   fcg_regime: {t: 'The market now (graded)', md: 1, m: [
+-    '> Is the graded market rising or falling right now? The answer decides two things: whether the plan may buy at all, and which history every Chance is read from.',
++    '> The graded market’s level - green, amber or red - read at the end of the last complete month. It decides two things: whether the plan may buy at all, and which history every Chance is read from.',
+     '## How it’s worked out',
+-    '1. **Each line’s move last month.** A line is one card at one PSA or CGC grade, priced from Card Ladder’s sales (the month’s middle sale). Every line with 3+ sales in both months and priced $10 or more the month before counts, and the month needs at least 50 of them.',
+-    '   `move = this month’s price ÷ last month’s price − 1`',
+-    '2. **Cap the wild jumps** at −50% and +50%. A $12 line that jumps to $40 (+233%) counts as +50%, so a few thin, jumpy cards can’t swing the whole market.',
+-    '3. **Average them.** That average is the market’s move for the month. The share of lines that rose is counted too (“% of lines up”).',
+-    '4. **Smooth over three months.**',
+-    '   `3-month figure = (month 1 + month 2 + month 3) ÷ 3`',
+-    '5. **Make the call.** Above 0 = rising; 0 or below = falling.',
+-    '- **Green:** rising, and last month was up.',
+-    '- **Amber:** rising, but last month was down. The plan still buys.',
+-    '- **Red:** falling. With “Buy only when the market is rising” on, nothing is bought.',
+-    '## The track record',
+-    'For every month since January 2022 the model checked two things: was the 3-month figure positive, and was the market up over the next three months? On PriceCharting’s prices that split the quarters well (up about 4 times in 5 after a rising reading, 1 in 4 after a falling one). On Card Ladder’s sales of the cards read so far, the next quarter rose most of the time either way, so the light says less. The box gives the exact counts.',
++    '1. **The index.** Every Card Ladder line (one card at one PSA or CGC grade) at least 12 months past its release, with 5+ sales this month and last, priced $50 or more: its move in the month. The middle (median) of those moves is the market’s move for the month; chained month to month it is the index.',
++    '2. **Against its own year.** The index divided by the average of its 12 months before. At or below that average: **red**.',
++    '3. **Is it overheated?** The heat score: four gauges, each ranked against every month up to then (0 = the calmest so far, 1 = the hottest) and averaged - how scattered the month’s moves were, the share of lines at a 12-month high, sales against their 12-month average, the index’s own move in the month. 0.70 or more = hot.',
++    '4. **Are there clean lines?** Of the busy seasoned PSA lines ($100+, 10+ sales in the month), the share that pass the three line rules (see Chance). Under 40% = few.',
++    '- **Green:** above its 12-month average, not hot, 40%+ of lines pass.',
++    '- **Amber:** above, but hot or few pass. The plan still buys, with amber months’ odds.',
++    '- **Red:** at or below the average. With “Buy only when the market is green or amber” on, nothing is bought.',
++    '## What each level was followed by',
++    'Busy seasoned PSA lines $100+, bought the month after at 14% under and sold 3 months later, 2022 to mid 2026 (the research round of 2026-11-22):',
++    '| Level | Months | Average net | Trades that made money |',
++    '|---|---|---|---|',
++    '| Green | 8 | +34% | 91% (a profit in 8 of 8 months) |',
++    '| Amber | 17 | +5.5%; lines that pass the rules +12% | 51%; lines that pass 71% |',
++    '| Red | 30 | −4% | 35% (a profit in 8 of 30 months) |',
+     '## The table',
+-    'What the deepest-dip slabs (the top 10% of the Rank) did in today’s kind of market, for holds of 1 to 6 months, 2022 on:',
+-    '| Column | What it is |',
+-    '|---|---|',
+-    '| Move | the middle (median) return |',
+-    '| Up | how often the price rose |',
+-    '| X% under | how often one bought at your % under made a profit after eBay’s fee |',
+-    'At 14.1% under the last two columns match: a slab bought 14.1% under breaks even when its price doesn’t move (the shipping cancels out).',
+-    '## Example',
+-    'Aug +1.8%, Sep +3.1%, Oct −0.6%:',
+-    '`(1.8 + 3.1 − 0.6) ÷ 3 = +1.4% a month`',
+-    'Rising, but last month was down: amber.',
++    'What each kind of line did at your Hold after a month at today’s level: the middle move, and how often one bought at your % under made a profit, with its range. Newer = Modern / Contemporary PSA; Vintage and Classic / Mid = those eras’ PSA lines; 10+ and 3–9 are the line’s sales in the month.',
+     '## Keep in mind',
+-    '- Card Ladder’s own sales (every platform), as of each card’s read; the cards read so far are the busiest ones.',
+-    '- Every PSA and CGC grade is a line of its own.'].join('\n'),
+-    now: () => { const D = fcgDoc(); if (!D || !D.regime) return ''; const R = D.regime, light = !R.up ? '<b class="down">red: falling</b>' : R.confirm ? '<b class="up">green: rising</b>' : '<b style="color:#d97706">amber: rising, last month down</b>';
+-      return fcgNowPct(R.reg3) + ' a month over the last three months · last month ' + fcgNowPct(R.reg1) + (R.breadth3 != null ? ' · ' + Math.round(R.breadth3 * 100) + '% of lines up' : '') + ' → ' + light + ' <span class="dim">(data month ' + esc(D.month || '') + ')</span>'; }},
++    '- All of it comes from one fall (2022-23) and one rise (2024-26), and the levels and rules were chosen on that same history: read the past results as upper bounds.',
++    '- Amber does not mean stay out. Green months came as short windows - one to three months, about eight months apart.',
++    '- The level is late at turns: it said red through the first two strong months of 2024.',
++    '- Card Ladder’s own sales (every platform), as of each card’s read. PriceCharting plays no part.'].join('\n'),
++    now: () => { const D = fcgDoc(); if (!D) return ''; const L = D.level, col = L.now === 'green' ? ' class="up"' : L.now === 'red' ? ' class="down"' : ' style="color:#d97706"';
++      return '<b' + col + '>' + L.now + '</b>: ' + fcgLevelWhy(L) + ' · index ' + fcgNowPct(L.vs12) + ' against its 12-month average · heat ' + (L.heat == null ? '-' : L.heat.toFixed(2)) + ' · ' + Number(L.n_pass || 0).toLocaleString('en-US') + ' of ' + Number(L.n_gated || 0).toLocaleString('en-US') + ' lines pass <span class="dim">(data month ' + esc(D.month || '') + ')</span>'; }},
+   fcg_chance: {t: 'Chance (this slab)', md: 1, m: [
+-    '> How often slabs like this one made money in the past: the same rank group, the same kind of market, held as long as your Hold, bought at your % under.',
++    '> How often lines like this one made money in the past: after a month at today’s market level, the same kind of line, held as long as your Hold, bought at your % under. The small figures under it are its range.',
+     '## How it’s worked out',
+-    '1. **Find the slab’s Card Ladder line:** its card at its grade, priced from Card Ladder’s sales. A card Card Ladder has not read, or a grade with fewer than 3 sales in 90 days, is not listed.',
+-    '2. **Its rank group today:** how far its standard price sits below its own 12-month level, among every Card Ladder line $25+ with 3+ sales a year, in 10 groups (see Rank).',
+-    '3. **Pick the history:** every case since 2022 of that group, in today’s kind of market (rising or falling), held exactly your Hold. Fewer than 30 cases: all cases pooled.',
++    '1. **The market’s level** today: green, amber or red (see The market now).',
++    '2. **The kind of line** the slab’s line is (the table below), and whether it is busy (10+ sales last month) or thin (3 to 9).',
++    '3. **Pick the history:** every case since 2022 of that kind of line after a month at that level - decided at the month’s end, bought at the NEXT month’s price (never the month’s own), sold at the price your Hold later. Lines $50+, one per Card Ladder page and grade. A kind with under 30 cases, or seen in fewer than half of that level’s months: the level’s seasoned PSA lines together.',
+     '4. **The break-even return** at your % under:',
+     '   `break-even = (1 − % under) ÷ (1 − 14.1% fee) − 1`',
+-    '5. **Chance = the share of those cases that beat the break-even,** read off the history’s 1st–99th percentiles with a straight line between the two nearest. At most 95%.',
++    '5. **Chance = the share of those cases that beat the break-even.** At most 85% (“the most shown” under it when even the low end of the range is there).',
++    '6. **The range:** the same share with the months behind it drawn again 200 times (the 5th to the 95th percentile). Few months behind a kind of line = a wide range.',
++    '## The kinds of line',
++    '| Kind | What it is |',
++    '|---|---|',
++    '| new card | a card under 12 months since its release, any grader |',
++    '| CGC | a CGC line |',
++    '| passes the rules | Modern / Contemporary PSA: not extended (up 16%+ on last month, or 28%+ above its own 6-month average), not still falling (down 7%+ on last month, or the second half of the month 7% under the first), its segment (era × PSA 10 / below 10) not up 22%+ in 3 months |',
++    '| fails a rule | Modern / Contemporary PSA with one of those three |',
++    '| Vintage | Vintage PSA: in the older eras the three rules did not separate good buys from bad; the market’s level does |',
++    '| Classic / Mid Era | Classic or Mid Era PSA: as Vintage, but measured apart - these two eras moved about twice as far as Vintage in the rise |',
++    'The PSA kinds are measured apart for busy and thin lines: a rule read off a thin month’s price says less.',
+     '## What the break-even means',
+     '| You buy at | The price must move at least |',
+     '|---|---|',
+@@ -542,30 +618,30 @@ Object.assign(HELP, {
+     '| 10% under | +4.8% |',
+     '| 14.1% under | 0%: it just can’t fall |',
+     '| 20% under | −6.9%: it can fall a little |',
+-    '## Example',
+-    'In the history the 37th percentile return is −0.4% and the 38th is +0.3%. A break-even of 0% sits 4/7 of the way between them, so 37.6% of cases fell short:',
+-    '`Chance = 100% − 37.6% = 62.4% → 62%`',
+-    'Read it as: of every 100 such slabs, about 62 made money.',
++    '## What changed on 2026-11-23',
++    'The Chance used to follow the dip rank: how far a price sat below its own 12-month level. Measured from a price one could really have paid - the month after the dip - the deepest dips did worse than the rest, and a quarter to a third of them were new releases still falling. The rank no longer scores or orders anything. Its opposite end is kept as a warning: a line far above its own level is marked **extended**.',
+     '## Keep in mind',
+-    '- Every slab in the same group, at the same % under, gets the same chance: the model knows nothing about the card beyond its group. Best Chance shows the ties.',
++    '- Every slab of the same kind at the same % under gets the same chance. Best to Buy orders them by the tie-breaker; Best Chance shows the ties.',
++    '- Why 85% at most: the best past figures (green months) rest on eight or nine months of one boom, and in earlier tests groups that claimed 70–80% delivered under 60% on years they had not seen.',
++    '- A line with under 3 sales in each of the last two months cannot be read; in the newer eras it is counted with the lines that fail a rule.',
++    '- **Beyond history:** when a line’s era has risen more in 3 months than any era of its side (older / newer) did in the months the odds were measured on, there is no past like it, and no Chance is shown - the slab gets no place and no money. The market box names the eras; the Chance comes back by itself when the run cools.',
+     '- On Recording and Purchases each row uses its own % under, so the chance follows the price you type.',
+-    '- The history is Card Ladder’s own sales; PriceCharting plays no part in it.',
+-    '- Measured on lines with 3+ sales a year (also kept at 6+, 12+ and 24+ for a Card Ladder min-sales filter to come).'].join('\n'),
++    '- The history is Card Ladder’s own sales; PriceCharting plays no part in it.'].join('\n'),
+     now: () => { const D = fcgDoc(), I = fcgInputs(), fee = fcgFee(); if (!D) return '';
+-      const be = fcgBreak(I.disc, fee), out = [];
+-      for (let g = 9; g >= 0; g--) { const t = fcgTab(D, I.h, g); if (t) out.push((g === 9 ? 'deepest 10%' : 'group ' + (10 - g)) + ' <b>' + Math.round(Math.min(0.95, 1 - fcgCdf(D, t, be)) * 100) + '%</b>'); }
+-      return 'at a ' + fcgHoldWord(I.h) + ', ' + fcgDiscWord(I.disc) + ' under, ' + (D.regime && D.regime.up ? 'rising' : 'falling') + ' market: ' + out.join(' · '); }},
++      const be = fcgBreak(I.disc, fee), lv = fcgLevel(D), out = [];
++      for (const [g, name] of FCG_KINDS) { const t = D.tables[I.h + '|' + lv + '|' + g]; if (t) { const c = fcgChance3(D, t, be); out.push(name.toLowerCase() + ' <b>' + Math.round(c[0] * 100) + '%</b> <span class="dim">' + Math.round(c[1] * 100) + '–' + Math.round(c[2] * 100) + '</span>'); } }
++      return 'at a ' + fcgHoldWord(I.h) + ', ' + fcgDiscWord(I.disc) + ' under, ' + lv + ' market: ' + out.join(' · '); }},
+   fcg_mc: {t: 'Chance the plan profits', md: 1, m: [
+     '> The chance that the slabs together - the green rows (on Recording and Purchases, the bought ones too) - end your Hold with more money than they cost, after eBay’s fee and the shipping.',
+     '## How it’s worked out',
+     '1. **Take the slabs** and their copies.',
+     '2. **Simulate 2,000 possible futures.** In each: one “market luck” number shared by every slab, plus one “own luck” number per slab, mixed half and half:',
+     '   `luck = √0.5 × market + √0.5 × own`',
+-    '   The luck becomes a percentile, and the slab’s return is read at that percentile from its own history (its group, the market, your Hold).',
++    '   The luck becomes a percentile, and the slab’s return is read at that percentile from the history of its kind of line (the market’s level, your Hold).',
+     '3. **Add up the net in that future:**',
+     '   `net = Σ copies × standard × [(1 + return) × (1 − fee) − (1 − % under)]`',
+     '4. **Read the 2,000 results:**',
+-    '- **Chance the plan profits:** the share above $0 (at most 95%).',
++    '- **Chance the plan profits:** the share above $0 (at most 85%).',
+     '- **Expected net profit:** their average.',
+     '- **Likely range:** the 10th to the 90th percentile, with the median.',
+     '## What it means',
+@@ -580,18 +656,18 @@ Object.assign(HELP, {
+   fcg_conf: {t: 'Buy only slabs with a chance of at least …', md: 1, m: [
+     '> The bar: a slab gets money only when its Chance (this slab) is at least this. Slabs under it stay listed, in order, but aren’t green.',
+     '## How the plan spends',
+-    '1. **Order the slabs on view** best to buy first: Chance (to the whole percent), then the deeper dip, then the higher price. That order is the Best to Buy column.',
++    '1. **Order the slabs on view** best to buy first: Chance (to the whole percent), then the tie-breaker, then the higher price. That order is the Best to Buy column.',
+     '2. **Skip what doesn’t qualify:** a Chance under the bar, or no buy price.',
+     '3. **Decide the copies** of each one that does: the smallest of',
+     '   `(capital × per-card share) ÷ buy price`',
+     '   `copies per card`',
+     '   `money left ÷ buy price`',
+     '   … and go on down the list until the money runs out.',
+-    '4. **The gate comes first:** in a falling market with “Buy only when the market is rising” on, nothing is bought, whatever the bar.',
++    '4. **The gate comes first:** in a red market with “Buy only when the market is green or amber” on, nothing is bought, whatever the bar.',
+     '## What it means in practice',
+-    'Every slab in a rank group shares one chance at a given hold and % under, so the bar really decides which groups qualify. Example, bar 50%: deepest 10% at 62% and group 2 at 55% get money; group 3 at 49% doesn’t. Buying deeper under raises every chance.',
++    'Every slab of the same kind of line shares one chance at a given hold and % under, so the bar really decides which kinds qualify. Example in an amber month, bar 50%: a Vintage line at 80% and a newer line that passes the rules at 68% get money; a busy newer line that fails a rule at 43% and a new card at 23% don’t. Buying deeper under raises every chance.',
+     '## Keep in mind',
+-    '- A higher bar buys fewer, surer slabs; a lower one spreads the money wider.',
++    '- A higher bar buys fewer, surer slabs; a lower one spreads the money wider. No Chance is shown above 85%, so the bar stops there.',
+     '- On Recording each row has its own % under, so a vendor’s price can lift a slab over the bar.'].join('\n'),
+     now: () => { const I = fcgInputs(); return 'bar <b>' + Math.round(I.minp * 100) + '%</b> · on Forecasting ' + Number(FCG.elig || 0).toLocaleString('en-US') + ' slab' + (FCG.elig === 1 ? '' : 's') + ' on view clear it' + (FCG.gated ? ', but the gate is red: nothing is bought' : '; the plan buys ' + (FCG.picks || []).length); }},
+   fcg_bb: {t: 'Best to Buy', md: 1, m: [
+@@ -599,7 +675,7 @@ Object.assign(HELP, {
+     '## How it’s worked out',
+     '1. **Every slab with a chance** on the page (Forecasting: inside your price band; Recording: every open and Yes row) is put in order:',
+     '- highest Chance (this slab), to the whole percent, first',
+-    '- then the deeper dip (the higher Rank)',
++    '- then the higher tie-breaker',
+     '- then the higher price',
+     '2. **Number them** 1, 2, 3 …',
+     '## What it means',
+@@ -608,7 +684,10 @@ Object.assign(HELP, {
+     '- It doesn’t depend on the capital, the per-card share, the copies, the bar or the gate; those only decide which places turn green.',
+     '- It does depend on the Hold and the % under, because the Chance does. On Recording a vendor’s price can move a row up or down.',
+     '- The number ignores the filters, so a slab keeps its place while you search.',
+-    '- Inside a rank group the model sees slabs as equally good: the order there (the deeper dip first) hasn’t been tested by the history.'].join('\n'),
++    '## The tie-breaker',
++    'Two readings of the line, each ranked inside its month and its segment (era × grader × 10 / below 10) and added: the card’s other grades rose more than this one over the last 3 months (it tends to catch up), and a clean month (its sales close together). On busy lines the top fifth beat the bottom fifth by about 5 points over 3 months, in 43 of 55 months; on thin lines by about 2. Small next to the market’s level: it orders slabs with the same Chance, it does not move the Chance.',
++    '- The research’s third term (the slab cheap against the raw card) needs PriceCharting’s raw price and is left out: the forecast runs on Card Ladder alone.',
++    '- Until 2026-11-23 the order inside a Chance was the deeper dip first; that did not hold up from a price one could really pay.'].join('\n'),
+     now: () => { const r = (FCG.rows || []).find(x => x.fcBB === 1); return r ? 'number 1 on Forecasting: <b>' + esc(r[1]) + '</b> ' + esc(r[25]) + ' at ' + Math.round(r.fcP) + '%' : ''; }},
+   fcg_bc: {t: 'Best Chance', md: 1, m: [
+     '> The slab’s place by Chance (this slab) alone. Slabs with the same chance share the place, shown with “=”.',
+@@ -616,9 +695,9 @@ Object.assign(HELP, {
+     '1. **Order by Chance**, to the whole percent, highest first.',
+     '2. **Ties share a place:** if five slabs are at 62% and they come first, all five are 1=, and the next slab is 6.',
+     '## What it means',
+-    'It shows honestly how many slabs the model sees as equally good. Many ties at the top mean the choice among them comes from something else: the dip, the price, or what you know about the card.',
++    'It shows honestly how many slabs the model sees as equally good: every slab of the same kind of line at the same % under. Many ties at the top mean the choice among them comes from something else: the tie-breaker, the price, or what you know about the card.',
+     '## Keep in mind',
+-    '- Best to Buy breaks the ties (deeper dip, then higher price); this column doesn’t.',
++    '- Best to Buy breaks the ties (the tie-breaker, then the higher price); this column doesn’t.',
+     '- Like Best to Buy, it ignores the filters and the capital, and follows the Hold and the % under.'].join('\n'),
+     now: () => { const r = (FCG.rows || []).find(x => x.fcBC === 1); return r ? 'the top chance on Forecasting is <b>' + Math.round(r.fcP) + '%</b>, shared by ' + r.fcBCn + ' slab' + (r.fcBCn === 1 ? '' : 's') : ''; }},
+   fcg_sync: {t: 'Sync from phone', md: 1, m: [
+@@ -634,7 +713,7 @@ Object.assign(HELP, {
+   fcg_spot: {t: 'Add to Pre-Sales Spotcheck', md: 1, m: [
+     '> Sends the green rows of this page to History › Pre-Sales Spotcheck, where each slab is looked back on with the model, month by month since 2022.',
+     '## What is sent',
+-    '- Every green row: the slab, its % under and price, its chance and rank today.',
++    '- Every green row: the slab, its % under and price, its chance and its line’s reading today.',
+     '- The settings of the moment: your Hold, the bar, the gate, the shipping, eBay’s fee.',
+     '- Each click makes a new set, dated, from Forecasting or Recording.',
+     '## What you get',
+diff --git a/page/graded_fh.js b/page/graded_fh.js
+index 10c1a044..d5973267 100644
+--- a/page/graded_fh.js
++++ b/page/graded_fh.js
+@@ -306,7 +306,7 @@ function fhrRow(r) {
+ // know which columns related to history and which from pc reg listing attributes"): the plan's own figures are tinted
+ // blue; which columns show is the graded pages' shared choice (FCG_COLS), set with this list's Columns… button too.
+ const FHR_COLS = [{key: 'k:fav', label: '★'}, {key: 'k:42', label: 'Flag'}, {key: 'l:Review', label: 'Review'}, {key: 'k:1', label: 'PC Card Name'}, {key: 'k:24', label: 'Grade'},
+-  {key: 'k:fcPct', label: 'Rank', h: 1, num: 1}, {key: 'k:fcS', label: 'Standard Price', h: 1, num: 1}, {key: 'k:fcD', label: '% Under Paid', h: 1, num: 1}, {key: 'k:fcB', label: 'Price Paid', h: 1, num: 1},
++  {key: 'k:fcPct', label: 'Line', h: 1, num: 1}, {key: 'k:fcS', label: 'Standard Price', h: 1, num: 1}, {key: 'k:fcD', label: '% Under Paid', h: 1, num: 1}, {key: 'k:fcB', label: 'Price Paid', h: 1, num: 1},
+   {key: 'k:16', label: 'Sold (last month)', num: 1}, {key: 'k:fcP', label: 'Chance', h: 1, num: 1}, {key: 'k:fcQ', label: 'QTY', h: 1, num: 1}, {key: 'k:fcN', label: 'Net', h: 1, num: 1},
+   {key: 'k:fcR', label: 'ROI %', h: 1, num: 1}, {key: 'h:actual', label: 'Actual', h: 1, num: 1}, {key: 'k:fcU', label: 'Purchased', h: 1}]
+   .concat(FCG_PCH ? FCG_PCX.map((i, j) => ({key: 'pc:' + i, label: fcgColText(FCG_PCH[i]), pc: j, th: FCG_PCH[i]})) : []);
+@@ -320,7 +320,8 @@ function fhrDetail(r) {
+     const p1 = up ? fhrPrice(cid, gk, ym) : null, real = p1 == null ? null : p1 * (1 - rec.fee) - rec.ship - paid;
+     const cl = stdc == null ? null : stdc * (1 - d) - rec.ship, two = (a, b, k) => '<td class="num fcg2' + k + '"><span><i>CL</i> ' + a + '</span><span><i>PC</i> ' + b + '</span></td>';
+     const pcb = std == null ? null : std * (1 - d) - rec.ship;
+-    const pct = rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10)), dash = k => '<td class="num' + k + '"><span class="dim">-</span></td>';
++    const v3 = /\bv3\b/.test(rec.model || ''), sg = v3 && rk != null ? fcgSigOf(rk) : null;   // a record of the model of 2026-11-23 files the line's code; an older one the dip rank x 1000
++    const pct = v3 || rk == null ? null : rk / 1000, g = pct == null ? null : Math.min(9, Math.floor(pct * 10)), dash = k => '<td class="num' + k + '"><span class="dim">-</span></td>';
+     const pcx = cols.some(x => x.pc != null) ? fcgPcx(base) : [];
+     const cell = {
+       'k:fav': k => '<td class="favc' + k + '">' + favBtn('pc', cid, cid) + '</td>',
+@@ -329,7 +330,7 @@ function fhrDetail(r) {
+       'l:Review': k => '<td class="' + k + '">' + (c.pid ? '<button class="rvb grvb' + (base && base[41] === 1 ? ' same' : base && base[41] === 0 ? ' diff' : '') + '" data-k="' + esc(cid + '|' + gk) + '">Review</button>' : '<span class="dim">-</span>') + '</td>',
+       'k:1': k => '<td class="' + k + '">' + esc(nm[0]) + '<br><span class="dim">' + esc(nm[1]) + '</span></td>',
+       'k:24': k => '<td class="' + k + '"><b>' + esc(base ? base[25] : grLabel(gk)) + '</b></td>',
+-      'k:fcPct': k => pct == null ? dash(k) : '<td class="num' + k + '">' + fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + '</span></td>',
++      'k:fcPct': k => sg ? fcgLineCell(sg.g, sg.f, sg.tb).replace('<td class="num', '<td class="num' + k) : pct == null ? dash(k) : '<td class="num' + k + '" title="Recorded with the model before 2026-11-23: the dip rank (how far the price sat below its own 12-month level)">' + fcOrd(Math.round(pct * 100)) + '<br><span class="dim">' + (g === 9 ? 'deepest 10%' : 'group ' + (10 - g) + ' of 10') + ' · dip rank</span></td>',
+       'k:fcS': k => two(stdc == null ? '<span class="dim">-</span>' : fmtMoney(stdc), std == null ? '<span class="dim">-</span>' : fmtMoney(std), k),
+       'k:fcD': k => '<td class="num' + k + '">' + (Math.round(d * 1000) / 10) + '%</td>',
+       'k:fcB': k => clb ? two(fmtMoney(paid), pcb == null ? '<span class="dim">-</span>' : fmtMoney(pcb), k) : two(cl == null ? '<span class="dim">-</span>' : fmtMoney(cl), fmtMoney(paid), k),
+@@ -673,9 +674,9 @@ async function fhsSend() {
+   if (!rows.length) return favSay('No green rows to send: the plan buys nothing at these settings.');
+   if (!HKEY) return favSay('This page has no key for the collector.');
+   const price = r => rc ? r.fcPx : r.fcB;
+-  const slabs = rows.map(r => [r[0], r[50], Math.round((r.fcD != null ? r.fcD : I.disc) * 1000), r2(r.fcS), r2(r.fcSc), r2(price(r)), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcPct == null ? null : Math.round(r.fcPct * 1000)]);
++  const slabs = rows.map(r => [r[0], r[50], Math.round((r.fcD != null ? r.fcD : I.disc) * 1000), r2(r.fcS), r2(r.fcSc), r2(price(r)), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcV == null ? null : r.fcV]);   // the 9th: the line's code (graded_fc.js fcgSigOf); the dip rank x 1000 before the model of 2026-11-23
+   const spent = r2(rows.reduce((s, r) => s + (r.fcQ || 1) * (price(r) || 0), 0)), id = nextT(), n = Math.max(1, Math.ceil(slabs.length / 20));
+-  const head = {h: I.h, cap: I.cap, disc: rc ? (+FCG_IN.rdisc || 14.1) / 100 : I.disc, ship: I.ship, fee, month: D ? D.month : '', reg: D && D.regime ? (D.regime.up ? 'up' : 'down') : '', spent, model: D ? D.model : '',
++  const head = {h: I.h, cap: I.cap, disc: rc ? (+FCG_IN.rdisc || 14.1) / 100 : I.disc, ship: I.ship, fee, month: D ? D.month : '', reg: D ? fcgLevel(D) : '', spent, model: D ? D.model : '',
+                 smp: rows.some(r => r.rec && r.rec.smp) ? 1 : 0, src: m, minp: I.minp, gate: I.gate ? 1 : 0, holds: []};
+   btn.disabled = true;
+   try {
+@@ -729,7 +730,8 @@ $('rows-fhr').addEventListener('click', e => {
+ function fhgNote() {
+   const el = $('fhg-note'); if (!el) return;
+   const I = fcgInputs(), grades = [...GF.fc.gsel].filter(gk => FCG_LINE(gk)).map(grLabel);
+-  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.length > 8 ? grades.length + ' grades ticked' : grades.join(', ')) : 'no PSA or CGC grade ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.';
++  el.innerHTML = 'Graded Forecasting’s plan: <b>' + fmtMoneyPlain(I.cap) + '</b>, <b>' + fcgDiscWord(I.disc) + ' under</b>, ' + fmtMoneyPlain(I.ship) + ' shipping, $' + I.pmin.toLocaleString('en-US') + '–$' + I.pmax.toLocaleString('en-US') + ', ' + Math.round(I.share * 100) + '% per card, ' + Math.round(I.minp * 100) + '% bar, ' + I.copies + ' cop' + (I.copies === 1 ? 'y' : 'ies') + ' per card, gate ' + (I.gate ? 'on' : 'off') + ' · ' + (grades.length ? esc(grades.length > 8 ? grades.length + ' grades ticked' : grades.join(', ')) : 'no PSA or CGC grade ticked') + ' - the plan pane on the left (Forecasting’s % under) and Graded Forecasting’s Grading button.' +
++    (FHG.win !== 'rec' ? '<br><b>Forecasting Replay and Pre-Sales Spotcheck still run the model used until 2026-11-23</b> (the dip rank, a rising / falling market): they show how that model did, not the one now on Forecasting (the market’s level, the kind of line). They are next to be rebuilt.' : '');
+ }
+ function fhgPaint() {                                     // the cards and the replay table, once its cells are in
+   if (FHG.win !== 'rp') return;
+diff --git a/page/graded_rec.js b/page/graded_rec.js
+index 4f293ab2..8bddebfd 100644
+--- a/page/graded_rec.js
++++ b/page/graded_rec.js
+@@ -1,6 +1,7 @@
+ /* ---------------- The Forecast tab: Graded cards > Recording and Planning (2026-11-04, Brett) ----------------
+    Recording: "when I go into a card show, I collect all of the bar codes from graded cards, and all of those listings go
+-   here. All of them" - one row per slab, the Forecasting page's columns plus Rank, a % Under box of its own (Brett: "even
++   here. All of them" - one row per slab, the Forecasting page's columns plus Line (the line's reading; it was Rank, the dip
++   rank, until the model of 2026-11-23 - graded_fc.js), a % Under box of its own (Brett: "even
+    though i set it to 14.1%, a vendor may sell for some as low 20%") and Purchased: Yes (bought at the row's buy price:
+    the money comes off the capital, the slab goes to Planning), No ("i will reject is the vendor sells above the buy
+    price": greyed, it gets no money, so the next-best rows turn green), neither (still open). Green: "what i should buy
+@@ -82,7 +83,7 @@ const fcrInBand = r => { const b = r.fcS != null ? r.fcS : r.fcSc, B = FCR.band
+ // the slabs on view: the bought ones the filters leave, and the green (2026-11-05: they followed only the green before)
+ function fcrAllocate(view) {
+   const I = fcgInputs(), D = fcgDoc(), all = FCR.rows.rc, onView = new Set(view);
+-  const gated = !!(D && I.gate && !(D.regime && D.regime.up));
++  const gated = !!(D && I.gate && fcgLevel(D) === 'red');
+   const bought = all.filter(r => r.rec.pur === 1), used = new Map();
+   const spent = bought.reduce((s, r) => s + (r.fcPx || 0), 0);   // the one price paid (a slab without a PriceCharting price too)
+   let left = I.cap - spent;
+@@ -120,7 +121,7 @@ function fcrSummary(A) {
+   const recs = FCR.recs || [], nsmp = recs.filter(x => x.smp).length, I = A.I, D = fcgDoc(), cost = A.green.reduce((s, r) => s + r.fcB, 0);
+   let s = '';
+   if (!recs.length) s = '<p><b>No slabs recorded yet.</b> At a show, the slabs you scan come here (the scanning comes next); the star on Forecasting marks the cards you are after.</p>';
+-  else if (A.gated) s = '<p><b>Nothing to buy: the graded market is falling</b> and “Buy only when the market is rising” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
++  else if (A.gated) s = '<p><b>Nothing to buy: the graded market is red</b> (below its 12-month average) and “Buy only when the market is green or amber” is on (the plan pane). ' + A.elig + ' open slab' + (A.elig === 1 ? '' : 's') + ' would clear your bar anyway.</p>';
+   else s = '<p>' + (A.bought.length ? 'Bought <b>' + A.bought.length + ' slab' + (A.bought.length > 1 ? 's' : '') + '</b> for <b>' + fmtMoneyPlain(A.spent) + '</b> (Yes); ' : '') + '<b>' + fmtMoneyPlain(Math.max(0, I.cap - A.spent)) + '</b> of ' + fmtMoneyPlain(I.cap) + ' left. ' +
+     (A.green.length ? 'Buy next: the <b>' + A.green.length + ' green slab' + (A.green.length > 1 ? 's' : '') + '</b> for ' + fmtMoneyPlain(cost) + ' - best to buy first among the open rows on view, each at its own price. ' : A.elig ? 'No open slab fits the money left. ' : 'No open slab clears your bar (' + Math.round(I.minp * 100) + '% chance, ' + I.h + '-month hold). ') +
+     'Type the vendor’s price (or their % under) in a row and its chance and place follow. A No (the vendor wants more) sends the row to the bottom and frees its money for the next.' +
+@@ -141,12 +142,8 @@ function fcpSummary(F) {
+   s += fcrStats(F.mc, F.spentV, I, F.view.length < n ? 'the bought slabs on view' : 'the slabs you bought', [F.left, fmtMoneyPlain(F.spent) + ' of ' + fmtMoneyPlain(I.cap) + ' spent']);
+   box.innerHTML = s;
+ }
+-// the cells: Forecasting's, plus Rank, % Under, Purchased (Planning: % Under Paid and Price Paid in the same places)
+-function fcrRankCell(r) {
+-  if (r.fcPct == null) return '<td class="num"><span class="dim" title="No rank for this line today">-</span></td>';
+-  const p = Math.round(r.fcPct * 100), grp = r.fcG === 9 ? 'deepest 10%' : 'group ' + (10 - r.fcG) + ' of 10';
+-  return '<td class="num" title="' + esc('How far this grade’s Card Ladder price sits below its own 12-month level, against every Card Ladder line $25+: the ' + fcOrd(p) + ' percentile (100th = furthest below); ' + grp + ' (1 = deepest)') + '">' + fcOrd(p) + '<br><span class="dim">' + grp + '</span></td>';
+-}
++// the cells: Forecasting's, plus Line, % Under, Purchased (Planning: % Under Paid and Price Paid in the same places)
++const fcrRankCell = r => fcgLineCell(r.fcG, r.fcF, r.fcPct);   // the Line column (the header keeps its key, fcPct: it sorts by the tie-breaker)
+ function fcrRow(r, pl) {
+   const x = fcgCells(r, Object.assign({}, fcgInputs(), {ship: r.fcShip})), rec = r.rec, id = esc(rec.id), pur = rec.pur;
+   const dv = r.fcD == null ? '' : Math.round(r.fcD * 1000) / 10, pv = r.fcPx == null ? '' : r.fcPx.toFixed(2);
+@@ -293,9 +290,10 @@ async function fcpRecord() {
+   if (!HKEY) return say('This page has no key for the collector.', 'warn');
+   rows.forEach(r => { r.fcQ = 1; });
+   const holds = [1, 2, 3, 4, 5, 6].map(h => { const mc = D ? fcgMonteCarlo(D, rows, I, fee, 2000, r => fcgTab(D, h, r.fcG)) : null; return mc ? [r2(mc.mean), r2(mc.lo), r2(mc.hi), Math.round(mc.p * 1000) / 1000] : null; });
+-  const slabs = rows.map(r => [r[0], r[50], Math.round(r.fcD * 1000), r2(r.fcS), r2(r.fcSc), r2(r.fcPx), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcPct == null ? null : Math.round(r.fcPct * 1000)]);
++  // a slab's 9th figure: its line's code today (fcgSigOf: cell, flags, tie-breaker) - the dip rank x 1000 in a record made before the model of 2026-11-23 (told apart by the record's model)
++  const slabs = rows.map(r => [r[0], r[50], Math.round(r.fcD * 1000), r2(r.fcS), r2(r.fcSc), r2(r.fcPx), r.fcP == null ? null : Math.round(r.fcP * 10), r2(r.fcN), r.fcV == null ? null : r.fcV]);
+   const spent = r2(rows.reduce((s, r) => s + (r.fcPx || 0), 0)), id = nextT(), n = Math.max(1, Math.ceil(slabs.length / FCP_PART));
+-  const head = {h: I.h, cap: I.cap, disc: Math.round(((+FCG_IN.rdisc || 14.1) / 100) * 10000) / 10000, ship: I.ship, fee, month: D ? D.month : '', reg: D && D.regime ? (D.regime.up ? 'up' : 'down') : '', spent, model: D ? D.model : '', smp: rows.some(r => r.rec.smp) ? 1 : 0, holds};
++  const head = {h: I.h, cap: I.cap, disc: Math.round(((+FCG_IN.rdisc || 14.1) / 100) * 10000) / 10000, ship: I.ship, fee, month: D ? D.month : '', reg: D ? fcgLevel(D) : '', spent, model: D ? D.model : '', smp: rows.some(r => r.rec.smp) ? 1 : 0, holds};
+   say('Sending…');
+   try {
+     for (let k = 0; k < n; k++) await alSend(Object.assign({type: 'gplan', t: k ? nextT() : id, id, k, n, s: slabs.slice(k * FCP_PART, (k + 1) * FCP_PART)}, k ? {} : head));
+@@ -342,34 +340,34 @@ const FCR_PRICE_MD = pl => [
+   pl ? '- A change here changes the capital left on Recording, so its green rows re-plan.' : '- Saved with the row in this browser; a refresh keeps it.'].join('\n');
+ const fcrNowFees = () => 'shipping <b>' + fmtMoneyPlain(fcgInputs().ship) + '</b> (the plan pane) · eBay’s fee <b>' + (fcgFee() * 100).toFixed(1) + '%</b> · new rows start at <b>' + (+FCG_IN.rdisc || 14.1) + '%</b> under';
+ Object.assign(HELP, {
+-  fcr_rank: {t: 'Rank', md: 1, m: [
+-    '> How far the slab’s Card Ladder price sits below its own normal price, compared with every other Card Ladder line (card × grade) this month. The model’s way of finding slabs that are “on sale” against their own history.',
+-    '## How it’s worked out',
+-    '1. **Its price now:** the standard price - the middle of Card Ladder’s sales of the grade in the 30 days to the card’s read (60 or 90 days when there are fewer than 3).',
+-    '2. **Its normal price:** the middle of its monthly prices over the last 12 months (each month’s middle sale). It needs 3+ sales in those 12 months, or no rank.',
+-    '3. **Its dip:**',
+-    '   `dip = price now ÷ normal price − 1`',
+-    '4. **Line them all up:** every Card Ladder line priced $25+ with 3+ sales a year, from the deepest dip to the furthest above normal.',
+-    '5. **Percentile:** its place in that line-up, 0 to 100th; the deepest dip is the 100th.',
+-    '6. **Group:** the percentiles cut into 10 equal groups.',
+-    '| Percentile | Shown as |',
++  fcr_rank: {t: 'Line', md: 1, m: [
++    '> What the model reads in this slab’s line - its card at its grade on Card Ladder - today. The Chance follows it (with the market’s level and your Hold).',
++    '## The kinds of line',
++    '| It says | The line is |',
+     '|---|---|',
+-    '| 90th–100th | deepest 10% (group 1) |',
+-    '| 80th–90th | group 2 |',
+-    '| … | … |',
+-    '| 0–10th | group 10: furthest above its normal price |',
+-    '## Example',
+-    'PSA 10 with a normal price of $200, selling at $150 now:',
+-    '`dip = 150 ÷ 200 − 1 = −25%`',
+-    'Deeper than 92% of all lines → the 92nd percentile → deepest 10%. A PSA 9 at $84 against an $80 normal price (+5%) ranks far lower.',
+-    '## What it means',
+-    'The rank only sorts; the history then measures, for each group, how often its slabs made money: that is the Chance. On Card Ladder the deepest 10% has not been the best group - slabs moderately below their normal price have done better - and the Chance shows that.',
++    '| new card | a card under 12 months since its release (any grader) |',
++    '| CGC | a CGC line |',
++    '| passes the rules | Modern / Contemporary PSA: not extended, not still falling, its segment not up 22%+ in 3 months |',
++    '| fails a rule | Modern / Contemporary PSA with one of those three - or too few sales to read them |',
++    '| Vintage | Vintage PSA: in the older eras the three rules did not matter, the market’s level does |',
++    '| Classic / Mid Era | Classic or Mid Era PSA: as Vintage, measured apart (they moved about twice as far in the rise) |',
++    '| era not known | PSA, no era on file: the level’s pooled history |',
++    '## Under it',
++    '- **busy / thin:** 10+ sales last month, or fewer. The history is measured apart for each.',
++    '- **tie 0–100:** the tie-breaker, inside the line’s month and segment - the card’s other grades rose more than this one over 3 months, and a clean month of sales. It orders slabs with the same Chance (Best to Buy); it does not change the Chance. The column sorts by it.',
++    '- **extended:** a warning - the price is up 16%+ on last month, or 28%+ above its own 6-month average. In Modern and Contemporary it is one of the three rules.',
++    '- **beyond history:** the line’s era has risen more in 3 months than any era did in the months the odds were measured on. No Chance is given for it (see Chance).',
++    '## The three rules, in numbers',
++    '- **Extended:** up 16%+ on last month, or 28%+ above its own 6-month average.',
++    '- **Still falling:** down 7%+ on last month, or the second half of the month 7% under the first.',
++    '- **Its segment ran:** the index of its era × PSA 10 / below 10 is up 22%+ in 3 months.',
++    'Hover the cell for which ones apply to the slab.',
++    '## What changed on 2026-11-23',
++    'This column was Rank: how far the price sat below its own 12-month level (the dip), in ten groups. Bought at a price one could really have paid - the month after the dip - the deepest dips did worse than the rest, so the rank no longer scores or orders anything.',
+     '## Keep in mind',
+-    '- **Relative to the market:** a −25% dip is the deepest 10% in a calm month, maybe only group 3 when everything fell.',
+-    '- **As of the card’s Card Ladder read:** the run reads up to 900 cards a night; a card read weeks ago shows the price of then.',
+-    '- **Every PSA and CGC grade is its own line** (CGC 10 Pristine and CGC 10 too).',
+-    '- **No rank, no Chance:** a card Card Ladder has not read, a grade with fewer than 3 sales in 90 days, under $25 or with fewer than 3 sales a year shows “no score”.'].join('\n'),
+-    now: () => { const D = fcgDoc(); return D ? 'data month <b>' + esc(D.month || '') + '</b> · <b>' + Number(D.n_ranked || 0).toLocaleString('en-US') + '</b> Card Ladder lines ranked' : ''; }},
++    '- The reading is of the last complete month (the month before it when the line had under 3 sales); the card’s age and its segment are of today.',
++    '- A card Card Ladder has not read, or a grade with fewer than 3 sales in 90 days, shows “-”.'].join('\n'),
++    now: () => { const D = fcgDoc(); return D ? 'data month <b>' + esc(D.month || '') + '</b> · market <b>' + esc(fcgLevel(D)) + '</b> · <b>' + Number(D.n_ranked || 0).toLocaleString('en-US') + '</b> Card Ladder lines read' : ''; }},
+   fcr_disc: {t: '% Under (CL)', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
+   fcr_buy: {t: 'Buy Price', md: 1, m: FCR_PRICE_MD(false), now: fcrNowFees},
+   fcp_disc: {t: '% Under Paid (CL)', md: 1, m: FCR_PRICE_MD(true), now: fcrNowFees},
+diff --git a/page/style.css b/page/style.css
+index 851e0806..d9689df6 100644
+--- a/page/style.css
++++ b/page/style.css
+@@ -677,6 +677,10 @@ td.rfc-nm { min-width:180px; }
+ td.fcg2 > span { display:block; white-space:nowrap; line-height:1.35; }
+ td.fcg2 i { font-style:normal; font-size:10px; color:var(--muted); margin-right:4px; }
+ .fcg-clv { font-size:10px; color:#d97706; font-weight:600; margin-left:3px; cursor:help; }
++/* the graded Chance's range under it, the "extended" warning, Recording's Line cell (the model of 2026-11-23) */
++.fcg-rng { display:block; font-size:10px; line-height:1.25; color:var(--muted); white-space:nowrap; font-weight:400; }
++.fcg-warn { display:block; font-size:10px; line-height:1.25; color:#d97706; font-weight:600; white-space:nowrap; cursor:help; }
++td.fcg-ln { white-space:nowrap; }
+ /* the buys: a light pastel green (Brett, 2026-11-04: "highlighted a light pastel tint green"); bought: a light blue; No: greyed */
+ tr.fcg-buy > td { background:rgba(34,197,94,.16); }
+ #fcg-hits.on, #rfc-hits.on { background:rgba(34,197,94,.22); border-color:var(--up); color:var(--fg); }
