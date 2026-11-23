@@ -508,7 +508,7 @@ async function recordScans(name) {
    Every change to Your Plan here goes to the collector ({type: 'gset', src: 'ph'}) for the website's Sync from phone; Sync
    from website copies the website's capital, hold, % under, shipping, bar, share and gate here. Those boxes keep the
    website's values until midnight, then go back to what they were; one you change by hand is yours again at once. */
-const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate', 'minRoi', 'minNet'];
+const PLAN_KEYS = ['capital', 'hold', 'under', 'ship', 'bar', 'share', 'gate', 'minRoi', 'minNet', 'minSales'];   // minSales: the website has the box too since 2026-11-23
 const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 let GSET_T = 0;
 function planOut() { const s = S.settings; return {capital: numSet('capital'), hold: s.hold, under: s.under, ship: numSet('ship'), bar: s.bar, share: s.share, gate: !!s.gate, minSales: +s.minSales || 0, minRoi: +s.minRoi || 0, minNet: +s.minNet || 0}; }
@@ -1884,7 +1884,7 @@ function planHtml() {
 function syncNote() {
   const sy = LS.get(SYNC_STORE, null);
   return sy && sy.day === todayStr() && Object.keys(sy.vals || {}).length ? '<p class="note" style="margin:0">' + Object.keys(sy.vals).length + ' box' + (Object.keys(sy.vals).length > 1 ? 'es have' : ' has') + ' the website’s values until midnight.</p>'
-    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, minimum ROI and net, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
+    : '<p class="note" style="margin:0">Copies the website’s Your Plan here (capital, hold, % under, shipping, bar, minimum ROI and net, min sales, share, gate) until midnight. Your own changes go to the website’s Sync from phone.</p>';
 }
 function showHtml() {
   // TYPED OR STEPPED (2026-11-18, Brett: "I want to be able to press it into the box and then like type the number ... You can

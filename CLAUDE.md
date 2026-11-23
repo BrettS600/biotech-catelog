@@ -4128,6 +4128,15 @@ and the site password once), and the old screen's two other jobs kept as small b
   model's accuracy), each month's basket through fcgMonteCarlo, the row = the average month with a result (fhsSet). The
   Holds… picker, the hold eyes (FHH) and the slab lists' Columns… / flags / Review in History are gone (still on the other
   pages). Also fixed: fhrBasis read a v3 record as PriceCharting's (its model name no longer says Card Ladder).
+  MIN CARD LADDER SALES LAST MONTH (the same evening, Brett: "on the mobile app ... we have the min sales per month. I would
+  like to also include this feature on the website ... if I ... type in 10, then it will only show me cards that have had ten
+  sales within the past month. Though for the forecasting replay ... it would be month specific"): Your plan's third box
+  (FCG_IN minsales, 5 by default as on the phone; 0 = none) against the row's r[37] (Card Ladder's sales of the grade last
+  calendar month - the phone's "sold"), inside fcgRowMinOk, so it acts where the two minimums do (Forecasting lists only,
+  Recording no money, the replay); the replay checks each candidate's sales in ITS month (cands[month][k][10], fhgPlan).
+  The phone's Sync from website carries it (PLAN_KEYS minSales; ssc-v23). On the first build: 5 hides 16,802 of 25,195
+  Forecasting rows; in the replay (3 months, $1,000) the plans' predicted vs actual mean ROI read +41.6 / +33.9% at 0,
+  +39.4 / +34.2% at 5, +30.2 / +29.7% at 10, +27.5 / +26.8% at 20 - the busier the lines, the closer the prediction.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the

@@ -84,6 +84,7 @@ function fhgPlan(mi, h, S) {
     const li = c[1], std = c[2];
     if (!S.lines.has(li) || std < S.pmin || std > S.pmax) continue;
     const buy = std * (1 - S.disc) - S.ship; if (!(buy > 0)) continue;
+    if (!fcgSalesOk(c[10], S)) continue;                              // fewer Card Ladder sales THAT month than your minimum
     const sg = fcgSigOf(c[3]); if (sg.f & FCG_F.beyond) continue;      // beyond the history as it read that month: no Chance, no money
     const g = sg.g, grid = tabs[g]; if (!grid) continue;
     const t = ts[g] || (ts[g] = {mean: grid[0], q: grid.slice(1)});
@@ -753,7 +754,7 @@ Object.assign(HELP, {
     '## Each month',
     '1. **The market’s level then** (green / amber / red) and every Card Ladder line’s kind that month (the kinds behind Chance: the three rules, the era, busy or thin, new card, CGC).',
     '2. **The odds of each kind** at that level, from the outcomes already over by then. A month marked * had too few yet, so the whole period’s odds stand in - that is hindsight.',
-    '3. **Your plan** with Your plan’s boxes and Graded Forecasting’s Grading ticks: capital, % under, shipping, the price band, the share, the chance bar, the minimum ROI / net per slab, the copies, the gate (red = nothing bought).',
+    '3. **Your plan** with Your plan’s boxes and Graded Forecasting’s Grading ticks: capital, % under, shipping, the price band, the share, the chance bar, the minimum ROI / net per slab, the minimum Card Ladder sales (in THAT month: a slab with 10 sales in January but 9 in November can be bought in January and not in November), the copies, the gate (red = nothing bought).',
     '4. **Bought the month after** the decision, at that month’s price, and sold at the price your hold later, after eBay’s fee and the shipping.',
     'Today’s Best to Buy list is never used for a past month: every month has its own cards.',
     '## The columns',
