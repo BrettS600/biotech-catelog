@@ -1628,9 +1628,9 @@ def read_requests(state, cat=None, cards=None):
                 pass
         elif msg.get("type") == "forecast":
             forecast_record(v, msg, t)
-        elif msg.get("type") in ("gplan", "gplan_del"):             # the Forecast tab's Graded > Purchases: Record Purchases (2026-11-04)
+        elif msg.get("type") in ("gplan", "gplan_del", "gplan_arch", "gplan_name"):   # the Forecast tab's Graded > Purchases: Record Purchases (2026-11-04); History's Archive / Restore and show name (2026-11-23)
             gplan_record(v, msg, t)
-        elif msg.get("type") in ("gspot", "gspot_del"):             # Graded > Forecasting / Recording: Add to Pre-Sales Spotcheck (2026-11-05)
+        elif msg.get("type") in ("gspot", "gspot_del", "gspot_arch", "gspot_name"):   # Graded > Forecasting / Recording: Add to Pre-Sales Spotcheck (2026-11-05)
             gplan_record(v, msg, t, "gspot")
         elif msg.get("type") == "scan":                              # Slab Show Scanner's reads -> card-data scans.csv (scans.py)
             scans.record(v, msg, t)
@@ -1913,7 +1913,11 @@ def gplan_record(v, msg, t, kind="gplan"):
     The phone's Record scans (2026-11-14, src 'ph'): every slab of the show so far, as many as there are, each with its
     grader and cert after the nine figures ([..., 'psa', '46790116']; card and grade null while not known - the reads
     of the scans name them), and in part 0 the name Brett gave it, the show's day and the phone's own plan (minsales,
-    share besides the hold, the % under, the bar and the gate). Published in spots.bin (the fast tick)."""
+    share besides the hold, the % under, the bar and the gate). Published in spots.bin (the fast tick).
+    History's Archive (2026-11-23, Brett: "if I remove it, maybe it can go into a folder, like an archive button ... and
+    have the option to restore it"): {type: kind + '_arch', t, id, on: 1 | 0} sets the record's arch (the time it was
+    archived) or clears it - the record is kept either way; '_del' still removes one for good (Delete forever, in the
+    Archive). {type: kind + '_name', t, id, name}: the show name typed on History, for a record made without one."""
     recs = v.setdefault(kind + "s", [])
     try:
         pid = int(msg.get("id") or 0)
@@ -1928,6 +1932,21 @@ def gplan_record(v, msg, t, kind="gplan"):
         if len(recs) != n0:
             v[kind + "_t"] = t
             log(f"{what} removed ({pid})")
+        return
+    if msg.get("type") in (kind + "_arch", kind + "_name"):
+        for r in recs:
+            if r.get("id") != pid:
+                continue
+            if msg.get("type") == kind + "_name":
+                r["name"] = re.sub(r"\s+", " ", str(msg.get("name") or "")).strip()[:80]
+                log(f"{what} named ({pid})")
+            elif msg.get("on"):
+                r["arch"] = t
+                log(f"{what} archived ({pid})")
+            else:
+                r.pop("arch", None)
+                log(f"{what} restored ({pid})")
+            v[kind + "_t"] = t
         return
     spot = kind == "gspot"
     try:

@@ -849,7 +849,8 @@
   <div id="fhg-rec">
   <h3>Recorded Purchases<button class="help" data-h="fhg_recorded">?</button></h3>
   <div id="fhr-cards"></div>
-  <div class="controls fhg-ctl"><input type="search" id="q-fhr" placeholder="Search the purchases' slabs&hellip; (e.g. umbreon psa 10)"><select id="set-fhr" hidden><option value=""></option></select><span class="count" id="count-fhr"></span></div>
+  <div class="controls fhg-ctl"><input type="search" id="q-fhr" placeholder="Search the purchases' slabs&hellip; (e.g. umbreon psa 10)"><select id="set-fhr" hidden><option value=""></option></select><span class="count" id="count-fhr"></span><button type="button" class="fvchip fh-archb" id="fhr-archb" data-w="rec" title="The records you archived: Restore puts one back on the list, Delete forever takes it off for good">Archive<span class="n" id="nfhr-a">0</span></button></div>
+  <p class="fh-archnote" id="fhr-archnote" hidden><b>Archive</b> · the records you set aside. <b>Restore</b> puts one back on the list; <b>Delete forever</b> takes it off for good. <button type="button" class="fh-archback" data-w="rec">Back to the list</button></p>
   <div class="ranges" id="ranges-fhr"><button class="reset" id="reset-fhr" hidden>Reset filters</button></div>
   <div class="wrap fhg-wrap"><table class="wide fhgt fhrt">
   <thead><tr class="grp"><th colspan="2"></th><th colspan="3" class="band">Predicted</th><th colspan="2" class="band">Actual</th></tr><tr><th class="rn" title="Row number in the current sort">Row</th><th data-k="t">Recorded<span class="s">⇅</span></th><th data-k="pn" class="num" title="the expected net of the slabs bought, for the hold shown, with the odds of the day it was recorded">Net<span class="s">⇅</span></th><th data-k="pr" class="num" title="the predicted net on the money spent">ROI<span class="s">⇅</span></th><th data-k="lo" class="num" title="the likely range of the net: the 10th to the 90th percentile">Range<span class="s">⇅</span></th><th data-k="an" class="num" title="what the slabs would have made sold at Card Ladder's price when the hold is up, less what was paid; in range or outside">Net<span class="s">⇅</span></th><th data-k="ar" class="num" title="the actual net on the money spent">ROI<span class="s">⇅</span></th></tr></thead>
@@ -860,7 +861,8 @@
   <div id="fhg-sc">
   <h3>Pre-Sales Spotcheck<button class="help" data-h="fhs_spot">?</button></h3>
   <div id="fhs-cards"></div>
-  <div class="controls fhg-ctl"><input type="search" id="q-fhs" placeholder="Search the sets' slabs&hellip; (e.g. umbreon psa 10)"><select id="set-fhs" hidden><option value=""></option></select><span class="count" id="count-fhs"></span><span class="dim" id="fhs-run"></span></div>
+  <div class="controls fhg-ctl"><input type="search" id="q-fhs" placeholder="Search the sets' slabs&hellip; (e.g. umbreon psa 10)"><select id="set-fhs" hidden><option value=""></option></select><span class="count" id="count-fhs"></span><button type="button" class="fvchip fh-archb" id="fhs-archb" data-w="sc" title="The sets you archived: Restore puts one back on the list, Delete forever takes it off for good">Archive<span class="n" id="nfhs-a">0</span></button><span class="dim" id="fhs-run"></span></div>
+  <p class="fh-archnote" id="fhs-archnote" hidden><b>Archive</b> · the sets you set aside. <b>Restore</b> puts one back on the list; <b>Delete forever</b> takes it off for good. <button type="button" class="fh-archback" data-w="sc">Back to the list</button></p>
   <div class="fhs-key" id="fhs-key" hidden></div>
   <div class="ranges" id="ranges-fhs"><button class="reset" id="reset-fhs" hidden>Reset filters</button></div>
   <div class="wrap fhg-wrap"><table class="wide fhgt fhst">

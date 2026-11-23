@@ -296,14 +296,111 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && FHC.k) fhcClose(); });
 
+/* ---- History's Archive and show names (2026-11-23, Brett: "if I remove it, maybe it can go into a folder, like an archive
+   button ... and have the option to restore it"; "on the website next to the date, I also want the it to show the show
+   name"). Archive (on a record's row, or in it opened) sets a record aside - the collector keeps it, with rec.arch - and the
+   Archive button above each table lists them, each with Restore and Delete forever (the old Remove: for good). The show name
+   stands next to the date; one made without a name (the website's) can be given one here (+ show name, or ✎ to change it).
+   What this page asked waits in FHA.o until the collector's copy agrees: asked again every 5 minutes while it does not, and
+   dropped after 3 days. ---- */
+const FHA = {o: grLS('fh-over', {}), arch: {rec: false, sc: false}, edit: null};
+function fhaMsg(kind, id, x, f) { return f === 'a' ? {type: kind + '_arch', t: nextT(), id, on: x.a ? 1 : 0} : {type: kind + '_name', t: nextT(), id, name: x.n}; }
+function fhaApply(kind, recs, live) {                     // the collector's records with this page's own changes it has not confirmed yet
+  const o = FHA.o; let dirty = false;
+  const out = recs.map(r => {
+    const k = kind + ':' + r.id, x = o[k]; if (!x) return r;
+    if (Date.now() - x.t > 3 * 86400000) { delete o[k]; dirty = true; return r; }
+    const y = Object.assign({}, r), off = [];
+    if ('a' in x && !!r.arch !== !!x.a) { off.push('a'); y.arch = x.a ? x.t : 0; }
+    if ('n' in x && (r.name || '') !== x.n) { off.push('n'); y.name = x.n; }
+    if (live && !r.local && !off.length) { delete o[k]; dirty = true; }
+    else if (live && !r.local && Date.now() - (x.s || 0) > 5 * 60000) {   // not taken yet (a lost message, or a collector on older code): ask again
+      x.s = Date.now(); dirty = true;
+      off.reduce((p, f) => p.then(() => alSend(fhaMsg(kind, r.id, x, f))), Promise.resolve()).catch(() => {});
+    }
+    return y;
+  });
+  if (dirty) grSave('fh-over', o);
+  return out;
+}
+function fhaSet(kind, id, f, val) {                      // f 'a': archived (1) or not (0); f 'n': the show name
+  const k = kind + ':' + id, x = FHA.o[k] || {};
+  x[f] = val; x.t = Date.now(); x.s = Date.now(); FHA.o[k] = x; grSave('fh-over', FHA.o);
+  alSend(fhaMsg(kind, id, x, f)).catch(e => favSay('Could not reach the collector’s channel (' + e.message + '). This page keeps the change and asks again in a few minutes.'));
+  fhaPaint();
+}
+function fhaPaint() { fhsCount(); if (FHG.win === 'rec') tables.fhr.apply(true); else if (FHG.win === 'sc') tables.fhs.apply(true); }
+function fhaDelete(kind, id) {                            // Delete forever (in the Archive): the collector removes it for good
+  delete FHA.o[kind + ':' + id]; grSave('fh-over', FHA.o);
+  if (kind === 'gplan') {
+    FCR.gone.add(id); grSave('fcg-gplan-gone', [...FCR.gone]);
+    FCR.echo = FCR.echo.filter(x => x.id !== id); grSave('fcg-gplan-echo', FCR.echo);
+    alSend({type: 'gplan_del', t: nextT(), id}).catch(() => { FCR.gone.delete(id); grSave('fcg-gplan-gone', [...FCR.gone]); favSay('The collector could not be told; the record stays.'); fhaPaint(); });
+  } else {
+    FHS.gone.add(id); grSave('fcg-gspot-gone', [...FHS.gone]); SCAN.phone.delete(id);
+    FHS.echo = FHS.echo.filter(x => x.id !== id); grSave('fcg-gspot-echo', FHS.echo);
+    alSend({type: 'gspot_del', t: nextT(), id}).catch(() => { FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); favSay('The collector could not be told; the set stays.'); fhaPaint(); });
+  }
+  fhaPaint();
+}
+// a row's first line: the date, then the show name next to it
+function fhaHead(kind, rec) {
+  const d = ' data-kind="' + kind + '" data-id="' + esc(rec.id) + '"', E = FHA.edit;
+  const nm = E && E.kind === kind && E.id === rec.id
+    ? '<span class="fh-nameed"><input type="text" class="fh-namein" maxlength="80" placeholder="Show name" value="' + esc(E.v) + '"' + d + '><button type="button" class="fh-namesave"' + d + '>Save</button><button type="button" class="fh-namex">Cancel</button></span>'
+    : rec.name ? '<b class="fh-show">' + esc(rec.name) + '</b><button type="button" class="fh-name"' + d + ' title="Change the show name">✎</button>'
+    : '<button type="button" class="fh-name fh-name0"' + d + ' title="Give it its show name">+ show name</button>';
+  return '<b>' + fhrDate(rec.t) + '</b> · ' + nm;
+}
+function fhaBtns(kind, rec, big) {                        // Archive on the list; Restore and Delete forever in the Archive
+  const d = ' data-kind="' + kind + '" data-id="' + esc(rec.id) + '"', what = kind === 'gplan' ? 'record' : 'set';
+  return rec.arch
+    ? '<button type="button" class="fh-act fh-restore"' + d + ' title="Put it back on the list">Restore</button><button type="button" class="fh-act fh-del"' + d + ' title="Take it off for good: it cannot be restored">Delete forever</button>'
+    : '<button type="button" class="fh-act fh-arch"' + d + ' title="Set it aside in the Archive (the Archive button above the table); Restore there puts it back">' + (big ? 'Archive this ' + what : 'Archive') + '</button>';
+}
+const fhaArchWord = rec => rec.arch ? ' · archived ' + fhrDate(rec.arch) : '';
+function fhaFocus() {                                     // the name box keeps its place when the table is drawn again
+  const i = document.querySelector('#fhg .fh-namein');
+  if (i && document.activeElement !== i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+}
+function fhaSave(kind, id) {
+  const E = FHA.edit; if (!E || E.kind !== kind || E.id !== id) return;
+  const v = E.v.replace(/\s+/g, ' ').trim().slice(0, 80); FHA.edit = null;
+  const rec = (kind === 'gplan' ? fhrRecs() : fhsRecs()).find(r => r.id === id);
+  if (rec && (rec.name || '') === v) { fhaPaint(); return; }
+  fhaSet(kind, id, 'n', v);
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#fhg')) return;
+  const b = e.target.closest('button'); if (!b) return;
+  const kind = b.dataset.kind, id = +b.dataset.id;
+  if (b.classList.contains('fh-archb') || b.classList.contains('fh-archback')) { const w = b.dataset.w; FHA.arch[w] = b.classList.contains('fh-archb') ? !FHA.arch[w] : false; FHA.edit = null; fhaPaint(); return; }
+  if (b.classList.contains('fh-arch')) { fhaSet(kind, id, 'a', 1); favSay('Archived: the Archive button above the table has it, with Restore.'); return; }
+  if (b.classList.contains('fh-restore')) { fhaSet(kind, id, 'a', 0); favSay('Restored: it is back on the list.'); return; }
+  if (b.classList.contains('fh-del')) {
+    if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = 'Click again: delete for good'; setTimeout(() => { if (b.isConnected) { b.classList.remove('arm'); b.textContent = 'Delete forever'; } }, 4000); return; }
+    fhaDelete(kind, id); return;
+  }
+  if (b.classList.contains('fh-name')) { const rec = (kind === 'gplan' ? fhrRecs() : fhsRecs()).find(r => r.id === id); FHA.edit = {kind, id, v: rec && rec.name || ''}; fhaPaint(); return; }
+  if (b.classList.contains('fh-namesave')) { fhaSave(kind, id); return; }
+  if (b.classList.contains('fh-namex')) { FHA.edit = null; fhaPaint(); }
+});
+document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('fh-namein') && FHA.edit) FHA.edit.v = e.target.value; });
+document.addEventListener('keydown', e => {
+  if (!e.target.classList || !e.target.classList.contains('fh-namein')) return;
+  if (e.key === 'Enter') { e.preventDefault(); fhaSave(e.target.dataset.kind, +e.target.dataset.id); }
+  else if (e.key === 'Escape') { e.stopPropagation(); FHA.edit = null; fhaPaint(); }
+});
+
 /* ---- the recorded plans ---- */
-function fhrRecs() {
+function fhrRecs() {                                      // every record, the archived ones too (rec.arch)
   const live = ((LIVE.data && LIVE.data.gplans) || {}), recs = (live.recs || []).slice(), have = new Set(recs.map(r => r.id));
   FCR.echo = FCR.echo.filter(e => !have.has(e.id) && Date.now() - e.t < 2 * 86400000); grSave('fcg-gplan-echo', FCR.echo);
   for (const e of FCR.echo) recs.push(e);
   if (FCR.gone.size && live.t) { for (const id of [...FCR.gone]) if (!have.has(id)) FCR.gone.delete(id); grSave('fcg-gplan-gone', [...FCR.gone]); }
-  return recs.filter(r => !FCR.gone.has(r.id)).sort((a, b) => b.t - a.t);
+  return fhaApply('gplan', recs.filter(r => !FCR.gone.has(r.id)), !!live.t).sort((a, b) => b.t - a.t);
 }
+const fhrShown = () => fhrRecs().filter(r => !!r.arch === FHA.arch.rec);   // the list, or the Archive
 const fhrDue = (t, h) => { const d = new Date(t); d.setMonth(d.getMonth() + h); return d; };
 const fhrYm = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 // a slab's Card Ladder price in the month its hold ends (2026-11-06; it was PriceCharting's): the model's price of that
@@ -351,7 +448,7 @@ function fhrActual(rec, h) {                              // {pending, due} | {a
 // was recorded (rec.holds); Actual = its slabs at Card Ladder's price in the month that hold is up, less what was paid
 function fhrRowsData() {
   const h = fcgInputs().h;
-  return fhrRecs().map((rec, o) => {
+  return fhrShown().map((rec, o) => {
     const r = [o], x = (rec.holds || [])[h - 1], a = fhrActual(rec, h);
     r.rec = rec; r.key = String(rec.id); r.t = rec.t; r.h = h; r.x = x; r.a = a;
     r.pn = x ? x[0] : null; r.pr = x && rec.spent ? x[0] / rec.spent : null; r.lo = x ? x[1] : null; r.an = a.actual == null ? null : a.actual; r.ar = a.roi == null ? null : a.roi;
@@ -361,7 +458,7 @@ function fhrRowsData() {
 const fhrDate = t => { const d = new Date(t); return MONTHS_S[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
 function fhrCards() {
   const box = $('fhr-cards'); if (!box) return;
-  const recs = fhrRecs(); if (!recs.length) { box.innerHTML = ''; return; }
+  const recs = fhrShown(); if (!recs.length || FHA.arch.rec) { box.innerHTML = ''; return; }
   const h = fcgInputs().h, L = [];
   for (const rec of recs) { const x = (rec.holds || [])[h - 1], a = fhrActual(rec, h); if (x && a.actual != null && rec.spent) L.push({pn: x[0], pr: x[0] / rec.spent, an: a.actual, ar: a.roi, lo: x[1], hi: x[2]}); }
   box.innerHTML = fhStats(L, {what: 'Records with a result', of: 'of ' + recs.length + ' recorded · the ' + h + '-month hold', one: 'record', unit: 'records'});
@@ -369,9 +466,9 @@ function fhrCards() {
 function fhrRow(r) {
   const rec = r.rec, x = r.x, a = r.a;
   const A = a.pending ? {msg: 'hold up ' + fhrDate(a.due.getTime())} : a.loading ? {msg: '…'} : a.none ? {msg: 'no price'} : {net: a.actual, roi: a.roi, tip: a.priced < a.n ? a.priced + ' of the ' + a.n + ' slabs had a price' : ''};
-  return '<td><span class="fh-tw"></span>' + (rec.name ? '<b>' + esc(rec.name) + '</b> <span class="dim">' + fhrDate(rec.t) + '</span>' : '<b>' + fhrDate(rec.t) + '</b>') +
+  return '<td class="fh-who"><span class="fh-tw"></span>' + fhaHead('gplan', rec) +
     (rec.smp ? '<span class="fhr-smp" title="Recorded with sample slabs among the purchases">sample</span>' : '') + (rec.local ? ' <span class="dim" title="Sent; the collector confirms it in a minute or two">sending…</span>' : '') +
-    '<br><span class="dim fh-sub">' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' · ' + fmtMoneyPlain(rec.spent) + ' paid · your hold then ' + rec.h + ' mo</span></td>' +
+    '<br><span class="dim fh-sub">' + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' · ' + fmtMoneyPlain(rec.spent) + ' paid · your hold then ' + rec.h + ' mo' + fhaArchWord(rec) + '</span>' + fhaBtns('gplan', rec) + '</td>' +
     fhCells(x ? {net: x[0], roi: rec.spent ? x[0] / rec.spent : null, lo: x[1], hi: x[2]} : null, A, fcMoney);
 }
 // a record opened: its slabs at the shown hold. Predicted: for the hold you recorded with, the slab's own expected net that day;
@@ -391,7 +488,7 @@ function fhrDetail(r) {
   }).join('');
   return '<p class="dim fh-dnote">' + (rec.name ? esc(rec.name) + ' · ' : '') + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' bought ' + fhrDate(rec.t) + ' for ' + fmtMoneyPlain(rec.spent) + ' · the ' + h + '-month hold is up ' + fhrDate(due.getTime()) +
     ' · ' + fmtMoneyPlain(rec.ship) + ' shipping, eBay’s fee ' + (Math.round(rec.fee * 1000) / 10) + '%' + (h !== rec.h ? ' · you recorded it with a ' + rec.h + '-month hold: the predictions here come from that month’s odds' : '') + '. <b>Click a card to see it month by month.</b></p>' + fhCardTable(rows) +
-    '<button type="button" class="fhr-del" data-id="' + esc(rec.id) + '" title="Take these purchases off History (for a record made by mistake)">Remove this record</button>';
+    '<div class="fh-dacts">' + fhaBtns('gplan', rec, true) + '</div>';
 }
 tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded purchases', ranges: [], labels: {}, defaults: {}, root: '#fhg-rec', name: 'Forecast · recorded graded purchases', inserted: FHT_NEW,
   key: r => r.key, row: fhrRow, rowClass: () => 'fhr-row',
@@ -399,8 +496,8 @@ tables.fhr = makeTable('fhr', {rows: fhrRowsData, noun: 'recorded purchases', ra
     return (b ? b[1] + ' ' + b[2] + ' ' + b[25] : x[0] != null ? fhgName(x[0]).join(' ') + ' ' + grLabel(x[1]) : '') + ' ' + (s[10] || '') + ' ' + (rd.nm || '') + ' ' + (rd.st || ''); }).join(' ') + ' ' + fhrDate(r.rec.t) + ' ' + (r.rec.name || ''),
   after: t => {
     fhxInsert('fhr', t, r => FHG.open.has('p:' + r.key), fhrDetail);
-    fhrCards();
-    const none = $('fhr-none'); if (none) none.textContent = t.view.length ? '' : (LIVE.data ? 'No purchases recorded yet: Record Purchases (on Purchases, in the plan pane, or the phone’s Buys tab) puts them here.' : 'Waiting for the live data.');
+    fhrCards(); fhaFocus();
+    const none = $('fhr-none'); if (none) none.textContent = t.view.length ? '' : !LIVE.data ? 'Waiting for the live data.' : FHA.arch.rec ? 'Nothing archived: Archive on a record’s row sets it aside here.' : 'No purchases recorded yet: Record Purchases (on Purchases, in the plan pane, or the phone’s Buys tab) puts them here.';
   }});
 /* ---- Pre-Sales Spotcheck (2026-11-05, Brett: "if i am going to buy them, i would be interested in seeing the history for
    those listings with the same model applied to those cards in history"; the window's name is his). "Add to Pre-Sales
@@ -542,8 +639,9 @@ function fhsRecs() {
   FHS.echo = FHS.echo.filter(e => !have.has(e.id) && Date.now() - e.t < 2 * 86400000); grSave('fcg-gspot-echo', FHS.echo);
   for (const e of FHS.echo) recs.push(e);
   if (FHS.gone.size && SCAN.spots) { for (const id of [...FHS.gone]) if (!SCAN.spots.some(r => r.id === id) && !SCAN.phone.has(id)) FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); }
-  return recs.filter(r => !FHS.gone.has(r.id)).sort((a, b) => b.t - a.t);
+  return fhaApply('gspot', recs.filter(r => !FHS.gone.has(r.id)), !!SCAN.spots).sort((a, b) => b.t - a.t);   // the archived ones too (rec.arch)
 }
+const fhsShown = () => fhsRecs().filter(r => !!r.arch === FHA.arch.sc);   // the list, or the Archive
 // a set at the shown hold: every slab looked back (fhLook, at the % under it was sent with); the set bought in each month -
 // one copy of every slab with a prediction that month - gives that month's Predicted (the basket's expected net and its 10% to
 // 90% range) and Actual; the row is the average month among those with a result. Every month counts, as in a look-back of
@@ -581,7 +679,7 @@ function fhsSet(rec, h) {
 }
 function fhsCards(rows) {
   const box = $('fhs-cards'); if (!box) return;
-  if (!rows.length) { box.innerHTML = ''; return; }
+  if (!rows.length || FHA.arch.sc) { box.innerHTML = ''; return; }
   const L = [];
   rows.forEach(r => r.S.res.forEach(m => L.push(m)));
   box.innerHTML = fhStats(L, {what: 'Set-months with a result', of: rows.length + ' set' + (rows.length > 1 ? 's' : '') + ', each bought whole in every month it had a price · the ' + fcgInputs().h + '-month hold', one: 'set-month', unit: 'set-months'});
@@ -589,7 +687,7 @@ function fhsCards(rows) {
 function fhsRowsData() {
   if (!FHG.doc) return [];
   const h = fcgInputs().h;
-  return fhsRecs().map((rec, o) => {
+  return fhsShown().map((rec, o) => {
     const r = [o], S = fhsSet(rec, h), A = S.avg;
     r.rec = rec; r.S = S; r.key = String(rec.id); r.t = rec.t; r.h = h; r.src = rec.src === 'rc' ? 'Recording' : rec.src === 'ph' ? 'the phone' : 'Forecasting'; r.nm = rec.name || '';
     r.pn = A ? A.pn : null; r.pr = A ? A.pr : null; r.lo = A ? A.lo : null; r.an = A ? A.an : null; r.ar = A ? A.ar : null;
@@ -598,11 +696,11 @@ function fhsRowsData() {
 }
 function fhsRow(r) {
   const rec = r.rec, S = r.S, A = S.avg, ph = rec.src === 'ph';
-  const sub = rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + (ph ? ' (' + (rec.slabs.length - S.nx) + ' in our data)' : '') + ' · ' + (S.loading ? 'loading the months…' : S.n + ' month' + (S.n === 1 ? '' : 's') + ' with a result');
-  return '<td><span class="fh-tw"></span>' + (rec.name ? '<b>' + esc(rec.name) + '</b> <span class="dim">' + fhrDate(rec.t) + '</span>' : '<b>' + fhrDate(rec.t) + '</b>') + ' <span class="dim">sent from ' + r.src + '</span>' +
+  const sub = rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + (ph ? ' (' + (rec.slabs.length - S.nx) + ' in our data)' : '') + ' · ' + (S.loading ? 'loading the months…' : S.n + ' month' + (S.n === 1 ? '' : 's') + ' with a result') + ' · sent from ' + r.src + fhaArchWord(rec);
+  return '<td class="fh-who"><span class="fh-tw"></span>' + fhaHead('gspot', rec) +
     (rec.smp ? '<span class="fhr-smp" title="Sent with sample slabs among them">sample</span>' : '') + (rec.local ? ' <span class="dim" title="Sent; the collector confirms it in a minute or two">sending…</span>' : '') +
     (ph && S.nx ? ' <button type="button" class="fhs-nx" data-id="' + esc(rec.id) + '" title="The slabs of this show that match nothing of ours - left out of its numbers; click for their links">' + S.nx + ' not in our data</button>' : '') +
-    '<br><span class="dim fh-sub">' + esc(sub) + '</span></td>' +
+    '<br><span class="dim fh-sub">' + esc(sub) + '</span>' + fhaBtns('gspot', rec) + '</td>' +
     fhCells(A ? {net: A.pn, roi: A.pr, lo: A.lo, hi: A.hi} : null, A ? {net: A.an, roi: A.ar, mark: S.ins + ' of ' + S.n + ' in range'} : {msg: S.loading ? '…' : 'no month with a result yet'}, fcMoney);
 }
 function fhsDetail(r) {                                   // a set opened: its slabs, each as its average month
@@ -620,7 +718,7 @@ function fhsDetail(r) {                                   // a set opened: its s
   return '<p class="dim fh-dnote">' + (rec.name ? esc(rec.name) + ' · ' : '') + rec.slabs.length + ' slab' + (rec.slabs.length > 1 ? 's' : '') + ' sent ' + fhrDate(rec.t) + ' from ' + r.src + ' · ' + fmtMoneyPlain(rec.ship || 0) + ' shipping, eBay’s fee ' + (Math.round((rec.fee || 0) * 1000) / 10) + '%' +
     ' · each slab bought in every month it had a price, at the % under it was sent with; each row is its average month. <b>Click a card to see it month by month.</b></p>' + fhCardTable(rows) +
     (nx.length ? '<p class="dim">' + nx.length + ' slab' + (nx.length > 1 ? 's' : '') + ' match nothing of ours and are left out of the numbers - the <b>not in our data</b> button on the row lists them with their links.</p>' : '') +
-    '<button type="button" class="fhr-del fhs-del" data-id="' + esc(rec.id) + '" title="Take this set off Pre-Sales Spotcheck">Remove this set</button>';
+    '<div class="fh-dacts">' + fhaBtns('gspot', rec, true) + '</div>';
 }
 tables.fhs = makeTable('fhs', {rows: fhsRowsData, noun: 'spotcheck sets', ranges: [], labels: {}, defaults: {}, root: '#fhg-sc', name: 'Forecast · graded pre-sales spotcheck', inserted: FHT_NEW,
   key: r => r.key, row: fhsRow, rowClass: () => 'fhr-row fhs-row',
@@ -628,28 +726,25 @@ tables.fhs = makeTable('fhs', {rows: fhsRowsData, noun: 'spotcheck sets', ranges
     return (b ? b[1] + ' ' + b[2] + ' ' + b[25] : x[0] != null ? fhgName(x[0]).join(' ') + ' ' + grLabel(x[1]) : '') + ' ' + (s[10] || '') + ' ' + (rd.nm || '') + ' ' + (rd.st || ''); }).join(' ') + ' ' + fhrDate(r.rec.t) + ' ' + (r.rec.name || ''),
   after: t => {
     fhxInsert('fhs', t, r => FHG.open.has('s:' + r.key), fhsDetail);
-    fhsCards(t.view);
+    fhsCards(t.view); fhaFocus();
     const none = $('fhs-none'); if (!none) return;
-    none.textContent = !FHG.doc ? (FHG.err || 'Loading the replay…') : t.view.length ? '' : (LIVE.data ? 'No sets yet: Record scans on the phone (Buys tab), or Add to Pre-Sales Spotcheck above the table on Forecasting or Recording, sends them here.' : 'Waiting for the live data.');
+    none.textContent = !FHG.doc ? (FHG.err || 'Loading the replay…') : t.view.length ? '' : !LIVE.data ? 'Waiting for the live data.' : FHA.arch.sc ? 'Nothing archived: Archive on a set’s row sets it aside here.' : 'No sets yet: Record scans on the phone (Buys tab), or Add to Pre-Sales Spotcheck above the table on Forecasting or Recording, sends them here.';
   }});
 fhxTidy('fhs');
 $('rows-fhs').addEventListener('click', e => {
   const nx = e.target.closest('.fhs-nx');
   if (nx) { fhsNxOpen(+nx.dataset.id); return; }
-  const del = e.target.closest('.fhs-del');
-  if (del) {
-    if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = 'Click again to remove it'; setTimeout(() => { if (del.isConnected) { del.classList.remove('arm'); del.textContent = 'Remove this set'; } }, 4000); return; }
-    const id = +del.dataset.id; FHS.gone.add(id); grSave('fcg-gspot-gone', [...FHS.gone]); SCAN.phone.delete(id);
-    FHS.echo = FHS.echo.filter(x => x.id !== id); grSave('fcg-gspot-echo', FHS.echo);
-    alSend({type: 'gspot_del', t: nextT(), id}).catch(() => { FHS.gone.delete(id); grSave('fcg-gspot-gone', [...FHS.gone]); favSay('The collector could not be told; the set stays.'); tables.fhs.apply(true); });
-    tables.fhs.apply(true); fhsCount(); return;
-  }
   if (e.target.closest('button, a, input') || e.target.closest('tr.fhx')) return;
   const tr = e.target.closest('tr'); if (!tr) return;
   const k = 's:' + tr.dataset.key; if (FHG.open.has(k)) FHG.open.delete(k); else FHG.open.add(k);
   tables.fhs.apply(true);
 });
-function fhsCount() { const a = $('nfhs'), b = $('nfhr'); if (a) a.textContent = String(fhsRecs().length); if (b) b.textContent = String(fhrRecs().length); }
+function fhsCount() {                                     // the windows' counts (not archived) and the Archive buttons' (archived)
+  const S = fhsRecs(), R = fhrRecs(), put = (id, n) => { const el = $(id); if (el) el.textContent = String(n); };
+  put('nfhs', S.filter(r => !r.arch).length); put('nfhr', R.filter(r => !r.arch).length);
+  put('nfhs-a', S.filter(r => r.arch).length); put('nfhr-a', R.filter(r => r.arch).length);
+  for (const [w, id] of [['rec', 'fhr'], ['sc', 'fhs']]) { const b = $(id + '-archb'), n = $(id + '-archnote'); if (b) b.classList.toggle('on', FHA.arch[w]); if (n) n.hidden = !FHA.arch[w]; }
+}
 // Add to Pre-Sales Spotcheck: the green rows of the page showing, in parts of 20 slabs (the channel carries about 4 KB)
 $('fcg-gmode').insertAdjacentHTML('beforeend', '<span class="fcg-spotw"><button type="button" class="gm2 fcg-spot" id="fcg-spot" title="Send the green rows to History › Pre-Sales Spotcheck: each slab looked back on with the model, month by month since 2022">Add to Pre-Sales Spotcheck</button><button class="help" data-h="fcg_spot">?</button></span>');
 async function fhsSend() {
@@ -689,14 +784,6 @@ $('rows-fhg').addEventListener('click', e => {
   tables.fhg.apply(true);
 });
 $('rows-fhr').addEventListener('click', e => {
-  const del = e.target.closest('.fhr-del');
-  if (del) {
-    if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = 'Click again to remove it'; setTimeout(() => { if (del.isConnected) { del.classList.remove('arm'); del.textContent = 'Remove this record'; } }, 4000); return; }
-    const id = +del.dataset.id; FCR.gone.add(id); grSave('fcg-gplan-gone', [...FCR.gone]);
-    FCR.echo = FCR.echo.filter(x => x.id !== id); grSave('fcg-gplan-echo', FCR.echo);
-    alSend({type: 'gplan_del', t: nextT(), id}).catch(() => { FCR.gone.delete(id); grSave('fcg-gplan-gone', [...FCR.gone]); favSay('The collector could not be told; the record stays.'); tables.fhr.apply(true); });
-    tables.fhr.apply(true); return;
-  }
   if (e.target.closest('button, a, input')) return;
   const tr = e.target.closest('tr'); if (!tr || tr.classList.contains('fhx') || tr.closest('tr.fhx')) return;
   const k = 'p:' + tr.dataset.key; if (FHG.open.has(k)) FHG.open.delete(k); else FHG.open.add(k);
@@ -784,7 +871,8 @@ Object.assign(HELP, {
     '## Keep in mind',
     '- One hold at a time: History’s Hold buttons are Your plan’s Hold for.',
     '- A record made before Nov 6 was planned on PriceCharting’s prices; its actuals are Card Ladder’s too.',
-    '- Kept by the collector, so every device shows them. Remove this record (in an opened record) takes one away.'].join('\n')}
+    '- Kept by the collector, so every device shows them, with the show name next to the date (the phone’s; **+ show name** gives one to a record made without, ✎ changes it).',
+    '- **Archive** on a record’s row sets it aside; the **Archive** button above the table lists those, each with **Restore** (back on the list) and **Delete forever**.'].join('\n')}
 });
 Object.assign(HELP, {
   fhs_spot: {t: 'Pre-Sales Spotcheck', md: 1, m: [
@@ -806,8 +894,9 @@ Object.assign(HELP, {
     '- One hold at a time: History’s Hold buttons are Your plan’s Hold for.',
     '- A month counts when the slab’s grade had 3+ sales in it and in the month after. A month in which its era had run further than any era had until then has no prediction (beyond history).',
     '- The months overlap (a 6-month hold bought in March and in April share four months), so they are not separate tests.',
-    '- The sets are kept by the collector: every device shows them. Remove this set (in an opened set) takes one away.'].join('\n'),
-    now: () => { const n = fhsRecs().length, d = FHG.doc; return n + ' set' + (n === 1 ? '' : 's') + (d && d.months ? ' · months ' + esc(d.months[0]) + ' to ' + esc(d.last || d.months[d.months.length - 1]) : '') + ''; }}
+    '- The sets are kept by the collector: every device shows them, with the show name next to the date (the phone’s; **+ show name** gives one to a set made without, ✎ changes it).',
+    '- **Archive** on a set’s row sets it aside; the **Archive** button above the table lists those, each with **Restore** (back on the list) and **Delete forever**.'].join('\n'),
+    now: () => { const n = fhsRecs().filter(r => !r.arch).length, d = FHG.doc; return n + ' set' + (n === 1 ? '' : 's') + (d && d.months ? ' · months ' + esc(d.months[0]) + ' to ' + esc(d.last || d.months[d.months.length - 1]) : '') + ''; }}
 });
 
 /* ---- the graded Forecast README (2026-11-05, Brett: "For the four buttons in the forecast tab, can we have a README button

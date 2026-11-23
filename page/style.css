@@ -855,3 +855,19 @@ input.fcr-px:focus, input.fcr-d:focus { border-color:var(--link); outline:none; 
 #fhc-pop .fc-stats { grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); }
 #fhg table.fhgt { min-width:860px; width:100%; }        /* seven columns now: no need for the wide tables' 1,240px */
 #fhg .fhx-in .fh-dnote, #fhg .fhx-in > p { white-space:normal; max-width:min(1000px, calc(100vw - 160px)); }
+/* History's Archive and show names (2026-11-23) */
+#fhg .fh-archb { margin-left:8px; font-size:12px; padding:4px 12px; }
+#fhg .fh-archnote { margin:6px 0 8px; padding:8px 12px; border:1px dashed var(--line); border-radius:8px; font-size:13px; }
+#fhg .fh-archback, #fhg .fh-act, #fhg .fh-nameed button { font:inherit; font-size:12px; padding:2px 9px; margin-left:6px; border-radius:6px; border:1px solid var(--line); background:none; color:var(--muted); cursor:pointer; font-weight:400; }
+#fhg .fh-archback:hover, #fhg .fh-act:hover, #fhg .fh-nameed button:hover { color:var(--fg); border-color:var(--muted); }
+#fhg .fh-act.fh-del.arm { border-color:var(--down); color:var(--down); }
+#fhg .fh-dacts { margin-top:6px; }
+#fhg .fh-dacts .fh-act { margin-left:0; margin-right:6px; }
+#fhg .fh-name { font:inherit; font-size:12px; padding:0 4px; margin-left:3px; border:0; background:none; color:var(--muted); cursor:pointer; font-weight:400; }
+#fhg .fh-name:hover { color:var(--link); }
+#fhg .fh-name.fh-name0 { margin-left:0; padding:0 7px; border:1px dashed var(--line); border-radius:6px; }
+#fhg .fh-nameed { white-space:nowrap; }
+#fhg .fh-nameed input { font:inherit; font-size:13px; padding:2px 6px; width:170px; border:1px solid var(--link); border-radius:6px; background:var(--bg); color:var(--fg); }
+#fhg .fh-nameed button { margin-left:4px; color:var(--fg); }
+#fhg td.fh-who { white-space:normal; min-width:300px; }      /* the date, the show name and the buttons wrap rather than widen the table */
+#fhg td.fh-who .fh-act, #fhg td.fh-who .fh-nameed { white-space:nowrap; }

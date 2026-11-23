@@ -4137,6 +4137,19 @@ and the site password once), and the old screen's two other jobs kept as small b
   The phone's Sync from website carries it (PLAN_KEYS minSales; ssc-v23). On the first build: 5 hides 16,802 of 25,195
   Forecasting rows; in the replay (3 months, $1,000) the plans' predicted vs actual mean ROI read +41.6 / +33.9% at 0,
   +39.4 / +34.2% at 5, +30.2 / +29.7% at 10, +27.5 / +26.8% at 20 - the busier the lines, the closer the prediction.
+- **HISTORY'S ARCHIVE AND SHOW NAMES (2026-11-23, late).** Brett: "May you provide me the option to remove saved files or
+  saved reports. And then if I remove it, maybe it can go into a folder, like an archive button ... and have the option
+  to restore it"; "on the website next to the date, I also want the it to show the show name". Recorded Purchases and
+  Pre-Sales Spotcheck: each row's first line is the date, then the show name (the phone's name for the record / set; a
+  record made on the website has none: "+ show name" gives one, ✎ changes it, Enter saves, Escape cancels); each row has
+  an Archive button (and "Archive this record / set" when opened), and the Archive chip beside the search (count of
+  archived) lists the archived ones with Restore and Delete forever (two clicks; the old Remove - the collector's
+  '_del'). The collector keeps both on the record: {type 'gplan_arch' | 'gspot_arch', t, id, on: 1 | 0} sets rec.arch (the
+  time) or clears it, {type 'gplan_name' | 'gspot_name', t, id, name} sets rec.name (gplan_record; published as before in
+  live.gplans / spots.bin, kind_t moved). The page (graded_fh.js FHA, localStorage 'fh-over') shows its own change at once
+  and keeps it until the collector's copy agrees, asking again every 5 minutes while it does not (a lost message, or a
+  collector still on older code) and dropping it after 3 days. The windows' counts leave the archived out; the boxes
+  above the table are hidden in the Archive. Nothing on the phone changed.
 
 ## Testing before pushing
 - `collector.py --dry-run --once` (with COLLECTOR_HOME pointing at a scratch folder) runs one loop cycle on the
