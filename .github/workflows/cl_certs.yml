@@ -35,7 +35,7 @@ jobs:
       - name: Check out the card data (the private repo card-data)
         uses: actions/checkout@v4
         with:
-          repository: BrettS600/card-data
+          repository: driftcodedev/card-data
           token: ${{ secrets.DATA_REPO_TOKEN }}
           path: card-data
           sparse-checkout: |
