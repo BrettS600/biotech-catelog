@@ -3549,6 +3549,16 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
   `ideviceinstaller -u 00008160-000E38322150000A install ~/scan-test/SlabScanner-Sarthak.ipa` -> InstallComplete; then
   Developer Mode on, Trust the developer, open. Test files reach the Mac by AirDrop as before (no Xcode needed). To renew:
   build Any iOS Device again (fresh 7-day profile), re-zip, the same command.
+- THE THREE BUILDS ON SARTHAK'S PHONE (2026-11-23; Brett: "we are going to a vendor show in different light conditions,
+  different depths, and different angles, and different motions. i plan on doing 3 builds in total ... an exp test with
+  bar code scanners that we printed at staples, show the results, and do it 3 times in summary"). n4's six tests were
+  never run (no n4 zips). TestPlan b1 = build 1: ONE FIXED ROUND, the same in b1 / b2 / b3 so the results line up - 9
+  tests of 20 s, Staples sheet 1 upright like a showcase, the zoom lens ("3x" = the phone's telephoto, longer on the 18
+  Pro Max), lamp off: (1) bright 2 ft straight on still, (2) bright 2 ft 45 still, (3) bright 3 ft 45 still, (4) bright
+  3 ft 45 slow sweep (his real use), (5) bright 2-3 ft 45 natural-speed sweep, (6) ceiling light only 3 ft 45 slow
+  sweep, (7) dim (one lamp across the room) 2 ft 45 slow sweep, (8) glare (glass or a clear sleeve, a light reflecting)
+  3 ft 45 slow sweep, (9) bright 4 ft 45 still. Files slab-native-b1-tNN-*.zip. After each round a results page (the 9
+  tests beside the earlier builds); build 2 tunes on b1 (focus / shutter for the longer lens, glare, sweeps).
 - FOR A BORROWED PHONE (2026-11-23; Brett will run the tests on a friend's iPhone 18 Pro Max, whose owner asked about his
   storage and his iCloud): Documents/tests (Engine.testsFolder) is marked isExcludedFromBackup - nothing of the tests goes
   into the owner's iCloud or computer backup - and the test screen shows "On this phone: N test files, X MB" with a

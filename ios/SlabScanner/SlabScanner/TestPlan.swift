@@ -40,21 +40,26 @@ struct TestStep {
 }
 
 enum TestPlan {
-    static let version = "n4"
+    static let version = "b1"
     // the shutter sweep: 3 seconds at each of these (0 = the camera's own choice), 1/x of a second
     static let sweep: [Int] = [0, 60, 125, 250, 500, 1000, 2000]
     static let sweepSeconds = 3.0
 
-    // n4: BRETT'S REAL USE ONLY (2026-11-11: "2 to 3 feet away at a 45 degree angle in well lit conditions ... move the
-    // camera back and forth, like slightly"; a showcase the height of a nightstand, glare likely) - and short: n2's and
-    // n3's rounds of 15 and 16 tests "take forever". Close range, 2 feet square on, the dim room with the lamp and
-    // moving at close range are settled (n3: 50, 50, 48-50, 50 of 50).
+    // b1 = BUILD 1 of 3 on Sarthak's iPhone 18 Pro Max (2026-11-23). Brett: "we are going to a vendor show in different
+    // light conditions, different depths, and different angles, and different motions. i plan on doing 3 builds in
+    // total ... an exp test with bar code scanners that we printed at staples, show the results, and do it 3 times".
+    // ONE FIXED ROUND, the same in all three builds so the results line up: 9 tests of 20 seconds, one Staples sheet
+    // (sheet 1) standing upright like a showcase, the zoom lens (the "3x" button picks the phone's telephoto, which on
+    // the 18 Pro Max is a longer lens than the 13's 3x), the lamp off (he will not use a light at a show).
     static let steps: [TestStep] = [
-        TestStep(what: "Brightest room you have. About 2 feet away at 45 degrees, 3x, hold still", lens: .tele),
-        TestStep(what: "The same from about 3 feet at 45 degrees, 3x, hold still", lens: .tele),
-        TestStep(what: "2 to 3 feet at 45 degrees, 3x: move slightly back and forth, as you would at a show - slow down when the yellow note says too fast (20 seconds)", lens: .tele, seconds: 20),
-        TestStep(what: "The same with glare on the sheet: 2 to 3 feet, 45 degrees, 3x, moving slightly (20 seconds)", lens: .tele, seconds: 20),
-        TestStep(what: "Real slabs if you have some (flat on a table, under glass if you can): 2 to 3 feet, 45 degrees, 3x, moving slightly (20 seconds)", lens: .tele, seconds: 20),
-        TestStep(what: "Your choice (30 seconds at most)", lens: .tele, seconds: 30)
+        TestStep(what: "Bright room. Sheet 1 upright. 2 feet away, straight on, zoom lens. Hold still (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Bright room. 2 feet away at a 45 degree angle, zoom lens. Hold still (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Bright room. 3 feet away at 45 degrees, zoom lens. Hold still (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Bright room. 3 feet at 45 degrees, zoom lens. Sweep slowly back and forth across the sheet, as along a showcase (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Bright room. 2 to 3 feet at 45 degrees, zoom lens. Sweep back and forth at your natural speed (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Normal room light (ceiling light only). 3 feet at 45 degrees, zoom lens. Sweep slowly (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Dim: one lamp across the room. 2 feet at 45 degrees, zoom lens. Sweep slowly (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Glare: the sheet behind glass or a clear sleeve, a light reflecting on it. 3 feet at 45 degrees, zoom lens. Sweep slowly (20 seconds)", lens: .tele, seconds: 20),
+        TestStep(what: "Bright room. 4 feet away at 45 degrees, zoom lens. Hold still (20 seconds)", lens: .tele, seconds: 20)
     ]
 }
