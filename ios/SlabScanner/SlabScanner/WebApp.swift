@@ -84,7 +84,12 @@ final class WebApp: NSObject, ObservableObject, WKScriptMessageHandler, WKNaviga
         switch cmd {
         case "scanStart":
             title = (d["title"] as? String) ?? ""
-            scanLens = (d["lens"] as? String) == "tele" ? .tele : .wide
+            // the page knows two lenses, main and tele; the main camera's 2x (v1) is this phone's own choice, kept here
+            if (d["lens"] as? String) == "tele" {
+                scanLens = .tele
+            } else {
+                scanLens = UserDefaults.standard.bool(forKey: "ssc-main-2x") ? .wide2 : .wide
+            }
             feed = []
             feedN = 0
             dup = ""
@@ -134,7 +139,8 @@ final class WebApp: NSObject, ObservableObject, WKScriptMessageHandler, WKNaviga
         scanLens = l
         engine.lens = l
         engine.apply()
-        call("window.sscNativeIn && sscNativeIn.lens(" + js(l == .tele ? "tele" : "main") + ")")
+        if !l.isTele { UserDefaults.standard.set(l == .wide2, forKey: "ssc-main-2x") }
+        call("window.sscNativeIn && sscNativeIn.lens(" + js(l.isTele ? "tele" : "main") + ")")
     }
 
     func setLight(_ m: LightMode) {

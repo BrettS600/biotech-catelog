@@ -3549,16 +3549,41 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
   `ideviceinstaller -u 00008160-000E38322150000A install ~/scan-test/SlabScanner-Sarthak.ipa` -> InstallComplete; then
   Developer Mode on, Trust the developer, open. Test files reach the Mac by AirDrop as before (no Xcode needed). To renew:
   build Any iOS Device again (fresh 7-day profile), re-zip, the same command.
-- THE THREE BUILDS ON SARTHAK'S PHONE (2026-11-23; Brett: "we are going to a vendor show in different light conditions,
+- THE THREE ROUNDS ON SARTHAK'S PHONE (2026-11-23; Brett: "we are going to a vendor show in different light conditions,
   different depths, and different angles, and different motions. i plan on doing 3 builds in total ... an exp test with
-  bar code scanners that we printed at staples, show the results, and do it 3 times in summary"). n4's six tests were
-  never run (no n4 zips). TestPlan b1 = build 1: ONE FIXED ROUND, the same in b1 / b2 / b3 so the results line up - 9
-  tests of 20 s, Staples sheet 1 upright like a showcase, the zoom lens ("3x" = the phone's telephoto, longer on the 18
-  Pro Max), lamp off: (1) bright 2 ft straight on still, (2) bright 2 ft 45 still, (3) bright 3 ft 45 still, (4) bright
-  3 ft 45 slow sweep (his real use), (5) bright 2-3 ft 45 natural-speed sweep, (6) ceiling light only 3 ft 45 slow
-  sweep, (7) dim (one lamp across the room) 2 ft 45 slow sweep, (8) glare (glass or a clear sleeve, a light reflecting)
-  3 ft 45 slow sweep, (9) bright 4 ft 45 still. Files slab-native-b1-tNN-*.zip. After each round a results page (the 9
-  tests beside the earlier builds); build 2 tunes on b1 (focus / shutter for the longer lens, glare, sweeps).
+  bar code scanners that we printed at staples, show the results, and do it 3 times in summary"; then, of the first plan
+  b1 - nine tests that all had the same switches: "they're not automatically changed when I switch from test to test ...
+  if you may have any better ideas to design the experiment. This has to be executed flawlessly"). n4's six tests and
+  b1's nine were never run; ONE 10-second b1 file came (slab-native-b1-t01-20261123-222806.zip, uploaded to the chat),
+  and its camera.json is THE 18 PRO MAX'S CAMERAS (iPhone19,3, iOS 27.2.1):
+    main "Back Camera": focuses from 0.2 m, f/1.48 (variable on this phone - not settable from the iOS 18.5 SDK; the
+      report logs it at a test's start and end), 4032x3024 at 30 = 70.7 degrees (2,840 dots of focal length; 5,680 with
+      the 2x taken from the middle of the 48 MP sensor), photographs 8064x6048;
+    TELEPHOTO: FOCUSES FROM 1.16 m (3.8 ft) ONLY, 18.9 degrees (12,100 dots; 24,200 with its 2x), photographs 48 MP;
+    the largest video picture of any camera is 4224x3024 - no video above 12 MP.
+  A PSA code's thin bar (0.173 mm): main 2x 1.5 dots at 2 ft, 1.3 at 2.5 ft, 1.0 at 3.3 ft; telephoto 1.7 at 4 ft, 1.4
+  at 5 ft (double with its 2x). A read needs 1.2-1.5: BETWEEN ABOUT 2.7 AND 3.8 FT THIS PHONE HAS NO CAMERA THAT READS A
+  SLAB (the main too coarse, the telephoto out of focus - 2 inches inside its closest focus the blur is already 3
+  dots). The 1x at 13 in read 47 of 50 in 10 s there (1.46 dots a bar), Apple's reader 169 frames, ours 242 of 308.
+  Blur by movement, in bars, does not depend on the lens: speed along the case x shutter / bar width (2 in a second at
+  1/250 = 1.2 bars).
+  v1 = ROUND 1 (TestPlan.swift; files slab-native-v1-tNN): every test sets every switch (lens, 12MP, Smart shutter, Auto
+  focus, lamp off, video kept, no reading outside the test - loadPlan), shown as "Set for you: ..."; the switches are
+  folded away. Lens has four values: 1x, 2x (wide2: the main camera, videoZoomFactor = the format's
+  secondaryNativeResolutionZoomFactors), Zoom (the telephoto), Zoom 2x (tele2). THE SET-UP, the same for all three
+  rounds: sheets 1-4 flat on a table in a row, near edges 6 in from the table's edge; floor lines - 1 at the table, 2 one
+  foot back, 3 44 in back, 4 56 in back; phone at chest height (about 2 ft at 75 degrees, 2.5 ft at 55, 4.4 ft at 27,
+  5.4 ft at 22; the files say what it was - the codes' size, gravity in motion.json). A PASS: the screen shows four
+  boxes, the sheet to aim at green (slow: 16 s from sheet 1 to 4 = 2 in a second; quicker: 8 s). A count of three before
+  a test records. 21 tests: A (every light on) - pilot 1 main-2x still line 1, 2 telephoto still line 3; 3-6 main 2x
+  (slow there and back, quicker, phone at belt height, line 2); 7-8 telephoto line 3 (slow there and back, quicker);
+  9-11 telephoto 2x (still and slow at line 3, slow at line 4); B (main light only) - 12 main 2x and 13 telephoto slow,
+  14 and 15 their shutter sweeps (a lossless frame for every step); C (dim) - 16, 17 slow; GLARE (glass or sleeve over
+  sheets 2-3, a light reflecting) - 18, 19 slow; PHOTOS last - 20 main 1x and 21 telephoto, two 48 MP photographs each
+  by themselves (snapQ reads one at a time; the JPEG is written at once). Lossless frames are spread over the whole
+  test. The phone keeps 80 files (it was ten) and "Send all N test files" hands them over in one AirDrop.
+  THE REAL SCANNER (ScannerView) has 1x / 2x / Zoom now (the 2x choice kept in UserDefaults "ssc-main-2x"; the page
+  still knows main / tele).
 - FOR A BORROWED PHONE (2026-11-23; Brett will run the tests on a friend's iPhone 18 Pro Max, whose owner asked about his
   storage and his iCloud): Documents/tests (Engine.testsFolder) is marked isExcludedFromBackup - nothing of the tests goes
   into the owner's iCloud or computer backup - and the test screen shows "On this phone: N test files, X MB" with a

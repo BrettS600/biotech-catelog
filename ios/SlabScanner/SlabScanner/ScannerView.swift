@@ -70,10 +70,11 @@ struct ScannerView: View {
             HStack(spacing: 10) {
                 Picker("Lens", selection: Binding(get: { app.scanLens }, set: { app.setLens($0) })) {
                     Text("1x").tag(Lens.wide)
-                    Text("3x").tag(Lens.tele)
+                    Text("2x").tag(Lens.wide2)
+                    Text("Zoom").tag(Lens.tele)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 120)
+                .frame(width: 170)
                 Picker("Light", selection: Binding(get: { engine.scanLight }, set: { app.setLight($0) })) {
                     Text("Light auto").tag(LightMode.auto)
                     Text("On").tag(LightMode.on)

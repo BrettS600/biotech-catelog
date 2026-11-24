@@ -78,6 +78,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     @Published var hint = ""
     @Published var testsCount = 0           // the test files on the phone (Documents/tests) and their size
     @Published var testsBytes: Int64 = 0
+    @Published var testZips: [URL] = []     // ...the finished ones, oldest first (Send all test files)
+    @Published var lensNote = ""            // the camera in use: its name, how near it focuses, its 2x
 
     // the switches
     @Published var lens: Lens = .wide
@@ -99,6 +101,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     let depthQ = DispatchQueue(label: "slab.depth")
     let readers = DispatchQueue(label: "slab.readers", qos: .userInitiated, attributes: .concurrent)
     let io = DispatchQueue(label: "slab.io", qos: .utility)
+    let snapQ = DispatchQueue(label: "slab.snaps", qos: .userInitiated)     // photographs are read one at a time (v1: 48 MP each)
     let videoOut = AVCaptureVideoDataOutput()
     let depthOut = AVCaptureDepthDataOutput()
     let photoOut = AVCapturePhotoOutput()
@@ -358,6 +361,11 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         focus = p.focus
         depthOn = p.depth
         light = p.light
+        videoOn = true              // v1: every switch is the plan's - the video is kept, nothing is read outside the test
+        if live {
+            live = false
+            setLive(false)
+        }
     }
 
     func stepBy(_ d: Int) {
@@ -427,7 +435,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
     // MARK: - the camera (session thread)
 
-    func pickFormat(_ d: AVCaptureDevice, _ size: SizeMode, needDepth: Bool) -> AVCaptureDevice.Format? {
+    func pickFormat(_ d: AVCaptureDevice, _ size: SizeMode, needDepth: Bool, nativeZoom: Bool = false) -> AVCaptureDevice.Format? {
         let wantW: Int32 = size == .k4 ? 3840 : 4032
         let wantH: Int32 = size == .k4 ? 2160 : 3024
         let wantFps: Double = size == .k4 ? 60 : 30
@@ -444,6 +452,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             if dim.width == wantW && dim.height == wantH { score += 1000 }
             if maxFps >= wantFps { score += 100 }
             if !f.isVideoBinned { score += 10 }
+            if nativeZoom && !f.secondaryNativeResolutionZoomFactors.isEmpty { score += 5 }
             if score > bestScore {
                 bestScore = score
                 best = f
@@ -481,7 +490,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
         }
         if dev == nil {
-            let type: AVCaptureDevice.DeviceType = c.lens == .tele ? .builtInTelephotoCamera : .builtInWideAngleCamera
+            let type: AVCaptureDevice.DeviceType = c.lens.isTele ? .builtInTelephotoCamera : .builtInWideAngleCamera
             dev = AVCaptureDevice.default(type, for: .video, position: .back)
         }
         if dev == nil {
@@ -491,7 +500,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             fail("No back camera was found.")
             return
         }
-        guard let fmt = pickFormat(d, c.size, needDepth: lidar) else {
+        guard let fmt = pickFormat(d, c.size, needDepth: lidar, nativeZoom: c.lens.doubled) else {
             fail("The camera offers no picture format this app can use.")
             return
         }
@@ -512,9 +521,24 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
         var fps = 30.0
         var depthName = ""
+        // THE 2x (v1): the camera enlarged twice. A 48 MP camera takes that from the middle of its sensor at full
+        // detail (the format says so: secondaryNativeResolutionZoomFactors); a camera without it only enlarges.
+        var zoom: CGFloat = 1
+        var zoomNative = false
         do {
             try d.lockForConfiguration()
             d.activeFormat = fmt
+            if c.lens.doubled {
+                let natives = fmt.secondaryNativeResolutionZoomFactors
+                if let z = natives.first(where: { $0 > 1.9 && $0 < 2.1 }) ?? natives.first {
+                    zoom = z
+                    zoomNative = true
+                } else {
+                    zoom = 2
+                }
+            }
+            zoom = max(d.minAvailableVideoZoomFactor, min(zoom, d.maxAvailableVideoZoomFactor))
+            if d.videoZoomFactor != zoom { d.videoZoomFactor = zoom }
             var maxFps = 0.0
             for r in fmt.videoSupportedFrameRateRanges { maxFps = max(maxFps, r.maxFrameRate) }
             fps = min(c.size == .k4 ? 60.0 : 30.0, maxFps)
@@ -530,7 +554,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
             if d.isFocusModeSupported(.continuousAutoFocus) { d.focusMode = .continuousAutoFocus }
             if d.isSmoothAutoFocusSupported { d.isSmoothAutoFocusEnabled = false }
-            if c.lens == .tele && d.isAutoFocusRangeRestrictionSupported { d.autoFocusRangeRestriction = .near }   // slabs are near; n2's 3x lens did not find its focus
+            if c.lens.isTele && d.isAutoFocusRangeRestrictionSupported { d.autoFocusRangeRestriction = .near }   // slabs are near; n2's 3x lens did not find its focus
             if d.isExposureModeSupported(.continuousAutoExposure) { d.exposureMode = .continuousAutoExposure }
             if d.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { d.whiteBalanceMode = .continuousAutoWhiteBalance }
             d.automaticallyAdjustsVideoHDREnabled = false
@@ -568,7 +592,11 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         info["photoWidth"] = Int(best.width)
         info["photoHeight"] = Int(best.height)
         info["lensAperture"] = Int(d.lensAperture * 100)
-        info["focusRangeNear"] = c.lens == .tele && d.isAutoFocusRangeRestrictionSupported
+        info["focusRangeNear"] = c.lens.isTele && d.isAutoFocusRangeRestrictionSupported
+        info["lens"] = c.lens.rawValue
+        info["zoomX100"] = Int((zoom * 100).rounded())
+        info["zoomAtFullDetail"] = zoomNative
+        info["fullDetailZoomsX100"] = fmt.secondaryNativeResolutionZoomFactors.map { Int(($0 * 100).rounded()) }
         info["torch"] = d.hasTorch
         info["exposureBiasLowestX100"] = Int(d.minExposureTargetBias * 100)
         device = d
@@ -576,7 +604,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         configured = true
         usingLidar = lidar
         let half = Double(fmt.videoFieldOfView) * Double.pi / 360
-        let fpx = half > 0.01 ? Double(dim.width) / 2 / tan(half) : 3000
+        let fpx = (half > 0.01 ? Double(dim.width) / 2 / tan(half) : 3000) * Double(zoom)     // the 2x doubles the dots a degree
         info["focalLengthDots"] = Int(fpx.rounded())
         lock.lock()
         camInfo = info
@@ -587,10 +615,15 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         torchIsOn = false           // the lamp went out with the camera it belonged to
         resetHelpers = true
         lock.unlock()
+        var ln = d.localizedName
+        let near = d.minimumFocusDistance
+        if near > 0 { ln += String(format: " · focuses from %.1f ft", Double(near) / 304.8) }
+        if zoom > 1 { ln += zoomNative ? " · 2x at full detail" : " · 2x by enlarging only" }
         DispatchQueue.main.async {
+            self.lensNote = ln
             self.preview?.upright()
         }
-        event("camera", "\(d.localizedName) \(dim.width)x\(dim.height) at \(Int(fps.rounded()))" + (lidar ? " with the depth sensor" : ""))
+        event("camera", "\(d.localizedName) \(dim.width)x\(dim.height) at \(Int(fps.rounded()))" + (zoom > 1 ? " zoom \(Int((zoom * 100).rounded()))%" : "") + (lidar ? " with the depth sensor" : ""))
     }
 
     /// The slowest shutter the camera may choose, 1/den of a second (nil: its own choice).
@@ -760,7 +793,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         if let x = rec, !x.stopping, pts >= x.t0 { r = x }
         let mode = shutterMode
         let cap = capDen
-        let tele = lensNow == .tele
+        let tele = lensNow.isTele
         let depthMm = (pts - lastDepthAt) < 0.5 ? lastDepthMm : -1
         let lastSlab = lastSlabPts
         let codePx = (pts - lastCodePxAt) < 2.0 ? lastCodePx : 0
@@ -850,8 +883,13 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
         if let r = r {
             if r.wantVideo && !r.writerFailed { appendVideo(r, sampleBuffer, pw, ph) }
-            // a lossless frame every two seconds (six at most): exactly what the reader saw, for reading again later
-            if r.kept.count < 6 && tRel >= 0.5 && tRel - r.lastKeptT >= 2.0 {
+            // lossless frames, exactly what the reader saw, for reading again later: six, spread over the whole test
+            // (v1; before: the first twelve seconds) - in a shutter sweep one for every step, once its shutter has settled
+            let isSweep = r.plan.special == "sweep"
+            let keepMax = isSweep ? TestPlan.sweep.count : 6
+            let keepGap = isSweep ? TestPlan.sweepSeconds : max(2.0, r.plan.seconds / 6.0)
+            let keepFirst = isSweep ? TestPlan.sweepSeconds * 0.6 : 0.5
+            if r.kept.count < keepMax && tRel >= keepFirst && tRel - r.lastKeptT >= keepGap {
                 r.lastKeptT = tRel
                 if let (data, w, h) = copyLuma(pb) {
                     let k = r.kept.count + 1
@@ -1548,11 +1586,34 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             fail("The snap gave no picture.")
             return
         }
-        readers.async {
+        // v1: the photograph goes into the test's folder AT ONCE, with its times - a 48 MP picture can take longer to read
+        // than the test lasts, and the file must have it either way. What is read is added when it is known.
+        var slot = -1
+        var name = ""
+        if let r = r {
+            lock.lock()
+            slot = r.snaps.count
+            name = String(format: "snap-%02d.jpg", slot + 1)
+            var d: [String: Any] = [:]
+            d["file"] = name
+            d["askedMs"] = Int((asked - r.t0) * 1000)
+            d["gotMs"] = Int((got - r.t0) * 1000)
+            d["bytes"] = data.count
+            d["read"] = false
+            r.snaps.append(d)
+            lock.unlock()
+            let url = r.dir.appendingPathComponent(name)
+            io.async {
+                try? data.write(to: url)
+            }
+        }
+        let snapSlot = slot
+        snapQ.async {
             guard let src = CGImageSourceCreateWithData(data as CFData, nil), let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
                 self.fail("The snap could not be opened.")
                 return
             }
+            let t0 = CACurrentMediaTime()
             var texts: [String] = []
             var seen = Set<String>()
             var rowsOut: [[Any]] = []
@@ -1568,29 +1629,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                     if seen.insert(key).inserted && slabCert(kind: f.kind, text: f.text) { texts.append(f.text) }
                 }
             }
-            var n = 1
-            if let r = r {
+            let readMs = Int((CACurrentMediaTime() - t0) * 1000)
+            if let r = r, snapSlot >= 0 {
                 self.lock.lock()
-                n = r.snaps.count + 1
-                let name = String(format: "snap-%02d.jpg", n)
-                var d: [String: Any] = [:]
-                d["file"] = name
-                d["askedMs"] = Int((asked - r.t0) * 1000)
-                d["gotMs"] = Int((got - r.t0) * 1000)
-                d["width"] = img.width
-                d["height"] = img.height
-                d["bytes"] = data.count
-                d["slabCodes"] = texts.count
-                d["readingMs W, Q, N, S, T"] = times
-                d["found: kind, text, by, long side in dots, confidence x100, a slab cert"] = rowsOut
-                r.snaps.append(d)
-                self.lock.unlock()
-                let url = r.dir.appendingPathComponent(name)
-                self.io.async {
-                    try? data.write(to: url)
+                if snapSlot < r.snaps.count {
+                    r.snaps[snapSlot]["read"] = true
+                    r.snaps[snapSlot]["width"] = img.width
+                    r.snaps[snapSlot]["height"] = img.height
+                    r.snaps[snapSlot]["slabCodes"] = texts.count
+                    r.snaps[snapSlot]["readingMsInAll"] = readMs
+                    r.snaps[snapSlot]["readingMs W, Q, N, S, T"] = times
+                    r.snaps[snapSlot]["found: kind, text, by, long side in dots, confidence x100, a slab cert"] = rowsOut
                 }
+                self.lock.unlock()
             }
-            let line = "Snap \(n): \(texts.count) codes (\(img.width) x \(img.height), \(Int((got - asked) * 1000)) ms to take)"
+            let line = "Snap \(snapSlot + 1): \(texts.count) codes (\(img.width) x \(img.height), \(Int((got - asked) * 1000)) ms to take, \(readMs) ms to read)"
             DispatchQueue.main.async {
                 self.snapNote = line
             }
@@ -1627,6 +1680,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let t0 = r?.t0 ?? 0
         let isStopping = r?.stopping ?? false
         let limit = r?.plan.seconds ?? 0
+        let special = r?.plan.special ?? ""
+        let asked = r?.snapsAsked ?? 0
         let fs = fStateNow
         let glare = glareNow && reading
         let fast = tooFastNow && reading
@@ -1674,6 +1729,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         if hint != hi { hint = hi }
         if recording && r != nil && !isStopping {
             elapsed = now - t0
+            if special == "snaps" && asked < TestPlan.snapCount && elapsed >= TestPlan.snapFirst + TestPlan.snapEvery * Double(asked) { snap() }
             if elapsed >= limit { stop() }
         }
     }

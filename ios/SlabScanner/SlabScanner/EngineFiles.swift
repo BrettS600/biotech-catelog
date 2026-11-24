@@ -52,6 +52,10 @@ extension Engine {
         st["focusHelper"] = focus == .auto
         st["special"] = plan.special
         st["stopsAfterSeconds"] = Int(plan.seconds)
+        st["room"] = plan.room
+        st["floorLine"] = plan.line
+        st["passSeconds"] = Int(plan.pace)
+        st["lensApertureX100AtStart"] = Int(((device?.lensAperture ?? 0) * 100).rounded())     // the 18 Pro's main camera can change its aperture
         r.settings = st
         lock.lock()
         codes = [:]
@@ -90,6 +94,7 @@ extension Engine {
             return
         }
         r.events.append([Int((CACurrentMediaTime() - r.t0) * 1000), "stop", "\(r.delivered) frames"])
+        r.settings["lensApertureX100AtEnd"] = Int(((device?.lensAperture ?? 0) * 100).rounded())
         r.stopping = true
         reading = keepReading
         let seconds = CACurrentMediaTime() - r.t0
@@ -167,6 +172,7 @@ extension Engine {
         }
         testsCount = top.count
         testsBytes = bytes
+        testZips = top.filter { $0.pathExtension == "zip" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
     func deleteTests() {                    // main thread: every test file on the phone, for good
@@ -181,12 +187,15 @@ extension Engine {
         refreshTests()
     }
 
-    func prune(_ docs: URL) {       // the ten newest files stay on the phone
+    /// The newest files stay on the phone: a whole round and more (v1: 80; it was ten, and a round of nineteen tests
+    /// would have lost its first nine before they were sent). Delete all test files empties the folder.
+    func prune(_ docs: URL) {
+        let keep = 80
         let fm = FileManager.default
         guard let all = try? fm.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil) else { return }
         let zips = all.filter { $0.pathExtension == "zip" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
-        if zips.count > 10 {
-            for u in zips[10...] { try? fm.removeItem(at: u) }
+        if zips.count > keep {
+            for u in zips[keep...] { try? fm.removeItem(at: u) }
         }
     }
 
@@ -407,6 +416,9 @@ extension Engine {
         test["number"] = r.step + 1
         test["of"] = TestPlan.steps.count
         test["what"] = r.plan.what
+        test["room"] = r.plan.room
+        test["floorLine"] = r.plan.line
+        test["passSeconds"] = Int(r.plan.pace)
         rep["test"] = test
         rep["at"] = ISO8601DateFormatter().string(from: r.startedAt)
         rep["phone"] = machineName()
