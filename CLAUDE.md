@@ -3537,6 +3537,18 @@ HOW IT IS BUILT AND INSTALLED (no shell on the Mac itself: device_bash is a Linu
   place (sed; the team stays) and Xcode asked "Read From Disk / Keep Xcode Version" - Read From Disk. The source is
   ios/SlabScanner/AppIcon.svg (outside the synchronized folder, so not in the app); the web app's icon-180 / 192 /
   512.png are the same picture (sw.js ssc-v24; a home-screen web app keeps its old icon until it is added again).
+- A PHONE NEWER THAN XCODE (2026-11-23, Sarthak's iPhone 18 Pro Max on iOS 27.2.1; the Mac is on macOS Sequoia 15.5
+  with Xcode 16.4, iOS 18.5 SDK, about 15 GB free - Xcode 27 needs macOS Tahoe 26.6, so no update): Xcode lists the phone
+  as "(unsupported architecture)" and its Devices window fails to prepare it ("developer disk image could not be mounted ...
+  kAMDMobileImageMounterPersonalizedBundleMissingVariantError"); Run and Installed Apps "+" both refuse
+  (com.apple.dt.deviceprep). What worked: once the phone was paired (cable, Trust This Computer), Xcode's automatic
+  signing had already put it into the free team profile (ProvisionedDevices 2, made 01:38 UTC Nov 24, expires Dec 1);
+  Brett chose Product > Destination > Any iOS Device (arm64) and pressed Cmd-B (menus need tier "full", Xcode is "click");
+  the .app was zipped as Payload/SlabScanner.app into ~/scan-test/SlabScanner-Sarthak.ipa; Brett ran in Terminal
+  `brew install ideviceinstaller` (1.2.0, libimobiledevice) and
+  `ideviceinstaller -u 00008160-000E38322150000A install ~/scan-test/SlabScanner-Sarthak.ipa` -> InstallComplete; then
+  Developer Mode on, Trust the developer, open. Test files reach the Mac by AirDrop as before (no Xcode needed). To renew:
+  build Any iOS Device again (fresh 7-day profile), re-zip, the same command.
 - FOR A BORROWED PHONE (2026-11-23; Brett will run the tests on a friend's iPhone 18 Pro Max, whose owner asked about his
   storage and his iCloud): Documents/tests (Engine.testsFolder) is marked isExcludedFromBackup - nothing of the tests goes
   into the owner's iCloud or computer backup - and the test screen shows "On this phone: N test files, X MB" with a
